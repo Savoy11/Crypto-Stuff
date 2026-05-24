@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileBarChart, Download, Calendar, Filter, RefreshCw } from 'lucide-react'
 import { MOCK_ASSETS } from '@/lib/api/mock/mockAssets'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
@@ -88,6 +88,11 @@ function downloadCSV(content: string, filename: string) {
 export default function ReportsPage() {
   const [selectedType, setSelectedType] = useState<ReportType>('risk')
   const [generating, setGenerating] = useState(false)
+  const [reportDate, setReportDate] = useState<string | null>(null)
+
+  useEffect(() => {
+    setReportDate(formatDate(new Date().toISOString()))
+  }, [])
 
   const handleDownload = () => {
     setGenerating(true)
@@ -116,7 +121,7 @@ export default function ReportsPage() {
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Calendar className="h-4 w-4" />
-          As of {formatDate(new Date().toISOString())}
+          As of {reportDate ?? '—'}
         </div>
       </div>
 

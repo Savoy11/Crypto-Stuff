@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { useStreamStore } from '@/store/useStreamStore'
 import { useAlertStore } from '@/store/useAlertStore'
 import { clsx } from 'clsx'
@@ -8,6 +9,13 @@ import { formatDate } from '@/lib/utils/format'
 export function StatusBar() {
   const { connectionStatus } = useStreamStore()
   const { unreadCount, alerts } = useAlertStore()
+  const [time, setTime] = useState<string | null>(null)
+
+  useEffect(() => {
+    setTime(formatDate(new Date(), 'HH:mm:ss'))
+    const id = setInterval(() => setTime(formatDate(new Date(), 'HH:mm:ss')), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   const criticalCount = alerts.filter((a) => a.severity === 'critical' && !a.isRead).length
   const highCount = alerts.filter((a) => a.severity === 'high' && !a.isRead).length
@@ -33,7 +41,7 @@ export function StatusBar() {
         </span>
         <span className="text-border">|</span>
         <span>
-          Updated: <span className="text-text-secondary">{formatDate(new Date(), 'HH:mm:ss')}</span>
+          Updated: <span className="text-text-secondary">{time ?? '—'}</span>
         </span>
         <span className="text-border">|</span>
         <span className={statusColor}>
