@@ -5,7 +5,7 @@ services:
     build:
       context: ../../backend
       dockerfile: Dockerfile
-      target: development
+      target: runtime
     container_name: caep-backend
     ports:
       - "8000:8000"
@@ -43,7 +43,7 @@ services:
     build:
       context: ../../frontend
       dockerfile: Dockerfile
-      target: development
+      target: runner
     container_name: caep-frontend
     ports:
       - "3000:3000"
