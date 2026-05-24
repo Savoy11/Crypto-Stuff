@@ -71,7 +71,7 @@ export default function ReservesPage() {
   const verifiedCount = MOCK_RESERVES.filter(r => r.verified).length
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <Vault className="h-6 w-6 text-blue-400" />
         <div>
@@ -83,7 +83,7 @@ export default function ReservesPage() {
       </div>
 
       {/* Summary KPIs */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Monitored Reserves', value: formatCurrency(totalReserves), sub: `${MOCK_RESERVES.length} assets` },
           { label: 'Fully Collateralized', value: `${totalCollateralized}/${MOCK_RESERVES.length}`, sub: 'assets ≥ 100%' },
@@ -97,13 +97,14 @@ export default function ReservesPage() {
         ))}
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Reserve table */}
         <div className="flex-1 min-w-0 rounded-xl border border-slate-800 bg-slate-900/50">
           <div className="border-b border-slate-800 px-4 py-3">
             <h2 className="text-sm font-medium text-slate-300">Attestation Records</h2>
           </div>
-          <div className="divide-y divide-slate-800/60">
+          <div className="overflow-x-auto">
+          <div className="min-w-[560px] divide-y divide-slate-800/60">
             <div className="grid grid-cols-6 gap-4 px-4 py-2 text-xs font-medium text-slate-500 uppercase">
               <span className="col-span-2">Asset</span>
               <span>Reserves</span>
@@ -134,11 +135,12 @@ export default function ReservesPage() {
               </div>
             ))}
           </div>
+          </div>
         </div>
 
         {/* Reserve detail panel */}
         {selected && (
-          <div className="w-80 flex-shrink-0 flex flex-col gap-4">
+          <div className="w-full lg:w-80 flex-shrink-0 flex flex-col gap-4">
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-sm font-medium text-slate-200">{selected.symbol} Composition</h3>

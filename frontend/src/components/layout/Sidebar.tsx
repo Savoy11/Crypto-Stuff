@@ -14,6 +14,7 @@ import {
   Activity,
   LogOut,
   User,
+  X,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAlertStore } from '@/store/useAlertStore'
@@ -45,7 +46,14 @@ const STATUS_LABELS = {
   error: 'Error',
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Whether the mobile drawer is open (ignored on lg+ where the sidebar is always shown). */
+  open?: boolean
+  /** Called when the user dismisses the mobile drawer (close button, backdrop, or nav). */
+  onClose?: () => void
+}
+
+export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { unreadCount } = useAlertStore()
   const { connectionStatus } = useStreamStore()
@@ -53,8 +61,15 @@ export function Sidebar() {
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 w-sidebar flex flex-col bg-sidebar-gradient border-r border-border z-30"
+      className={clsx(
+        'fixed inset-y-0 left-0 w-sidebar flex flex-col bg-sidebar-gradient border-r border-border z-30',
+        'transition-transform duration-200 ease-out',
+        // Off-canvas by default on small screens; always visible from lg up
+        open ? 'translate-x-0' : '-translate-x-full',
+        'lg:translate-x-0'
+      )}
       aria-label="Main navigation"
+      aria-hidden={!open ? undefined : undefined}
     >
       {/* Logo */}
       <div className="flex items-center gap-3 px-4 py-4 border-b border-border">
@@ -65,6 +80,14 @@ export function Sidebar() {
           <div className="font-mono font-bold text-sm text-text-primary tracking-wider">{APP_NAME}</div>
           <div className="text-[10px] text-text-muted leading-tight">Institutional Analytics</div>
         </div>
+        {/* Close button — mobile drawer only */}
+        <button
+          onClick={onClose}
+          className="ml-auto p-1 rounded text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-colors lg:hidden"
+          aria-label="Close navigation menu"
+        >
+          <X size={18} aria-hidden />
+        </button>
       </div>
 
       {/* Navigation */}
@@ -76,6 +99,7 @@ export function Sidebar() {
               <li key={href}>
                 <Link
                   href={href}
+                  onClick={onClose}
                   className={clsx(
                     'flex items-center justify-between px-3 py-2 rounded text-sm transition-all',
                     isActive

@@ -108,8 +108,8 @@ export default function ReportsPage() {
   const highRiskCount = MOCK_RISK_SCORES.filter(r => ['high', 'critical'].includes(r.riskBand)).length
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <FileBarChart className="h-6 w-6 text-blue-400" />
           <div>
@@ -126,7 +126,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Report type selector */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {REPORT_TYPES.map(({ type, label, description }) => (
           <button
             key={type}
@@ -146,7 +146,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Executive summary */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Total Assets Under Analysis', value: formatCurrency(totalAUM), sub: `${MOCK_ASSETS.length} assets monitored` },
           { label: 'Portfolio Avg Risk Score', value: formatScore(avgScore), sub: 'composite weighted score' },

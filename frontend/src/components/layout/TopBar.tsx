@@ -1,21 +1,35 @@
 'use client'
 
-import { Bell, Settings, RefreshCw } from 'lucide-react'
+import { Bell, Settings, RefreshCw, Menu } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAlertStore } from '@/store/useAlertStore'
 import { SearchInput } from '@/components/ui/SearchInput'
 import { clsx } from 'clsx'
 
-export function TopBar() {
+interface TopBarProps {
+  /** Opens the mobile navigation drawer (hamburger button, shown below lg). */
+  onMenuClick?: () => void
+}
+
+export function TopBar({ onMenuClick }: TopBarProps) {
   const router = useRouter()
   const { unreadCount } = useAlertStore()
 
   return (
     <header
-      className="fixed top-0 right-0 left-sidebar h-topbar flex items-center justify-between px-6 bg-bg-secondary border-b border-border z-20"
+      className="fixed top-0 right-0 left-0 lg:left-sidebar h-topbar flex items-center justify-between gap-2 px-4 sm:px-6 bg-bg-secondary border-b border-border z-20"
       role="banner"
     >
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuClick}
+        className="p-2 -ml-1 rounded hover:bg-bg-elevated transition-colors text-text-secondary hover:text-text-primary lg:hidden"
+        aria-label="Open navigation menu"
+      >
+        <Menu size={18} aria-hidden />
+      </button>
+
       {/* Search */}
       <div className="flex-1 max-w-sm">
         <SearchInput

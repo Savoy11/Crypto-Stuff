@@ -21,7 +21,7 @@ export function AssetRegistryClient() {
   return (
     <div className="space-y-6 max-w-screen-2xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-lg font-bold text-text-primary">Asset Registry</h1>
           <p className="text-sm text-text-muted mt-0.5">
@@ -29,9 +29,9 @@ export function AssetRegistryClient() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <SearchInput
-            className="w-64"
+            className="flex-1 sm:w-64 sm:flex-none"
             placeholder="Search assets..."
             onSelect={(a) => window.location.assign(`/assets/${a.id}`)}
           />
@@ -65,7 +65,7 @@ export function AssetRegistryClient() {
       </div>
 
       {/* Content */}
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         {/* Filters sidebar */}
         <ErrorBoundary>
           <AssetFilters />
@@ -88,7 +88,7 @@ export function AssetRegistryClient() {
               <AssetTable assets={data?.data ?? []} loading={isLoading} total={data?.total} />
             </div>
           ) : (
-            <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               {isLoading
                 ? Array.from({ length: 9 }, (_, i) => (
                     <div key={i} className="h-40 rounded-card border border-border bg-bg-card animate-shimmer bg-shimmer-gradient bg-[length:200%_100%]" />

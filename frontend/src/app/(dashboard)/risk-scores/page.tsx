@@ -32,7 +32,7 @@ export default function RiskScoresPage() {
   }, {} as Record<RiskBand, number>)
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center gap-3">
         <Shield className="h-6 w-6 text-blue-400" />
         <div>
@@ -44,7 +44,7 @@ export default function RiskScoresPage() {
       </div>
 
       {/* Band summary */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {BAND_STATS.map(({ band, label, color, bg }) => (
           <div key={band} className={`rounded-lg border p-4 ${bg}`}>
             <p className="text-xs text-slate-400">{label}</p>
@@ -71,7 +71,8 @@ export default function RiskScoresPage() {
             Failed to load risk scores. Please try again.
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/60">
+          <div className="overflow-x-auto">
+          <div className="min-w-[640px] divide-y divide-slate-800/60">
             <div className="grid grid-cols-8 gap-4 px-4 py-2 text-xs font-medium text-slate-500 uppercase tracking-wider">
               <span className="col-span-1">#</span>
               <span className="col-span-2">Asset</span>
@@ -113,6 +114,7 @@ export default function RiskScoresPage() {
                 </div>
               ))
             )}
+          </div>
           </div>
         )}
       </div>

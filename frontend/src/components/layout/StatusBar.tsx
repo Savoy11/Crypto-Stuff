@@ -29,28 +29,28 @@ export function StatusBar() {
 
   return (
     <div
-      className="fixed bottom-0 right-0 left-sidebar h-statusbar flex items-center justify-between px-6 bg-bg-secondary border-t border-border z-20 text-[11px] font-mono text-text-muted"
+      className="fixed bottom-0 right-0 left-0 lg:left-sidebar h-statusbar flex items-center justify-between gap-4 px-4 sm:px-6 bg-bg-secondary border-t border-border z-20 text-[11px] font-mono text-text-muted"
       role="status"
       aria-label="System status"
     >
-      {/* Left */}
-      <div className="flex items-center gap-4">
-        <span>
+      {/* Left — secondary details drop out at smaller widths so items never overlap */}
+      <div className="flex items-center gap-4 whitespace-nowrap">
+        <span className="hidden lg:inline">
           Market Status:{' '}
           <span className="text-accent-green">OPEN</span>
         </span>
-        <span className="text-border">|</span>
-        <span>
+        <span className="hidden lg:inline text-border">|</span>
+        <span className="hidden md:inline">
           Updated: <span className="text-text-secondary">{time ?? '—'}</span>
         </span>
-        <span className="text-border">|</span>
+        <span className="hidden md:inline text-border">|</span>
         <span className={statusColor}>
           Stream: {connectionStatus.toUpperCase()}
         </span>
       </div>
 
-      {/* Right */}
-      <div className="flex items-center gap-4">
+      {/* Right — alert counts always visible; version label hidden on narrow screens */}
+      <div className="flex items-center gap-4 whitespace-nowrap shrink-0">
         {criticalCount > 0 && (
           <span className="text-red-400 animate-pulse">
             {criticalCount} CRITICAL
@@ -63,11 +63,11 @@ export function StatusBar() {
         )}
         {unreadCount > 0 && (
           <span>
-            {unreadCount} unread alerts
+            {unreadCount} <span className="hidden xs:inline">unread </span>alerts
           </span>
         )}
-        <span className="text-border">|</span>
-        <span>CAEP v1.0</span>
+        <span className="hidden lg:inline text-border">|</span>
+        <span className="hidden lg:inline">CAEP v1.0</span>
       </div>
     </div>
   )

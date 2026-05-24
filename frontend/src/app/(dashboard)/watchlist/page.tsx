@@ -26,7 +26,7 @@ export default function WatchlistPage() {
   )
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Star className="h-6 w-6 text-amber-400" />
@@ -57,7 +57,8 @@ export default function WatchlistPage() {
             No assets in this watchlist. Add assets below.
           </div>
         ) : (
-          <div className="divide-y divide-slate-800/60">
+          <div className="overflow-x-auto">
+          <div className="min-w-[640px] divide-y divide-slate-800/60">
             <div className="grid grid-cols-7 gap-4 px-4 py-2 text-xs font-medium text-slate-500 uppercase">
               <span className="col-span-2">Asset</span>
               <span>Score</span>
@@ -90,6 +91,7 @@ export default function WatchlistPage() {
                 </button>
               </div>
             ))}
+          </div>
           </div>
         )}
       </div>

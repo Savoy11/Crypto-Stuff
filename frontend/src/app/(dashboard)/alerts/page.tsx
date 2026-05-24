@@ -12,10 +12,10 @@ export default function AlertsPage() {
   const { markAllRead, unreadCount } = useAlertStore()
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="flex flex-col gap-6">
       {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Bell className="h-6 w-6 text-blue-400" />
           <div>
             <h1 className="text-xl font-semibold text-slate-100">Alert Center</h1>
@@ -50,9 +50,9 @@ export default function AlertsPage() {
         </div>
       </div>
 
-      <div className="flex gap-6">
+      <div className="flex flex-col lg:flex-row gap-6">
         {showFilters && (
-          <div className="w-64 flex-shrink-0">
+          <div className="w-full lg:w-64 flex-shrink-0">
             <AlertFilters />
           </div>
         )}
