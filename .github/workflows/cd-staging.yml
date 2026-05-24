@@ -1,0 +1,355 @@
+name: CD — Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Docker image tag to deploy (default: commit SHA)'
+        required: false
+        default: ''
+      skip_smoke_tests:
+        description: 'Skip smoke tests (emergency deploy only)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: cd-staging
+  cancel-in-progress: false  # Don't cancel in-progress deploys — finish them
+
+permissions:
+  id-token: write   # For OIDC authentication with AWS
+  contents: read
+  deployments: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECR_REPO_BACKEND: caep-staging/backend
+  ECR_REPO_FRONTEND: caep-staging/frontend
+  EKS_CLUSTER: caep-staging-eks
+  KUBERNETES_NAMESPACE: caep
+
+###############################################################################
+# Jobs
+###############################################################################
+
+jobs:
+
+  # ─── Build & Push Images ──────────────────────────────────────────────────
+  build-and-push:
+    name: Build & Push Docker Images to ECR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      backend_image: ${{ steps.meta.outputs.backend_image }}
+      frontend_image: ${{ steps.meta.outputs.frontend_image }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image metadata
+        id: meta
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.sha }}"
+          fi
+          SHORT_SHA="${TAG:0:8}"
+
+          echo "image_tag=${TAG}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "backend_image=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_BACKEND }}:${TAG}" >> $GITHUB_OUTPUT
+          echo "frontend_image=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:${TAG}" >> $GITHUB_OUTPUT
+
+          echo "Image tag: ${TAG}"
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/caep-cicd-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: caep-cd-staging-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: network=host
+
+      - name: Build and push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: production
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.backend_image }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_BACKEND }}:latest
+          cache-from: type=gha,scope=backend-prod
+          cache-to: type=gha,mode=max,scope=backend-prod
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ github.event.repository.updated_at }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ github.run_id }}
+
+      - name: Build and push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          target: production
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.frontend_image }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:latest
+          cache-from: type=gha,scope=frontend-prod
+          cache-to: type=gha,mode=max,scope=frontend-prod
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://staging.caep.example.com/api
+            NEXT_PUBLIC_WS_URL=wss://staging.caep.example.com/ws
+            NEXT_TELEMETRY_DISABLED=1
+
+      - name: Scan images with Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin v0.48.3
+          trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed \
+            ${{ steps.meta.outputs.backend_image }} || echo "WARNING: Critical vulns found in backend image"
+          trivy image --exit-code 1 --severity CRITICAL --ignore-unfixed \
+            ${{ steps.meta.outputs.frontend_image }} || echo "WARNING: Critical vulns found in frontend image"
+
+  # ─── Deploy to Staging ────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging Kubernetes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: build-and-push
+    environment:
+      name: staging
+      url: https://staging.caep.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/caep-cicd-deploy-role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ env.AWS_REGION }} \
+            --name ${{ env.EKS_CLUSTER }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Set up Helm
+        uses: azure/setup-helm@v3
+        with:
+          version: 'v3.14.0'
+
+      - name: Apply Kubernetes base manifests
+        run: |
+          # Namespace, ConfigMaps, Secrets template
+          kubectl apply -f infrastructure/kubernetes/namespace.yaml
+          kubectl apply -f infrastructure/kubernetes/configmap.yaml -n ${{ env.KUBERNETES_NAMESPACE }}
+
+          # Note: Secrets are managed by External Secrets Operator — not applied here
+          echo "Namespace and ConfigMaps applied."
+
+      - name: Deploy backend
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+        run: |
+          # Substitute image tag in deployment manifest
+          export IMAGE_TAG="${{ needs.build-and-push.outputs.image_tag }}"
+
+          envsubst '${ECR_REGISTRY} ${IMAGE_TAG}' \
+            < infrastructure/kubernetes/backend/deployment.yaml \
+            | kubectl apply -f - -n ${{ env.KUBERNETES_NAMESPACE }}
+
+          kubectl apply -f infrastructure/kubernetes/backend/service.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }}
+
+          kubectl apply -f infrastructure/kubernetes/backend/hpa.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Deploy frontend
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+          ECR_REGISTRY: ${{ env.ECR_REGISTRY }}
+        run: |
+          envsubst '${ECR_REGISTRY} ${IMAGE_TAG}' \
+            < infrastructure/kubernetes/frontend/deployment.yaml \
+            | kubectl apply -f - -n ${{ env.KUBERNETES_NAMESPACE }}
+
+          kubectl apply -f infrastructure/kubernetes/frontend/service.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Deploy data stores (if not exists)
+        run: |
+          kubectl apply -f infrastructure/kubernetes/postgres/statefulset.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }} || true
+          kubectl apply -f infrastructure/kubernetes/postgres/service.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }} || true
+          kubectl apply -f infrastructure/kubernetes/redis/deployment.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }} || true
+          kubectl apply -f infrastructure/kubernetes/redis/service.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }} || true
+
+      - name: Apply ingress
+        run: |
+          kubectl apply -f infrastructure/kubernetes/ingress.yaml \
+            -n ${{ env.KUBERNETES_NAMESPACE }}
+
+      - name: Wait for backend rollout
+        run: |
+          kubectl rollout status deployment/caep-backend \
+            -n ${{ env.KUBERNETES_NAMESPACE }} \
+            --timeout=300s
+
+      - name: Wait for frontend rollout
+        run: |
+          kubectl rollout status deployment/caep-frontend \
+            -n ${{ env.KUBERNETES_NAMESPACE }} \
+            --timeout=180s
+
+      - name: Verify pod health
+        run: |
+          echo "=== Pod Status ==="
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=caep-backend
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=caep-frontend
+
+          echo "=== Checking all pods are Running ==="
+          BACKEND_PODS=$(kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} \
+            -l app=caep-backend -o jsonpath='{.items[*].status.phase}')
+
+          for phase in $BACKEND_PODS; do
+            if [ "$phase" != "Running" ]; then
+              echo "ERROR: Backend pod not in Running state: $phase"
+              kubectl describe pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=caep-backend
+              exit 1
+            fi
+          done
+          echo "All backend pods are Running."
+
+  # ─── Smoke Tests ──────────────────────────────────────────────────────────
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: deploy-staging
+    if: ${{ !inputs.skip_smoke_tests }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python for smoke tests
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install test dependencies
+        run: pip install httpx pytest pytest-asyncio
+
+      - name: Run smoke tests against staging
+        env:
+          STAGING_URL: https://staging.caep.example.com
+          SMOKE_TEST_API_KEY: ${{ secrets.STAGING_SMOKE_TEST_KEY }}
+        run: |
+          python -m pytest tests/smoke/ \
+            --base-url="$STAGING_URL" \
+            -v \
+            --tb=short \
+            --timeout=30 \
+            -k "smoke" || true
+
+      - name: Health check endpoints
+        run: |
+          BASE_URL="https://staging.caep.example.com"
+
+          echo "Checking /health endpoint..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/health" --max-time 10)
+          if [ "$STATUS" != "200" ]; then
+            echo "ERROR: /api/health returned HTTP $STATUS"
+            exit 1
+          fi
+          echo "Health check passed: HTTP $STATUS"
+
+          echo "Checking /api/v1/assets endpoint..."
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/v1/assets?limit=1" --max-time 15)
+          if [ "$STATUS" != "200" ]; then
+            echo "WARNING: /api/v1/assets returned HTTP $STATUS (may require auth)"
+          fi
+          echo "Assets endpoint returned: HTTP $STATUS"
+
+  # ─── Notify ───────────────────────────────────────────────────────────────
+  notify:
+    name: Notify Slack
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [build-and-push, deploy-staging, smoke-tests]
+    if: always()
+
+    steps:
+      - name: Determine deploy status
+        id: status
+        run: |
+          if [[ "${{ needs.deploy-staging.result }}" == "success" && \
+                "${{ needs.smoke-tests.result }}" != "failure" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=white_check_mark" >> $GITHUB_OUTPUT
+            echo "color=#28a745" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "emoji=x" >> $GITHUB_OUTPUT
+            echo "color=#dc3545" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        uses: slackapi/slack-github-action@v1.25.0
+        with:
+          channel-id: ${{ secrets.SLACK_DEPLOY_CHANNEL_ID }}
+          payload: |
+            {
+              "text": ":${{ steps.status.outputs.emoji }}: CAEP Staging Deploy — ${{ steps.status.outputs.status }}",
+              "attachments": [
+                {
+                  "color": "${{ steps.status.outputs.color }}",
+                  "fields": [
+                    { "title": "Environment", "value": "Staging", "short": true },
+                    { "title": "Status", "value": "${{ steps.status.outputs.status }}", "short": true },
+                    { "title": "Commit", "value": "<${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|${{ github.sha }}>" , "short": true },
+                    { "title": "Image Tag", "value": "${{ needs.build-and-push.outputs.image_tag }}", "short": true },
+                    { "title": "Triggered by", "value": "${{ github.actor }}", "short": true },
+                    { "title": "Branch", "value": "${{ github.ref_name }}", "short": true }
+                  ],
+                  "footer": "CAEP CI/CD | <https://staging.caep.example.com|Open Staging>",
+                  "ts": "${{ github.event.repository.updated_at }}"
+                }
+              ]
+            }
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

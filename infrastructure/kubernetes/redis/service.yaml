@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: caep-redis
+  namespace: caep
+  labels:
+    app: caep-redis
+    component: cache
+    app.kubernetes.io/name: caep-redis
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: caep
+spec:
+  type: ClusterIP
+  selector:
+    app: caep-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+      protocol: TCP
+    - name: metrics
+      port: 9121
+      targetPort: metrics
+      protocol: TCP
+  sessionAffinity: None

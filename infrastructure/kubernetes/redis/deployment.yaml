@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caep-redis
+  namespace: caep
+  labels:
+    app: caep-redis
+    component: cache
+    app.kubernetes.io/name: caep-redis
+    app.kubernetes.io/component: cache
+    app.kubernetes.io/part-of: caep
+  annotations:
+    caep.io/description: "Redis 7 cache and message broker for CAEP"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: caep-redis
+  strategy:
+    type: Recreate  # Redis single-instance uses Recreate to avoid split-brain
+  template:
+    metadata:
+      labels:
+        app: caep-redis
+        component: cache
+      annotations:
+        prometheus.io/scrape: "false"  # Scraped via redis-exporter sidecar
+    spec:
+      serviceAccountName: default
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: redis
+              containerPort: 6379
+              protocol: TCP
+
+          command:
+            - redis-server
+            - --requirepass
+            - $(REDIS_PASSWORD)
+            - --appendonly
+            - "yes"
+            - --appendfsync
+            - everysec
+            - --maxmemory
+            - "1gb"
+            - --maxmemory-policy
+            - allkeys-lru
+            - --loglevel
+            - warning
+            - --save
+            - "900 1"
+            - --save
+            - "300 10"
+            - --save
+            - "60 10000"
+            - --protected-mode
+            - "yes"
+            - --tcp-backlog
+            - "511"
+            - --timeout
+            - "0"
+            - --tcp-keepalive
+            - "300"
+
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: caep-backend-secrets
+                  key: REDIS_PASSWORD
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1.5Gi"
+
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a $REDIS_PASSWORD ping | grep PONG
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - redis-cli -a $REDIS_PASSWORD ping | grep PONG
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            runAsNonRoot: true
+            runAsUser: 999
+            runAsGroup: 999
+            capabilities:
+              drop: [ALL]
+
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+
+        # Redis Exporter sidecar for Prometheus metrics
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.55.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: metrics
+              containerPort: 9121
+              protocol: TCP
+          env:
+            - name: REDIS_ADDR
+              value: "redis://localhost:6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: caep-backend-secrets
+                  key: REDIS_PASSWORD
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop: [ALL]
+
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: caep-redis-pvc
+
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: caep-redis-pvc
+  namespace: caep
+  labels:
+    app: caep-redis
+    component: cache
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: gp3-encrypted
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: caep-redis-pdb
+  namespace: caep
+spec:
+  maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: caep-redis

@@ -1,0 +1,194 @@
+###############################################################################
+# CAEP — Alertmanager Configuration
+# Routing: critical → PagerDuty + Slack, warnings → Slack only
+###############################################################################
+
+global:
+  # How long to wait before re-sending an alert that has already been sent
+  resolve_timeout: 5m
+
+  # SMTP for email alerts
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'caep-alerts@example.com'
+  smtp_auth_username: 'caep-alerts@example.com'
+  smtp_auth_password_file: /etc/alertmanager/secrets/smtp_password
+  smtp_require_tls: true
+
+  # Slack global config
+  slack_api_url_file: /etc/alertmanager/secrets/slack_webhook_url
+
+  # PagerDuty
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+###############################################################################
+# Notification templates
+###############################################################################
+
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+###############################################################################
+# Routing tree
+###############################################################################
+
+route:
+  # Fallback receiver for any alerts that don't match a route
+  receiver: 'slack-warnings'
+
+  # How long to wait before grouping new alerts with the same labels
+  group_wait: 30s
+
+  # How long to wait before sending notifications for a new group
+  group_interval: 5m
+
+  # How long to wait before re-sending an already-fired alert
+  repeat_interval: 4h
+
+  # Group alerts by these labels to reduce noise
+  group_by: ['alertname', 'cluster', 'service']
+
+  routes:
+    # ── Critical alerts → PagerDuty + Slack #critical ──────────────────────
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 10s
+      group_interval: 2m
+      repeat_interval: 1h
+      continue: false
+
+    # ── Warning alerts → Slack #warnings ───────────────────────────────────
+    - match:
+        severity: warning
+      receiver: 'slack-warnings'
+      group_wait: 60s
+      group_interval: 10m
+      repeat_interval: 6h
+      continue: false
+
+    # ── Business alerts → Product Slack channel ─────────────────────────────
+    - match:
+        team: product
+      receiver: 'slack-product'
+      group_wait: 30s
+      group_interval: 10m
+      repeat_interval: 12h
+      continue: false
+
+    # ── Watchdog / heartbeat alert (always fires when healthy) ──────────────
+    - match:
+        alertname: Watchdog
+      receiver: 'watchdog'
+      repeat_interval: 5m
+
+###############################################################################
+# Inhibition rules — suppress lower-severity alerts when higher-severity fires
+###############################################################################
+
+inhibit_rules:
+  # If the API is completely down (critical), suppress latency warnings
+  - source_match:
+      severity: 'critical'
+      alertname: 'APIDown'
+    target_match:
+      severity: 'warning'
+    equal: ['cluster', 'service']
+
+  # If database is down, suppress connection pool warnings
+  - source_match:
+      severity: 'critical'
+      alertname: 'DatabaseDown'
+    target_match:
+      severity: 'warning'
+      alertname: 'HighDatabaseConnections'
+    equal: ['cluster']
+
+  # If Redis is down, suppress memory usage warnings
+  - source_match:
+      severity: 'critical'
+      alertname: 'RedisDown'
+    target_match:
+      severity: 'warning'
+    equal: ['cluster', 'service']
+
+###############################################################################
+# Receivers
+###############################################################################
+
+receivers:
+
+  # ── Critical: PagerDuty + Slack #critical ─────────────────────────────────
+  - name: 'critical-alerts'
+    pagerduty_configs:
+      - routing_key_file: /etc/alertmanager/secrets/pagerduty_key
+        severity: '{{ if eq .CommonLabels.severity "critical" }}critical{{ else }}warning{{ end }}'
+        description: '{{ .CommonAnnotations.summary }}'
+        details:
+          cluster:     '{{ .CommonLabels.cluster }}'
+          environment: '{{ .CommonLabels.environment }}'
+          service:     '{{ .CommonLabels.service }}'
+          runbook:     '{{ .CommonAnnotations.runbook }}'
+        links:
+          - href: '{{ .CommonAnnotations.runbook }}'
+            text: 'Runbook'
+          - href: 'https://grafana.caep.example.com/d/caep-overview'
+            text: 'Grafana Dashboard'
+        client: 'CAEP Alertmanager'
+        client_url: 'https://alertmanager.caep.example.com'
+
+    slack_configs:
+      - channel: '#caep-critical'
+        username: 'CAEP Alertmanager'
+        icon_emoji: ':rotating_light:'
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        send_resolved: true
+        title: '{{ if eq .Status "firing" }}FIRING{{ else }}RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
+        title_link: 'https://alertmanager.caep.example.com/#/alerts'
+        text: |
+          *Severity:* {{ .CommonLabels.severity | toUpper }}
+          *Environment:* {{ .CommonLabels.environment }}
+          *Cluster:* {{ .CommonLabels.cluster }}
+          *Description:* {{ .CommonAnnotations.description }}
+          {{ if .CommonAnnotations.runbook }}*Runbook:* <{{ .CommonAnnotations.runbook }}|Click here>{{ end }}
+        actions:
+          - type: button
+            text: 'Grafana Dashboard'
+            url: 'https://grafana.caep.example.com/d/caep-overview'
+          - type: button
+            text: 'Silence Alert'
+            url: '{{ template "__alertmanager_silence_link" . }}'
+
+  # ── Warnings: Slack #caep-warnings ────────────────────────────────────────
+  - name: 'slack-warnings'
+    slack_configs:
+      - channel: '#caep-warnings'
+        username: 'CAEP Alertmanager'
+        icon_emoji: ':warning:'
+        color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
+        send_resolved: true
+        title: '{{ if eq .Status "firing" }}WARNING{{ else }}RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
+        title_link: 'https://alertmanager.caep.example.com/#/alerts'
+        text: |
+          *Severity:* {{ .CommonLabels.severity }}
+          *Service:* {{ .CommonLabels.service }}
+          *Description:* {{ .CommonAnnotations.description }}
+        actions:
+          - type: button
+            text: 'View in Grafana'
+            url: 'https://grafana.caep.example.com'
+
+  # ── Product team: Slack #caep-product ─────────────────────────────────────
+  - name: 'slack-product'
+    slack_configs:
+      - channel: '#caep-product'
+        username: 'CAEP Product Monitor'
+        icon_emoji: ':chart_with_downwards_trend:'
+        send_resolved: true
+        title: '{{ .CommonAnnotations.summary }}'
+        text: '{{ .CommonAnnotations.description }}'
+
+  # ── Watchdog (dead man's switch) ──────────────────────────────────────────
+  - name: 'watchdog'
+    webhook_configs:
+      - url: 'https://healthchecks.example.com/ping/caep-watchdog'
+        send_resolved: false

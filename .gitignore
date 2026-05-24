@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+**/*.tsbuildinfo
+
+# Backup files
+*.bak
+*.bak.*
+
+# Environment files (keep .env.example, ignore secrets)
+.env
+.env.local
+.env.*.local
+frontend/.env.local
+backend/.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Docker
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

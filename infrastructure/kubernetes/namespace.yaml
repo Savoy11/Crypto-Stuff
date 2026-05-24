@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: caep
+  labels:
+    name: caep
+    environment: production
+    app.kubernetes.io/managed-by: kubectl
+  annotations:
+    description: "Crypto Asset Evaluation Platform namespace"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: caep-resource-quota
+  namespace: caep
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: "40Gi"
+    limits.cpu: "40"
+    limits.memory: "80Gi"
+    pods: "100"
+    services: "20"
+    persistentvolumeclaims: "10"
+    secrets: "50"
+    configmaps: "30"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: caep-limit-range
+  namespace: caep
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "500m"
+        memory: "512Mi"
+      defaultRequest:
+        cpu: "100m"
+        memory: "128Mi"
+      max:
+        cpu: "4"
+        memory: "8Gi"
+      min:
+        cpu: "50m"
+        memory: "64Mi"
+    - type: Pod
+      max:
+        cpu: "8"
+        memory: "16Gi"
+    - type: PersistentVolumeClaim
+      max:
+        storage: "100Gi"
+      min:
+        storage: "1Gi"

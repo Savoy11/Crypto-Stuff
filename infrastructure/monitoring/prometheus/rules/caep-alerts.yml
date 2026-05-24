@@ -1,0 +1,278 @@
+###############################################################################
+# CAEP — Prometheus Alert Rules
+###############################################################################
+
+groups:
+
+  # ─── API Health ────────────────────────────────────────────────────────────
+  - name: caep.api
+    interval: 15s
+    rules:
+
+      - alert: HighAPIErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="caep-backend", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="caep-backend"}[5m]))
+          ) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+          runbook: https://caep.example.com/runbooks/api-outage
+        annotations:
+          summary: "API error rate is above 5%"
+          description: >
+            The CAEP backend API error rate is {{ printf "%.2f" $value }}%
+            over the last 5 minutes (threshold: 5%).
+            This may indicate a backend failure, database connectivity issue,
+            or upstream API problem.
+
+      - alert: APIHighLatency
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="caep-backend"}[5m]))
+            by (le, endpoint)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API p99 latency exceeds 2 seconds"
+          description: >
+            Endpoint {{ $labels.endpoint }} p99 latency is {{ printf "%.3f" $value }}s.
+            Expected: < 2.0s. Investigate slow queries or upstream API timeouts.
+
+      - alert: APIDown
+        expr: up{job="caep-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          runbook: https://caep.example.com/runbooks/api-outage
+        annotations:
+          summary: "CAEP Backend API is down"
+          description: >
+            The CAEP backend is not reachable at {{ $labels.instance }}.
+            Prometheus cannot scrape metrics. Check pod health and logs.
+
+      - alert: HighRequestRate
+        expr: |
+          sum(rate(http_requests_total{job="caep-backend"}[5m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Unusually high API request rate"
+          description: >
+            The API is receiving {{ printf "%.0f" $value }} req/s,
+            which is above the expected threshold of 1000 req/s.
+            This may indicate a traffic spike, DDoS, or runaway client.
+
+  # ─── Database ──────────────────────────────────────────────────────────────
+  - name: caep.database
+    interval: 30s
+    rules:
+
+      - alert: HighDatabaseConnections
+        expr: |
+          pg_stat_database_numbackends{datname="caep"}
+          / pg_settings_max_connections * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          runbook: https://caep.example.com/runbooks/scaling#database-connections
+        annotations:
+          summary: "PostgreSQL connection pool above 80%"
+          description: >
+            Database connections are at {{ printf "%.1f" $value }}% of max_connections.
+            Current: {{ with query "pg_stat_database_numbackends{datname='caep'}" }}{{ . | first | value | printf "%.0f" }}{{ end }}.
+            Consider increasing max_connections or reviewing connection pooling config.
+
+      - alert: DatabaseDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+          runbook: https://caep.example.com/runbooks/backup-restore
+        annotations:
+          summary: "PostgreSQL is unreachable"
+          description: >
+            The PostgreSQL exporter at {{ $labels.instance }} cannot connect.
+            This will cause complete service outage. Immediate action required.
+
+      - alert: DatabaseHighReplicationLag
+        expr: |
+          pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PostgreSQL replication lag is above 30 seconds"
+          description: >
+            Replication lag is {{ printf "%.1f" $value }}s.
+            This may cause stale reads on replica connections and risk data loss
+            if the primary fails.
+
+      - alert: SlowQueries
+        expr: |
+          rate(pg_stat_statements_total_time_seconds[5m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "High rate of slow PostgreSQL queries detected"
+          description: >
+            Query execution time rate is {{ printf "%.2f" $value }} seconds/sec.
+            Check pg_stat_statements for slow query analysis.
+
+  # ─── Redis ────────────────────────────────────────────────────────────────
+  - name: caep.redis
+    interval: 15s
+    rules:
+
+      - alert: RedisHighMemoryUsage
+        expr: |
+          redis_memory_used_bytes / redis_config_maxmemory * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+          runbook: https://caep.example.com/runbooks/scaling#redis-memory
+        annotations:
+          summary: "Redis memory usage above 80%"
+          description: >
+            Redis is using {{ printf "%.1f" $value }}% of its configured maxmemory.
+            Consider increasing maxmemory, reviewing cache TTLs, or scaling the instance.
+
+      - alert: RedisDown
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis is unreachable"
+          description: >
+            Redis at {{ $labels.instance }} is down. This will degrade caching,
+            session management, and WebSocket pub/sub functionality.
+
+      - alert: RedisHighConnections
+        expr: redis_connected_clients > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis has more than 1000 connected clients"
+          description: >
+            Redis currently has {{ printf "%.0f" $value }} connected clients.
+            High connection counts may indicate connection leak or DDoS.
+
+      - alert: RedisMasterHasNoSlave
+        expr: |
+          (redis_connected_slaves < 1) and (redis_replication_role == 1)
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis master has no replicas"
+          description: >
+            The Redis master instance has no connected replicas.
+            This is a single point of failure. Check replica connectivity.
+
+  # ─── Infrastructure ────────────────────────────────────────────────────────
+  - name: caep.infrastructure
+    interval: 30s
+    rules:
+
+      - alert: NodeHighCPU
+        expr: |
+          100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Node CPU usage above 85%"
+          description: >
+            Node {{ $labels.instance }} CPU usage is at {{ printf "%.1f" $value }}%.
+            Consider scaling the node group or investigating runaway processes.
+
+      - alert: NodeHighMemory
+        expr: |
+          (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Node memory usage above 85%"
+          description: >
+            Node {{ $labels.instance }} memory usage is at {{ printf "%.1f" $value }}%.
+            Risk of OOM kills. Consider adding nodes or reducing pod memory limits.
+
+      - alert: DiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 20
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Low disk space on node"
+          description: >
+            Node {{ $labels.instance }} has only {{ printf "%.1f" $value }}% disk space remaining.
+            Clean up Docker images or expand EBS volumes.
+
+  # ─── Business / Application Metrics ───────────────────────────────────────
+  - name: caep.business
+    interval: 60s
+    rules:
+
+      - alert: RiskScoringEngineStale
+        expr: |
+          time() - caep_scoring_last_update_timestamp > 600
+        for: 5m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "Risk scoring engine has not updated in 10 minutes"
+          description: >
+            The CAEP risk scoring engine's last update was more than 10 minutes ago.
+            Scores may be stale. Check Celery worker health and upstream API connectivity.
+
+      - alert: PriceDataStale
+        expr: |
+          time() - caep_price_last_update_timestamp > 180
+        for: 3m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "Price data has not updated in 3 minutes"
+          description: >
+            The last price update was {{ printf "%.0f" (sub (time) $value) }} seconds ago.
+            Check CoinGecko API connectivity and rate limiting.
+
+      - alert: WebSocketConnectionsDroppingFast
+        expr: |
+          rate(caep_websocket_connections_total[5m]) < -100
+        for: 2m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "WebSocket connections dropping rapidly"
+          description: >
+            WebSocket connections are decreasing at {{ printf "%.0f" $value | mul -1 }} connections/minute.
+            This may indicate a backend restart or network issue.

@@ -1,0 +1,115 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: caep-ingress
+  namespace: caep
+  labels:
+    app: caep
+    component: ingress
+    app.kubernetes.io/name: caep
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/part-of: caep
+  annotations:
+    # AWS ALB Ingress Controller annotations
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/load-balancer-name: caep-alb
+    alb.ingress.kubernetes.io/group.name: caep
+
+    # SSL/TLS — ACM certificate ARN (replace with real ARN)
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:${AWS_ACCOUNT_ID}:certificate/${CERT_ID}"
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+
+    # Health check
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "10"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+
+    # Timeouts
+    alb.ingress.kubernetes.io/load-balancer-attributes: >
+      idle_timeout.timeout_seconds=120,
+      routing.http.drop_invalid_header_fields.enabled=true,
+      access_logs.s3.enabled=true,
+      access_logs.s3.bucket=caep-alb-logs,
+      access_logs.s3.prefix=caep
+
+    # Security
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:us-east-1:${AWS_ACCOUNT_ID}:regional/webacl/caep-waf/${WAF_ID}"
+    alb.ingress.kubernetes.io/shield-advanced-protection: "true"
+
+    # WebSocket support
+    alb.ingress.kubernetes.io/target-group-attributes: stickiness.enabled=true,stickiness.lb_cookie.duration_seconds=86400
+
+    # Subnets (use public subnets for internet-facing ALB)
+    alb.ingress.kubernetes.io/subnets: "${PUBLIC_SUBNET_1},${PUBLIC_SUBNET_2},${PUBLIC_SUBNET_3}"
+
+    # Security groups
+    alb.ingress.kubernetes.io/security-groups: "${ALB_SECURITY_GROUP_ID}"
+
+    # HTTP response headers
+    alb.ingress.kubernetes.io/load-balancer-attributes: >
+      routing.http.xff_header_processing.mode=append
+
+spec:
+  tls:
+    - hosts:
+        - caep.example.com
+        - www.caep.example.com
+      secretName: caep-tls-secret
+
+  rules:
+    # Main application domain
+    - host: caep.example.com
+      http:
+        paths:
+          # API backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: caep-backend
+                port:
+                  name: http
+
+          # WebSocket connections
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: caep-backend
+                port:
+                  name: http
+
+          # Prometheus metrics (internal — protected by ALB WAF rule)
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: caep-backend
+                port:
+                  name: http
+
+          # Frontend — all other paths
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: caep-frontend
+                port:
+                  name: http
+
+    # www redirect handled at ALB level via listener rule
+    - host: www.caep.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: caep-frontend
+                port:
+                  name: http
