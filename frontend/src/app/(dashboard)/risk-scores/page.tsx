@@ -88,7 +88,7 @@ export default function RiskScoresPage() {
             ) : (
               scores.map((score: any, index: number) => (
                 <div
-                  key={score.id}
+                  key={score.assetId ?? score.symbol ?? index}
                   className="grid grid-cols-8 gap-4 px-4 py-3 text-sm hover:bg-slate-800/30 transition-colors"
                 >
                   <span className="col-span-1 font-mono text-slate-500">{index + 1}</span>
