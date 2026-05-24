@@ -51,7 +51,7 @@ export function ChartSkeleton({ height = 200 }: { height?: number }) {
         <LoadingSkeleton className="h-5 w-40" />
         <LoadingSkeleton className="h-8 w-32 rounded" />
       </div>
-      <LoadingSkeleton className={`w-full rounded`} style={{ height }} />
+      <div className={`w-full rounded animate-pulse bg-bg-elevated`} style={{ height }} />
     </div>
   )
 }

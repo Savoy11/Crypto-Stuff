@@ -5,7 +5,7 @@ import { FileBarChart, Download, Calendar, Filter, RefreshCw } from 'lucide-reac
 import { MOCK_ASSETS } from '@/lib/api/mock/mockAssets'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { formatCurrency, formatScore, formatDate, formatPercent } from '@/lib/utils/format'
-import { getRiskBandColor } from '@/lib/utils/risk'
+import { getRiskColor } from '@/lib/utils/risk'
 import type { RiskScore } from '@/types/asset'
 
 // Deterministic mock scores aligned with MOCK_ASSETS
@@ -21,7 +21,18 @@ const MOCK_RISK_SCORES: (RiskScore & { assetId: string })[] = MOCK_ASSETS.map(a 
   confidence: 0.92,
   percentileRank: a.riskScore,
   scoreDate: new Date().toISOString(),
-  scoreBreakdown: {},
+  previousScore: null,
+  scoreDelta: null,
+  scoreBreakdown: {
+    reserveScore: Math.min(100, a.riskScore * 0.95 + 3),
+    reserveWeight: 0.35,
+    pegScore: Math.min(100, a.riskScore + 1),
+    pegWeight: 0.30,
+    networkScore: Math.min(100, a.riskScore * 0.97),
+    networkWeight: 0.20,
+    securityScore: Math.min(100, a.riskScore * 1.01),
+    securityWeight: 0.15,
+  },
 }))
 
 type ReportType = 'portfolio' | 'risk' | 'reserve' | 'compliance'
@@ -189,12 +200,12 @@ export default function ReportsPage() {
                       <span className="capitalize text-slate-400 text-xs">{asset.assetType}</span>
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <span className={`font-mono font-bold tabular-nums ${score ? getRiskBandColor(score.riskBand) : 'text-slate-500'}`}>
+                      <span className={`font-mono font-bold tabular-nums ${score ? getRiskColor(score.riskBand) : 'text-slate-500'}`}>
                         {score ? formatScore(score.overallScore) : '—'}
                       </span>
                     </td>
                     <td className="px-4 py-2.5">
-                      {score ? <RiskScoreBadge band={score.riskBand} /> : <span className="text-slate-500">—</span>}
+                      {score ? <RiskScoreBadge band={score.riskBand} score={score.overallScore} /> : <span className="text-slate-500">—</span>}
                     </td>
                     <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-300 tabular-nums">
                       {formatCurrency(asset.marketCap)}

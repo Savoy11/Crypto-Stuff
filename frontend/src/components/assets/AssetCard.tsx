@@ -18,8 +18,8 @@ interface AssetCardProps {
 
 export function AssetCard({ asset, selected, onSelect, className }: AssetCardProps) {
   const router = useRouter()
-  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps)
-  const priceUp = asset.priceChange24h >= 0
+  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
+  const priceUp = asset.priceChange24h ?? 0 >= 0
 
   return (
     <div
@@ -57,7 +57,7 @@ export function AssetCard({ asset, selected, onSelect, className }: AssetCardPro
         <div>
           <div className="text-[10px] text-text-muted uppercase tracking-wide mb-1">Peg Dev</div>
           <div className={clsx('font-mono text-sm font-semibold', pegClass)}>
-            {formatBps(asset.pegDeviationBps)}
+            {formatBps(asset.pegDeviationBps ?? asset.pegDeviation)}
           </div>
         </div>
         <div>
@@ -68,7 +68,7 @@ export function AssetCard({ asset, selected, onSelect, className }: AssetCardPro
           <div className="text-[10px] text-text-muted uppercase tracking-wide mb-1">24h Chg</div>
           <div className={clsx('font-mono text-sm flex items-center gap-1', priceUp ? 'text-accent-green' : 'text-accent-red')}>
             {priceUp ? <TrendingUp size={12} aria-hidden /> : <TrendingDown size={12} aria-hidden />}
-            {formatPercent(asset.priceChange24h, 2)}
+            {formatPercent(asset.priceChange24h ?? 0, 2)}
           </div>
         </div>
       </div>

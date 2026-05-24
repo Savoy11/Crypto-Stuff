@@ -6,7 +6,7 @@ import { riskScoresApi } from '@/lib/api/risk-scores'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { formatScore, formatDate } from '@/lib/utils/format'
-import { getRiskBandColor } from '@/lib/utils/risk'
+import { getRiskColor } from '@/lib/utils/risk'
 import type { RiskBand } from '@/types/asset'
 
 const BAND_STATS = [
@@ -64,7 +64,7 @@ export default function RiskScoresPage() {
 
         {isLoading ? (
           <div className="p-6">
-            <LoadingSkeleton rows={10} />
+            <LoadingSkeleton count={10} />
           </div>
         ) : error ? (
           <div className="p-8 text-center text-slate-400">
@@ -96,11 +96,11 @@ export default function RiskScoresPage() {
                     <span className="text-xs text-slate-500">{score.assetName ?? '—'}</span>
                   </div>
                   <span
-                    className={`font-mono font-bold tabular-nums ${getRiskBandColor(score.riskBand)}`}
+                    className={`font-mono font-bold tabular-nums ${getRiskColor(score.riskBand)}`}
                   >
                     {formatScore(score.overallScore)}
                   </span>
-                  <RiskScoreBadge band={score.riskBand} />
+                  <RiskScoreBadge band={score.riskBand} score={score.overallScore ?? 0} />
                   <span className="font-mono text-slate-300 tabular-nums">
                     {formatScore(score.reserveScore)}
                   </span>

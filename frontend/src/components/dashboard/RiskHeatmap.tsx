@@ -27,8 +27,8 @@ interface HeatmapTileProps {
 function HeatmapTile({ asset, onClick }: HeatmapTileProps) {
   const riskColor = getRiskColor(asset.riskBand)
   const riskBg = getRiskBgColor(asset.riskBand)
-  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps)
-  const isUp = asset.priceChange24h >= 0
+  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
+  const isUp = (asset.priceChange24h ?? 0) >= 0
 
   return (
     <button
@@ -64,7 +64,7 @@ function HeatmapTile({ asset, onClick }: HeatmapTileProps) {
       {/* Peg deviation */}
       <div className="flex items-center justify-between mt-1">
         <span className={clsx('font-mono text-[10px]', pegClass)}>
-          {formatBps(asset.pegDeviationBps)}
+          {formatBps(asset.pegDeviationBps ?? asset.pegDeviation)}
         </span>
         <span className="text-[9px] text-text-muted font-mono">{formatCompact(asset.marketCap)}</span>
       </div>

@@ -5,10 +5,11 @@ import { Bell, Filter, CheckCheck } from 'lucide-react'
 import { AlertFeed } from '@/components/alerts/AlertFeed'
 import { AlertFilters } from '@/components/alerts/AlertFilters'
 import { useAlertStore } from '@/store/useAlertStore'
+import { RAW_ALERTS } from '@/lib/api/mock/mockAlerts'
 
 export default function AlertsPage() {
   const [showFilters, setShowFilters] = useState(false)
-  const { alerts, markAllRead, unreadCount } = useAlertStore()
+  const { markAllRead, unreadCount } = useAlertStore()
 
   return (
     <div className="flex flex-col gap-6 p-6">
@@ -56,7 +57,7 @@ export default function AlertsPage() {
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <AlertFeed showAll />
+          <AlertFeed alerts={RAW_ALERTS} />
         </div>
       </div>
     </div>

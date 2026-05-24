@@ -5,7 +5,7 @@ import { Star, Plus, Trash2, Search } from 'lucide-react'
 import { useAssetStore } from '@/store/useAssetStore'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { formatCurrency, formatPercent, formatScore } from '@/lib/utils/format'
-import { getRiskBandColor } from '@/lib/utils/risk'
+import { getRiskColor } from '@/lib/utils/risk'
 import { MOCK_ASSETS } from '@/lib/api/mock/mockAssets'
 
 export default function WatchlistPage() {
@@ -72,10 +72,10 @@ export default function WatchlistPage() {
                   <span className="font-medium text-slate-100">{asset.symbol}</span>
                   <span className="text-xs text-slate-500">{asset.name}</span>
                 </div>
-                <span className={`font-mono font-bold tabular-nums ${getRiskBandColor(asset.riskBand)}`}>
+                <span className={`font-mono font-bold tabular-nums ${getRiskColor(asset.riskBand)}`}>
                   {formatScore(asset.riskScore)}
                 </span>
-                <RiskScoreBadge band={asset.riskBand} />
+                <RiskScoreBadge band={asset.riskBand} score={asset.riskScore} />
                 <span className="font-mono text-slate-300 tabular-nums">
                   {formatCurrency(asset.price, 4)}
                 </span>

@@ -14,8 +14,14 @@ export interface RiskLeaderboardEntry {
   assetId: string
   symbol: string
   name: string
+  assetName?: string
   assetType: string
   riskScore: number
+  overallScore: number
+  reserveScore: number
+  pegScore: number
+  networkScore?: number
+  securityScore?: number
   riskBand: RiskBand
   previousRisk: number | null
   rankChange: number | null

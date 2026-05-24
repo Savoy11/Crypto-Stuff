@@ -115,8 +115,8 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         sortable: true,
         align: 'right',
         accessor: (row) => (
-          <span className={clsx('font-mono text-xs', getPegDeviationColorClass(row.pegDeviationBps))}>
-            {formatBps(row.pegDeviationBps)}
+          <span className={clsx('font-mono text-xs', getPegDeviationColorClass(row.pegDeviationBps ?? row.pegDeviation))}>
+            {formatBps(row.pegDeviationBps ?? row.pegDeviation)}
           </span>
         ),
       },

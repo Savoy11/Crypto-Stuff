@@ -31,10 +31,10 @@ const METRIC_ROWS: {
   },
   {
     label: 'Peg Deviation',
-    accessor: (a) => Math.abs(a.pegDeviationBps),
+    accessor: (a) => Math.abs(a.pegDeviationBps ?? a.pegDeviation),
     format: (_, a) => (
-      <span className={clsx('font-mono text-xs', getPegDeviationColorClass(a.pegDeviationBps))}>
-        {formatBps(a.pegDeviationBps)}
+      <span className={clsx('font-mono text-xs', getPegDeviationColorClass(a.pegDeviationBps ?? a.pegDeviation))}>
+        {formatBps(a.pegDeviationBps ?? a.pegDeviation)}
       </span>
     ),
     sortDir: 'asc',
@@ -56,7 +56,7 @@ const METRIC_ROWS: {
   },
   {
     label: '24h Change',
-    accessor: (a) => a.priceChange24h,
+    accessor: (a) => a.priceChange24h ?? 0,
     format: (v) => (
       <span className={clsx('font-mono text-xs', (v as number) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
         {formatPercent(v as number, 2)}

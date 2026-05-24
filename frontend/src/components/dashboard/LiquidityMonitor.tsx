@@ -41,7 +41,7 @@ export function LiquidityMonitor() {
             ))
           : sorted.map((asset) => {
               const sharePct = totalVolume > 0 ? (asset.volume24h / totalVolume) * 100 : 0
-              const pegClass = getPegDeviationColorClass(asset.pegDeviationBps)
+              const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
 
               return (
                 <div key={asset.id} className="space-y-1">
@@ -49,7 +49,7 @@ export function LiquidityMonitor() {
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-text-primary w-12">{asset.symbol}</span>
                       <span className={clsx('font-mono text-[10px]', pegClass)}>
-                        {formatBps(asset.pegDeviationBps)}
+                        {formatBps(asset.pegDeviationBps ?? asset.pegDeviation)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-right">

@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -20,7 +21,7 @@ import { useStreamStore } from '@/store/useStreamStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { APP_NAME, APP_VERSION } from '@/lib/constants'
 
-const NAV_ITEMS = [
+const NAV_ITEMS: Array<{ href: string; label: string; icon: React.ElementType; badge?: boolean }> = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/assets', label: 'Assets', icon: Database },
   { href: '/risk-scores', label: 'Risk Scores', icon: Shield },
@@ -28,7 +29,7 @@ const NAV_ITEMS = [
   { href: '/alerts', label: 'Alerts', icon: Bell, badge: true },
   { href: '/watchlist', label: 'Watchlist', icon: Star },
   { href: '/reports', label: 'Reports', icon: FileBarChart },
-] as const
+]
 
 const STATUS_COLORS = {
   connected: 'bg-emerald-400',

@@ -40,8 +40,8 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
     setTimeout(() => setCopied(false), 1500)
   }, [asset.contractAddress])
 
-  const priceUp = asset.priceChange24h >= 0
-  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps)
+  const priceUp = asset.latestMarketData?.priceChange24h ?? 0 >= 0
+  const pegClass = getPegDeviationColorClass(asset.pegDeviation)
 
   return (
     <div className="rounded-card border border-border bg-bg-card p-6">
@@ -119,14 +119,14 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
               <div className="font-mono text-sm text-text-primary">
                 {formatCurrency(asset.price, 4)}
                 <span className={clsx('ml-2 text-xs', priceUp ? 'text-emerald-400' : 'text-red-400')}>
-                  {priceUp ? '+' : ''}{asset.priceChange24h.toFixed(3)}%
+                  {priceUp ? '+' : ''}{(asset.latestMarketData?.priceChange24h ?? 0).toFixed(3)}%
                 </span>
               </div>
             </div>
             <div>
               <div className="text-[10px] text-text-muted uppercase">Peg Dev</div>
               <div className={clsx('font-mono text-sm', pegClass)}>
-                {formatBps(asset.pegDeviationBps)}
+                {formatBps(asset.pegDeviation)}
               </div>
             </div>
             <div>

@@ -12,13 +12,22 @@ export interface Asset {
   isActive: boolean
   marketCap: number
   price: number
-  pegDeviation: number // in basis points
+  pegDeviation: number // fractional, e.g. 0.0001 = 1 bps
+  pegDeviationBps?: number // alias in basis points
+  pegTarget?: number
   riskScore: number
   riskBand: RiskBand
   reserveRatio: number
   volume24h: number
+  priceChange24h?: number
+  priceChangePercent24h?: number
   createdAt: string
   updatedAt: string
+  // Optional enrichment fields
+  description?: string
+  issuer?: string
+  website?: string
+  coingeckoId?: string
 }
 
 export interface ScoreBreakdown {

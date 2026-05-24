@@ -82,18 +82,27 @@ export async function getMockLeaderboard(
   const pageSize = params.pageSize ?? 25
   const start = (page - 1) * pageSize
 
-  const entries: RiskLeaderboardEntry[] = sorted.map((asset, i) => ({
-    assetId: asset.id,
-    symbol: asset.symbol,
-    name: asset.name,
-    assetType: asset.assetType,
-    riskScore: asset.riskScore,
-    riskBand: asset.riskBand,
-    previousRisk: asset.riskScore - (Math.random() * 4 - 2),
-    rankChange: Math.round(Math.random() * 2 - 1),
-    rank: i + 1,
-    scoreDate: new Date().toISOString(),
-  }))
+  const entries: RiskLeaderboardEntry[] = sorted.map((asset, i) => {
+    const score = asset.riskScore
+    return {
+      assetId: asset.id,
+      symbol: asset.symbol,
+      name: asset.name,
+      assetName: asset.name,
+      assetType: asset.assetType,
+      riskScore: score,
+      overallScore: score,
+      reserveScore: Math.min(100, score * 0.95 + 2),
+      pegScore: Math.min(100, score + 1),
+      networkScore: Math.min(100, score * 0.98),
+      securityScore: Math.min(100, score * 1.01),
+      riskBand: asset.riskBand,
+      previousRisk: score - (Math.random() * 4 - 2),
+      rankChange: Math.round(Math.random() * 2 - 1),
+      rank: i + 1,
+      scoreDate: new Date().toISOString(),
+    }
+  })
 
   const paginated = entries.slice(start, start + pageSize)
 

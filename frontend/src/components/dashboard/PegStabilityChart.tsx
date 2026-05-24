@@ -38,7 +38,7 @@ export function PegStabilityChart() {
       const history = pegHistories[id] ?? []
       history.forEach((point) => {
         const key = point.timestamp
-        if (!tsMap.has(key)) tsMap.set(key, { timestamp: key } as Record<string, number>)
+        if (!tsMap.has(key)) tsMap.set(key, { timestamp: key } as unknown as Record<string, number>)
         const entry = tsMap.get(key)!
         entry[id] = point.pegDeviation * 10000 // convert to bps
       })

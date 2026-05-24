@@ -53,12 +53,12 @@ const MOCK_RESERVES = MOCK_ASSETS.map((a, i) => ({
   collateralizationRatio: a.reserveRatio,
   verified: a.reserveRatio > 0.99,
   reportUrl: '#',
-  composition: {
-    cash_and_equivalents: 0.20 + Math.random() * 0.15,
-    us_treasury_bills: 0.40 + Math.random() * 0.20,
-    commercial_paper: 0.05 + Math.random() * 0.10,
-    other: 0.05 + Math.random() * 0.10,
-  },
+  composition: [
+    { category: 'Cash & Equivalents', amount: (a.marketCap * 1.02) * 0.22, percentage: 22, description: 'USD cash deposits' },
+    { category: 'US Treasury Bills', amount: (a.marketCap * 1.02) * 0.50, percentage: 50, description: 'Short-term T-bills' },
+    { category: 'Commercial Paper', amount: (a.marketCap * 1.02) * 0.15, percentage: 15, description: 'A-1 rated CP' },
+    { category: 'Other', amount: (a.marketCap * 1.02) * 0.13, percentage: 13, description: 'Corporate bonds & other' },
+  ],
 }))
 
 export default function ReservesPage() {
@@ -149,7 +149,7 @@ export default function ReservesPage() {
                   </a>
                 )}
               </div>
-              <ReserveComposition composition={selected.composition} ratio={selected.collateralizationRatio} />
+              <ReserveComposition composition={selected.composition} collateralizationRatio={selected.collateralizationRatio} />
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm space-y-2">
               <div className="flex justify-between">
