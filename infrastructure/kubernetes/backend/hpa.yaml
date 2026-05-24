@@ -1,0 +1,93 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: caep-backend-hpa
+  namespace: caep
+  labels:
+    app: caep-backend
+    component: autoscaler
+    app.kubernetes.io/name: caep-backend
+    app.kubernetes.io/component: autoscaler
+    app.kubernetes.io/part-of: caep
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: caep-backend
+
+  minReplicas: 3
+  maxReplicas: 20
+
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+    # Custom metric: active WebSocket connections per pod
+    - type: Pods
+      pods:
+        metric:
+          name: caep_active_websocket_connections
+        target:
+          type: AverageValue
+          averageValue: "500"
+
+    # External metric: API request rate from Prometheus adapter
+    - type: External
+      external:
+        metric:
+          name: caep_api_requests_per_second
+          selector:
+            matchLabels:
+              app: caep-backend
+        target:
+          type: AverageValue
+          averageValue: "100"
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max
+
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+        - type: Percent
+          value: 25
+          periodSeconds: 120
+      selectPolicy: Min
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: caep-backend-pdb
+  namespace: caep
+  labels:
+    app: caep-backend
+    component: pdb
+spec:
+  # Always keep at least 2 pods running during disruptions
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: caep-backend

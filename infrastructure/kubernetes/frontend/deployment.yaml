@@ -1,0 +1,164 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caep-frontend
+  namespace: caep
+  labels:
+    app: caep-frontend
+    component: frontend
+    version: "1.0.0"
+    app.kubernetes.io/name: caep-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: caep
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  selector:
+    matchLabels:
+      app: caep-frontend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: caep-frontend
+        component: frontend
+        version: "1.0.0"
+    spec:
+      serviceAccountName: default
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: caep-frontend
+
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values: [caep-frontend]
+              topologyKey: kubernetes.io/hostname
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: frontend
+          image: ${ECR_REGISTRY}/caep-frontend:${IMAGE_TAG}
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+
+          envFrom:
+            - configMapRef:
+                name: caep-frontend-config
+
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: HOSTNAME
+              value: "0.0.0.0"
+
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 18  # 90 seconds total
+
+          lifecycle:
+            preStop:
+              exec:
+                command: ["/bin/sh", "-c", "sleep 5"]
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            capabilities:
+              drop: [ALL]
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: next-cache
+              mountPath: /app/.next/cache
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: next-cache
+          emptyDir:
+            sizeLimit: "1Gi"
+
+      imagePullSecrets:
+        - name: caep-ecr-credentials
+
+      nodeSelector:
+        kubernetes.io/os: linux
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: caep-frontend-pdb
+  namespace: caep
+  labels:
+    app: caep-frontend
+    component: pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: caep-frontend

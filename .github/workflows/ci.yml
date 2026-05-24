@@ -1,0 +1,403 @@
+name: CI — Test, Lint & Build
+
+on:
+  pull_request:
+    branches: [main, develop]
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+###############################################################################
+# Jobs
+###############################################################################
+
+jobs:
+
+  # ─── Backend: Lint ─────────────────────────────────────────────────────────
+  backend-lint:
+    name: Backend Lint (ruff + mypy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install lint dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ruff==0.1.9 mypy==1.8.0 types-redis types-requests
+
+      - name: Run ruff linter
+        run: |
+          ruff check backend/ --output-format=github
+          ruff format backend/ --check
+
+      - name: Run mypy type checker
+        run: |
+          mypy backend/app \
+            --ignore-missing-imports \
+            --strict \
+            --show-error-codes \
+            --pretty \
+            --no-error-summary \
+            || true  # Non-blocking for now; remove || true to enforce strict typing
+
+  # ─── Backend: Test ─────────────────────────────────────────────────────────
+  backend-test:
+    name: Backend Tests (pytest + coverage)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: timescale/timescaledb:latest-pg15
+        env:
+          POSTGRES_DB: caep_test
+          POSTGRES_USER: caep
+          POSTGRES_PASSWORD: caep_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Cache Poetry virtualenv
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry
+            backend/.venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('backend/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+
+      - name: Install Poetry
+        run: |
+          pip install poetry==1.7.1
+          cd backend
+          poetry config virtualenvs.in-project true
+          poetry install --with dev
+
+      - name: Run database migrations
+        env:
+          DATABASE_URL: postgresql+asyncpg://caep:caep_test_password@localhost:5432/caep_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-only-for-ci
+          ENVIRONMENT: test
+        run: |
+          cd backend
+          poetry run alembic upgrade head
+
+      - name: Run pytest with coverage
+        env:
+          DATABASE_URL: postgresql+asyncpg://caep:caep_test_password@localhost:5432/caep_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-secret-key-only-for-ci
+          ENVIRONMENT: test
+          COINGECKO_API_KEY: ""
+          DEFILLAMA_API_KEY: ""
+          CHAINLINK_RPC_URL: ""
+        run: |
+          cd backend
+          poetry run pytest \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-report=term-missing \
+            --cov-fail-under=70 \
+            --junit-xml=test-results.xml \
+            -v \
+            --tb=short \
+            -x \
+            tests/
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: backend/coverage.xml
+          flags: backend
+          name: caep-backend
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            backend/test-results.xml
+            backend/htmlcov/
+          retention-days: 7
+
+      - name: Post coverage comment on PR
+        uses: MishaKav/pytest-coverage-comment@main
+        if: github.event_name == 'pull_request'
+        with:
+          pytest-xml-coverage-path: backend/coverage.xml
+          junitxml-path: backend/test-results.xml
+          title: Backend Test Coverage
+          badge-title: Coverage
+          hide-badge: false
+          hide-report: false
+          create-new-comment: false
+          hide-comment: false
+          report-only-changed-files: false
+
+  # ─── Frontend: Lint & Type Check ──────────────────────────────────────────
+  frontend-check:
+    name: Frontend Check (ESLint + TypeScript + Build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci --prefer-offline
+
+      - name: Run ESLint
+        run: |
+          cd frontend
+          npm run lint -- --format=@microsoft/eslint-formatter-sarif --output-file=eslint-results.sarif || true
+          npm run lint
+
+      - name: Upload ESLint SARIF
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: frontend/eslint-results.sarif
+          category: eslint
+        continue-on-error: true
+
+      - name: TypeScript type check
+        run: |
+          cd frontend
+          npm run type-check
+
+      - name: Build Next.js application
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+          NEXT_PUBLIC_WS_URL: ws://localhost:8000
+          NEXT_PUBLIC_ENV: test
+          NEXT_TELEMETRY_DISABLED: 1
+        run: |
+          cd frontend
+          npm run build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/.next/
+          retention-days: 3
+
+  # ─── Docker: Build Test ────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend-lint, frontend-check]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:master
+            network=host
+
+      - name: Build backend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          target: production
+          push: false
+          tags: caep-backend:ci-test
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          build-args: |
+            BUILD_DATE=${{ github.run_id }}
+            GIT_COMMIT=${{ github.sha }}
+
+      - name: Build frontend Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          target: production
+          push: false
+          tags: caep-frontend:ci-test
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+          build-args: |
+            NEXT_PUBLIC_API_URL: http://localhost:8000
+            NEXT_TELEMETRY_DISABLED: 1
+
+      - name: Run container structure test (backend)
+        uses: plexsystems/container-structure-test-action@v0.3.0
+        with:
+          image: caep-backend:ci-test
+          config: backend/container-structure-test.yml
+        continue-on-error: true
+
+  # ─── Security: Dependency Scan ─────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      security-events: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+
+      - name: Upload Trivy scan results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: trivy
+
+      - name: Python dependency audit
+        run: |
+          pip install safety==3.0.1
+          cd backend
+          pip install poetry==1.7.1
+          poetry export -f requirements.txt --output requirements.txt --without-hashes
+          safety check -r requirements.txt --output text || true
+
+      - name: Node.js dependency audit
+        run: |
+          cd frontend
+          npm audit --audit-level=high || true
+
+  # ─── Infrastructure: Terraform Validate ───────────────────────────────────
+  terraform-validate:
+    name: Terraform Validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.6.6'
+
+      - name: Terraform Format Check
+        run: |
+          cd infrastructure/terraform
+          terraform fmt -check -recursive -diff
+
+      - name: Terraform Init (backend disabled for validate-only)
+        run: |
+          cd infrastructure/terraform
+          terraform init -backend=false
+
+      - name: Terraform Validate
+        run: |
+          cd infrastructure/terraform
+          terraform validate
+
+      - name: Run tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.0
+      - run: |
+          cd infrastructure/terraform
+          tflint --init
+          tflint --format compact || true
+
+  # ─── Final Status Check ────────────────────────────────────────────────────
+  ci-success:
+    name: CI Success Gate
+    runs-on: ubuntu-latest
+    needs:
+      - backend-lint
+      - backend-test
+      - frontend-check
+      - docker-build
+      - security-scan
+      - terraform-validate
+    if: always()
+
+    steps:
+      - name: Check all jobs succeeded
+        run: |
+          if [[ "${{ needs.backend-lint.result }}" != "success" ]]; then
+            echo "backend-lint failed"; exit 1
+          fi
+          if [[ "${{ needs.backend-test.result }}" != "success" ]]; then
+            echo "backend-test failed"; exit 1
+          fi
+          if [[ "${{ needs.frontend-check.result }}" != "success" ]]; then
+            echo "frontend-check failed"; exit 1
+          fi
+          if [[ "${{ needs.docker-build.result }}" != "success" ]]; then
+            echo "docker-build failed"; exit 1
+          fi
+          echo "All CI checks passed!"
