@@ -6,6 +6,36 @@ Institutional-grade stablecoin analytics: risk scores, reserve transparency, peg
 
 ## Running the Application
 
+### Quick start — one-shot setup scripts (easiest)
+
+`setup.ps1` (Windows) and `setup.sh` (macOS / Linux / WSL) install every
+prerequisite, configure the environment, and launch the app in one command.
+
+```powershell
+# Windows
+.\setup.ps1                  # mock mode (frontend only) — recommended
+.\setup.ps1 -Mode full       # full stack via Docker Compose
+.\setup.ps1 -InstallOnly     # set everything up but don't launch
+.\setup.ps1 -Help
+```
+
+```bash
+# macOS / Linux / WSL
+./setup.sh                   # mock mode (frontend only) — recommended
+./setup.sh --full            # full stack via Docker Compose
+./setup.sh --install-only    # set everything up but don't launch
+./setup.sh --help
+```
+
+- **mock** (default) installs Node.js 18.17+ (winget / nvm), writes
+  `frontend/.env.local`, runs `npm ci`, and starts the dev server at
+  [http://localhost:3000](http://localhost:3000). No backend or API keys needed.
+- **full** verifies/installs Docker, seeds `infrastructure/docker/.env`, and
+  brings up the whole stack (frontend, FastAPI backend, TimescaleDB, Redis,
+  Grafana, Prometheus) via `docker compose`.
+
+If you'd rather wire things up by hand, the manual options below still work.
+
 ### Option 1 — Frontend Only (Mock Data) — Recommended for quick start
 
 No backend, database, or API keys required.
