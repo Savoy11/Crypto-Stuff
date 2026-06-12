@@ -23,6 +23,55 @@ const LAUNCH_DATES: Record<string, string> = {
   usdp:  '2018-09-10',
   gusd:  '2018-09-10',
   lusd:  '2021-04-05',
+  // New stablecoins (ranks 4–50)
+  usde:          '2023-11-01',
+  usd1:          '2025-03-01',
+  usdg:          '2024-08-01',
+  rlusd:         '2024-12-17',
+  usdd:          '2022-06-05',
+  'united-stable': '2024-06-01',
+  eurc:          '2023-06-15',
+  fdusd:         '2023-07-01',
+  usdy:          '2023-08-03',
+  usdf:          '2024-03-01',
+  gho:           '2023-07-15',
+  usd0:          '2023-10-01',
+  usdai:         '2024-01-01',
+  usdgo:         '2024-02-01',
+  usat:          '2024-05-01',
+  eurcv:         '2023-12-01',
+  ausd:          '2024-04-01',
+  frxusd:        '2024-10-01',
+  dusd:          '2024-01-01',
+  lisusd:        '2023-08-01',
+  usdsui:        '2023-09-01',
+  fidd:          '2024-07-01',
+  vbusd:         '2022-01-01',
+  euri:          '2023-04-01',
+  usdh:          '2022-05-01',
+  xusd:          '2022-01-01',
+  yusd:          '2023-11-01',
+  cusd:          '2020-09-14',
+  ampl:          '2019-07-29',
+  aeur:          '2022-03-01',
+  musd:          '2025-02-01',
+  tgbp:          '2018-03-05',
+  usdk:          '2019-12-01',
+  xsgd:          '2020-09-15',
+  usdb:          '2024-03-01',
+  usdcv:         '2023-12-01',
+  usdm:          '2023-06-01',
+  wusd:          '2024-01-01',
+}
+
+// Peg targets for non-USD stablecoins (others default to 1.0)
+const STABLECOIN_PEG: Record<string, number> = {
+  eurc:  1.07,
+  eurcv: 1.07,
+  euri:  1.07,
+  aeur:  1.07,
+  tgbp:  1.27,
+  xsgd:  0.745,
 }
 
 // Typical 24h volume baseline (USD millions) per asset
@@ -30,6 +79,17 @@ const BASE_VOLUME: Record<string, number> = {
   usdt:  31500, usdc: 8400, dai: 420, frax: 38,
   tusd:  62,    busd: 550,  pyusd: 29, usdp: 12,
   gusd:  8.5,   lusd: 18,
+  // New stablecoins
+  usde: 580,    usd1: 125,  usdg: 42,   rlusd: 35,
+  usdd: 18,     'united-stable': 15, eurc: 22, fdusd: 2100,
+  usdy: 18,     usdf: 28,   gho: 12,    usd0: 8.5,
+  usdai: 6.2,   usdgo: 5.8, usat: 4.5,  eurcv: 3.8,
+  ausd: 3.5,    frxusd: 8.8, dusd: 4.2, lisusd: 2.8,
+  usdsui: 5.5,  fidd: 2.2,  vbusd: 1.8, euri: 2.5,
+  usdh: 3.2,    xusd: 3.5,  yusd: 2.8,  cusd: 2.2,
+  ampl: 5.8,    aeur: 1.5,  musd: 4.2,  tgbp: 1.2,
+  usdk: 1.5,    xsgd: 2.8,  usdb: 2.2,  usdcv: 0.8,
+  usdm: 1.2,    wusd: 0.9,
 }
 
 // Historical stress events: peg deviation at peak (negative = below $1)
@@ -115,19 +175,20 @@ function generateDailyCandles(assetId: string, startDate: Date, endDate: Date): 
   const rng = makePrng(strHash(assetId))
   const baseVol = BASE_VOLUME[assetId] ?? 100
   const days = eachDayOfInterval({ start: startDate, end: endDate })
+  const peg = STABLECOIN_PEG[assetId] ?? 1.0
 
-  let price = 1.0
+  let price = peg
   // Long-running assets start with slightly different initial prices
-  if (['usdt', 'tusd', 'gusd', 'usdp'].includes(assetId)) price = 1.001
+  if (['usdt', 'tusd', 'gusd', 'usdp'].includes(assetId)) price = peg * 1.001
 
   return days.map((day) => {
     const stress = getStressImpact(assetId, day)
     // Micro random walk ±0.05% per day normally, more volatile for some assets
-    const volatility = ['frax', 'lusd', 'dai'].includes(assetId) ? 0.0008 : 0.0003
+    const volatility = ['frax', 'lusd', 'dai', 'ampl'].includes(assetId) ? 0.0008 : 0.0003
     const noise = (rng() - 0.5) * volatility
-    const meanReversion = (1.0 - price) * 0.15 // pull back toward $1
+    const meanReversion = (peg - price) * 0.15 // pull back toward peg
 
-    price = Math.max(0.5, Math.min(1.15, price + noise + meanReversion + stress * 0.1))
+    price = Math.max(peg * 0.5, Math.min(peg * 1.15, price + noise + meanReversion + stress * 0.1))
 
     const spread = volatility * (1 + Math.abs(stress) * 10)
     const open  = price + (rng() - 0.5) * spread
