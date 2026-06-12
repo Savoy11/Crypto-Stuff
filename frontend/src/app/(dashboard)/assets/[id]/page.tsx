@@ -20,7 +20,7 @@ import { RiskScoreBadge, RiskBandPill } from '@/components/assets/RiskScoreBadge
 import { MetricCard } from '@/components/ui/MetricCard'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
-import { formatCompact, formatAddress, formatCurrency, formatBps, formatDate, formatScore, formatPercent } from '@/lib/utils/format'
+import { formatCompact, formatAddress, formatBps, formatDate, formatScore, formatAssetPrice } from '@/lib/utils/format'
 import { getPegDeviationColorClass, getScoreColor } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS } from '@/lib/constants'
 
@@ -131,17 +131,28 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
             <div>
               <div className="text-[10px] text-text-muted uppercase">Price</div>
               <div className="font-mono text-sm text-text-primary">
-                {formatCurrency(asset.price, 4)}
+                {formatAssetPrice(asset.price)}
                 <span className={clsx('ml-2 text-xs', priceUp ? 'text-emerald-400' : 'text-red-400')}>
-                  {priceUp ? '+' : ''}{(asset.latestMarketData?.priceChange24h ?? 0).toFixed(3)}%
+                  {priceUp ? '+' : ''}{(asset.latestMarketData?.priceChange24h ?? 0).toFixed(asset.assetType === 'layer1' ? 1 : 3)}%
                 </span>
               </div>
             </div>
             <div>
-              <div className="text-[10px] text-text-muted uppercase">Peg Dev</div>
-              <div className={clsx('font-mono text-sm', pegClass)}>
-                {formatBps(asset.pegDeviation)}
-              </div>
+              {asset.assetType === 'layer1' ? (
+                <>
+                  <div className="text-[10px] text-text-muted uppercase">24h Change</div>
+                  <div className={clsx('font-mono text-sm', priceUp ? 'text-emerald-400' : 'text-red-400')}>
+                    {priceUp ? '+' : ''}{(asset.latestMarketData?.priceChange24h ?? 0).toFixed(1)}%
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[10px] text-text-muted uppercase">Peg Dev</div>
+                  <div className={clsx('font-mono text-sm', pegClass)}>
+                    {formatBps(asset.pegDeviation)}
+                  </div>
+                </>
+              )}
             </div>
             <div>
               <div className="text-[10px] text-text-muted uppercase">Market Cap</div>
@@ -195,14 +206,44 @@ function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
             icon={<Globe size={14} />}
             accentColor="#f59e0b"
           />
-          <MetricCard
-            title="Reserve Ratio"
-            value={`${(asset.reserveRatio * 100).toFixed(2)}%`}
-            icon={<Shield size={14} />}
-            accentColor={asset.reserveRatio >= 1 ? '#10b981' : '#ef4444'}
-          />
+          {asset.assetType === 'layer1' ? (
+            <MetricCard
+              title="Consensus"
+              value={asset.consensusMechanism ?? '—'}
+              icon={<Shield size={14} />}
+              accentColor="#8b5cf6"
+            />
+          ) : (
+            <MetricCard
+              title="Reserve Ratio"
+              value={`${(asset.reserveRatio * 100).toFixed(2)}%`}
+              icon={<Shield size={14} />}
+              accentColor={asset.reserveRatio >= 1 ? '#10b981' : '#ef4444'}
+            />
+          )}
         </div>
       </div>
+
+      {/* L1 network metrics */}
+      {asset.assetType === 'layer1' && (
+        <div>
+          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Network Metrics</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {asset.stakingAPY != null && (
+              <MetricCard title="Staking APY" value={`${asset.stakingAPY.toFixed(1)}%`} accentColor="#10b981" />
+            )}
+            {asset.validatorCount != null && (
+              <MetricCard title="Validators" value={asset.validatorCount.toLocaleString()} accentColor="#3b82f6" />
+            )}
+            {asset.maxTPS != null && (
+              <MetricCard title="Max TPS" value={asset.maxTPS.toLocaleString()} accentColor="#f59e0b" />
+            )}
+            {asset.marketDominance != null && (
+              <MetricCard title="Dominance" value={`${asset.marketDominance.toFixed(2)}%`} accentColor="#8b5cf6" />
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Risk components */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -285,18 +326,20 @@ function AnalyticsTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset
     <div className="space-y-6">
       {/* Full price history — top of analytics */}
       <ErrorBoundary>
-        <PriceHistoryChart assetId={asset.id} symbol={asset.symbol} pegTarget={asset.pegTarget ?? 1.0} />
+        <PriceHistoryChart assetId={asset.id} symbol={asset.symbol} pegTarget={asset.pegTarget} />
       </ErrorBoundary>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ErrorBoundary>
-          <PegDeviationChart
-            data={analyticsBundle.pegHistory}
-            assetSymbol={asset.symbol}
-            timeRange={pegRange}
-            onTimeRangeChange={setPegRange}
-          />
-        </ErrorBoundary>
+        {asset.assetType !== 'layer1' && (
+          <ErrorBoundary>
+            <PegDeviationChart
+              data={analyticsBundle.pegHistory}
+              assetSymbol={asset.symbol}
+              timeRange={pegRange}
+              onTimeRangeChange={setPegRange}
+            />
+          </ErrorBoundary>
+        )}
 
         <ErrorBoundary>
           <LiquidityDepthChart
@@ -321,6 +364,27 @@ function AnalyticsTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset
 
 function ReservesTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>['data']> }) {
   const { latestReserve } = asset
+
+  if (asset.assetType === 'layer1') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+        <div className="size-14 rounded-full bg-bg-elevated border border-border flex items-center justify-center">
+          <Shield size={24} className="text-text-muted" aria-hidden />
+        </div>
+        <div>
+          <p className="text-sm font-medium text-text-secondary">Reserve Attestation Not Applicable</p>
+          <p className="text-xs text-text-muted mt-1 max-w-sm">
+            Layer 1 native assets are not backed by external reserves. Supply is governed by protocol consensus rules.
+          </p>
+        </div>
+        {asset.consensusMechanism && (
+          <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-accent-blue/10 text-accent-blue border border-accent-blue/20">
+            {asset.consensusMechanism}
+          </span>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">

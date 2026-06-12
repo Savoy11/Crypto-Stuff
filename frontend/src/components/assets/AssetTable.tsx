@@ -115,7 +115,9 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         header: 'Peg Dev',
         sortable: true,
         align: 'right',
-        accessor: (row) => (
+        accessor: (row) => row.assetType === 'layer1' ? (
+          <span className="font-mono text-xs text-text-muted">—</span>
+        ) : (
           <span className={clsx('font-mono text-xs', getPegDeviationColorClass(row.pegDeviationBps ?? row.pegDeviation))}>
             {formatBps(row.pegDeviationBps ?? row.pegDeviation)}
           </span>
@@ -133,7 +135,7 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
       {
         key: 'sparkline',
         header: '30d',
-        accessor: (row) => <Sparkline assetId={row.id} width={80} height={32} />,
+        accessor: (row) => <Sparkline assetId={row.id} width={80} height={32} pegTarget={row.pegTarget} />,
       },
       {
         key: 'volume24h',
@@ -149,7 +151,9 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         header: 'Reserve',
         sortable: true,
         align: 'right',
-        accessor: (row) => (
+        accessor: (row) => row.assetType === 'layer1' ? (
+          <span className="font-mono text-xs text-text-muted">—</span>
+        ) : (
           <span
             className={clsx(
               'font-mono text-xs',

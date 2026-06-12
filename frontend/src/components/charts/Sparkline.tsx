@@ -9,9 +9,10 @@ interface SparklineProps {
   width?: number
   height?: number
   color?: string
+  pegTarget?: number
 }
 
-export function Sparkline({ assetId, width = 80, height = 32, color }: SparklineProps) {
+export function Sparkline({ assetId, width = 80, height = 32, color, pegTarget }: SparklineProps) {
   const candles = useMemo(() => getMockPriceHistory(assetId, '1M'), [assetId])
 
   const first = candles[0]?.close ?? 1
@@ -23,7 +24,9 @@ export function Sparkline({ assetId, width = 80, height = 32, color }: Sparkline
   return (
     <ResponsiveContainer width={width} height={height}>
       <LineChart data={candles} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
-        <ReferenceLine y={1.0} stroke="#334155" strokeDasharray="2 2" strokeWidth={1} />
+        {pegTarget != null && (
+          <ReferenceLine y={pegTarget} stroke="#334155" strokeDasharray="2 2" strokeWidth={1} />
+        )}
         <Tooltip content={() => null} />
         <Line
           type="monotone"

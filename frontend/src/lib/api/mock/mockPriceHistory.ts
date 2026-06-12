@@ -165,9 +165,216 @@ function generateWeeklyCandles(assetId: string, startDate: Date, endDate: Date):
   }))
 }
 
+// ─── Layer 1 Price History ────────────────────────────────────────────────────
+
+interface AnchorPoint { date: string; price: number }
+
+// Key historical prices for each L1 asset (interpolated between to build chart data)
+const L1_ANCHORS: Record<string, AnchorPoint[]> = {
+  btc: [
+    { date: '2013-01-01', price: 13 },
+    { date: '2013-12-01', price: 1100 },
+    { date: '2015-01-15', price: 175 },
+    { date: '2017-01-01', price: 1000 },
+    { date: '2017-12-17', price: 19800 },
+    { date: '2018-12-15', price: 3200 },
+    { date: '2019-06-26', price: 13000 },
+    { date: '2020-03-13', price: 4900 },
+    { date: '2021-04-14', price: 64800 },
+    { date: '2021-07-20', price: 29400 },
+    { date: '2021-11-10', price: 68900 },
+    { date: '2022-06-18', price: 18000 },
+    { date: '2022-11-21', price: 15600 },
+    { date: '2023-12-01', price: 38700 },
+    { date: '2024-03-14', price: 73700 },
+    { date: '2024-08-05', price: 49200 },
+    { date: '2025-01-20', price: 105000 },
+    { date: '2026-06-12', price: 108250 },
+  ],
+  eth: [
+    { date: '2015-08-07', price: 0.75 },
+    { date: '2016-03-01', price: 12 },
+    { date: '2017-01-01', price: 8 },
+    { date: '2018-01-13', price: 1400 },
+    { date: '2018-12-15', price: 83 },
+    { date: '2020-03-13', price: 104 },
+    { date: '2021-05-11', price: 4175 },
+    { date: '2021-07-20', price: 1780 },
+    { date: '2021-11-10', price: 4870 },
+    { date: '2022-06-18', price: 900 },
+    { date: '2022-11-21', price: 1090 },
+    { date: '2023-12-01', price: 2100 },
+    { date: '2024-03-14', price: 4000 },
+    { date: '2025-01-20', price: 3800 },
+    { date: '2026-06-12', price: 4182 },
+  ],
+  sol: [
+    { date: '2020-03-25', price: 0.50 },
+    { date: '2020-08-01', price: 3.00 },
+    { date: '2021-05-18', price: 52 },
+    { date: '2021-11-06', price: 258 },
+    { date: '2022-06-18', price: 33 },
+    { date: '2022-12-28', price: 8.5 },
+    { date: '2023-10-23', price: 28 },
+    { date: '2024-01-14', price: 115 },
+    { date: '2024-03-19', price: 200 },
+    { date: '2025-01-20', price: 265 },
+    { date: '2026-06-12', price: 193 },
+  ],
+  bnb: [
+    { date: '2017-09-01', price: 0.10 },
+    { date: '2018-01-10', price: 24 },
+    { date: '2018-12-15', price: 4.5 },
+    { date: '2021-05-10', price: 690 },
+    { date: '2021-07-20', price: 280 },
+    { date: '2021-11-10', price: 695 },
+    { date: '2022-06-18', price: 220 },
+    { date: '2022-11-21', price: 265 },
+    { date: '2023-12-01', price: 240 },
+    { date: '2024-06-01', price: 605 },
+    { date: '2025-01-20', price: 700 },
+    { date: '2026-06-12', price: 638 },
+  ],
+  avax: [
+    { date: '2020-09-23', price: 4.00 },
+    { date: '2020-12-26', price: 44 },
+    { date: '2021-11-21', price: 147 },
+    { date: '2022-06-18', price: 16 },
+    { date: '2022-12-28', price: 11.4 },
+    { date: '2023-12-01', price: 22 },
+    { date: '2024-03-19', price: 56 },
+    { date: '2025-01-20', price: 42 },
+    { date: '2026-06-12', price: 37.5 },
+  ],
+  ada: [
+    { date: '2017-10-02', price: 0.02 },
+    { date: '2018-01-04', price: 1.33 },
+    { date: '2018-12-15', price: 0.032 },
+    { date: '2021-05-16', price: 2.44 },
+    { date: '2021-09-02', price: 3.09 },
+    { date: '2022-06-18', price: 0.47 },
+    { date: '2022-12-28', price: 0.24 },
+    { date: '2024-03-14', price: 0.74 },
+    { date: '2025-01-20', price: 1.05 },
+    { date: '2026-06-12', price: 0.88 },
+  ],
+  dot: [
+    { date: '2020-08-19', price: 2.50 },
+    { date: '2021-05-14', price: 49 },
+    { date: '2021-11-04', price: 52 },
+    { date: '2022-06-18', price: 6.5 },
+    { date: '2022-12-28', price: 4.2 },
+    { date: '2024-03-14', price: 15.5 },
+    { date: '2025-01-20', price: 10 },
+    { date: '2026-06-12', price: 8.75 },
+  ],
+  pol: [
+    { date: '2019-04-28', price: 0.01 },
+    { date: '2019-12-01', price: 0.025 },
+    { date: '2021-05-18', price: 2.45 },
+    { date: '2021-12-26', price: 2.92 },
+    { date: '2022-06-18', price: 0.40 },
+    { date: '2022-12-28', price: 0.74 },
+    { date: '2024-03-14', price: 1.20 },
+    { date: '2025-01-20', price: 0.58 },
+    { date: '2026-06-12', price: 0.62 },
+  ],
+}
+
+const L1_ANNUAL_VOL: Record<string, number> = {
+  btc: 0.72, eth: 0.85, sol: 1.10, bnb: 0.90,
+  avax: 1.05, ada: 0.95, dot: 1.00, pol: 1.10,
+}
+
+const L1_BASE_VOLUME_B: Record<string, number> = {
+  btc: 35000, eth: 18000, sol: 3800, bnb: 1900,
+  avax: 720, ada: 580, dot: 340, pol: 420,
+}
+
+const L1_LAUNCH_DATES: Record<string, string> = {
+  btc: '2013-01-01', eth: '2015-08-07', sol: '2020-03-25',
+  bnb: '2017-09-01', avax: '2020-09-23', ada: '2017-10-02',
+  dot: '2020-08-19', pol: '2019-04-28',
+}
+
+function interpolateL1Price(dateMs: number, anchors: AnchorPoint[]): number {
+  const first = anchors[0]
+  const last  = anchors[anchors.length - 1]
+  if (dateMs <= parseISO(first.date).getTime()) return first.price
+  if (dateMs >= parseISO(last.date).getTime()) return last.price
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const t0 = parseISO(anchors[i].date).getTime()
+    const t1 = parseISO(anchors[i + 1].date).getTime()
+    if (dateMs >= t0 && dateMs <= t1) {
+      const t = (dateMs - t0) / (t1 - t0)
+      const logP = Math.log(anchors[i].price) + t * (Math.log(anchors[i + 1].price) - Math.log(anchors[i].price))
+      return Math.exp(logP)
+    }
+  }
+  return last.price
+}
+
+function decimalsForPrice(p: number): number {
+  if (p >= 10000) return 0
+  if (p >= 100)  return 2
+  if (p >= 1)    return 4
+  return 6
+}
+
+function generateL1DailyCandles(assetId: string, startDate: Date, endDate: Date): PriceCandle[] {
+  const anchors = L1_ANCHORS[assetId]
+  if (!anchors) return []
+  const rng = makePrng(strHash(assetId + '_l1'))
+  const dailyVol = (L1_ANNUAL_VOL[assetId] ?? 0.80) / Math.sqrt(252)
+  const baseVol  = L1_BASE_VOLUME_B[assetId] ?? 1000
+  const days = eachDayOfInterval({ start: startDate, end: endDate })
+
+  return days.map((day) => {
+    const trend = interpolateL1Price(day.getTime(), anchors)
+    const noise = Math.exp((rng() - 0.5) * dailyVol * 2)
+    const close = trend * noise
+    const spread = close * dailyVol * 0.5
+    const open  = close * (1 + (rng() - 0.5) * dailyVol * 0.6)
+    const high  = Math.max(open, close) * (1 + rng() * dailyVol * 0.8)
+    const low   = Math.min(open, close) * (1 - rng() * dailyVol * 0.8)
+    const vol   = Math.round(baseVol * (0.4 + rng() * 1.2))
+    const dp    = decimalsForPrice(close)
+    return {
+      date:   format(day, 'yyyy-MM-dd'),
+      open:   +open.toFixed(dp),
+      high:   +high.toFixed(dp),
+      low:    +low.toFixed(dp),
+      close:  +close.toFixed(dp),
+      volume: Math.max(1, vol),
+    }
+  })
+}
+
+function generateL1WeeklyCandles(assetId: string, startDate: Date, endDate: Date): PriceCandle[] {
+  const daily = generateL1DailyCandles(assetId, startDate, endDate)
+  const buckets: Record<string, PriceCandle[]> = {}
+  for (const c of daily) {
+    const week = format(parseISO(c.date), "yyyy-'W'II")
+    ;(buckets[week] ??= []).push(c)
+  }
+  return Object.entries(buckets).map(([, candles]) => ({
+    date:   candles[0].date,
+    open:   candles[0].open,
+    close:  candles[candles.length - 1].close,
+    high:   Math.max(...candles.map((c) => c.high)),
+    low:    Math.min(...candles.map((c) => c.low)),
+    volume: candles.reduce((s, c) => s + c.volume, 0),
+  }))
+}
+
+const L1_IDS = new Set(['btc', 'eth', 'sol', 'bnb', 'avax', 'ada', 'dot', 'pol'])
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function getMockPriceHistory(assetId: string, range: PriceRange): PriceCandle[] {
   const now = new Date()
-  const launch = parseISO(LAUNCH_DATES[assetId] ?? '2020-01-01')
+  const launchStr = L1_IDS.has(assetId) ? (L1_LAUNCH_DATES[assetId] ?? '2020-01-01') : (LAUNCH_DATES[assetId] ?? '2020-01-01')
+  const launch = parseISO(launchStr)
 
   let startDate: Date
   switch (range) {
@@ -182,6 +389,11 @@ export function getMockPriceHistory(assetId: string, range: PriceRange): PriceCa
 
   const totalDays = differenceInDays(now, startDate)
 
+  if (L1_IDS.has(assetId)) {
+    if (range === 'MAX' && totalDays > 500) return generateL1WeeklyCandles(assetId, startDate, now)
+    return generateL1DailyCandles(assetId, startDate, now)
+  }
+
   // Use weekly candles for MAX view with >500 days to keep it performant
   if (range === 'MAX' && totalDays > 500) {
     return generateWeeklyCandles(assetId, startDate, now)
@@ -191,7 +403,7 @@ export function getMockPriceHistory(assetId: string, range: PriceRange): PriceCa
 }
 
 export function getAssetLaunchDate(assetId: string): string {
-  return LAUNCH_DATES[assetId] ?? '2020-01-01'
+  return L1_LAUNCH_DATES[assetId] ?? LAUNCH_DATES[assetId] ?? '2020-01-01'
 }
 
 export const NOTABLE_EVENTS = [

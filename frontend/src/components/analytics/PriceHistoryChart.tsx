@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import {
   ComposedChart,
   Area,
@@ -21,23 +21,35 @@ import { CHART_THEME } from '@/lib/utils/chart'
 interface PriceHistoryChartProps {
   assetId: string
   symbol: string
-  pegTarget?: number
+  pegTarget?: number  // undefined for L1 assets — disables peg reference line
 }
 
 const RANGES: PriceRange[] = ['1W', '1M', '3M', '1Y', 'MAX']
 
-function formatPrice(v: unknown) {
+function fmtYAxis(v: unknown): string {
   if (typeof v !== 'number') return ''
+  if (v >= 100000) return `$${Math.round(v / 1000)}k`
+  if (v >= 10000)  return `$${Math.round(v / 1000)}k`
+  if (v >= 1000)   return `$${v.toFixed(0)}`
+  if (v >= 100)    return `$${v.toFixed(1)}`
+  if (v >= 2)      return `$${v.toFixed(2)}`
   return `$${v.toFixed(4)}`
 }
 
-function formatVolume(v: unknown) {
+function fmtTooltipPrice(v: number): string {
+  if (v >= 10000)  return `$${v.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  if (v >= 100)    return `$${v.toFixed(2)}`
+  if (v >= 2)      return `$${v.toFixed(2)}`
+  return `$${v.toFixed(4)}`
+}
+
+function fmtVolume(v: unknown) {
   if (typeof v !== 'number') return ''
   if (v >= 1000) return `$${(v / 1000).toFixed(1)}B`
   return `$${v.toFixed(0)}M`
 }
 
-function formatXAxis(val: unknown, range: PriceRange) {
+function fmtXAxis(val: unknown, range: PriceRange) {
   if (typeof val !== 'string') return ''
   try {
     const d = parseISO(val)
@@ -49,65 +61,18 @@ function formatXAxis(val: unknown, range: PriceRange) {
   } catch { return '' }
 }
 
-// Custom tooltip
-function PriceTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null
-  const d = payload[0]?.payload
-  if (!d) return null
-
-  const change = ((d.close - 1.0) * 100).toFixed(3)
-  const changeColor = d.close >= 1.0 ? '#10b981' : '#ef4444'
-
-  return (
-    <div className="bg-bg-card border border-border rounded-lg p-3 text-xs font-mono shadow-xl min-w-[160px]">
-      <div className="text-text-muted mb-2">
-        {label ? (() => { try { return format(parseISO(label as string), 'MMM dd, yyyy') } catch { return label } })() : ''}
-      </div>
-      <div className="space-y-1">
-        <div className="flex justify-between gap-4">
-          <span className="text-text-muted">Open</span>
-          <span className="text-text-primary">${d.open?.toFixed(4)}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-text-muted">High</span>
-          <span className="text-emerald-400">${d.high?.toFixed(4)}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-text-muted">Low</span>
-          <span className="text-red-400">${d.low?.toFixed(4)}</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-text-muted">Close</span>
-          <span className="text-text-primary font-bold">${d.close?.toFixed(4)}</span>
-        </div>
-        <div className="border-t border-border pt-1 flex justify-between gap-4">
-          <span className="text-text-muted">vs Peg</span>
-          <span style={{ color: changeColor }}>
-            {d.close >= 1.0 ? '+' : ''}{change}%
-          </span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-text-muted">Volume</span>
-          <span className="text-text-secondary">{formatVolume(d.volume)}</span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-export function PriceHistoryChart({ assetId, symbol, pegTarget = 1.0 }: PriceHistoryChartProps) {
+export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryChartProps) {
   const [range, setRange] = useState<PriceRange>('1Y')
+  const isL1 = pegTarget === undefined
 
   const candles = useMemo(() => getMockPriceHistory(assetId, range), [assetId, range])
-
   const launchDate = getAssetLaunchDate(assetId)
 
-  const latest  = candles[candles.length - 1]
-  const first   = candles[0]
+  const latest = candles[candles.length - 1]
+  const first  = candles[0]
   const priceChange = latest && first ? latest.close - first.open : 0
   const pricePct    = first?.open ? (priceChange / first.open) * 100 : 0
 
-  // Only show events that fall within current range
   const visibleEvents = useMemo(() => {
     if (!candles.length) return []
     const start = candles[0].date
@@ -121,11 +86,59 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget = 1.0 }: PriceHis
     const highs = candles.map((c) => c.high)
     const minP  = Math.min(...lows)
     const maxP  = Math.max(...highs)
-    const pad   = Math.max((maxP - minP) * 0.15, 0.003)
-    return [+(minP - pad).toFixed(4), +(maxP + pad).toFixed(4)]
+    const pad   = Math.max((maxP - minP) * 0.12, maxP * 0.01, 0.003)
+    return [Math.max(0, +(minP - pad).toPrecision(6)), +(maxP + pad).toPrecision(6)]
   }, [candles])
 
   const isUp = priceChange >= 0
+
+  const renderTooltip = useCallback(({ active, payload, label }: any) => {
+    if (!active || !payload?.length) return null
+    const d = payload[0]?.payload
+    if (!d) return null
+
+    const changeVs = isL1
+      ? ((d.close - d.open) / Math.max(d.open, 0.000001) * 100).toFixed(2)
+      : ((d.close - 1.0) * 100).toFixed(3)
+    const changePositive = isL1 ? d.close >= d.open : d.close >= 1.0
+    const changeColor = changePositive ? '#10b981' : '#ef4444'
+
+    return (
+      <div className="bg-bg-card border border-border rounded-lg p-3 text-xs font-mono shadow-xl min-w-[170px]">
+        <div className="text-text-muted mb-2">
+          {label ? (() => { try { return format(parseISO(label as string), 'MMM dd, yyyy') } catch { return label } })() : ''}
+        </div>
+        <div className="space-y-1">
+          <div className="flex justify-between gap-4">
+            <span className="text-text-muted">Open</span>
+            <span className="text-text-primary">{fmtTooltipPrice(d.open)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-text-muted">High</span>
+            <span className="text-emerald-400">{fmtTooltipPrice(d.high)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-text-muted">Low</span>
+            <span className="text-red-400">{fmtTooltipPrice(d.low)}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-text-muted">Close</span>
+            <span className="text-text-primary font-bold">{fmtTooltipPrice(d.close)}</span>
+          </div>
+          <div className="border-t border-border pt-1 flex justify-between gap-4">
+            <span className="text-text-muted">{isL1 ? 'vs Open' : 'vs Peg'}</span>
+            <span style={{ color: changeColor }}>
+              {changePositive ? '+' : ''}{changeVs}%
+            </span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-text-muted">Volume</span>
+            <span className="text-text-secondary">{fmtVolume(d.volume)}</span>
+          </div>
+        </div>
+      </div>
+    )
+  }, [isL1])
 
   return (
     <div className="rounded-xl border border-border bg-bg-card">
@@ -134,15 +147,17 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget = 1.0 }: PriceHis
         <div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-semibold text-text-primary">{symbol} Price History</span>
-            <span className="text-xs text-text-muted font-mono">vs USD Peg</span>
+            <span className="text-xs text-text-muted font-mono">
+              {isL1 ? 'vs USD' : 'vs USD Peg'}
+            </span>
           </div>
           <div className="flex items-center gap-3 mt-1">
             <span className="text-2xl font-mono font-bold text-text-primary tabular-nums">
-              ${latest?.close.toFixed(4) ?? '—'}
+              {latest ? fmtTooltipPrice(latest.close) : '—'}
             </span>
             <div className={`flex items-center gap-1 text-sm font-mono ${isUp ? 'text-emerald-400' : 'text-red-400'}`}>
               {isUp ? <TrendingUp size={14} /> : pricePct === 0 ? <Minus size={14} /> : <TrendingDown size={14} />}
-              {isUp ? '+' : ''}{pricePct.toFixed(3)}%
+              {isUp ? '+' : ''}{pricePct.toFixed(isL1 ? 1 : 3)}%
               <span className="text-text-muted text-xs ml-1">({range})</span>
             </div>
           </div>
@@ -187,7 +202,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget = 1.0 }: PriceHis
               tick={{ fill: CHART_THEME.axis, fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(v) => formatXAxis(v, range)}
+              tickFormatter={(v) => fmtXAxis(v, range)}
               minTickGap={50}
             />
 
@@ -196,20 +211,22 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget = 1.0 }: PriceHis
               tick={{ fill: CHART_THEME.axis, fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
               tickLine={false}
               axisLine={false}
-              tickFormatter={formatPrice}
-              width={62}
+              tickFormatter={fmtYAxis}
+              width={isL1 ? 72 : 62}
             />
 
-            <Tooltip content={<PriceTooltip />} />
+            <Tooltip content={renderTooltip} />
 
-            {/* $1.00 peg line */}
-            <ReferenceLine
-              y={pegTarget}
-              stroke="#475569"
-              strokeDasharray="4 3"
-              strokeWidth={1}
-              label={{ value: '$1.00', fill: '#64748b', fontSize: 10, position: 'insideTopRight' }}
-            />
+            {/* $1.00 peg line — only for pegged assets */}
+            {!isL1 && pegTarget != null && (
+              <ReferenceLine
+                y={pegTarget}
+                stroke="#475569"
+                strokeDasharray="4 3"
+                strokeWidth={1}
+                label={{ value: '$1.00', fill: '#64748b', fontSize: 10, position: 'insideTopRight' }}
+              />
+            )}
 
             {/* Notable stress events */}
             {visibleEvents.map((evt) => (
@@ -242,7 +259,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget = 1.0 }: PriceHis
                 stroke="#1e2433"
                 fill="#0d1117"
                 travellerWidth={6}
-                tickFormatter={(v) => formatXAxis(v, range)}
+                tickFormatter={(v) => fmtXAxis(v, range)}
               />
             )}
           </ComposedChart>
@@ -253,9 +270,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget = 1.0 }: PriceHis
           <ComposedChart data={candles} margin={{ top: 2, right: 8, bottom: 0, left: 0 }}>
             <XAxis dataKey="date" hide />
             <YAxis hide />
-            <Tooltip
-              content={() => null}
-            />
+            <Tooltip content={() => null} />
             <Bar
               dataKey="volume"
               name="Volume"

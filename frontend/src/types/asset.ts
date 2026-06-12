@@ -1,6 +1,6 @@
-export type AssetType = 'stablecoin' | 'tokenized' | 'cbdc' | 'defi'
+export type AssetType = 'stablecoin' | 'tokenized' | 'cbdc' | 'defi' | 'layer1'
 export type RiskBand = 'low' | 'moderate' | 'elevated' | 'high' | 'critical'
-export type Blockchain = 'ethereum' | 'solana' | 'polygon' | 'avalanche' | 'tron' | 'other'
+export type Blockchain = 'ethereum' | 'solana' | 'polygon' | 'avalanche' | 'tron' | 'bitcoin' | 'bnb-chain' | 'cardano' | 'polkadot' | 'other'
 
 export interface Asset {
   id: string
@@ -29,6 +29,12 @@ export interface Asset {
   website?: string
   whitepaper?: string
   coingeckoId?: string
+  // Layer 1 specific fields
+  consensusMechanism?: string
+  stakingAPY?: number
+  validatorCount?: number
+  maxTPS?: number
+  marketDominance?: number
 }
 
 export interface ScoreBreakdown {

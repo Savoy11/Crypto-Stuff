@@ -42,6 +42,7 @@ export const ASSET_TYPE_LABELS: Record<string, string> = {
   tokenized: 'Tokenized Asset',
   cbdc: 'CBDC',
   defi: 'DeFi',
+  layer1: 'Layer 1',
   all: 'All Types',
 }
 
@@ -51,6 +52,10 @@ export const BLOCKCHAIN_LABELS: Record<string, string> = {
   polygon: 'Polygon',
   avalanche: 'Avalanche',
   tron: 'Tron',
+  bitcoin: 'Bitcoin',
+  'bnb-chain': 'BNB Chain',
+  cardano: 'Cardano',
+  polkadot: 'Polkadot',
   other: 'Other',
   all: 'All Chains',
 }

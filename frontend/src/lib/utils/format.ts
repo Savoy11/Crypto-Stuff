@@ -133,3 +133,13 @@ export function formatRatio(value: number, decimals = 1): string {
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
+
+/**
+ * Format an asset price adaptively — fewer decimals for large prices, more for small.
+ * Example: 108250 → "$108,250" | 4180.5 → "$4,180.50" | 1.0001 → "$1.0001" | 0.88 → "$0.8800"
+ */
+export function formatAssetPrice(price: number): string {
+  if (price >= 10000) return formatCurrency(price, 0)
+  if (price >= 2) return formatCurrency(price, 2)
+  return formatCurrency(price, 4)
+}
