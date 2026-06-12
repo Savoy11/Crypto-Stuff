@@ -14,6 +14,7 @@ import {
   Activity,
   LogOut,
   User,
+  Newspaper,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAlertStore } from '@/store/useAlertStore'
@@ -28,6 +29,7 @@ const NAV_ITEMS: Array<{ href: string; label: string; icon: React.ElementType; b
   { href: '/reserves', label: 'Reserves', icon: Vault },
   { href: '/alerts', label: 'Alerts', icon: Bell, badge: true },
   { href: '/watchlist', label: 'Watchlist', icon: Star },
+  { href: '/news', label: 'News', icon: Newspaper },
   { href: '/reports', label: 'Reports', icon: FileBarChart },
 ]
 
