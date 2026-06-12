@@ -189,7 +189,8 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2024-03-14', price: 73700 },
     { date: '2024-08-05', price: 49200 },
     { date: '2025-01-20', price: 105000 },
-    { date: '2026-06-12', price: 108250 },
+    { date: '2025-05-22', price: 111800 },
+    { date: '2026-06-12', price: 63588 },
   ],
   eth: [
     { date: '2015-08-07', price: 0.75 },
@@ -206,7 +207,7 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2023-12-01', price: 2100 },
     { date: '2024-03-14', price: 4000 },
     { date: '2025-01-20', price: 3800 },
-    { date: '2026-06-12', price: 4182 },
+    { date: '2026-06-12', price: 2385 },
   ],
   sol: [
     { date: '2020-03-25', price: 0.50 },
@@ -219,7 +220,7 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2024-01-14', price: 115 },
     { date: '2024-03-19', price: 200 },
     { date: '2025-01-20', price: 265 },
-    { date: '2026-06-12', price: 193 },
+    { date: '2026-06-12', price: 140.8 },
   ],
   bnb: [
     { date: '2017-09-01', price: 0.10 },
@@ -233,7 +234,7 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2023-12-01', price: 240 },
     { date: '2024-06-01', price: 605 },
     { date: '2025-01-20', price: 700 },
-    { date: '2026-06-12', price: 638 },
+    { date: '2026-06-12', price: 566 },
   ],
   avax: [
     { date: '2020-09-23', price: 4.00 },
@@ -244,7 +245,7 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2023-12-01', price: 22 },
     { date: '2024-03-19', price: 56 },
     { date: '2025-01-20', price: 42 },
-    { date: '2026-06-12', price: 37.5 },
+    { date: '2026-06-12', price: 22.15 },
   ],
   ada: [
     { date: '2017-10-02', price: 0.02 },
@@ -256,7 +257,7 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2022-12-28', price: 0.24 },
     { date: '2024-03-14', price: 0.74 },
     { date: '2025-01-20', price: 1.05 },
-    { date: '2026-06-12', price: 0.88 },
+    { date: '2026-06-12', price: 0.377 },
   ],
   dot: [
     { date: '2020-08-19', price: 2.50 },
@@ -266,7 +267,7 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2022-12-28', price: 4.2 },
     { date: '2024-03-14', price: 15.5 },
     { date: '2025-01-20', price: 10 },
-    { date: '2026-06-12', price: 8.75 },
+    { date: '2026-06-12', price: 5.80 },
   ],
   pol: [
     { date: '2019-04-28', price: 0.01 },
@@ -277,7 +278,7 @@ const L1_ANCHORS: Record<string, AnchorPoint[]> = {
     { date: '2022-12-28', price: 0.74 },
     { date: '2024-03-14', price: 1.20 },
     { date: '2025-01-20', price: 0.58 },
-    { date: '2026-06-12', price: 0.62 },
+    { date: '2026-06-12', price: 0.38 },
   ],
 }
 
