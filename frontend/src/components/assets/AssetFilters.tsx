@@ -9,6 +9,7 @@ import { getRiskTailwindClasses, getRiskLabel } from '@/lib/utils/risk'
 
 const ASSET_TYPES: Array<{ value: AssetType | 'all'; label: string }> = [
   { value: 'all', label: 'All Types' },
+  { value: 'layer1', label: 'Layer 1' },
   { value: 'stablecoin', label: 'Stablecoin' },
   { value: 'tokenized', label: 'Tokenized' },
   { value: 'cbdc', label: 'CBDC' },
@@ -17,11 +18,34 @@ const ASSET_TYPES: Array<{ value: AssetType | 'all'; label: string }> = [
 
 const BLOCKCHAINS: Array<{ value: Blockchain | 'all'; label: string }> = [
   { value: 'all', label: 'All Chains' },
+  { value: 'bitcoin', label: 'Bitcoin' },
   { value: 'ethereum', label: 'Ethereum' },
+  { value: 'bnb-chain', label: 'BNB Chain' },
   { value: 'solana', label: 'Solana' },
-  { value: 'polygon', label: 'Polygon' },
-  { value: 'avalanche', label: 'Avalanche' },
   { value: 'tron', label: 'Tron' },
+  { value: 'ton', label: 'TON' },
+  { value: 'cardano', label: 'Cardano' },
+  { value: 'avalanche', label: 'Avalanche' },
+  { value: 'polkadot', label: 'Polkadot' },
+  { value: 'polygon', label: 'Polygon' },
+  { value: 'sui', label: 'Sui' },
+  { value: 'near', label: 'NEAR' },
+  { value: 'aptos', label: 'Aptos' },
+  { value: 'bitcoin-cash', label: 'Bitcoin Cash' },
+  { value: 'litecoin', label: 'Litecoin' },
+  { value: 'monero', label: 'Monero' },
+  { value: 'hedera', label: 'Hedera' },
+  { value: 'algorand', label: 'Algorand' },
+  { value: 'internet-computer', label: 'Internet Computer' },
+  { value: 'etc', label: 'Ethereum Classic' },
+  { value: 'kaspa', label: 'Kaspa' },
+  { value: 'filecoin', label: 'Filecoin' },
+  { value: 'injective', label: 'Injective' },
+  { value: 'vechain', label: 'VeChain' },
+  { value: 'tezos', label: 'Tezos' },
+  { value: 'iota', label: 'IOTA' },
+  { value: 'zcash', label: 'Zcash' },
+  { value: 'other', label: 'Other' },
 ]
 
 const RISK_BANDS: Array<{ value: RiskBand | 'all'; label: string }> = [
@@ -93,7 +117,7 @@ export function AssetFilters() {
       </FilterGroup>
 
       <FilterGroup label="Blockchain">
-        <div className="space-y-1">
+        <div className="space-y-1 max-h-52 overflow-y-auto pr-0.5">
           {BLOCKCHAINS.map(({ value, label }) => (
             <button
               key={value}

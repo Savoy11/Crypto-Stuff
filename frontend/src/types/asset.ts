@@ -1,6 +1,11 @@
 export type AssetType = 'stablecoin' | 'tokenized' | 'cbdc' | 'defi' | 'layer1'
 export type RiskBand = 'low' | 'moderate' | 'elevated' | 'high' | 'critical'
-export type Blockchain = 'ethereum' | 'solana' | 'polygon' | 'avalanche' | 'tron' | 'bitcoin' | 'bnb-chain' | 'cardano' | 'polkadot' | 'other'
+export type Blockchain =
+  | 'ethereum' | 'solana' | 'polygon' | 'avalanche' | 'tron' | 'bitcoin'
+  | 'bnb-chain' | 'cardano' | 'polkadot' | 'ton' | 'bitcoin-cash' | 'litecoin'
+  | 'monero' | 'zcash' | 'hedera' | 'sui' | 'near' | 'internet-computer'
+  | 'etc' | 'kaspa' | 'algorand' | 'filecoin' | 'aptos' | 'injective'
+  | 'vechain' | 'tezos' | 'iota' | 'other'
 
 export interface Asset {
   id: string
