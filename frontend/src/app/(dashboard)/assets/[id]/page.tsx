@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Copy, CheckCircle, ExternalLink, ChevronLeft, TrendingUp, TrendingDown,
-  Clock, Globe, Shield, Activity, BookOpen
+  Clock, Globe, Shield, Activity, BookOpen, Newspaper, Zap
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAsset } from '@/hooks/useAssets'
@@ -23,11 +23,14 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { formatCompact, formatAddress, formatBps, formatDate, formatScore, formatAssetPrice } from '@/lib/utils/format'
 import { getPegDeviationColorClass, getScoreColor } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS } from '@/lib/constants'
+import { getMockNews, NEWS_CATEGORIES } from '@/lib/api/mock/mockNews'
+import type { NewsCategory } from '@/lib/api/mock/mockNews'
 
-type Tab = 'overview' | 'analytics' | 'reserves' | 'risk-history'
+type Tab = 'overview' | 'news' | 'analytics' | 'reserves' | 'risk-history'
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
+  { id: 'news', label: 'News' },
   { id: 'analytics', label: 'Analytics' },
   { id: 'reserves', label: 'Reserves' },
   { id: 'risk-history', label: 'Risk History' },
@@ -318,6 +321,114 @@ function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
   )
 }
 
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60000)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+const SENTIMENT_STYLES = {
+  positive: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  neutral:  'bg-text-muted/10 text-text-muted border-border',
+  negative: 'bg-red-500/10 text-red-400 border-red-500/20',
+}
+
+function NewsTab({ assetId }: { assetId: string }) {
+  const [catFilter, setCatFilter] = useState<NewsCategory | 'all'>('all')
+  const articles = getMockNews(assetId, catFilter)
+
+  return (
+    <div className="space-y-5">
+      {/* Category pills */}
+      <div className="flex flex-wrap gap-2">
+        {NEWS_CATEGORIES.map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setCatFilter(value)}
+            className={clsx(
+              'px-3 py-1 rounded-full text-xs font-medium border transition-colors',
+              catFilter === value
+                ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                : 'bg-bg-elevated border-border text-text-muted hover:text-text-secondary hover:border-border-strong'
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {articles.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-center">
+          <div className="size-12 rounded-full bg-bg-elevated border border-border flex items-center justify-center">
+            <Newspaper size={20} className="text-text-muted" aria-hidden />
+          </div>
+          <p className="text-sm text-text-muted">No news articles found for this asset.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {articles.map((article) => (
+            <article
+              key={article.id}
+              className="rounded-card border border-border bg-bg-card p-5 hover:border-border-strong transition-colors"
+            >
+              {/* Header row */}
+              <div className="flex items-start justify-between gap-4 mb-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {article.isBreaking && (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20">
+                      <Zap size={9} aria-hidden />
+                      Breaking
+                    </span>
+                  )}
+                  <span className={clsx(
+                    'px-2 py-0.5 rounded border text-[10px] font-medium capitalize',
+                    SENTIMENT_STYLES[article.sentiment]
+                  )}>
+                    {article.sentiment}
+                  </span>
+                  <span className="px-2 py-0.5 rounded border border-border bg-bg-elevated text-[10px] text-text-muted capitalize">
+                    {article.category}
+                  </span>
+                </div>
+                <span className="text-[11px] text-text-muted flex-shrink-0 font-mono">
+                  {timeAgo(article.publishedAt)}
+                </span>
+              </div>
+
+              {/* Headline */}
+              <h3 className="text-sm font-semibold text-text-primary leading-snug mb-2">
+                {article.headline}
+              </h3>
+
+              {/* Summary */}
+              <p className="text-xs text-text-muted leading-relaxed line-clamp-3 mb-3">
+                {article.summary}
+              </p>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-text-secondary">{article.source}</span>
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-accent-blue hover:text-blue-300 transition-colors"
+                >
+                  Read more
+                  <ExternalLink size={10} aria-hidden />
+                </a>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AnalyticsTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>['data']> }) {
   const [pegRange, setPegRange] = useState<import('@/types/api').TimeRange>('7d')
   const { analyticsBundle } = asset
@@ -561,6 +672,11 @@ export default function AssetDetailPage() {
         {activeTab === 'overview' && (
           <ErrorBoundary>
             <OverviewTab asset={asset} />
+          </ErrorBoundary>
+        )}
+        {activeTab === 'news' && (
+          <ErrorBoundary>
+            <NewsTab assetId={asset.id} />
           </ErrorBoundary>
         )}
         {activeTab === 'analytics' && (
