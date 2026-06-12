@@ -1,9 +1,24 @@
-#Requires -Version 7
+#Requires -Version 5
 # -----------------------------------------------
 #  CAEP - Crypto Asset Evaluation Platform
 #  Setup & Launch Script
-#  Requires: PowerShell 7+ (pwsh)
 # -----------------------------------------------
+
+# Enforce PowerShell 7+ at runtime with a clear message
+if ($PSVersionTable.PSVersion.Major -lt 7) {
+    Write-Host ""
+    Write-Host "  ERROR: This script requires PowerShell 7 or newer." -ForegroundColor Red
+    Write-Host "  You are running PowerShell $($PSVersionTable.PSVersion)." -ForegroundColor Red
+    Write-Host ""
+    Write-Host "  Download PowerShell 7 from:" -ForegroundColor Yellow
+    Write-Host "  https://github.com/PowerShell/PowerShell/releases/latest" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  After installing, open 'PowerShell 7' (not the blue 'Windows PowerShell')" -ForegroundColor Yellow
+    Write-Host "  and run this script again." -ForegroundColor Yellow
+    Write-Host ""
+    Read-Host "Press Enter to exit"
+    exit 1
+}
 
 $FRONTEND_DIR = Join-Path $PSScriptRoot "frontend"
 $ENV_FILE     = Join-Path $FRONTEND_DIR ".env.local"
@@ -11,7 +26,7 @@ $ENV_FILE     = Join-Path $FRONTEND_DIR ".env.local"
 function Write-Header {
     Write-Host ""
     Write-Host "================================================" -ForegroundColor Cyan
-    Write-Host "   CAEP — Crypto Asset Evaluation Platform" -ForegroundColor Cyan
+    Write-Host "   CAEP - Crypto Asset Evaluation Platform" -ForegroundColor Cyan
     Write-Host "   Setup Script" -ForegroundColor Cyan
     Write-Host "================================================" -ForegroundColor Cyan
     Write-Host ""
