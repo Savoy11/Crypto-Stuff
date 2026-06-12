@@ -27,6 +27,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'Circle',
     description: 'USD-backed stablecoin issued by Circle, fully regulated and audited.',
     website: 'https://circle.com/usdc',
+    whitepaper: 'https://f.hubspotusercontent30.net/hubfs/9304636/PDF/centre-whitepaper.pdf',
   },
   {
     id: 'usdt',
@@ -51,6 +52,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'Tether Limited',
     description: 'The largest stablecoin by market cap, backed by a mix of USD reserves.',
     website: 'https://tether.to',
+    whitepaper: 'https://tether.to/en/whitepaper/',
   },
   {
     id: 'dai',
@@ -75,6 +77,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'MakerDAO',
     description: 'Decentralized stablecoin over-collateralized by crypto assets.',
     website: 'https://makerdao.com',
+    whitepaper: 'https://makerdao.com/en/whitepaper/',
   },
   {
     id: 'frax',
@@ -99,6 +102,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'Frax Finance',
     description: 'Fractional-algorithmic stablecoin with partial collateralization.',
     website: 'https://frax.finance',
+    whitepaper: 'https://docs.frax.finance/',
   },
   {
     id: 'tusd',
@@ -123,6 +127,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'TrustToken',
     description: 'USD-backed stablecoin with real-time on-chain attestations.',
     website: 'https://trueusd.com',
+    whitepaper: 'https://www.trueusd.com/whitepaper',
   },
   {
     id: 'pyusd',
@@ -147,6 +152,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'PayPal / Paxos',
     description: 'USD-backed stablecoin issued by PayPal in partnership with Paxos.',
     website: 'https://paypal.com/pyusd',
+    whitepaper: 'https://newsroom.paypal-corp.com/2023-08-07-PayPal-Launches-US-Dollar-Stablecoin',
   },
   {
     id: 'usdp',
@@ -171,6 +177,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'Paxos',
     description: 'Regulated USD-backed stablecoin from Paxos Trust Company.',
     website: 'https://paxos.com/usdp',
+    whitepaper: 'https://paxos.com/wp-content/uploads/2019/02/PAX-Whitepaper.pdf',
   },
   {
     id: 'gusd',
@@ -195,6 +202,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'Gemini Trust Company',
     description: 'Regulated stablecoin issued by the Gemini cryptocurrency exchange.',
     website: 'https://gemini.com/dollar',
+    whitepaper: 'https://gemini.com/dollar/whitepaper.pdf',
   },
   {
     id: 'lusd',
@@ -219,6 +227,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'Liquity Protocol',
     description: 'Decentralized stablecoin backed exclusively by ETH with 0% interest.',
     website: 'https://liquity.org',
+    whitepaper: 'https://docsend.com/view/bwiczmy',
   },
   {
     id: 'busd',
@@ -243,6 +252,7 @@ export const MOCK_ASSETS: Asset[] = [
     issuer: 'Paxos / Binance',
     description: 'Deprecated USD-backed stablecoin; Paxos ceased minting in Feb 2023.',
     website: 'https://binance.com',
+    whitepaper: 'https://paxos.com/wp-content/uploads/2019/09/BUSD_Whitepaper.pdf',
   },
 ]
 

@@ -27,6 +27,7 @@ export interface Asset {
   description?: string
   issuer?: string
   website?: string
+  whitepaper?: string
   coingeckoId?: string
 }
 

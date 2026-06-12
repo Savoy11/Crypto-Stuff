@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import {
   Copy, CheckCircle, ExternalLink, ChevronLeft, TrendingUp, TrendingDown,
-  Clock, Globe, Shield, Activity
+  Clock, Globe, Shield, Activity, BookOpen
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAsset } from '@/hooks/useAssets'
@@ -90,10 +90,23 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
                 href={asset.website}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-text-muted hover:text-accent-blue transition-colors"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-text-muted hover:text-accent-blue hover:bg-accent-blue/10 border border-border hover:border-accent-blue/30 transition-all"
                 aria-label={`Visit ${asset.name} website`}
               >
-                <ExternalLink size={12} aria-hidden />
+                <Globe size={11} aria-hidden />
+                Website
+              </a>
+            )}
+            {asset.whitepaper && (
+              <a
+                href={asset.whitepaper}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-text-muted hover:text-accent-blue hover:bg-accent-blue/10 border border-border hover:border-accent-blue/30 transition-all"
+                aria-label={`Read ${asset.name} whitepaper`}
+              >
+                <BookOpen size={11} aria-hidden />
+                Whitepaper
               </a>
             )}
           </div>
