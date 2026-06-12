@@ -8,6 +8,7 @@ import type { Asset } from '@/types/asset'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import { RiskScoreBadge, RiskBandPill } from './RiskScoreBadge'
 import { formatCompact, formatBps, formatPercent, formatScore, formatAddress } from '@/lib/utils/format'
+import { Sparkline } from '@/components/charts/Sparkline'
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { useAssetStore } from '@/store/useAssetStore'
 import { clsx } from 'clsx'
@@ -128,6 +129,11 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         accessor: (row) => (
           <span className="font-mono text-xs text-text-primary">{formatCompact(row.marketCap)}</span>
         ),
+      },
+      {
+        key: 'sparkline',
+        header: '30d',
+        accessor: (row) => <Sparkline assetId={row.id} width={80} height={32} />,
       },
       {
         key: 'volume24h',

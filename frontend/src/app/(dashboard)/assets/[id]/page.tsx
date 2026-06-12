@@ -15,6 +15,7 @@ import { HistoricalScoreChart } from '@/components/analytics/HistoricalScoreChar
 import { LiquidityDepthChart } from '@/components/analytics/LiquidityDepthChart'
 import { WalletConcentration } from '@/components/analytics/WalletConcentration'
 import { VelocityChart } from '@/components/analytics/VelocityChart'
+import { PriceHistoryChart } from '@/components/analytics/PriceHistoryChart'
 import { RiskScoreBadge, RiskBandPill } from '@/components/assets/RiskScoreBadge'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
@@ -269,6 +270,11 @@ function AnalyticsTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset
 
   return (
     <div className="space-y-6">
+      {/* Full price history — top of analytics */}
+      <ErrorBoundary>
+        <PriceHistoryChart assetId={asset.id} symbol={asset.symbol} pegTarget={asset.pegTarget ?? 1.0} />
+      </ErrorBoundary>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ErrorBoundary>
           <PegDeviationChart
