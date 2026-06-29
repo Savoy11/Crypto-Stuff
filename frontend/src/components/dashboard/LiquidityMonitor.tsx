@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react'
 import { useAssetsWithStore } from '@/hooks/useAssets'
-import { formatCompact, formatBps } from '@/lib/utils/format'
+import { formatCompact, formatBps, formatOrNA } from '@/lib/utils/format'
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { clsx } from 'clsx'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
@@ -11,11 +11,11 @@ export function LiquidityMonitor() {
   const { data, isLoading } = useAssetsWithStore()
 
   const sorted = useMemo(() => {
-    return [...(data?.data ?? [])].sort((a, b) => b.volume24h - a.volume24h).slice(0, 5)
+    return [...(data?.data ?? [])].sort((a, b) => (b.volume24h ?? 0) - (a.volume24h ?? 0)).slice(0, 5)
   }, [data])
 
   const totalVolume = useMemo(() =>
-    (data?.data ?? []).reduce((acc, a) => acc + a.volume24h, 0),
+    (data?.data ?? []).reduce((acc, a) => acc + (a.volume24h ?? 0), 0),
     [data]
   )
 
@@ -40,7 +40,7 @@ export function LiquidityMonitor() {
               </div>
             ))
           : sorted.map((asset) => {
-              const sharePct = totalVolume > 0 ? (asset.volume24h / totalVolume) * 100 : 0
+              const sharePct = totalVolume > 0 ? ((asset.volume24h ?? 0) / totalVolume) * 100 : 0
               const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
 
               return (
@@ -49,11 +49,11 @@ export function LiquidityMonitor() {
                     <div className="flex items-center gap-2">
                       <span className="font-mono font-bold text-text-primary w-12">{asset.symbol}</span>
                       <span className={clsx('font-mono text-[10px]', pegClass)}>
-                        {formatBps(asset.pegDeviationBps ?? asset.pegDeviation)}
+                        {formatOrNA(asset.pegDeviationBps ?? asset.pegDeviation, formatBps)}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-right">
-                      <span className="font-mono text-text-secondary">{formatCompact(asset.volume24h)}</span>
+                      <span className="font-mono text-text-secondary">{formatOrNA(asset.volume24h, formatCompact)}</span>
                       <span className="font-mono text-text-muted w-10 text-right">{sharePct.toFixed(1)}%</span>
                     </div>
                   </div>

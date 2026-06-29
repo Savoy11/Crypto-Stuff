@@ -143,3 +143,22 @@ export function formatAssetPrice(price: number): string {
   if (price >= 2) return formatCurrency(price, 2)
   return formatCurrency(price, 4)
 }
+
+/**
+ * The label shown wherever a value has no live or verifiable source.
+ * Derived metrics (risk, reserves, peg analytics) and unmapped coins use this
+ * rather than fabricating a number.
+ */
+export const NA_LABEL = 'N/A'
+
+/**
+ * Apply a formatter to a value that may be null/undefined, returning the N/A
+ * label instead of formatting a missing value.
+ * Example: formatOrNA(null, formatCompact) → "N/A"
+ */
+export function formatOrNA<T>(
+  value: T | null | undefined,
+  fmt: (v: T) => string
+): string {
+  return value === null || value === undefined ? NA_LABEL : fmt(value)
+}

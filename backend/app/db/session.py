@@ -30,7 +30,8 @@ def get_engine() -> AsyncEngine:
             pool_size=settings.DATABASE_POOL_SIZE,
             max_overflow=settings.DATABASE_MAX_OVERFLOW,
             pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-            pool_recycle=3600,
+            pool_recycle=1800,
+            pool_pre_ping=True,
             echo=settings.DEBUG,
             future=True,
         )

@@ -132,7 +132,8 @@ export function getScoreColor(score: number): string {
 /**
  * Format peg deviation with color class
  */
-export function getPegDeviationColorClass(bps: number): string {
+export function getPegDeviationColorClass(bps: number | null): string {
+  if (bps === null) return 'text-text-muted'
   const abs = Math.abs(bps)
   if (abs < 10) return 'text-emerald-400'
   if (abs < 50) return 'text-amber-400'

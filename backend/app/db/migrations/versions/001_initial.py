@@ -130,7 +130,7 @@ def upgrade() -> None:
         "risk_scores",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("asset_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("assets.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("score_date", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("score_date", sa.Date(), nullable=False),
         sa.Column("overall_score", sa.Numeric(5, 2), nullable=False),
         sa.Column("reserve_score", sa.Numeric(5, 2), nullable=True),
         sa.Column("peg_score", sa.Numeric(5, 2), nullable=True),
@@ -140,10 +140,13 @@ def upgrade() -> None:
         sa.Column("confidence", sa.Numeric(5, 4), nullable=False, server_default="1.0"),
         sa.Column("percentile_rank", sa.Numeric(5, 2), nullable=True),
         sa.Column("score_breakdown", postgresql.JSONB(), nullable=False, server_default="{}"),
-        sa.Column("data_completeness", sa.Numeric(5, 4), nullable=False, server_default="1.0"),
+        sa.Column("model_version", sa.String(20), nullable=False, server_default="1.0.0"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.UniqueConstraint("asset_id", "score_date", name="uq_risk_score_asset_date"),
     )
     op.create_index("ix_risk_scores_asset_date", "risk_scores", ["asset_id", "score_date"])
+    op.create_index("ix_risk_scores_date_score", "risk_scores", ["score_date", "overall_score"])
 
     # ------------------------------------------------------------------ #
     # liquidity_metrics (hypertable)

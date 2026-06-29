@@ -6,7 +6,7 @@ import { clsx } from 'clsx'
 import type { Asset, AssetType } from '@/types/asset'
 import { useAssetsWithStore } from '@/hooks/useAssets'
 import { getRiskColor, getRiskBgColor, getPegDeviationColorClass } from '@/lib/utils/risk'
-import { formatScore, formatBps, formatCompact } from '@/lib/utils/format'
+import { formatScore, formatBps, formatCompact, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { ASSET_TYPE_LABELS } from '@/lib/constants'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { TrendingUp, TrendingDown } from 'lucide-react'
@@ -24,11 +24,16 @@ interface HeatmapTileProps {
   onClick: (id: string) => void
 }
 
+// Neutral styling for assets with no available risk band (strict N/A).
+const NA_RISK_COLOR = '#64748b'
+const NA_RISK_BG = 'rgba(100, 116, 139, 0.08)'
+
 function HeatmapTile({ asset, onClick }: HeatmapTileProps) {
-  const riskColor = getRiskColor(asset.riskBand)
-  const riskBg = getRiskBgColor(asset.riskBand)
+  const riskColor = asset.riskBand ? getRiskColor(asset.riskBand) : NA_RISK_COLOR
+  const riskBg = asset.riskBand ? getRiskBgColor(asset.riskBand) : NA_RISK_BG
   const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
-  const isUp = (asset.priceChange24h ?? 0) >= 0
+  const priceChange = asset.priceChange24h
+  const isUp = (priceChange ?? 0) >= 0
 
   return (
     <button
@@ -41,13 +46,13 @@ function HeatmapTile({ asset, onClick }: HeatmapTileProps) {
         backgroundColor: riskBg,
         borderColor: `${riskColor}30`,
       }}
-      aria-label={`${asset.symbol}: Risk ${formatScore(asset.riskScore)}, ${asset.riskBand} band`}
+      aria-label={`${asset.symbol}: Risk ${formatOrNA(asset.riskScore, formatScore)}, ${asset.riskBand ?? 'unrated'} band`}
     >
       {/* Symbol */}
       <div className="flex items-start justify-between">
         <span className="font-mono font-bold text-sm text-text-primary">{asset.symbol}</span>
-        <div className={clsx('flex items-center text-[10px] font-mono', isUp ? 'text-emerald-400' : 'text-red-400')}>
-          {isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+        <div className={clsx('flex items-center text-[10px] font-mono', priceChange == null ? 'text-text-muted' : isUp ? 'text-emerald-400' : 'text-red-400')}>
+          {priceChange == null ? null : isUp ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
         </div>
       </div>
 
@@ -57,16 +62,16 @@ function HeatmapTile({ asset, onClick }: HeatmapTileProps) {
           className="font-mono font-extrabold text-2xl tabular-nums"
           style={{ color: riskColor }}
         >
-          {formatScore(asset.riskScore)}
+          {formatOrNA(asset.riskScore, formatScore)}
         </span>
       </div>
 
       {/* Peg deviation */}
       <div className="flex items-center justify-between mt-1">
         <span className={clsx('font-mono text-[10px]', pegClass)}>
-          {formatBps(asset.pegDeviationBps ?? asset.pegDeviation)}
+          {formatOrNA(asset.pegDeviationBps ?? asset.pegDeviation, formatBps)}
         </span>
-        <span className="text-[9px] text-text-muted font-mono">{formatCompact(asset.marketCap)}</span>
+        <span className="text-[9px] text-text-muted font-mono">{formatOrNA(asset.marketCap, formatCompact)}</span>
       </div>
 
       {/* Risk band indicator */}

@@ -131,6 +131,29 @@ def verify_token(token: str, expected_type: str = TOKEN_TYPE_ACCESS) -> dict[str
     return payload
 
 
+async def verify_token_not_revoked(token: str, expected_type: str = TOKEN_TYPE_ACCESS) -> dict[str, Any]:
+    """
+    Decode, validate, and check against the Redis JTI revocation blocklist.
+    Use this variant for refresh-token flows where revocation must be enforced.
+    """
+    payload = verify_token(token, expected_type)
+    jti = payload.get("jti")
+    if jti:
+        try:
+            import redis.asyncio as aioredis
+            from app.core.rate_limiter import get_redis
+            redis_client = await get_redis()
+            revoked = await redis_client.exists(f"blocklist:{jti}")
+            if revoked:
+                raise InvalidTokenError()
+        except InvalidTokenError:
+            raise
+        except Exception:
+            # Redis unavailable: fail open with a warning (log but don't block)
+            logger.warning("blocklist_check_failed", jti=jti)
+    return payload
+
+
 def extract_token_subject(token: str) -> str:
     """Extract the subject (user ID) from a token without raising on expiry."""
     try:

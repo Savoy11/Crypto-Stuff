@@ -17,9 +17,11 @@ export async function getMockRiskScores(assetId: string, timeRange: TimeRange): 
   const numDays = days[timeRange] ?? 30
   const count = Math.min(90, Math.max(1, Math.round(numDays)))
 
+  const baseScore = asset.riskScore ?? 0
+  const baseBand = asset.riskBand ?? 'moderate'
   return Array.from({ length: count }, (_, i) => {
-    const score = Math.min(100, Math.max(0, asset.riskScore + (Math.random() - 0.5) * 10))
-    const prev = i === 0 ? null : Math.min(100, Math.max(0, asset.riskScore + (Math.random() - 0.5) * 10))
+    const score = Math.min(100, Math.max(0, baseScore + (Math.random() - 0.5) * 10))
+    const prev = i === 0 ? null : Math.min(100, Math.max(0, baseScore + (Math.random() - 0.5) * 10))
     return {
       id: `rs-${asset.id}-${i}`,
       assetId: asset.id,
@@ -28,7 +30,7 @@ export async function getMockRiskScores(assetId: string, timeRange: TimeRange): 
       pegScore: Math.min(100, score + 1),
       networkScore: Math.min(100, score * 0.98),
       securityScore: Math.min(100, score * 1.01),
-      riskBand: asset.riskBand,
+      riskBand: baseBand,
       confidence: 0.82 + Math.random() * 0.15,
       percentileRank: Math.round(score * 0.9),
       scoreBreakdown: {
@@ -77,13 +79,13 @@ export async function getMockRiskSummary(): Promise<RiskSummary> {
 export async function getMockLeaderboard(
   params: { page?: number; pageSize?: number } = {}
 ): Promise<PaginatedResponse<RiskLeaderboardEntry>> {
-  const sorted = [...MOCK_ASSETS].sort((a, b) => b.riskScore - a.riskScore)
+  const sorted = [...MOCK_ASSETS].sort((a, b) => (b.riskScore ?? 0) - (a.riskScore ?? 0))
   const page = params.page ?? 1
   const pageSize = params.pageSize ?? 25
   const start = (page - 1) * pageSize
 
   const entries: RiskLeaderboardEntry[] = sorted.map((asset, i) => {
-    const score = asset.riskScore
+    const score = asset.riskScore ?? 0
     return {
       assetId: asset.id,
       symbol: asset.symbol,
@@ -96,7 +98,7 @@ export async function getMockLeaderboard(
       pegScore: Math.min(100, score + 1),
       networkScore: Math.min(100, score * 0.98),
       securityScore: Math.min(100, score * 1.01),
-      riskBand: asset.riskBand,
+      riskBand: asset.riskBand ?? 'moderate',
       previousRisk: score - (Math.random() * 4 - 2),
       rankChange: Math.round(Math.random() * 2 - 1),
       rank: i + 1,

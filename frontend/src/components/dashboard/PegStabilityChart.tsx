@@ -19,7 +19,8 @@ import { DateRangePicker } from '@/components/ui/DateRangePicker'
 import { CHART_COLORS, CHART_THEME } from '@/lib/utils/chart'
 import { formatBps } from '@/lib/utils/format'
 import { useMultiAssetPegHistory } from '@/hooks/useMarketData'
-import { MOCK_ASSETS } from '@/lib/api/mock/mockAssets'
+import { LIVE_DATA } from '@/lib/constants'
+import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 
 const TOP_STABLE_IDS = ['usdc', 'usdt', 'dai', 'frax', 'lusd']
 
@@ -54,6 +55,23 @@ export function PegStabilityChart() {
     try { return format(parseISO(val), timeRange === '24h' || timeRange === '1h' ? 'HH:mm' : 'MMM dd') }
     catch { return '' }
   }, [timeRange])
+
+  if (LIVE_DATA) {
+    return (
+      <ChartContainer
+        title="Peg Stability — Top Stablecoins"
+        subtitle="Deviation from $1.000 peg in basis points"
+        height={300}
+      >
+        <div className="flex h-[280px] items-center justify-center">
+          <LiveUnavailable
+            compact
+            message="Peg-deviation history is computed from reserve and oracle data with no free real-time source. The series is not available in live mode rather than showing simulated deviations."
+          />
+        </div>
+      </ChartContainer>
+    )
+  }
 
   return (
     <ChartContainer

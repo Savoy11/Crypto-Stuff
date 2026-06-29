@@ -165,6 +165,21 @@ async def job_risk_scores() -> None:
         logger.exception("scheduler_job_failed", job="risk_scores", error=str(exc))
 
 
+async def start_scheduler() -> None:
+    """Configure and start the background scheduler."""
+    scheduler = setup_scheduler()
+    scheduler.start()
+    logger.info("scheduler_started")
+
+
+async def stop_scheduler() -> None:
+    """Gracefully shut down the scheduler if it is running."""
+    scheduler = get_scheduler()
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+        logger.info("scheduler_stopped")
+
+
 def setup_scheduler() -> AsyncIOScheduler:
     """
     Register all scheduled jobs and return the configured scheduler.

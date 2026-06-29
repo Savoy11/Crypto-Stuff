@@ -2632,10 +2632,10 @@ export async function getMockAssets(params: GetAssetsParams): Promise<PaginatedR
     assets = assets.filter((a) => a.riskBand === params.riskBand)
   }
   if (params.minRiskScore !== undefined) {
-    assets = assets.filter((a) => a.riskScore >= (params.minRiskScore ?? 0))
+    assets = assets.filter((a) => (a.riskScore ?? 0) >= (params.minRiskScore ?? 0))
   }
   if (params.maxRiskScore !== undefined) {
-    assets = assets.filter((a) => a.riskScore <= (params.maxRiskScore ?? 100))
+    assets = assets.filter((a) => (a.riskScore ?? 0) <= (params.maxRiskScore ?? 100))
   }
 
   // Sort
@@ -2669,46 +2669,53 @@ export async function getMockAssets(params: GetAssetsParams): Promise<PaginatedR
 
 export async function getMockAssetDetail(id: string): Promise<AssetDetail> {
   const asset = MOCK_ASSETS.find((a) => a.id === id) ?? MOCK_ASSETS[0]
+  // Mock catalog values are always populated; coalesce for the nullable type.
+  const riskScore = asset.riskScore ?? 0
+  const riskBand = asset.riskBand ?? 'moderate'
+  const price = asset.price ?? 0
+  const marketCap = asset.marketCap ?? 0
+  const volume24h = asset.volume24h ?? 0
+  const reserveRatio = asset.reserveRatio ?? 0
 
   const latestRiskScore = {
     id: `rs-${asset.id}-latest`,
     assetId: asset.id,
-    overallScore: asset.riskScore,
-    reserveScore: asset.riskScore * 0.95 + Math.random() * 5,
-    pegScore: asset.riskScore * 1.02 - Math.random() * 3,
-    networkScore: asset.riskScore * 0.98 + Math.random() * 4,
-    securityScore: asset.riskScore * 1.01 - Math.random() * 2,
-    riskBand: asset.riskBand,
+    overallScore: riskScore,
+    reserveScore: riskScore * 0.95 + Math.random() * 5,
+    pegScore: riskScore * 1.02 - Math.random() * 3,
+    networkScore: riskScore * 0.98 + Math.random() * 4,
+    securityScore: riskScore * 1.01 - Math.random() * 2,
+    riskBand,
     confidence: 0.87 + Math.random() * 0.1,
-    percentileRank: Math.round(asset.riskScore * 0.9 + Math.random() * 10),
+    percentileRank: Math.round(riskScore * 0.9 + Math.random() * 10),
     scoreBreakdown: {
-      reserveScore: Math.min(100, asset.riskScore * 0.95 + 2),
+      reserveScore: Math.min(100, riskScore * 0.95 + 2),
       reserveWeight: 35,
-      pegScore: Math.min(100, asset.riskScore + 2),
+      pegScore: Math.min(100, riskScore + 2),
       pegWeight: 30,
-      networkScore: Math.min(100, asset.riskScore * 0.98 + 1),
+      networkScore: Math.min(100, riskScore * 0.98 + 1),
       networkWeight: 20,
-      securityScore: Math.min(100, asset.riskScore * 1.02 - 1),
+      securityScore: Math.min(100, riskScore * 1.02 - 1),
       securityWeight: 15,
     },
     scoreDate: new Date().toISOString(),
-    previousScore: asset.riskScore - (Math.random() * 4 - 2),
+    previousScore: riskScore - (Math.random() * 4 - 2),
     scoreDelta: Math.random() * 4 - 2,
   }
 
   const latestMarketData: MarketData = {
     id: `md-${asset.id}-latest`,
     assetId: asset.id,
-    price: asset.price,
-    marketCap: asset.marketCap,
-    volume24h: asset.volume24h,
+    price,
+    marketCap,
+    volume24h,
     pegDeviation: asset.pegDeviation,
     priceChange24h: asset.priceChange24h ?? 0,
     priceChangePercent24h: asset.priceChange24h ?? 0,
-    high24h: asset.price * 1.002,
-    low24h: asset.price * 0.998,
-    circulatingSupply: Math.round(asset.marketCap / asset.price),
-    totalSupply: Math.round(asset.marketCap / asset.price * 1.01),
+    high24h: price * 1.002,
+    low24h: price * 0.998,
+    circulatingSupply: Math.round(marketCap / price),
+    totalSupply: Math.round(marketCap / price * 1.01),
     timestamp: new Date().toISOString(),
   }
 
@@ -2716,18 +2723,18 @@ export async function getMockAssetDetail(id: string): Promise<AssetDetail> {
     id: `ra-${asset.id}-latest`,
     assetId: asset.id,
     attestationDate: subDays(new Date(), 3).toISOString(),
-    totalReserves: asset.marketCap * asset.reserveRatio,
-    totalLiabilities: asset.marketCap,
-    reserveRatio: asset.reserveRatio,
+    totalReserves: marketCap * reserveRatio,
+    totalLiabilities: marketCap,
+    reserveRatio,
     attestor: asset.assetType === 'stablecoin' ? 'Grant Thornton LLP' : 'Deloitte & Touche',
     reportUrl: 'https://example.com/attestation.pdf',
     isVerified: true,
     composition: [
-      { category: 'Cash & Equivalents', amount: asset.marketCap * 0.25, percentage: 25, description: 'Bank deposits' },
-      { category: 'T-Bills', amount: asset.marketCap * 0.55, percentage: 55, description: 'US Treasury Bills <3mo' },
-      { category: 'Commercial Paper', amount: asset.marketCap * 0.10, percentage: 10, description: 'A1/P1 rated' },
-      { category: 'Crypto Assets', amount: asset.marketCap * 0.05, percentage: 5, description: 'BTC/ETH collateral' },
-      { category: 'Other', amount: asset.marketCap * 0.05, percentage: 5, description: 'Money market funds' },
+      { category: 'Cash & Equivalents', amount: marketCap * 0.25, percentage: 25, description: 'Bank deposits' },
+      { category: 'T-Bills', amount: marketCap * 0.55, percentage: 55, description: 'US Treasury Bills <3mo' },
+      { category: 'Commercial Paper', amount: marketCap * 0.10, percentage: 10, description: 'A1/P1 rated' },
+      { category: 'Crypto Assets', amount: marketCap * 0.05, percentage: 5, description: 'BTC/ETH collateral' },
+      { category: 'Other', amount: marketCap * 0.05, percentage: 5, description: 'Money market funds' },
     ],
   }
 
@@ -2735,8 +2742,8 @@ export async function getMockAssetDetail(id: string): Promise<AssetDetail> {
     pegHistory: generatePegHistory(asset.id, '30d'),
     scoreHistory: Array.from({ length: 30 }, (_, i) => ({
       date: format(subDays(new Date(), 30 - i), 'yyyy-MM-dd'),
-      score: Math.min(100, Math.max(0, asset.riskScore + (Math.random() - 0.5) * 8)),
-      riskBand: asset.riskBand,
+      score: Math.min(100, Math.max(0, riskScore + (Math.random() - 0.5) * 8)),
+      riskBand,
     })),
     liquidityDepth: Array.from({ length: 20 }, (_, i) => ({
       price: 1.0 - 0.01 + i * 0.001,
@@ -2748,12 +2755,12 @@ export async function getMockAssetDetail(id: string): Promise<AssetDetail> {
       herfindahlIndex: 0.08 + Math.random() * 0.12,
       top10HoldersPercent: 38 + Math.random() * 20,
       top50HoldersPercent: 61 + Math.random() * 15,
-      totalHolders: Math.round(asset.marketCap / 10000),
+      totalHolders: Math.round(marketCap / 10000),
     },
     transferVelocity: Array.from({ length: 30 }, (_, i) => ({
       date: format(subDays(new Date(), 30 - i), 'yyyy-MM-dd'),
       transferCount: Math.round(10000 + Math.random() * 5000),
-      transferVolume: asset.volume24h * (0.8 + Math.random() * 0.4),
+      transferVolume: volume24h * (0.8 + Math.random() * 0.4),
       uniqueAddresses: Math.round(3000 + Math.random() * 2000),
     })),
   }
@@ -2763,19 +2770,21 @@ export async function getMockAssetDetail(id: string): Promise<AssetDetail> {
 
 export async function getMockMarketData(assetId: string): Promise<MarketData> {
   const asset = MOCK_ASSETS.find((a) => a.id === assetId) ?? MOCK_ASSETS[0]
+  const price = asset.price ?? 0
+  const marketCap = asset.marketCap ?? 0
   return {
     id: `md-${asset.id}`,
     assetId: asset.id,
-    price: asset.price,
-    marketCap: asset.marketCap,
-    volume24h: asset.volume24h,
+    price,
+    marketCap,
+    volume24h: asset.volume24h ?? 0,
     pegDeviation: asset.pegDeviation,
     priceChange24h: asset.priceChange24h ?? 0,
     priceChangePercent24h: asset.priceChange24h ?? 0,
-    high24h: asset.price * 1.002,
-    low24h: asset.price * 0.998,
-    circulatingSupply: Math.round(asset.marketCap / asset.price),
-    totalSupply: Math.round(asset.marketCap / asset.price * 1.01),
+    high24h: price * 1.002,
+    low24h: price * 0.998,
+    circulatingSupply: Math.round(marketCap / price),
+    totalSupply: Math.round(marketCap / price * 1.01),
     timestamp: new Date().toISOString(),
   }
 }

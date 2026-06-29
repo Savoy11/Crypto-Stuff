@@ -15,17 +15,19 @@ export interface Asset {
   blockchain: Blockchain
   contractAddress: string
   isActive: boolean
-  marketCap: number
-  price: number
-  pegDeviation: number // fractional, e.g. 0.0001 = 1 bps
-  pegDeviationBps?: number // alias in basis points
+  // Live-sourced numeric fields are null when no live quote is available.
+  marketCap: number | null
+  price: number | null
+  volume24h: number | null
+  priceChange24h?: number | null
+  priceChangePercent24h?: number | null
+  // Derived metrics have no free live source — strict N/A (always null in live mode).
+  pegDeviation: number | null // fractional, e.g. 0.0001 = 1 bps
+  pegDeviationBps?: number | null // alias in basis points
   pegTarget?: number
-  riskScore: number
-  riskBand: RiskBand
-  reserveRatio: number
-  volume24h: number
-  priceChange24h?: number
-  priceChangePercent24h?: number
+  riskScore: number | null
+  riskBand: RiskBand | null
+  reserveRatio: number | null
   createdAt: string
   updatedAt: string
   // Optional enrichment fields
@@ -73,16 +75,16 @@ export interface RiskScore {
 export interface MarketData {
   id: string
   assetId: string
-  price: number
-  marketCap: number
-  volume24h: number
-  pegDeviation: number
-  priceChange24h: number
-  priceChangePercent24h: number
-  high24h: number
-  low24h: number
-  circulatingSupply: number
-  totalSupply: number
+  price: number | null
+  marketCap: number | null
+  volume24h: number | null
+  pegDeviation: number | null
+  priceChange24h: number | null
+  priceChangePercent24h: number | null
+  high24h: number | null
+  low24h: number | null
+  circulatingSupply: number | null
+  totalSupply: number | null
   timestamp: string
 }
 
@@ -149,10 +151,11 @@ export interface VelocityDataPoint {
 }
 
 export interface AssetDetail extends Asset {
-  latestRiskScore: RiskScore
+  // Derived bundles are null in live mode — no free live source (strict N/A).
+  latestRiskScore: RiskScore | null
   latestMarketData: MarketData
-  latestReserve: ReserveAttestation
-  analyticsBundle: AnalyticsBundle
+  latestReserve: ReserveAttestation | null
+  analyticsBundle: AnalyticsBundle | null
 }
 
 export interface AssetFilters {

@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { LineChart, Line, ResponsiveContainer, ReferenceLine, Tooltip } from 'recharts'
 import { getMockPriceHistory } from '@/lib/api/mock/mockPriceHistory'
+import { LIVE_DATA } from '@/lib/constants'
 
 interface SparklineProps {
   assetId: string
@@ -13,7 +14,20 @@ interface SparklineProps {
 }
 
 export function Sparkline({ assetId, width = 80, height = 32, color, pegTarget }: SparklineProps) {
-  const candles = useMemo(() => getMockPriceHistory(assetId, '1M'), [assetId])
+  const candles = useMemo(() => (LIVE_DATA ? [] : getMockPriceHistory(assetId, '1M')), [assetId])
+
+  // No per-row live trend source — show a neutral placeholder instead of a mock line.
+  if (LIVE_DATA) {
+    return (
+      <div
+        className="flex items-center justify-center text-[10px] text-slate-600 font-mono"
+        style={{ width, height }}
+        title="Trend not available with live data"
+      >
+        n/a
+      </div>
+    )
+  }
 
   const first = candles[0]?.close ?? 1
   const last  = candles[candles.length - 1]?.close ?? 1

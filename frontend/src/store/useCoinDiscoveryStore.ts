@@ -1,0 +1,77 @@
+'use client'
+
+import { create } from 'zustand'
+
+export interface AddedCoin {
+  cgId: string
+  symbol: string
+  name: string
+  image: string
+  category: string
+  price: number
+  marketCap: number
+  marketCapRank: number
+  addedAt: string
+  addedBy: 'recommended' | 'manual'
+  score?: number
+  recommendation?: string
+  notes: string
+}
+
+interface CoinDiscoveryStore {
+  addedCoins: AddedCoin[]
+  dismissedIds: string[]
+  addCoin: (coin: AddedCoin) => void
+  removeCoin: (cgId: string) => void
+  dismissRecommendation: (cgId: string) => void
+  clearDismissed: () => void
+  isAdded: (cgId: string) => boolean
+  isDismissed: (cgId: string) => boolean
+}
+
+const STORAGE_KEY_ADDED    = 'caep:added-coins'
+const STORAGE_KEY_DISMISSED = 'caep:dismissed-coins'
+
+function load<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined') return fallback
+  try {
+    const raw = localStorage.getItem(key)
+    return raw ? (JSON.parse(raw) as T) : fallback
+  } catch { return fallback }
+}
+
+function save(key: string, value: unknown) {
+  if (typeof window === 'undefined') return
+  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* quota exceeded */ }
+}
+
+export const useCoinDiscoveryStore = create<CoinDiscoveryStore>((set, get) => ({
+  addedCoins:   load<AddedCoin[]>(STORAGE_KEY_ADDED, []),
+  dismissedIds: load<string[]>(STORAGE_KEY_DISMISSED, []),
+
+  addCoin: (coin) => {
+    const next = [...get().addedCoins.filter(c => c.cgId !== coin.cgId), coin]
+    save(STORAGE_KEY_ADDED, next)
+    set({ addedCoins: next })
+  },
+
+  removeCoin: (cgId) => {
+    const next = get().addedCoins.filter(c => c.cgId !== cgId)
+    save(STORAGE_KEY_ADDED, next)
+    set({ addedCoins: next })
+  },
+
+  dismissRecommendation: (cgId) => {
+    const next = [...new Set([...get().dismissedIds, cgId])]
+    save(STORAGE_KEY_DISMISSED, next)
+    set({ dismissedIds: next })
+  },
+
+  clearDismissed: () => {
+    save(STORAGE_KEY_DISMISSED, [])
+    set({ dismissedIds: [] })
+  },
+
+  isAdded:     (cgId) => get().addedCoins.some(c => c.cgId === cgId),
+  isDismissed: (cgId) => get().dismissedIds.includes(cgId),
+}))

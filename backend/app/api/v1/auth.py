@@ -4,7 +4,7 @@ Authentication endpoints: login, refresh, logout, register, and current user.
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -12,6 +12,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import http_401, http_409
+from app.core.rate_limiter import get_redis
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -40,6 +41,10 @@ from app.schemas.user import (
     UserProfile,
 )
 from app.config import settings
+
+# Maximum failed attempts before account lockout
+_MAX_FAILED_ATTEMPTS = 5
+_LOCKOUT_MINUTES = 30
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -98,9 +103,28 @@ async def login(
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 
-    if user is None or not verify_password(body.password, user.hashed_password):
-        await _log_audit(db, None, "login_failed", "auth", request, success=False,
-                         details={"email": body.email, "reason": "invalid_credentials"})
+    # Validate credentials — do not reveal whether email exists
+    credential_valid = (
+        user is not None
+        and verify_password(body.password, user.hashed_password)
+    )
+
+    if not credential_valid:
+        if user is not None:
+            new_attempts = (user.failed_login_attempts or 0) + 1
+            updates: dict = {"failed_login_attempts": new_attempts}
+            if new_attempts >= _MAX_FAILED_ATTEMPTS:
+                updates["locked_until"] = datetime.now(UTC) + timedelta(minutes=_LOCKOUT_MINUTES)
+                logger.warning(
+                    "account_locked",
+                    user_id=str(user.id),
+                    attempts=new_attempts,
+                )
+            await db.execute(update(User).where(User.id == user.id).values(**updates))
+        await _log_audit(
+            db, user.id if user else None, "login_failed", "auth", request,
+            success=False, details={"email": body.email, "reason": "invalid_credentials"},
+        )
         raise http_401("Invalid email or password")
 
     if not user.is_active:
@@ -193,10 +217,21 @@ async def logout(
     db: DBSession,
 ) -> dict:
     """
-    Logout and revoke the refresh token.
-
-    In production, add the JTI to a Redis blocklist for the remaining TTL.
+    Logout and revoke the supplied refresh token by adding its JTI to a
+    Redis blocklist. The blocklist TTL matches the token's remaining lifetime.
     """
+    try:
+        payload = verify_token(body.refresh_token, expected_type="refresh")
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti and exp:
+            redis = await get_redis()
+            ttl = max(1, int(exp) - int(datetime.now(UTC).timestamp()))
+            await redis.setex(f"blocklist:{jti}", ttl, "1")
+    except Exception:
+        # Even if the token is already invalid, proceed with logout
+        pass
+
     await _log_audit(db, current_user.id, "logout", "auth", request)
     return _build_response({"message": "Logged out successfully"})
 

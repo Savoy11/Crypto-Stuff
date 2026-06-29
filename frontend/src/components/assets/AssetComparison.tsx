@@ -2,7 +2,7 @@
 
 import { type Asset } from '@/types/asset'
 import { RiskScoreBadge, RiskBandPill } from './RiskScoreBadge'
-import { formatCompact, formatBps, formatPercent, formatScore } from '@/lib/utils/format'
+import { formatCompact, formatBps, formatPercent, formatScore, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { getPegDeviationColorClass, getRiskColor } from '@/lib/utils/risk'
 import { clsx } from 'clsx'
 import { X } from 'lucide-react'
@@ -14,8 +14,8 @@ interface AssetComparisonProps {
 
 const METRIC_ROWS: {
   label: string
-  accessor: (a: Asset) => string | number
-  format: (v: string | number, a: Asset) => React.ReactNode
+  accessor: (a: Asset) => string | number | null
+  format: (v: string | number | null, a: Asset) => React.ReactNode
   sortDir?: 'asc' | 'desc' // which direction is "better"
 }[] = [
   {
@@ -27,14 +27,17 @@ const METRIC_ROWS: {
   {
     label: 'Market Cap',
     accessor: (a) => a.marketCap,
-    format: (v) => <span className="font-mono text-xs text-text-primary">{formatCompact(v as number)}</span>,
+    format: (v) => <span className="font-mono text-xs text-text-primary">{formatOrNA(v as number | null, formatCompact)}</span>,
   },
   {
     label: 'Peg Deviation',
-    accessor: (a) => Math.abs(a.pegDeviationBps ?? a.pegDeviation),
+    accessor: (a) => {
+      const peg = a.pegDeviationBps ?? a.pegDeviation
+      return peg === null ? null : Math.abs(peg)
+    },
     format: (_, a) => (
       <span className={clsx('font-mono text-xs', getPegDeviationColorClass(a.pegDeviationBps ?? a.pegDeviation))}>
-        {formatBps(a.pegDeviationBps ?? a.pegDeviation)}
+        {formatOrNA(a.pegDeviationBps ?? a.pegDeviation, formatBps)}
       </span>
     ),
     sortDir: 'asc',
@@ -42,26 +45,32 @@ const METRIC_ROWS: {
   {
     label: 'Reserve Ratio',
     accessor: (a) => a.reserveRatio,
-    format: (v) => (
-      <span className={clsx('font-mono text-xs', (v as number) >= 1 ? 'text-emerald-400' : 'text-red-400')}>
-        {((v as number) * 100).toFixed(2)}%
-      </span>
-    ),
+    format: (v) =>
+      v === null ? (
+        <span className="font-mono text-xs text-text-muted">{NA_LABEL}</span>
+      ) : (
+        <span className={clsx('font-mono text-xs', (v as number) >= 1 ? 'text-emerald-400' : 'text-red-400')}>
+          {((v as number) * 100).toFixed(2)}%
+        </span>
+      ),
     sortDir: 'desc',
   },
   {
     label: '24h Volume',
     accessor: (a) => a.volume24h,
-    format: (v) => <span className="font-mono text-xs text-text-secondary">{formatCompact(v as number)}</span>,
+    format: (v) => <span className="font-mono text-xs text-text-secondary">{formatOrNA(v as number | null, formatCompact)}</span>,
   },
   {
     label: '24h Change',
-    accessor: (a) => a.priceChange24h ?? 0,
-    format: (v) => (
-      <span className={clsx('font-mono text-xs', (v as number) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-        {formatPercent(v as number, 2)}
-      </span>
-    ),
+    accessor: (a) => a.priceChange24h ?? null,
+    format: (v) =>
+      v === null ? (
+        <span className="font-mono text-xs text-text-muted">{NA_LABEL}</span>
+      ) : (
+        <span className={clsx('font-mono text-xs', (v as number) >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+          {formatPercent(v as number, 2)}
+        </span>
+      ),
   },
 ]
 
@@ -100,14 +109,18 @@ export function AssetComparison({ assets, onRemove }: AssetComparisonProps) {
         </thead>
         <tbody>
           {METRIC_ROWS.map((row) => {
-            const values = assets.map((a) => row.accessor(a) as number)
-            const best = row.sortDir === 'desc' ? Math.max(...values) : row.sortDir === 'asc' ? Math.min(...values) : null
+            const values = assets
+              .map((a) => row.accessor(a))
+              .filter((v): v is number => typeof v === 'number')
+            const best = values.length === 0
+              ? null
+              : row.sortDir === 'desc' ? Math.max(...values) : row.sortDir === 'asc' ? Math.min(...values) : null
 
             return (
               <tr key={row.label} className="border-b border-border/50 hover:bg-bg-elevated/30 transition-colors">
                 <td className="px-4 py-3 text-xs text-text-muted font-medium">{row.label}</td>
                 {assets.map((asset) => {
-                  const val = row.accessor(asset) as number
+                  const val = row.accessor(asset)
                   const isBest = best !== null && val === best && assets.length > 1
                   return (
                     <td

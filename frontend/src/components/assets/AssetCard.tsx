@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import type { Asset } from '@/types/asset'
 import { RiskScoreBadge } from './RiskScoreBadge'
-import { formatCompact, formatBps, formatPercent } from '@/lib/utils/format'
+import { formatCompact, formatBps, formatPercent, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS } from '@/lib/constants'
 import { TrendingUp, TrendingDown } from 'lucide-react'
@@ -18,8 +18,10 @@ interface AssetCardProps {
 
 export function AssetCard({ asset, selected, onSelect, className }: AssetCardProps) {
   const router = useRouter()
-  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
-  const priceUp = asset.priceChange24h ?? 0 >= 0
+  const pegValue = asset.pegDeviationBps ?? asset.pegDeviation
+  const pegClass = getPegDeviationColorClass(pegValue)
+  const priceChange = asset.priceChange24h
+  const priceUp = (priceChange ?? 0) >= 0
 
   return (
     <div
@@ -52,23 +54,29 @@ export function AssetCard({ asset, selected, onSelect, className }: AssetCardPro
       <div className="grid grid-cols-2 gap-3 mb-3">
         <div>
           <div className="text-[10px] text-text-muted uppercase tracking-wide mb-1">Market Cap</div>
-          <div className="font-mono text-sm font-semibold text-text-primary">{formatCompact(asset.marketCap)}</div>
+          <div className="font-mono text-sm font-semibold text-text-primary">{formatOrNA(asset.marketCap, formatCompact)}</div>
         </div>
         <div>
           <div className="text-[10px] text-text-muted uppercase tracking-wide mb-1">Peg Dev</div>
           <div className={clsx('font-mono text-sm font-semibold', pegClass)}>
-            {formatBps(asset.pegDeviationBps ?? asset.pegDeviation)}
+            {formatOrNA(pegValue, formatBps)}
           </div>
         </div>
         <div>
           <div className="text-[10px] text-text-muted uppercase tracking-wide mb-1">24h Vol</div>
-          <div className="font-mono text-sm text-text-secondary">{formatCompact(asset.volume24h)}</div>
+          <div className="font-mono text-sm text-text-secondary">{formatOrNA(asset.volume24h, formatCompact)}</div>
         </div>
         <div>
           <div className="text-[10px] text-text-muted uppercase tracking-wide mb-1">24h Chg</div>
-          <div className={clsx('font-mono text-sm flex items-center gap-1', priceUp ? 'text-accent-green' : 'text-accent-red')}>
-            {priceUp ? <TrendingUp size={12} aria-hidden /> : <TrendingDown size={12} aria-hidden />}
-            {formatPercent(asset.priceChange24h ?? 0, 2)}
+          <div className={clsx('font-mono text-sm flex items-center gap-1', priceChange === null || priceChange === undefined ? 'text-text-muted' : priceUp ? 'text-accent-green' : 'text-accent-red')}>
+            {priceChange === null || priceChange === undefined ? (
+              NA_LABEL
+            ) : (
+              <>
+                {priceUp ? <TrendingUp size={12} aria-hidden /> : <TrendingDown size={12} aria-hidden />}
+                {formatPercent(priceChange, 2)}
+              </>
+            )}
           </div>
         </div>
       </div>

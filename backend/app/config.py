@@ -66,7 +66,13 @@ class Settings(BaseSettings):
     )
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
-    CORS_ALLOW_HEADERS: list[str] = ["*"]
+    CORS_ALLOW_HEADERS: list[str] = [
+        "Accept",
+        "Authorization",
+        "Content-Type",
+        "X-Request-ID",
+        "X-API-Key",
+    ]
 
     # ------------------------------------------------------------------ #
     # External APIs

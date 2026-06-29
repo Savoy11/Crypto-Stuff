@@ -7,7 +7,7 @@ import { useState } from 'react'
 import type { Asset } from '@/types/asset'
 import { DataTable, type Column } from '@/components/ui/DataTable'
 import { RiskScoreBadge, RiskBandPill } from './RiskScoreBadge'
-import { formatCompact, formatBps, formatPercent, formatScore, formatAddress } from '@/lib/utils/format'
+import { formatCompact, formatBps, formatPercent, formatScore, formatAddress, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { Sparkline } from '@/components/charts/Sparkline'
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { useAssetStore } from '@/store/useAssetStore'
@@ -119,7 +119,7 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
           <span className="font-mono text-xs text-text-muted">—</span>
         ) : (
           <span className={clsx('font-mono text-xs', getPegDeviationColorClass(row.pegDeviationBps ?? row.pegDeviation))}>
-            {formatBps(row.pegDeviationBps ?? row.pegDeviation)}
+            {formatOrNA(row.pegDeviationBps ?? row.pegDeviation, formatBps)}
           </span>
         ),
       },
@@ -129,7 +129,7 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         sortable: true,
         align: 'right',
         accessor: (row) => (
-          <span className="font-mono text-xs text-text-primary">{formatCompact(row.marketCap)}</span>
+          <span className="font-mono text-xs text-text-primary">{formatOrNA(row.marketCap, formatCompact)}</span>
         ),
       },
       {
@@ -143,7 +143,7 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         sortable: true,
         align: 'right',
         accessor: (row) => (
-          <span className="font-mono text-xs text-text-secondary">{formatCompact(row.volume24h)}</span>
+          <span className="font-mono text-xs text-text-secondary">{formatOrNA(row.volume24h, formatCompact)}</span>
         ),
       },
       {
@@ -153,6 +153,8 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         align: 'right',
         accessor: (row) => row.assetType === 'layer1' ? (
           <span className="font-mono text-xs text-text-muted">—</span>
+        ) : row.reserveRatio === null ? (
+          <span className="font-mono text-xs text-text-muted">{NA_LABEL}</span>
         ) : (
           <span
             className={clsx(

@@ -1,24 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Star, Plus, Trash2, Search } from 'lucide-react'
-import { useAssetStore } from '@/store/useAssetStore'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
-import { formatCurrency, formatPercent, formatScore } from '@/lib/utils/format'
+import { formatCurrency, formatScore, formatOrNA } from '@/lib/utils/format'
 import { getRiskColor } from '@/lib/utils/risk'
-import { MOCK_ASSETS } from '@/lib/api/mock/mockAssets'
+import { useAssets } from '@/hooks/useAssets'
 
 export default function WatchlistPage() {
   const [search, setSearch] = useState('')
-  const [newListName, setNewListName] = useState('')
   const [showNewList, setShowNewList] = useState(false)
-  const [watchlistName, setWatchlistName] = useState('My Watchlist')
-  const [watchedIds, setWatchedIds] = useState<Set<string>>(
-    new Set(MOCK_ASSETS.slice(0, 5).map(a => a.id))
-  )
+  const [watchlistName] = useState('My Watchlist')
+  const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
+  const [seeded, setSeeded] = useState(false)
 
-  const watched = MOCK_ASSETS.filter(a => watchedIds.has(a.id))
-  const filtered = MOCK_ASSETS.filter(
+  // Live asset catalog with real market figures (risk metrics render as N/A).
+  const { data } = useAssets({ pageSize: 100 })
+  const allAssets = useMemo(() => data?.data ?? [], [data])
+
+  // Seed the watchlist with the first few assets once live data arrives.
+  useEffect(() => {
+    if (!seeded && allAssets.length > 0) {
+      setWatchedIds(new Set(allAssets.slice(0, 5).map(a => a.id)))
+      setSeeded(true)
+    }
+  }, [allAssets, seeded])
+
+  const watched = allAssets.filter(a => watchedIds.has(a.id))
+  const filtered = allAssets.filter(
     a =>
       !watchedIds.has(a.id) &&
       (a.symbol.toLowerCase().includes(search.toLowerCase()) ||
@@ -31,8 +41,15 @@ export default function WatchlistPage() {
         <div className="flex items-center gap-3">
           <Star className="h-6 w-6 text-amber-400" />
           <div>
-            <h1 className="text-xl font-semibold text-slate-100">Watchlists</h1>
-            <p className="text-sm text-slate-400">Monitor selected assets in one view</p>
+            <PageHeader
+              title="Watchlists"
+              subtitle="Monitor selected assets in one view"
+              description="Watchlists let you pin a curated set of assets for quick monitoring without navigating the full Asset Registry. Create multiple lists for different strategies — e.g. 'High Risk' or 'Stable Reserves'."
+              details={[
+                { label: 'Adding assets', text: 'Search for any tracked asset and click the star icon to add it to your active list.' },
+                { label: 'Persistence', text: 'Watchlists are stored in your browser. They persist between sessions but are not synced across devices.' },
+              ]}
+            />
           </div>
         </div>
         <button
@@ -72,15 +89,15 @@ export default function WatchlistPage() {
                   <span className="font-medium text-slate-100">{asset.symbol}</span>
                   <span className="text-xs text-slate-500">{asset.name}</span>
                 </div>
-                <span className={`font-mono font-bold tabular-nums ${getRiskColor(asset.riskBand)}`}>
-                  {formatScore(asset.riskScore)}
+                <span className={`font-mono font-bold tabular-nums ${asset.riskBand ? getRiskColor(asset.riskBand) : 'text-slate-400'}`}>
+                  {formatOrNA(asset.riskScore, formatScore)}
                 </span>
                 <RiskScoreBadge band={asset.riskBand} score={asset.riskScore} />
                 <span className="font-mono text-slate-300 tabular-nums">
-                  {formatCurrency(asset.price, 4)}
+                  {formatOrNA(asset.price, (v) => formatCurrency(v, 4))}
                 </span>
                 <span className="font-mono text-slate-300 tabular-nums text-xs">
-                  {formatCurrency(asset.marketCap)}
+                  {formatOrNA(asset.marketCap, (v) => formatCurrency(v))}
                 </span>
                 <button
                   onClick={() => setWatchedIds(prev => { const s = new Set(prev); s.delete(asset.id); return s })}

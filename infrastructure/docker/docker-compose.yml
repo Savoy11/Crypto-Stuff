@@ -122,7 +122,7 @@ services:
         --appendonly yes
         --appendfsync everysec
         --maxmemory 512mb
-        --maxmemory-policy allkeys-lru
+        --maxmemory-policy volatile-lru
         --loglevel notice
         --save 900 1
         --save 300 10

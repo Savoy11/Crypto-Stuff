@@ -4,6 +4,7 @@ a single composite risk score for each asset.
 """
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -11,6 +12,7 @@ from typing import Any
 
 import structlog
 from sqlalchemy import select, desc, func
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.asset import Asset
@@ -26,7 +28,11 @@ from app.scoring.components import (
     compute_reserve_transparency_score,
     compute_security_compliance_score,
 )
-from app.scoring.weights import DEFAULT_WEIGHTS, RISK_BAND_THRESHOLDS
+from app.scoring.weights import (
+    DEFAULT_WEIGHTS,
+    RISK_BAND_THRESHOLDS,
+    get_weights_for_asset_type,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -89,10 +95,19 @@ class ScoringEngine:
         """
         logger.info("scoring_asset", asset_id=str(asset_id))
 
-        # Gather all data in parallel-ish fashion (sequential queries on shared session)
         asset_data = await self._gather_asset_data(asset_id, db)
+
+        # Select weights calibrated for this asset type
+        asset_type = asset_data.get("asset_type", "stablecoin")
+        effective_weights = get_weights_for_asset_type(asset_type)
+        if self.weights is not DEFAULT_WEIGHTS:
+            effective_weights = self.weights  # caller-supplied override takes precedence
+
         components = self.compute_component_scores(asset_data)
+        original_weights = self.weights
+        self.weights = effective_weights
         overall = self.apply_weights(components)
+        self.weights = original_weights
         confidence = self.calculate_confidence(asset_data)
         band = self.assign_risk_band(overall)
 
@@ -107,11 +122,12 @@ class ScoringEngine:
                 "security_compliance": components.security_breakdown,
             },
             "weights": {
-                "reserve_transparency": self.weights.reserve_transparency,
-                "peg_liquidity": self.weights.peg_liquidity,
-                "network_velocity": self.weights.network_velocity,
-                "security_compliance": self.weights.security_compliance,
+                "reserve_transparency": effective_weights.reserve_transparency,
+                "peg_liquidity": effective_weights.peg_liquidity,
+                "network_velocity": effective_weights.network_velocity,
+                "security_compliance": effective_weights.security_compliance,
             },
+            "asset_type": asset_type,
             "data_completeness": asset_data.get("completeness", {}),
         }
 
@@ -206,9 +222,10 @@ class ScoringEngine:
 
     def calculate_confidence(self, asset_data: dict[str, Any]) -> float:
         """
-        Calculate scoring confidence based on data completeness.
+        Calculate scoring confidence based on data completeness and staleness.
 
-        Returns value between 0 and 1, where 1 = fully complete data.
+        Returns value between 0 and 1, where 1 = fully complete, fresh data.
+        Staleness: attestation data older than 30 days is penalised linearly.
         """
         completeness = {
             "market_data": 1.0 if asset_data.get("prices") else 0.0,
@@ -224,11 +241,24 @@ class ScoringEngine:
         }
 
         from app.scoring.weights import CONFIDENCE_THRESHOLDS
-        confidence = sum(
+        raw_confidence = sum(
             completeness[k] * w
             for k, w in CONFIDENCE_THRESHOLDS.items()
         )
-        return float(max(0.0, min(1.0, confidence)))
+
+        # Apply staleness penalty to reserve_data component
+        attestation_date = asset_data.get("last_attestation_date")
+        staleness_penalty = 0.0
+        if attestation_date is not None:
+            today = datetime.now(UTC).date()
+            if isinstance(attestation_date, datetime):
+                attestation_date = attestation_date.date()
+            age_days = (today - attestation_date).days
+            if age_days > 30:
+                # Linear decay: 0% penalty at 30 days, 35% at 90+ days
+                staleness_penalty = min(0.35, (age_days - 30) / 60 * 0.35)
+
+        return float(max(0.0, min(1.0, raw_confidence - staleness_penalty)))
 
     def assign_risk_band(self, score: float) -> RiskBand:
         """Assign a risk band enum value based on composite score."""
@@ -237,7 +267,7 @@ class ScoringEngine:
                 return RiskBand(band_name)
         return RiskBand.critical
 
-    async def calculate_percentile(self, score: float, all_scores: list[float]) -> float:
+    def calculate_percentile(self, score: float, all_scores: list[float]) -> float:
         """
         Compute a score's percentile rank within a list of scores.
 
@@ -269,7 +299,7 @@ class ScoringEngine:
             if not all_scores:
                 return None
             all_scores.append(score)
-            return await self.calculate_percentile(score, all_scores)
+            return self.calculate_percentile(score, all_scores)
         except Exception as exc:
             logger.warning("percentile_calculation_failed", error=str(exc))
             return None
@@ -279,15 +309,53 @@ class ScoringEngine:
     ) -> dict[str, Any]:
         """
         Load all relevant data for an asset from the database.
+        All five category queries run concurrently via asyncio.gather.
 
         Returns a flat dict of feature values ready for component scorers.
         """
         data: dict[str, Any] = {"asset_id": str(asset_id)}
 
-        # Asset metadata
-        asset_result = await db.execute(
-            select(Asset).where(Asset.id == asset_id)
+        (
+            asset_result,
+            md_result,
+            liq_result,
+            bm_result,
+            wc_result,
+            ra_result,
+        ) = await asyncio.gather(
+            db.execute(select(Asset).where(Asset.id == asset_id)),
+            db.execute(
+                select(MarketData)
+                .where(MarketData.asset_id == asset_id)
+                .order_by(desc(MarketData.timestamp))
+                .limit(self.PRICE_HISTORY_POINTS)
+            ),
+            db.execute(
+                select(LiquidityMetric)
+                .where(LiquidityMetric.asset_id == asset_id)
+                .order_by(desc(LiquidityMetric.timestamp))
+                .limit(1)
+            ),
+            db.execute(
+                select(BlockchainMetric)
+                .where(BlockchainMetric.asset_id == asset_id)
+                .order_by(desc(BlockchainMetric.timestamp))
+                .limit(1)
+            ),
+            db.execute(
+                select(WalletConcentration)
+                .where(WalletConcentration.asset_id == asset_id)
+                .order_by(desc(WalletConcentration.timestamp))
+                .limit(1)
+            ),
+            db.execute(
+                select(ReserveAttestation)
+                .where(ReserveAttestation.asset_id == asset_id)
+                .order_by(desc(ReserveAttestation.attestation_date))
+                .limit(1)
+            ),
         )
+
         asset = asset_result.scalar_one_or_none()
         if asset:
             data["asset_type"] = asset.asset_type.value if asset.asset_type else "stablecoin"
@@ -299,16 +367,8 @@ class ScoringEngine:
             data["compliance_data"] = meta.get("compliance")
             data["has_real_time_feed"] = bool(meta.get("has_real_time_feed", False))
 
-        # Market data: last 7 days of hourly prices
-        md_result = await db.execute(
-            select(MarketData)
-            .where(MarketData.asset_id == asset_id)
-            .order_by(desc(MarketData.timestamp))
-            .limit(self.PRICE_HISTORY_POINTS)
-        )
         market_rows = md_result.scalars().all()
         if market_rows:
-            # Reverse to chronological order
             prices = [float(r.price_usd) for r in reversed(market_rows) if r.price_usd is not None]
             data["prices"] = prices
             latest_md = market_rows[0]
@@ -317,58 +377,32 @@ class ScoringEngine:
             data["depth_2pct"] = float(latest_md.liquidity_depth_2pct) if latest_md.liquidity_depth_2pct else None
             data["spread_bps"] = float(latest_md.bid_ask_spread_bps) if latest_md.bid_ask_spread_bps else None
 
-        # Latest liquidity metrics
-        liq_result = await db.execute(
-            select(LiquidityMetric)
-            .where(LiquidityMetric.asset_id == asset_id)
-            .order_by(desc(LiquidityMetric.timestamp))
-            .limit(1)
-        )
         liq = liq_result.scalar_one_or_none()
         if liq:
             data["slippage_bps"] = float(liq.slippage_1pct) if liq.slippage_1pct else None
             data["venues"] = liq.top_venues or []
 
-        # Latest blockchain metrics
-        bm_result = await db.execute(
-            select(BlockchainMetric)
-            .where(BlockchainMetric.asset_id == asset_id)
-            .order_by(desc(BlockchainMetric.timestamp))
-            .limit(1)
-        )
         bm = bm_result.scalar_one_or_none()
         if bm:
             data["velocity"] = float(bm.velocity) if bm.velocity else None
             data["holder_count"] = int(bm.holder_count) if bm.holder_count else None
             data["active_addresses_24h"] = int(bm.active_addresses_24h) if bm.active_addresses_24h else None
-            data["transfer_count_24h"] = int(bm.transfer_count_24h) if bm.transfer_count_24h else None
+            data["transfer_count_24h"] = (
+                int(bm.transfer_count_24h) if getattr(bm, "transfer_count_24h", None) else None
+            )
 
-        # Latest wallet concentration
-        wc_result = await db.execute(
-            select(WalletConcentration)
-            .where(WalletConcentration.asset_id == asset_id)
-            .order_by(desc(WalletConcentration.timestamp))
-            .limit(1)
-        )
         wc = wc_result.scalar_one_or_none()
         if wc:
             data["gini_coefficient"] = float(wc.gini_coefficient) if wc.gini_coefficient else None
             data["hhi_score"] = float(wc.hhi_score) if wc.hhi_score else None
             data["top_10_pct"] = float(wc.top_10_pct) if wc.top_10_pct else None
 
-        # Latest reserve attestation
-        ra_result = await db.execute(
-            select(ReserveAttestation)
-            .where(ReserveAttestation.asset_id == asset_id)
-            .order_by(desc(ReserveAttestation.attestation_date))
-            .limit(1)
-        )
         ra = ra_result.scalar_one_or_none()
         if ra:
             data["reserve_composition"] = ra.reserve_composition or {}
             data["collateralization_ratio"] = float(ra.collateralization_ratio) if ra.collateralization_ratio else None
             data["last_attestation_date"] = ra.attestation_date
-            data["attester_quality"] = ra.attester_type or "unknown"
+            data["attester_quality"] = getattr(ra, "attester_type", None) or "unknown"
 
         return data
 
@@ -378,33 +412,34 @@ class ScoringEngine:
         components: ComponentScores,
         db: AsyncSession,
     ) -> None:
-        """Write or update today's score record for the asset."""
+        """Atomically upsert today's score record using ON CONFLICT DO UPDATE."""
         today = datetime.now(UTC).date()
+        now = datetime.now(UTC)
 
-        existing = await db.execute(
-            select(RiskScore).where(
-                RiskScore.asset_id == result.asset_id,
-                RiskScore.score_date == today,
-            )
+        values = {
+            "asset_id": result.asset_id,
+            "score_date": today,
+            "overall_score": result.overall_score,
+            "reserve_score": round(components.reserve_transparency, 2),
+            "peg_score": round(components.peg_liquidity, 2),
+            "network_score": round(components.network_velocity, 2),
+            "security_score": round(components.security_compliance, 2),
+            "risk_band": result.risk_band,
+            "confidence": result.confidence,
+            "percentile_rank": result.percentile_rank,
+            "score_breakdown": result.score_breakdown,
+            "model_version": result.model_version,
+            "updated_at": now,
+        }
+
+        stmt = pg_insert(RiskScore).values(**values)
+        stmt = stmt.on_conflict_do_update(
+            constraint="uq_risk_score_asset_date",
+            set_={
+                k: stmt.excluded[k]
+                for k in values
+                if k not in ("asset_id", "score_date")
+            },
         )
-        score_row = existing.scalar_one_or_none()
-
-        if score_row is None:
-            score_row = RiskScore(
-                asset_id=result.asset_id,
-                score_date=today,
-            )
-            db.add(score_row)
-
-        score_row.overall_score = result.overall_score
-        score_row.reserve_score = round(components.reserve_transparency, 2)
-        score_row.peg_score = round(components.peg_liquidity, 2)
-        score_row.network_score = round(components.network_velocity, 2)
-        score_row.security_score = round(components.security_compliance, 2)
-        score_row.risk_band = result.risk_band
-        score_row.confidence = result.confidence
-        score_row.percentile_rank = result.percentile_rank
-        score_row.score_breakdown = result.score_breakdown
-        score_row.model_version = result.model_version
-
+        await db.execute(stmt)
         await db.flush()

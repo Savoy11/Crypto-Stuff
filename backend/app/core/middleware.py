@@ -11,7 +11,7 @@ from collections.abc import Callable
 import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
@@ -36,7 +36,7 @@ REQUEST_LATENCY = Histogram(
     buckets=[0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0],
 )
 
-REQUEST_IN_PROGRESS = Counter(
+REQUEST_IN_PROGRESS = Gauge(
     "caep_http_requests_in_progress",
     "HTTP requests currently in progress",
     ["method", "endpoint"],
@@ -102,6 +102,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         )
 
         bound_logger.info("request_started")
+        normalized = self._normalize_path(path)
+        REQUEST_IN_PROGRESS.labels(method=request.method, endpoint=normalized).inc()
 
         try:
             response = await call_next(request)
@@ -113,16 +115,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 duration_ms=round(elapsed * 1000, 2),
             )
 
-            # Prometheus instrumentation
             REQUEST_COUNT.labels(
                 method=request.method,
-                endpoint=self._normalize_path(path),
+                endpoint=normalized,
                 status_code=response.status_code,
             ).inc()
-            REQUEST_LATENCY.labels(
-                method=request.method,
-                endpoint=self._normalize_path(path),
-            ).observe(elapsed)
+            REQUEST_LATENCY.labels(method=request.method, endpoint=normalized).observe(elapsed)
 
             response.headers["X-Response-Time"] = f"{elapsed * 1000:.2f}ms"
             return response
@@ -135,6 +133,8 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 error=str(exc),
             )
             raise
+        finally:
+            REQUEST_IN_PROGRESS.labels(method=request.method, endpoint=normalized).dec()
 
     @staticmethod
     def _get_client_ip(request: Request) -> str:

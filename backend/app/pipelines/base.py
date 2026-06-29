@@ -39,6 +39,9 @@ class BasePipeline(ABC):
     # HTTP status codes that should trigger a retry
     RETRY_STATUS_CODES: set[int] = {429, 500, 502, 503, 504}
 
+    # Maximum size of the dedup cache before auto-clear
+    _DEDUP_CACHE_MAX: int = 50_000
+
     def __init__(self) -> None:
         self._client: httpx.AsyncClient | None = None
         self._seen_hashes: set[str] = set()

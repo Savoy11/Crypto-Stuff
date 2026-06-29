@@ -240,7 +240,8 @@ def calculate_peg_score(
     score -= max_penalty
 
     # Penalise depeg event frequency (up to -20 points)
-    event_rate = len(events) / max(len(prices), 1) * 100  # events per 100 periods
+    normalised_window = max(len(prices), 168)
+    event_rate = len(events) / normalised_window * 100  # events per 100 periods
     event_penalty = min(20.0, event_rate * 10.0)
     score -= event_penalty
 

@@ -14,6 +14,12 @@ frontend/tsconfig.tsbuildinfo
 *.bak
 *.bak.*
 
+# Runtime config / secrets written by the app (defaults live in source)
+frontend/.provider-config.json
+frontend/.agent-prompts.json
+.provider-config.json
+.agent-prompts.json
+
 # Environment files (keep .env.example, ignore secrets)
 .env
 .env.local
@@ -35,6 +41,10 @@ venv/
 
 # Docker
 *.log
+
+# Claude Code config (machine-specific)
+.claude/
+**/.claude/
 
 # OS
 .DS_Store

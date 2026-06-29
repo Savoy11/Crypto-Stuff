@@ -12,11 +12,24 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   Brush,
+  type TooltipProps,
 } from 'recharts'
+import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
 import { format, parseISO } from 'date-fns'
+import { useQuery } from '@tanstack/react-query'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { getMockPriceHistory, NOTABLE_EVENTS, getAssetLaunchDate, type PriceRange } from '@/lib/api/mock/mockPriceHistory'
+import { fetchLiveChart } from '@/lib/api/live/liveClient'
+import { LIVE_DATA } from '@/lib/constants'
 import { CHART_THEME } from '@/lib/utils/chart'
+
+const RANGE_DAYS: Record<PriceRange, number> = {
+  '1W': 7,
+  '1M': 30,
+  '3M': 90,
+  '1Y': 365,
+  'MAX': 1825,
+}
 
 interface PriceHistoryChartProps {
   assetId: string
@@ -65,8 +78,19 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
   const [range, setRange] = useState<PriceRange>('1Y')
   const isL1 = pegTarget === undefined
 
-  const candles = useMemo(() => getMockPriceHistory(assetId, range), [assetId, range])
-  const launchDate = getAssetLaunchDate(assetId)
+  const { data: liveCandles, isLoading: liveLoading } = useQuery({
+    queryKey: ['live-chart', assetId, range],
+    queryFn: () => fetchLiveChart(assetId, RANGE_DAYS[range]),
+    enabled: LIVE_DATA,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const candles = useMemo(
+    () => (LIVE_DATA ? (liveCandles ?? []) : getMockPriceHistory(assetId, range)),
+    [assetId, range, liveCandles]
+  )
+  const launchDate = LIVE_DATA ? (candles[0]?.date ?? null) : getAssetLaunchDate(assetId)
+  const liveUnavailable = LIVE_DATA && !liveLoading && candles.length === 0
 
   const latest = candles[candles.length - 1]
   const first  = candles[0]
@@ -92,7 +116,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
 
   const isUp = priceChange >= 0
 
-  const renderTooltip = useCallback(({ active, payload, label }: any) => {
+  const renderTooltip = useCallback(({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
     if (!active || !payload?.length) return null
     const d = payload[0]?.payload
     if (!d) return null
@@ -162,7 +186,9 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
             </div>
           </div>
           <div className="text-[10px] text-text-muted mt-0.5 font-mono">
-            Data since {format(parseISO(launchDate), 'MMM d, yyyy')} · {candles.length.toLocaleString()} candles
+            {launchDate
+              ? `Data since ${format(parseISO(launchDate), 'MMM d, yyyy')} · ${candles.length.toLocaleString()} candles`
+              : 'No price history'}
           </div>
         </div>
 
@@ -185,6 +211,19 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
       </div>
 
       {/* Price chart */}
+      {liveLoading ? (
+        <div className="flex items-center justify-center h-[300px] text-xs text-text-muted font-mono">
+          Loading price history…
+        </div>
+      ) : liveUnavailable ? (
+        <div className="flex flex-col items-center justify-center h-[300px] gap-2 text-center px-6">
+          <Minus size={20} className="text-text-muted" aria-hidden />
+          <p className="text-sm font-medium text-text-secondary">Price history not available</p>
+          <p className="text-xs text-text-muted max-w-sm">
+            No live price history could be retrieved for this asset from the upstream data source.
+          </p>
+        </div>
+      ) : (
       <div className="px-2 pt-3">
         <ResponsiveContainer width="100%" height={220}>
           <ComposedChart data={candles} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
@@ -283,6 +322,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
         </ResponsiveContainer>
         <div className="text-[10px] text-text-muted font-mono px-2 pb-3 -mt-1">VOLUME (USD)</div>
       </div>
+      )}
 
       {/* Event legend */}
       {visibleEvents.length > 0 && (

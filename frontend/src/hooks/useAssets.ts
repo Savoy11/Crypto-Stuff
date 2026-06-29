@@ -1,8 +1,10 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback } from 'react'
+import { useCallback, useMemo } from 'react'
 import { assetsApi, type GetAssetsParams } from '@/lib/api/assets'
 import { useAssetStore } from '@/store/useAssetStore'
+import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import { STALE_TIME_SHORT, STALE_TIME_MEDIUM, GC_TIME } from '@/lib/constants'
+import type { Asset, AssetType } from '@/types/asset'
 
 export const ASSET_KEYS = {
   all: ['assets'] as const,
@@ -68,8 +70,44 @@ export function usePrefetchAsset() {
   )
 }
 
+// ─── Discovered-coin → Asset conversion ──────────────────────────────────────
+
+function categoryToAssetType(cat: string): AssetType {
+  if (cat === 'stablecoin') return 'stablecoin'
+  if (cat === 'defi')       return 'defi'
+  return 'layer1'
+}
+
+function discoveredCoinToAsset(coin: AddedCoin): Asset {
+  return {
+    id:             coin.cgId,
+    symbol:         coin.symbol,
+    name:           coin.name,
+    assetType:      categoryToAssetType(coin.category),
+    blockchain:     'other',
+    contractAddress:'',
+    isActive:       true,
+    marketCap:      coin.marketCap || null,
+    price:          coin.price || null,
+    volume24h:      null,
+    priceChange24h: null,
+    priceChangePercent24h: null,
+    pegDeviation:   null,
+    riskScore:      null,
+    riskBand:       null,
+    reserveRatio:   null,
+    createdAt:      coin.addedAt,
+    updatedAt:      coin.addedAt,
+    coingeckoId:    coin.cgId,
+    description:    coin.notes ? `Added via Coin Discovery: ${coin.notes}` : 'Added via Coin Discovery',
+  }
+}
+
+// ─── Hook ─────────────────────────────────────────────────────────────────────
+
 export function useAssetsWithStore() {
   const { filters, sort, page, pageSize } = useAssetStore()
+  const { addedCoins } = useCoinDiscoveryStore()
 
   const params: GetAssetsParams = {
     assetType: filters.assetType !== 'all' ? filters.assetType : undefined,
@@ -84,5 +122,36 @@ export function useAssetsWithStore() {
     pageSize,
   }
 
-  return useAssets(params)
+  const mainQuery = useAssets(params)
+
+  // Convert discovered coins and filter them by the active search term.
+  // Other filters (assetType, riskBand, etc.) are intentionally skipped — the
+  // discovery store doesn't carry enough metadata to evaluate them reliably.
+  const mergedData = useMemo(() => {
+    if (!mainQuery.data) return mainQuery.data
+
+    const search = filters.search?.toLowerCase() ?? ''
+    const existingIds = new Set(
+      mainQuery.data.data.flatMap(a => [a.id, a.coingeckoId].filter(Boolean) as string[])
+    )
+
+    const newCoins = addedCoins
+      .filter(c => !existingIds.has(c.cgId))
+      .filter(c =>
+        !search ||
+        c.symbol.toLowerCase().includes(search) ||
+        c.name.toLowerCase().includes(search)
+      )
+      .map(discoveredCoinToAsset)
+
+    if (newCoins.length === 0) return mainQuery.data
+
+    return {
+      ...mainQuery.data,
+      data:  [...newCoins, ...mainQuery.data.data],
+      total: mainQuery.data.total + newCoins.length,
+    }
+  }, [mainQuery.data, addedCoins, filters.search])
+
+  return { ...mainQuery, data: mergedData }
 }

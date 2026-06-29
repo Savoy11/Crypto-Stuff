@@ -1,8 +1,10 @@
 import apiClient from './client'
 import type { Asset, AssetDetail, AssetFilters, AssetSortConfig } from '@/types/asset'
 import type { PaginatedResponse, QueryParams } from '@/types/api'
-import { USE_MOCK } from '@/lib/constants'
+import { USE_MOCK, LIVE_DATA } from '@/lib/constants'
 import { getMockAssets, getMockAssetDetail } from './mock/mockAssets'
+import { fetchLiveMarkets } from './live/liveClient'
+import { buildLiveAssets, buildLiveAssetDetail } from './live/overlay'
 
 export interface GetAssetsParams extends QueryParams {
   assetType?: string
@@ -18,36 +20,118 @@ export interface GetAssetsParams extends QueryParams {
   pageSize?: number
 }
 
+// Null-safe comparison: missing values always sort to the end regardless of
+// direction, so "N/A" rows don't masquerade as the smallest/largest value.
+function compareValues(av: unknown, bv: unknown, dir: number): number {
+  const aMissing = av === null || av === undefined
+  const bMissing = bv === null || bv === undefined
+  if (aMissing && bMissing) return 0
+  if (aMissing) return 1
+  if (bMissing) return -1
+  if (av < bv) return -dir
+  if (av > bv) return dir
+  return 0
+}
+
+function applyParams(all: Asset[], params: GetAssetsParams): PaginatedResponse<Asset> {
+  let assets = [...all]
+
+  if (params.search) {
+    const q = params.search.toLowerCase()
+    assets = assets.filter(
+      (a) => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
+    )
+  }
+  if (params.assetType && params.assetType !== 'all') {
+    assets = assets.filter((a) => a.assetType === params.assetType)
+  }
+  if (params.blockchain && params.blockchain !== 'all') {
+    assets = assets.filter((a) => a.blockchain === params.blockchain)
+  }
+  if (params.riskBand && params.riskBand !== 'all') {
+    assets = assets.filter((a) => a.riskBand === params.riskBand)
+  }
+  if (params.minRiskScore !== undefined) {
+    assets = assets.filter((a) => a.riskScore !== null && a.riskScore >= (params.minRiskScore ?? 0))
+  }
+  if (params.maxRiskScore !== undefined) {
+    assets = assets.filter((a) => a.riskScore !== null && a.riskScore <= (params.maxRiskScore ?? 100))
+  }
+  if (params.minMarketCap !== undefined) {
+    assets = assets.filter((a) => a.marketCap !== null && a.marketCap >= (params.minMarketCap ?? 0))
+  }
+
+  if (params.sortBy) {
+    const key = params.sortBy as keyof Asset
+    const dir = params.sortDirection === 'asc' ? 1 : -1
+    assets = assets.sort((a, b) => compareValues(a[key], b[key], dir))
+  }
+
+  const page = params.page ?? 1
+  const pageSize = params.pageSize ?? 25
+  const start = (page - 1) * pageSize
+  const paginated = assets.slice(start, start + pageSize)
+
+  return {
+    data: paginated,
+    total: assets.length,
+    page,
+    pageSize,
+    totalPages: Math.ceil(assets.length / pageSize),
+    hasNext: start + pageSize < assets.length,
+    hasPrev: page > 1,
+  }
+}
+
 export const assetsApi = {
   getAssets: async (params: GetAssetsParams = {}): Promise<PaginatedResponse<Asset>> => {
+    if (LIVE_DATA) {
+      const { quotes } = await fetchLiveMarkets()
+      return applyParams(buildLiveAssets(quotes), params)
+    }
     if (USE_MOCK) return getMockAssets(params)
     const { data } = await apiClient.get<PaginatedResponse<Asset>>('/assets', { params })
     return data
   },
 
   getAsset: async (id: string): Promise<AssetDetail> => {
+    if (LIVE_DATA) {
+      const { quotes } = await fetchLiveMarkets()
+      return buildLiveAssetDetail(id, quotes[id])
+    }
     if (USE_MOCK) return getMockAssetDetail(id)
     const { data } = await apiClient.get<AssetDetail>(`/assets/${id}`)
     return data
   },
 
   getWatchlist: async (): Promise<Asset[]> => {
+    if (LIVE_DATA) {
+      const { quotes } = await fetchLiveMarkets()
+      return buildLiveAssets(quotes).slice(0, 5)
+    }
     if (USE_MOCK) return getMockAssets({ pageSize: 5 }).then((r) => r.data.slice(0, 5))
     const { data } = await apiClient.get<Asset[]>('/assets/watchlist')
     return data
   },
 
   addToWatchlist: async (assetId: string): Promise<void> => {
-    if (USE_MOCK) return
+    if (USE_MOCK || LIVE_DATA) return
     await apiClient.post(`/assets/watchlist/${assetId}`)
   },
 
   removeFromWatchlist: async (assetId: string): Promise<void> => {
-    if (USE_MOCK) return
+    if (USE_MOCK || LIVE_DATA) return
     await apiClient.delete(`/assets/watchlist/${assetId}`)
   },
 
   searchAssets: async (query: string): Promise<Asset[]> => {
+    if (LIVE_DATA) {
+      const { quotes } = await fetchLiveMarkets()
+      const q = query.toLowerCase()
+      return buildLiveAssets(quotes).filter(
+        (a) => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
+      )
+    }
     if (USE_MOCK) {
       const all = await getMockAssets({})
       return all.data.filter(

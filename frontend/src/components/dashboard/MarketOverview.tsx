@@ -1,58 +1,27 @@
 'use client'
 
-import { Shield, Bell, Database, AlertTriangle } from 'lucide-react'
+import { Bell, Database, TrendingUp } from 'lucide-react'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { useMarketOverview } from '@/hooks/useMarketData'
 import { useAlertStats } from '@/hooks/useAlerts'
-import { formatCompact, formatScore } from '@/lib/utils/format'
-import { getScoreColor } from '@/lib/utils/risk'
+import { useAssetsWithStore } from '@/hooks/useAssets'
+import { formatCompact, formatOrNA } from '@/lib/utils/format'
 
 export function MarketOverview() {
   const { data: overview, isLoading: overviewLoading } = useMarketOverview()
   const { data: alertStats, isLoading: alertsLoading } = useAlertStats()
+  const { data: assetsData } = useAssetsWithStore()
+  const totalAssets = assetsData?.total ?? overview?.totalAssets ?? null
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
       <MetricCard
         title="Total Assets Monitored"
-        value={overview?.totalAssets?.toString() ?? '—'}
+        value={totalAssets?.toString() ?? '—'}
         subtitle="Active + Inactive"
         icon={<Database size={16} />}
         accentColor="#3b82f6"
         loading={overviewLoading}
-      />
-
-      <MetricCard
-        title="Average Risk Score"
-        value={
-          overview ? (
-            <span style={{ color: getScoreColor(overview.avgRiskScore) }}>
-              {formatScore(overview.avgRiskScore)}
-            </span>
-          ) : '—'
-        }
-        subtitle="Portfolio composite"
-        icon={<Shield size={16} />}
-        accentColor={overview ? getScoreColor(overview.avgRiskScore) : '#3b82f6'}
-        loading={overviewLoading}
-        footer={
-          overview && (
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 flex-1 rounded-full bg-bg-elevated overflow-hidden">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${overview.avgRiskScore}%`,
-                    backgroundColor: getScoreColor(overview.avgRiskScore),
-                  }}
-                />
-              </div>
-              <span className="text-[10px] font-mono text-text-muted">
-                {overview.avgRiskScore.toFixed(1)}/100
-              </span>
-            </div>
-          )
-        }
       />
 
       <MetricCard
@@ -96,19 +65,12 @@ export function MarketOverview() {
       />
 
       <MetricCard
-        title="High / Critical Risk"
-        value={overview?.criticalHighCount?.toString() ?? '—'}
-        subtitle="Assets requiring review"
-        icon={<AlertTriangle size={16} />}
-        accentColor={overview && overview.criticalHighCount > 0 ? '#ef4444' : '#10b981'}
+        title="Total Market Cap"
+        value={overview ? formatOrNA(overview.totalMarketCap, formatCompact) : '—'}
+        subtitle="All monitored assets"
+        icon={<TrendingUp size={16} />}
+        accentColor="#10b981"
         loading={overviewLoading}
-        footer={
-          overview && (
-            <div className="text-[10px] text-text-muted">
-              Total market: <span className="font-mono text-text-secondary">{formatCompact(overview.totalMarketCap)}</span>
-            </div>
-          )
-        }
       />
     </div>
   )

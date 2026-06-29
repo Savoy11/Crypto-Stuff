@@ -1,0 +1,19 @@
+{
+  "name": "caep-mcp-server",
+  "version": "1.0.0",
+  "description": "MCP server exposing CAEP (Crypto Asset Evaluation Platform) tools to Claude and other MCP-compatible AI agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -39,7 +39,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Graceful shutdown
     await stop_scheduler()
-    await connection_manager.broadcast_system_status("offline")
+    await connection_manager.broadcast_system_status(
+        status="offline",
+        pipeline_statuses={},
+        message="Server shutting down",
+    )
     await close_db()
     logger.info("caep_stopped")
 
@@ -66,10 +70,28 @@ def create_app() -> FastAPI:
     app.include_router(api_router, prefix="/api")
 
     # ------------------------------------------------------------------ #
-    # Prometheus metrics endpoint
+    # Prometheus metrics endpoint — internal only, guarded by IP allowlist
     # ------------------------------------------------------------------ #
     metrics_app = make_asgi_app()
-    app.mount("/metrics", metrics_app)
+
+    async def metrics_guard(scope, receive, send):  # type: ignore[type-arg]
+        """Allow /metrics only from localhost or explicitly configured IPs."""
+        from starlette.requests import Request as SRequest
+        from starlette.responses import Response as SResponse
+
+        req = SRequest(scope, receive)
+        client_ip = (
+            req.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            or (req.client.host if req.client else "")
+        )
+        allowed_ips = {"127.0.0.1", "::1", "localhost"}
+        if client_ip not in allowed_ips and not settings.DEBUG:
+            resp = SResponse(content="Forbidden", status_code=403)
+            await resp(scope, receive, send)
+            return
+        await metrics_app(scope, receive, send)
+
+    app.mount("/metrics", metrics_guard)
 
     # ------------------------------------------------------------------ #
     # Health probes

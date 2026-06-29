@@ -1,5 +1,5 @@
 export type NewsSentiment = 'positive' | 'neutral' | 'negative'
-export type NewsCategory = 'regulation' | 'market' | 'protocol' | 'security' | 'adoption' | 'macro'
+export type NewsCategory = 'regulation' | 'market' | 'protocol' | 'security' | 'adoption' | 'macro' | 'global'
 
 export interface NewsArticle {
   id: string
@@ -391,6 +391,7 @@ export const NEWS_CATEGORIES: { value: NewsCategory | 'all'; label: string }[] =
   { value: 'security', label: 'Security' },
   { value: 'adoption', label: 'Adoption' },
   { value: 'macro', label: 'Macro' },
+  { value: 'global', label: 'Global' },
 ]
 
 export function getMockNews(
