@@ -1,9 +1,15 @@
-import type { Asset, AssetDetail, MarketData, PegDataPoint, ReserveAttestation, AnalyticsBundle } from '@/types/asset'
-import type { PaginatedResponse, TimeRange } from '@/types/api'
-import type { GetAssetsParams } from '../assets'
-import { subDays, subHours, format } from 'date-fns'
+﻿// Static asset metadata catalog.
+//
+// This file carries ONLY stable reference facts about each asset — id, symbol,
+// name, type, blockchain, contract address, issuer, description, links, and the
+// intended peg target. It contains NO real-time or fabricated values: every
+// market/derived numeric field (price, market cap, volume, peg deviation, risk,
+// reserve ratio) is nulled at export time. Those values are sourced live from
+// the /live-data/* routes, or shown as "not available" when no live source
+// exists. See DATA-AVAILABILITY.md at the repo root.
+import type { Asset } from '@/types/asset'
 
-export const MOCK_ASSETS: Asset[] = [
+const RAW_CATALOG: Asset[] = [
   {
     id: 'usdc',
     symbol: 'USDC',
@@ -1167,7 +1173,7 @@ export const MOCK_ASSETS: Asset[] = [
     website: 'https://worldwidemoney.finance',
   },
 
-  // ─── Layer 1 Assets ──────────────────────────────────────────────────────────
+  // â”€â”€â”€ Layer 1 Assets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   {
     id: 'btc',
     symbol: 'BTC',
@@ -2572,223 +2578,20 @@ export const MOCK_ASSETS: Asset[] = [
   },
 ]
 
-function generatePegHistory(assetId: string, timeRange: TimeRange): PegDataPoint[] {
-  const asset = MOCK_ASSETS.find((a) => a.id === assetId)
-  const baseDev = asset?.pegDeviationBps ?? 5
-  const points: PegDataPoint[] = []
-
-  const rangeHours: Record<TimeRange, number> = {
-    '1h': 1,
-    '24h': 24,
-    '7d': 168,
-    '30d': 720,
-    '90d': 2160,
-    '1y': 8760,
-  }
-  const hours = rangeHours[timeRange] ?? 168
-  const intervalHours = hours > 720 ? 24 : hours > 168 ? 6 : hours > 24 ? 1 : 0.25
-
-  let now = new Date()
-  let currentDev = baseDev
-
-  for (let i = hours; i >= 0; i -= intervalHours) {
-    const ts = subHours(now, i)
-    // Random walk
-    currentDev += (Math.random() - 0.5) * 4
-    currentDev = Math.max(-300, Math.min(300, currentDev))
-    // Revert to mean
-    currentDev = currentDev * 0.95 + baseDev * 0.05
-
-    const devFraction = currentDev / 10000
-    const price = 1.0 + devFraction
-
-    points.push({
-      timestamp: ts.toISOString(),
-      price: parseFloat(price.toFixed(6)),
-      pegDeviation: devFraction,
-      volume: 1_000_000 + Math.random() * 5_000_000,
-    })
-  }
-
-  return points
-}
-
-export async function getMockAssets(params: GetAssetsParams): Promise<PaginatedResponse<Asset>> {
-  let assets = [...MOCK_ASSETS]
-
-  if (params.search) {
-    const q = params.search.toLowerCase()
-    assets = assets.filter(
-      (a) => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
-    )
-  }
-  if (params.assetType && params.assetType !== 'all') {
-    assets = assets.filter((a) => a.assetType === params.assetType)
-  }
-  if (params.blockchain && params.blockchain !== 'all') {
-    assets = assets.filter((a) => a.blockchain === params.blockchain)
-  }
-  if (params.riskBand && params.riskBand !== 'all') {
-    assets = assets.filter((a) => a.riskBand === params.riskBand)
-  }
-  if (params.minRiskScore !== undefined) {
-    assets = assets.filter((a) => (a.riskScore ?? 0) >= (params.minRiskScore ?? 0))
-  }
-  if (params.maxRiskScore !== undefined) {
-    assets = assets.filter((a) => (a.riskScore ?? 0) <= (params.maxRiskScore ?? 100))
-  }
-
-  // Sort
-  if (params.sortBy) {
-    const key = params.sortBy as keyof Asset
-    const dir = params.sortDirection === 'asc' ? 1 : -1
-    assets = assets.sort((a, b) => {
-      const av = a[key] as number | string
-      const bv = b[key] as number | string
-      if (av < bv) return -dir
-      if (av > bv) return dir
-      return 0
-    })
-  }
-
-  const page = params.page ?? 1
-  const pageSize = params.pageSize ?? 25
-  const start = (page - 1) * pageSize
-  const paginated = assets.slice(start, start + pageSize)
-
-  return {
-    data: paginated,
-    total: assets.length,
-    page,
-    pageSize,
-    totalPages: Math.ceil(assets.length / pageSize),
-    hasNext: start + pageSize < assets.length,
-    hasPrev: page > 1,
-  }
-}
-
-export async function getMockAssetDetail(id: string): Promise<AssetDetail> {
-  const asset = MOCK_ASSETS.find((a) => a.id === id) ?? MOCK_ASSETS[0]
-  // Mock catalog values are always populated; coalesce for the nullable type.
-  const riskScore = asset.riskScore ?? 0
-  const riskBand = asset.riskBand ?? 'moderate'
-  const price = asset.price ?? 0
-  const marketCap = asset.marketCap ?? 0
-  const volume24h = asset.volume24h ?? 0
-  const reserveRatio = asset.reserveRatio ?? 0
-
-  const latestRiskScore = {
-    id: `rs-${asset.id}-latest`,
-    assetId: asset.id,
-    overallScore: riskScore,
-    reserveScore: riskScore * 0.95 + Math.random() * 5,
-    pegScore: riskScore * 1.02 - Math.random() * 3,
-    networkScore: riskScore * 0.98 + Math.random() * 4,
-    securityScore: riskScore * 1.01 - Math.random() * 2,
-    riskBand,
-    confidence: 0.87 + Math.random() * 0.1,
-    percentileRank: Math.round(riskScore * 0.9 + Math.random() * 10),
-    scoreBreakdown: {
-      reserveScore: Math.min(100, riskScore * 0.95 + 2),
-      reserveWeight: 35,
-      pegScore: Math.min(100, riskScore + 2),
-      pegWeight: 30,
-      networkScore: Math.min(100, riskScore * 0.98 + 1),
-      networkWeight: 20,
-      securityScore: Math.min(100, riskScore * 1.02 - 1),
-      securityWeight: 15,
-    },
-    scoreDate: new Date().toISOString(),
-    previousScore: riskScore - (Math.random() * 4 - 2),
-    scoreDelta: Math.random() * 4 - 2,
-  }
-
-  const latestMarketData: MarketData = {
-    id: `md-${asset.id}-latest`,
-    assetId: asset.id,
-    price,
-    marketCap,
-    volume24h,
-    pegDeviation: asset.pegDeviation,
-    priceChange24h: asset.priceChange24h ?? 0,
-    priceChangePercent24h: asset.priceChange24h ?? 0,
-    high24h: price * 1.002,
-    low24h: price * 0.998,
-    circulatingSupply: Math.round(marketCap / price),
-    totalSupply: Math.round(marketCap / price * 1.01),
-    timestamp: new Date().toISOString(),
-  }
-
-  const latestReserve: ReserveAttestation = {
-    id: `ra-${asset.id}-latest`,
-    assetId: asset.id,
-    attestationDate: subDays(new Date(), 3).toISOString(),
-    totalReserves: marketCap * reserveRatio,
-    totalLiabilities: marketCap,
-    reserveRatio,
-    attestor: asset.assetType === 'stablecoin' ? 'Grant Thornton LLP' : 'Deloitte & Touche',
-    reportUrl: 'https://example.com/attestation.pdf',
-    isVerified: true,
-    composition: [
-      { category: 'Cash & Equivalents', amount: marketCap * 0.25, percentage: 25, description: 'Bank deposits' },
-      { category: 'T-Bills', amount: marketCap * 0.55, percentage: 55, description: 'US Treasury Bills <3mo' },
-      { category: 'Commercial Paper', amount: marketCap * 0.10, percentage: 10, description: 'A1/P1 rated' },
-      { category: 'Crypto Assets', amount: marketCap * 0.05, percentage: 5, description: 'BTC/ETH collateral' },
-      { category: 'Other', amount: marketCap * 0.05, percentage: 5, description: 'Money market funds' },
-    ],
-  }
-
-  const analyticsBundle: AnalyticsBundle = {
-    pegHistory: generatePegHistory(asset.id, '30d'),
-    scoreHistory: Array.from({ length: 30 }, (_, i) => ({
-      date: format(subDays(new Date(), 30 - i), 'yyyy-MM-dd'),
-      score: Math.min(100, Math.max(0, riskScore + (Math.random() - 0.5) * 8)),
-      riskBand,
-    })),
-    liquidityDepth: Array.from({ length: 20 }, (_, i) => ({
-      price: 1.0 - 0.01 + i * 0.001,
-      bidDepth: Math.max(0, 5_000_000 - i * 200_000 + Math.random() * 100_000),
-      askDepth: Math.max(0, 5_000_000 - i * 200_000 + Math.random() * 100_000),
-    })),
-    walletConcentration: {
-      giniCoefficient: 0.72 + Math.random() * 0.15,
-      herfindahlIndex: 0.08 + Math.random() * 0.12,
-      top10HoldersPercent: 38 + Math.random() * 20,
-      top50HoldersPercent: 61 + Math.random() * 15,
-      totalHolders: Math.round(marketCap / 10000),
-    },
-    transferVelocity: Array.from({ length: 30 }, (_, i) => ({
-      date: format(subDays(new Date(), 30 - i), 'yyyy-MM-dd'),
-      transferCount: Math.round(10000 + Math.random() * 5000),
-      transferVolume: volume24h * (0.8 + Math.random() * 0.4),
-      uniqueAddresses: Math.round(3000 + Math.random() * 2000),
-    })),
-  }
-
-  return { ...asset, latestRiskScore, latestMarketData, latestReserve, analyticsBundle }
-}
-
-export async function getMockMarketData(assetId: string): Promise<MarketData> {
-  const asset = MOCK_ASSETS.find((a) => a.id === assetId) ?? MOCK_ASSETS[0]
-  const price = asset.price ?? 0
-  const marketCap = asset.marketCap ?? 0
-  return {
-    id: `md-${asset.id}`,
-    assetId: asset.id,
-    price,
-    marketCap,
-    volume24h: asset.volume24h ?? 0,
-    pegDeviation: asset.pegDeviation,
-    priceChange24h: asset.priceChange24h ?? 0,
-    priceChangePercent24h: asset.priceChange24h ?? 0,
-    high24h: price * 1.002,
-    low24h: price * 0.998,
-    circulatingSupply: Math.round(marketCap / price),
-    totalSupply: Math.round(marketCap / price * 1.01),
-    timestamp: new Date().toISOString(),
-  }
-}
-
-export async function getMockPegHistory(assetId: string, timeRange: TimeRange): Promise<PegDataPoint[]> {
-  return generatePegHistory(assetId, timeRange)
-}
+// Public export: the catalog with every fabricated live/derived numeric field
+// stripped to null. Consumers overlay live values on top of this metadata, or
+// render "not available" where no live source exists.
+export const ASSET_CATALOG: Asset[] = RAW_CATALOG.map((a) => ({
+  ...a,
+  price: null,
+  marketCap: null,
+  volume24h: null,
+  priceChange24h: null,
+  priceChangePercent24h: null,
+  pegDeviation: null,
+  pegDeviationBps: null,
+  riskScore: null,
+  riskBand: null,
+  reserveRatio: null,
+  marketDominance: undefined,
+}))

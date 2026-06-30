@@ -18,7 +18,7 @@ import type { ValueType, NameType } from 'recharts/types/component/DefaultToolti
 import { format, parseISO } from 'date-fns'
 import { useQuery } from '@tanstack/react-query'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
-import { getMockPriceHistory, NOTABLE_EVENTS, getAssetLaunchDate, type PriceRange } from '@/lib/api/mock/mockPriceHistory'
+import { NOTABLE_EVENTS, type PriceRange } from '@/lib/data/priceHistoryMeta'
 import { fetchLiveChart } from '@/lib/api/live/liveClient'
 import { LIVE_DATA } from '@/lib/constants'
 import { CHART_THEME } from '@/lib/utils/chart'
@@ -85,12 +85,9 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
     staleTime: 5 * 60 * 1000,
   })
 
-  const candles = useMemo(
-    () => (LIVE_DATA ? (liveCandles ?? []) : getMockPriceHistory(assetId, range)),
-    [assetId, range, liveCandles]
-  )
-  const launchDate = LIVE_DATA ? (candles[0]?.date ?? null) : getAssetLaunchDate(assetId)
-  const liveUnavailable = LIVE_DATA && !liveLoading && candles.length === 0
+  const candles = useMemo(() => liveCandles ?? [], [liveCandles])
+  const launchDate = candles[0]?.date ?? null
+  const liveUnavailable = !liveLoading && candles.length === 0
 
   const latest = candles[candles.length - 1]
   const first  = candles[0]

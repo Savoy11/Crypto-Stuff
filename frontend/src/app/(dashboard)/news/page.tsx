@@ -1,20 +1,20 @@
 'use client'
 
 import { useState, useCallback, useMemo } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Settings, Loader2, Share2, Check, RefreshCw, Search, X, Info } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import Link from 'next/link'
 import { clsx } from 'clsx'
-import { getMockNews, NEWS_CATEGORIES } from '@/lib/api/mock/mockNews'
-import type { NewsCategory } from '@/lib/api/mock/mockNews'
+import { NEWS_CATEGORIES } from '@/lib/data/newsCategories'
+import type { NewsCategory, NewsArticle } from '@/lib/data/newsCategories'
 import { LIVE_DATA } from '@/lib/constants'
 import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import { useAssetList } from '@/lib/hooks/useAssetList'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
-type AnyArticle = LiveNewsArticle | ReturnType<typeof getMockNews>[number]
+type AnyArticle = LiveNewsArticle | NewsArticle
 
 const SENTIMENT_STYLES = {
   positive: 'text-emerald-400 bg-emerald-400/10 border-emerald-500/20',
@@ -207,23 +207,26 @@ export default function NewsPage() {
   }, [])
 
   // Live mode: fetch from all configured news providers
-  const { data: liveData, isLoading, isFetching, refetch } = useQuery({
+  const { data: liveData, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['live-news', assetFilter, keywords],
     queryFn: () => fetchLiveNews(assetFilter, keywords),
     enabled: LIVE_DATA,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
+    // Keep the prior result visible while a new filter/keyword query runs, so
+    // switching filters doesn't blank the list back to a full-page loader.
+    placeholderData: keepPreviousData,
   })
 
-  const liveArticles = liveData?.articles ?? []
+  const liveArticles = useMemo<AnyArticle[]>(() => liveData?.articles ?? [], [liveData])
   const activeProviders = liveData?.providers ?? []
   const noProviders = LIVE_DATA && !isLoading && activeProviders.length === 0
 
   // Apply client-side filters to live articles
   const articles: AnyArticle[] = useMemo(() => {
-    const base: AnyArticle[] = LIVE_DATA
-      ? liveArticles.filter((a) => categoryFilter === 'all' || a.category === categoryFilter)
-      : getMockNews(assetFilter, categoryFilter)
+    const base: AnyArticle[] = liveArticles.filter(
+      (a) => categoryFilter === 'all' || a.category === categoryFilter
+    )
 
     return base.filter((a) => {
       if (sentimentFilter !== 'all' && a.sentiment !== sentimentFilter) return false
@@ -244,7 +247,7 @@ export default function NewsPage() {
       }
       return true
     })
-  }, [liveArticles, categoryFilter, assetFilter, sentimentFilter, keywords])
+  }, [liveArticles, categoryFilter, sentimentFilter, keywords])
 
   const breaking = articles.filter((a) => a.isBreaking)
   const rest = articles.filter((a) => !a.isBreaking)
@@ -303,7 +306,7 @@ export default function NewsPage() {
           <Newspaper className="mx-auto h-7 w-7 text-amber-400/70" />
           <p className="mt-2 font-medium text-slate-200 text-sm">No news sources configured</p>
           <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
-            CryptoPanic's free tier requires no API key. Enable it in Integrations to start seeing live news.
+            CryptoPanic&apos;s free tier requires no API key. Enable it in Integrations to start seeing live news.
           </p>
           <Link
             href="/settings"
@@ -314,16 +317,32 @@ export default function NewsPage() {
         </div>
       )}
 
-      {/* Loading */}
-      {LIVE_DATA && isLoading && (
+      {/* Loading — only the full-page loader on the very first load with no
+          content yet. Background refetches keep showing the existing list. */}
+      {LIVE_DATA && isLoading && liveArticles.length === 0 && !isError && (
         <div className="flex items-center justify-center py-16 gap-2 text-slate-500">
           <Loader2 size={18} className="animate-spin" />
           <span className="text-sm">Fetching from {activeProviders.length > 0 ? activeProviders.map((p) => p.name).join(', ') : 'news sources'}…</span>
         </div>
       )}
 
-      {/* Filters — shown once we have articles or in mock mode */}
-      {(!LIVE_DATA || (!isLoading && !noProviders)) && (
+      {/* Error — only when the request actually failed and we have nothing cached. */}
+      {LIVE_DATA && isError && liveArticles.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 gap-3 text-slate-500">
+          <Info size={20} className="text-amber-400" />
+          <span className="text-sm">Couldn&apos;t reach the news providers. They may be rate-limited or temporarily down.</span>
+          <button
+            onClick={() => refetch()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border text-xs text-text-secondary hover:bg-bg-elevated transition-colors"
+          >
+            <RefreshCw size={12} /> Retry
+          </button>
+        </div>
+      )}
+
+      {/* Filters — visible whenever we have content to filter (or are past the
+          initial load). Not gated on background refetches. */}
+      {(!LIVE_DATA || (!noProviders && (liveArticles.length > 0 || !isLoading))) && (
         <div className="flex flex-col gap-3">
           {/* Row 1: asset + sentiment + keyword search */}
           <div className="flex flex-wrap items-center gap-3">

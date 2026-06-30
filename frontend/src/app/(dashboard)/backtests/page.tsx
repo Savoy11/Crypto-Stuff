@@ -360,7 +360,7 @@ export default function BacktestsPage() {
           </div>
           <div>
             <h1 className="text-lg font-semibold text-text-primary">Historical Backtests</h1>
-            <p className="text-xs text-text-muted">How CAEP's scoring model would have performed on major depeg events</p>
+            <p className="text-xs text-text-muted">How CAEP&apos;s scoring model would have performed on major depeg events</p>
           </div>
         </div>
       </div>

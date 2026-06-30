@@ -1,8 +1,7 @@
 import apiClient from './client'
 import type { Asset, AssetDetail, AssetFilters, AssetSortConfig } from '@/types/asset'
 import type { PaginatedResponse, QueryParams } from '@/types/api'
-import { USE_MOCK, LIVE_DATA } from '@/lib/constants'
-import { getMockAssets, getMockAssetDetail } from './mock/mockAssets'
+import { LIVE_DATA } from '@/lib/constants'
 import { fetchLiveMarkets } from './live/liveClient'
 import { buildLiveAssets, buildLiveAssetDetail } from './live/overlay'
 
@@ -89,7 +88,6 @@ export const assetsApi = {
       const { quotes } = await fetchLiveMarkets()
       return applyParams(buildLiveAssets(quotes), params)
     }
-    if (USE_MOCK) return getMockAssets(params)
     const { data } = await apiClient.get<PaginatedResponse<Asset>>('/assets', { params })
     return data
   },
@@ -99,7 +97,6 @@ export const assetsApi = {
       const { quotes } = await fetchLiveMarkets()
       return buildLiveAssetDetail(id, quotes[id])
     }
-    if (USE_MOCK) return getMockAssetDetail(id)
     const { data } = await apiClient.get<AssetDetail>(`/assets/${id}`)
     return data
   },
@@ -109,18 +106,17 @@ export const assetsApi = {
       const { quotes } = await fetchLiveMarkets()
       return buildLiveAssets(quotes).slice(0, 5)
     }
-    if (USE_MOCK) return getMockAssets({ pageSize: 5 }).then((r) => r.data.slice(0, 5))
     const { data } = await apiClient.get<Asset[]>('/assets/watchlist')
     return data
   },
 
   addToWatchlist: async (assetId: string): Promise<void> => {
-    if (USE_MOCK || LIVE_DATA) return
+    if (LIVE_DATA) return
     await apiClient.post(`/assets/watchlist/${assetId}`)
   },
 
   removeFromWatchlist: async (assetId: string): Promise<void> => {
-    if (USE_MOCK || LIVE_DATA) return
+    if (LIVE_DATA) return
     await apiClient.delete(`/assets/watchlist/${assetId}`)
   },
 
@@ -130,14 +126,6 @@ export const assetsApi = {
       const q = query.toLowerCase()
       return buildLiveAssets(quotes).filter(
         (a) => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
-      )
-    }
-    if (USE_MOCK) {
-      const all = await getMockAssets({})
-      return all.data.filter(
-        (a) =>
-          a.symbol.toLowerCase().includes(query.toLowerCase()) ||
-          a.name.toLowerCase().includes(query.toLowerCase())
       )
     }
     const { data } = await apiClient.get<Asset[]>('/assets/search', { params: { q: query } })

@@ -10,16 +10,22 @@ import {
   CandlestickChart as CandlestickIcon, AreaChart, BarChart2,
   LineChart, GitBranch, Layers,
   MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2,
+  Compass, Gauge, Waves, Target, ShieldAlert,
+  Newspaper, CircleDollarSign, Scale, FlaskConical, ExternalLink, MinusCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import type { ChartType, DrawingTool, Drawing } from './CandlestickChart'
+import type { ChartType, DrawingTool, Drawing, ChartEventMarker } from './CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
+import { runBacktest, STRATEGIES } from '@/lib/utils/backtest'
 import {
   rsi, macd, bollingerBands, ema, sma, stochasticRsi, atr, obv, vwap,
   ichimoku, fibRetracement, computeSignalSummary, detectPatterns,
+  buildTechnicalRead, detectSupportResistance, patternProjection,
   type OhlcvCandle, type Signal, type SignalSummary, type DetectedPattern,
 } from '@/lib/utils/indicators'
+import { DataBadge } from '@/components/ui/DataBadge'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { useThesisStore, computeRiskReward } from '@/store/useThesisStore'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
 import type { CoinListResponse } from '@/lib/types/coinList'
 
@@ -167,6 +173,105 @@ function SignalBadge({ signal }: { signal: Signal }) {
   )
 }
 
+// ─── Technical Read panel (plain-English summary) ───────────────────────────────
+
+function TechnicalReadPanel({ candles, summary }: { candles: OhlcvCandle[]; summary: SignalSummary }) {
+  const read = useMemo(() => buildTechnicalRead(candles, summary), [candles, summary])
+
+  const trendColor = read.trendBias.state === 'bullish' ? 'text-emerald-400'
+    : read.trendBias.state === 'bearish' ? 'text-red-400' : 'text-slate-400'
+  const momColor = read.momentum.state === 'overbought' ? 'text-red-400'
+    : read.momentum.state === 'oversold' ? 'text-emerald-400'
+    : read.momentum.state === 'strengthening' ? 'text-emerald-400'
+    : read.momentum.state === 'weakening' ? 'text-amber-400' : 'text-slate-400'
+  const volColor = read.volatility.state === 'expanding' ? 'text-amber-400'
+    : read.volatility.state === 'contracting' ? 'text-blue-400' : 'text-slate-400'
+
+  const rows: { icon: React.ReactNode; label: string; state: string; color: string; detail: string }[] = [
+    { icon: <Compass size={13} />,    label: 'Trend bias',  state: read.trendBias.state,  color: trendColor, detail: read.trendBias.detail },
+    { icon: <Gauge size={13} />,      label: 'Momentum',    state: read.momentum.state,   color: momColor,   detail: read.momentum.detail },
+    { icon: <Waves size={13} />,      label: 'Volatility',  state: read.volatility.state, color: volColor,   detail: read.volatility.detail },
+    { icon: <Target size={13} />,     label: 'Key level',   state: '',                    color: 'text-slate-400', detail: read.srProximity.detail },
+  ]
+
+  return (
+    <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Technical Read</span>
+        <div className="flex items-center gap-1.5" title="Agreement-weighted conviction across the indicator stack">
+          <span className="text-[10px] text-text-muted">Confidence</span>
+          <span className={clsx('text-xs font-bold font-mono', read.confidence >= 60 ? 'text-emerald-400' : read.confidence >= 30 ? 'text-amber-400' : 'text-slate-400')}>
+            {read.confidence}%
+          </span>
+        </div>
+      </div>
+
+      <div className="space-y-2.5">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-start gap-2.5">
+            <span className={clsx('mt-0.5 shrink-0', r.color)}>{r.icon}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-medium text-text-primary">{r.label}</span>
+                {r.state && <span className={clsx('text-[10px] font-semibold uppercase tracking-wide', r.color)}>{r.state}</span>}
+              </div>
+              <p className="text-[11px] text-text-muted leading-snug">{r.detail}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p className="text-[10px] text-text-muted/70 border-t border-border pt-2 leading-snug">{read.sourceExplanation}</p>
+    </div>
+  )
+}
+
+// ─── Auto Support / Resistance panel ────────────────────────────────────────────
+
+function SupportResistancePanel({ candles }: { candles: OhlcvCandle[] }) {
+  const levels = useMemo(() => detectSupportResistance(candles), [candles])
+  if (levels.length === 0) return null
+  const last = candles[candles.length - 1].close
+
+  return (
+    <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Support / Resistance</span>
+        <span className="text-[10px] text-text-muted">auto-detected from swings</span>
+      </div>
+      <div className="space-y-1">
+        {levels.map((l, i) => {
+          const isRes = l.type === 'resistance'
+          return (
+            <div key={i} className="flex items-center justify-between px-2 py-1 rounded hover:bg-bg-elevated text-[11px]">
+              <div className="flex items-center gap-1.5">
+                <span className={clsx('px-1 py-0.5 rounded text-[9px] font-semibold uppercase', isRes ? 'bg-red-400/10 text-red-400' : 'bg-emerald-400/10 text-emerald-400')}>
+                  {isRes ? 'R' : 'S'}
+                </span>
+                {/* strength dots */}
+                <span className="flex gap-0.5" title={`${l.strength} swing touches`}>
+                  {Array.from({ length: Math.min(l.strength, 4) }).map((_, d) => (
+                    <span key={d} className={clsx('inline-block size-1 rounded-full', isRes ? 'bg-red-400/60' : 'bg-emerald-400/60')} />
+                  ))}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={clsx('text-[10px]', l.distancePct >= 0 ? 'text-red-400/80' : 'text-emerald-400/80')}>
+                  {l.distancePct >= 0 ? '+' : ''}{l.distancePct.toFixed(1)}%
+                </span>
+                <span className="font-mono font-semibold text-text-primary">
+                  ${l.price.toLocaleString(undefined, { maximumFractionDigits: l.price > 100 ? 2 : 4 })}
+                </span>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <p className="text-[10px] text-text-muted/70">Current ${last.toLocaleString(undefined, { maximumFractionDigits: last > 100 ? 2 : 4 })} · letters mark support (S) / resistance (R); dots = touch count.</p>
+    </div>
+  )
+}
+
 // ─── Signal Summary panel ──────────────────────────────────────────────────────
 
 function SignalSummaryPanel({ summary }: { summary: SignalSummary }) {
@@ -214,7 +319,7 @@ function SignalSummaryPanel({ summary }: { summary: SignalSummary }) {
 
 // ─── Patterns panel ────────────────────────────────────────────────────────────
 
-function PatternsPanel({ patterns }: { patterns: DetectedPattern[] }) {
+function PatternsPanel({ patterns, candles }: { patterns: DetectedPattern[]; candles: OhlcvCandle[] }) {
   if (patterns.length === 0) {
     return (
       <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
@@ -224,51 +329,150 @@ function PatternsPanel({ patterns }: { patterns: DetectedPattern[] }) {
     )
   }
 
+  const fmt = (v: number) => '$' + v.toLocaleString(undefined, { maximumFractionDigits: v > 100 ? 2 : 4 })
+
   return (
     <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-3">
       <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Detected Patterns</span>
-      {patterns.map((p, i) => (
-        <div key={i} className={clsx('rounded-lg border p-3 flex flex-col gap-1', p.type === 'bullish' ? 'border-emerald-500/20 bg-emerald-500/5' : p.type === 'bearish' ? 'border-red-500/20 bg-red-500/5' : 'border-border bg-bg-elevated')}>
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-text-primary">{p.name}</span>
-            <span className={clsx('text-[10px] font-mono px-1.5 py-0.5 rounded', p.type === 'bullish' ? 'text-emerald-400 bg-emerald-400/10' : p.type === 'bearish' ? 'text-red-400 bg-red-400/10' : 'text-slate-400 bg-slate-400/10')}>
-              {(p.confidence * 100).toFixed(0)}% conf.
-            </span>
+      {patterns.map((p, i) => {
+        const proj = patternProjection(p, candles)
+        const last = candles[candles.length - 1].close
+        const movePct = proj ? ((proj.measuredMoveTarget - last) / last) * 100 : null
+        return (
+          <div key={i} className={clsx('rounded-lg border p-3 flex flex-col gap-1.5', p.type === 'bullish' ? 'border-emerald-500/20 bg-emerald-500/5' : p.type === 'bearish' ? 'border-red-500/20 bg-red-500/5' : 'border-border bg-bg-elevated')}>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-text-primary">{p.name}</span>
+              <span className={clsx('text-[10px] font-mono px-1.5 py-0.5 rounded', p.type === 'bullish' ? 'text-emerald-400 bg-emerald-400/10' : p.type === 'bearish' ? 'text-red-400 bg-red-400/10' : 'text-slate-400 bg-slate-400/10')}>
+                {(p.confidence * 100).toFixed(0)}% conf.
+              </span>
+            </div>
+            <p className="text-[11px] text-text-muted">{p.description}</p>
+            {proj && (
+              <div className="grid grid-cols-2 gap-1.5 mt-1 pt-1.5 border-t border-border/60">
+                <div className="flex items-center gap-1.5" title="Measured-move target — pattern height projected from the break level">
+                  <Target size={11} className="text-emerald-400 shrink-0" />
+                  <span className="text-[10px] text-text-muted">Target</span>
+                  <span className="text-[10px] font-mono font-semibold text-text-primary">{fmt(proj.measuredMoveTarget)}</span>
+                  {movePct !== null && <span className={clsx('text-[9px]', movePct >= 0 ? 'text-emerald-400' : 'text-red-400')}>({movePct >= 0 ? '+' : ''}{movePct.toFixed(1)}%)</span>}
+                </div>
+                <div className="flex items-center gap-1.5" title="Invalidation — a close past this level voids the pattern">
+                  <ShieldAlert size={11} className="text-amber-400 shrink-0" />
+                  <span className="text-[10px] text-text-muted">Invalid</span>
+                  <span className="text-[10px] font-mono font-semibold text-text-primary">{fmt(proj.invalidationLevel)}</span>
+                </div>
+              </div>
+            )}
           </div>
-          <p className="text-[11px] text-text-muted">{p.description}</p>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
 
-// ─── Screener ─────────────────────────────────────────────────────────────────
+// ─── Scanner (multi-asset setup detection) ──────────────────────────────────────
 
-interface ScreenerRow {
+type SetupKey = 'breakout' | 'oversold_bounce' | 'ma_cross' | 'volume_spike' | 'volatility_compression'
+
+const SETUP_META: Record<SetupKey, { label: string; tone: string }> = {
+  breakout:               { label: 'Breakout',        tone: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+  oversold_bounce:        { label: 'Oversold bounce', tone: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+  ma_cross:               { label: 'MA cross',        tone: 'bg-violet-500/15 text-violet-400 border-violet-500/30' },
+  volume_spike:           { label: 'Volume spike',    tone: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
+  volatility_compression: { label: 'Vol. squeeze',    tone: 'bg-cyan-500/15 text-cyan-400 border-cyan-500/30' },
+}
+
+interface DetectedSetup { key: SetupKey; detail: string }
+
+/** Detect named technical setups on a daily candle series. Pure derivation. */
+function detectSetups(candles: OhlcvCandle[]): DetectedSetup[] {
+  const n = candles.length
+  if (n < 55) return []
+  const closes = candles.map(c => c.close)
+  const highs = candles.map(c => c.high)
+  const vols = candles.map(c => c.volume)
+  const last = closes[n - 1]
+  const prev = closes[n - 2]
+  const setups: DetectedSetup[] = []
+
+  // Breakout — close above the prior 20-bar high
+  const priorHigh = Math.max(...highs.slice(n - 21, n - 1))
+  if (last > priorHigh) setups.push({ key: 'breakout', detail: `Closed above 20-bar high $${priorHigh.toLocaleString(undefined, { maximumFractionDigits: 2 })}` })
+
+  // Oversold bounce — RSI < 38 and turning up
+  const rsiVals = rsi(closes, 14)
+  const rsiNow = rsiVals[n - 1]; const rsiPrev = rsiVals[n - 2]
+  if (rsiNow !== null && rsiNow < 38 && last > prev && (rsiPrev === null || rsiNow > rsiPrev)) {
+    setups.push({ key: 'oversold_bounce', detail: `RSI ${rsiNow.toFixed(0)} turning up off oversold` })
+  }
+
+  // MA cross — EMA20/EMA50 crossed within the last ~2 bars
+  const e20 = ema(closes, 20); const e50 = ema(closes, 50)
+  const a20 = e20[n - 1], a50 = e50[n - 1], b20 = e20[n - 3], b50 = e50[n - 3]
+  if (a20 !== null && a50 !== null && b20 !== null && b50 !== null) {
+    if (b20 <= b50 && a20 > a50) setups.push({ key: 'ma_cross', detail: 'EMA20 crossed above EMA50 (golden)' })
+    else if (b20 >= b50 && a20 < a50) setups.push({ key: 'ma_cross', detail: 'EMA20 crossed below EMA50 (death)' })
+  }
+
+  // Volume spike — last bar > 2× the 20-bar average
+  const avgVol = vols.slice(n - 21, n - 1).reduce((a, b) => a + b, 0) / 20
+  if (avgVol > 0 && vols[n - 1] > avgVol * 2) setups.push({ key: 'volume_spike', detail: `Volume ${(vols[n - 1] / avgVol).toFixed(1)}× its 20-bar average` })
+
+  // Volatility compression — Bollinger width near its 50-bar minimum (squeeze)
+  const bb = bollingerBands(closes, 20, 2)
+  const widths: number[] = []
+  for (let i = Math.max(0, n - 50); i < n; i++) {
+    const u = bb.upper[i], l = bb.lower[i], m = bb.middle[i]
+    if (u !== null && l !== null && m !== null && m !== 0) widths.push((u - l) / m)
+  }
+  if (widths.length > 10) {
+    const cur = widths[widths.length - 1]
+    const min = Math.min(...widths)
+    if (cur <= min * 1.1) setups.push({ key: 'volatility_compression', detail: 'Bollinger bands at a 50-bar squeeze' })
+  }
+
+  return setups
+}
+
+interface ScanRow {
   assetId: string
   label: string
   symbol: string
-  summary: SignalSummary | null
+  setups: DetectedSetup[]
+  signal: SignalSummary | null
   loading: boolean
 }
 
-function ScreenerPanel() {
-  const [rows, setRows] = useState<ScreenerRow[]>(
-    SCREENER_ASSETS.map((a) => ({ assetId: a.id, label: a.label, symbol: a.symbol, summary: null, loading: true })),
+function formatPrice(price: number): string {
+  if (price >= 1000) return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 2 })
+  if (price >= 1)    return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 6 })
+}
+
+function ScannerPanel() {
+  const [rows, setRows] = useState<ScanRow[]>(
+    SCREENER_ASSETS.map((a) => ({ assetId: a.id, label: a.label, symbol: a.symbol, setups: [], signal: null, loading: true })),
   )
-  const [filter, setFilter] = useState<'all' | 'buy' | 'sell'>('all')
+  const [activeScan, setActiveScan] = useState<SetupKey | 'all'>('all')
+
+  const { data: marketsData } = useQuery({
+    queryKey: ['scanner-prices'],
+    queryFn: () => fetch('/live-data/markets').then(r => r.json()),
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+  })
 
   useEffect(() => {
     let cancelled = false
     async function loadAll() {
       await Promise.all(SCREENER_ASSETS.map(async (asset) => {
         try {
-          const res = await fetch(`/live-data/ohlcv?id=${asset.id}&timeframe=1D`)
+          const res = await fetch(`/live-data/ohlcv?id=${asset.id}&range=1Y`)
           const json = await res.json()
           const candles: OhlcvCandle[] = json.candles ?? []
-          const summary = candles.length >= 50 ? computeSignalSummary(candles) : null
+          const setups = detectSetups(candles)
+          const signal = candles.length >= 50 ? computeSignalSummary(candles) : null
           if (!cancelled) {
-            setRows((prev) => prev.map((r) => r.assetId === asset.id ? { ...r, summary, loading: false } : r))
+            setRows((prev) => prev.map((r) => r.assetId === asset.id ? { ...r, setups, signal, loading: false } : r))
           }
         } catch {
           if (!cancelled) {
@@ -281,78 +485,101 @@ function ScreenerPanel() {
     return () => { cancelled = true }
   }, [])
 
-  const filtered = rows.filter((r) => {
-    if (filter === 'all') return true
-    if (filter === 'buy') return r.summary?.overall === 'buy' || r.summary?.overall === 'strong_buy'
-    if (filter === 'sell') return r.summary?.overall === 'sell' || r.summary?.overall === 'strong_sell'
-    return true
-  })
+  const loading = rows.some(r => r.loading)
+  const counts = (Object.keys(SETUP_META) as SetupKey[]).reduce<Record<string, number>>((acc, k) => {
+    acc[k] = rows.filter(r => r.setups.some(s => s.key === k)).length
+    return acc
+  }, {})
+
+  const filtered = rows.filter(r =>
+    activeScan === 'all' ? r.setups.length > 0 : r.setups.some(s => s.key === activeScan),
+  )
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-2">
+      {/* Scan-type filter */}
+      <div className="flex items-center gap-2 flex-wrap">
         <Filter size={13} className="text-text-muted" />
-        <span className="text-xs text-text-muted">Filter:</span>
-        {(['all', 'buy', 'sell'] as const).map((f) => (
+        <button
+          onClick={() => setActiveScan('all')}
+          className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border', activeScan === 'all' ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+        >
+          All setups
+        </button>
+        {(Object.keys(SETUP_META) as SetupKey[]).map((k) => (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium transition-colors', filter === f ? 'bg-accent-blue/20 text-accent-blue border border-accent-blue/30' : 'text-text-muted border border-border hover:text-text-secondary hover:bg-bg-elevated')}
+            key={k}
+            onClick={() => setActiveScan(k)}
+            className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium transition-colors border flex items-center gap-1.5', activeScan === k ? SETUP_META[k].tone : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
           >
-            {f === 'all' ? 'All' : f === 'buy' ? 'Bullish' : 'Bearish'}
+            {SETUP_META[k].label}
+            <span className="text-[10px] opacity-70">{counts[k] ?? 0}</span>
           </button>
         ))}
       </div>
 
-      <div className="rounded-xl border border-border overflow-hidden">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border bg-bg-elevated">
-              <th className="text-left px-4 py-2.5 text-text-muted font-medium">Asset</th>
-              <th className="text-center px-3 py-2.5 text-text-muted font-medium">Signal</th>
-              <th className="text-center px-3 py-2.5 text-text-muted font-medium">Buy</th>
-              <th className="text-center px-3 py-2.5 text-text-muted font-medium">Neutral</th>
-              <th className="text-center px-3 py-2.5 text-text-muted font-medium">Sell</th>
-              <th className="px-4 py-2.5 text-text-muted font-medium">Indicator Bar</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filtered.map((row) => (
-              <tr key={row.assetId} className="hover:bg-bg-elevated transition-colors">
-                <td className="px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono font-bold text-text-primary">{row.symbol}</span>
-                    <span className="text-text-muted">{row.label}</span>
-                  </div>
-                </td>
-                <td className="px-3 py-3 text-center">
-                  {row.loading ? (
-                    <span className="text-text-muted animate-pulse">—</span>
-                  ) : row.summary ? (
-                    <SignalBadge signal={row.summary.overall} />
-                  ) : (
-                    <span className="text-text-muted text-[10px]">N/A</span>
-                  )}
-                </td>
-                <td className="px-3 py-3 text-center text-emerald-400 font-mono">{row.summary?.buy ?? '—'}</td>
-                <td className="px-3 py-3 text-center text-text-muted font-mono">{row.summary?.neutral ?? '—'}</td>
-                <td className="px-3 py-3 text-center text-red-400 font-mono">{row.summary?.sell ?? '—'}</td>
-                <td className="px-4 py-3">
-                  {row.summary ? (
-                    <div className="h-2 w-full max-w-32 rounded-full overflow-hidden flex gap-px">
-                      <div className="bg-emerald-500" style={{ width: `${(row.summary.buy / (row.summary.buy + row.summary.neutral + row.summary.sell)) * 100}%` }} />
-                      <div className="bg-slate-600" style={{ width: `${(row.summary.neutral / (row.summary.buy + row.summary.neutral + row.summary.sell)) * 100}%` }} />
-                      <div className="bg-red-500" style={{ width: `${(row.summary.sell / (row.summary.buy + row.summary.neutral + row.summary.sell)) * 100}%` }} />
-                    </div>
-                  ) : (
-                    <div className="h-2 w-full max-w-32 rounded-full bg-bg-elevated animate-pulse" />
-                  )}
-                </td>
+      {loading && (
+        <div className="flex items-center gap-2 text-xs text-text-muted">
+          <RefreshCw size={12} className="animate-spin" /> Scanning {SCREENER_ASSETS.length} assets…
+        </div>
+      )}
+
+      {!loading && filtered.length === 0 && (
+        <div className="text-center py-12 text-text-muted">
+          <Activity size={28} className="mx-auto mb-2 opacity-40" />
+          <p className="text-xs">No assets currently match {activeScan === 'all' ? 'any setup' : SETUP_META[activeScan].label}.</p>
+        </div>
+      )}
+
+      {filtered.length > 0 && (
+        <div className="rounded-xl border border-border overflow-hidden">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border bg-bg-elevated">
+                <th className="text-left px-4 py-2.5 text-text-muted font-medium">Asset</th>
+                <th className="text-right px-3 py-2.5 text-text-muted font-medium">Price</th>
+                <th className="text-center px-3 py-2.5 text-text-muted font-medium">Signal</th>
+                <th className="text-left px-4 py-2.5 text-text-muted font-medium">Detected setups</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filtered.map((row) => (
+                <tr key={row.assetId} className="hover:bg-bg-elevated transition-colors align-top">
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono font-bold text-text-primary">{row.symbol}</span>
+                      <span className="text-text-muted">{row.label}</span>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 text-right font-mono text-sm text-text-primary whitespace-nowrap">
+                    {(() => {
+                      const price = marketsData?.quotes?.[row.assetId]?.price
+                      return typeof price === 'number' ? formatPrice(price) : <span className="text-text-muted text-xs">—</span>
+                    })()}
+                  </td>
+                  <td className="px-3 py-3 text-center">
+                    {row.signal ? <SignalBadge signal={row.signal.overall} /> : <span className="text-text-muted text-[10px]">N/A</span>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex flex-col gap-1.5">
+                      {row.setups
+                        .filter(s => activeScan === 'all' || s.key === activeScan)
+                        .map((s, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className={clsx('px-1.5 py-0.5 rounded border text-[10px] font-medium shrink-0', SETUP_META[s.key].tone)}>
+                              {SETUP_META[s.key].label}
+                            </span>
+                            <span className="text-[11px] text-text-muted">{s.detail}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
@@ -479,6 +706,24 @@ function MultiTimeframeGrid({ assetId }: { assetId: string }) {
 
   const confluence = confluenceLabel()
 
+  // Plain-English per-timeframe agreement, e.g. "1D bullish · 4H overbought · 1H weakening"
+  function tfPhrase(summary: SignalSummary): { word: string; color: string } {
+    const rsiSig = summary.signals.find(s => s.name.startsWith('RSI'))
+    const rsiVal = rsiSig?.value ?? null
+    if (rsiVal !== null && rsiVal > 70) return { word: 'overbought', color: 'text-red-400' }
+    if (rsiVal !== null && rsiVal < 30) return { word: 'oversold', color: 'text-emerald-400' }
+    switch (summary.overall) {
+      case 'strong_buy':  return { word: 'strong bull', color: 'text-emerald-400' }
+      case 'buy':         return { word: 'bullish', color: 'text-emerald-400' }
+      case 'sell':        return { word: 'bearish', color: 'text-red-400' }
+      case 'strong_sell': return { word: 'strong bear', color: 'text-red-400' }
+      default:            return { word: 'neutral', color: 'text-slate-400' }
+    }
+  }
+  const agreement = loaded.length >= 2
+    ? [...loaded].reverse().map(r => ({ label: r.label, ...tfPhrase(r.summary!) }))
+    : null
+
   return (
     <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -491,6 +736,19 @@ function MultiTimeframeGrid({ assetId }: { assetId: string }) {
           </span>
         )}
       </div>
+
+      {/* Plain-English agreement line */}
+      {agreement && (
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] -mt-1">
+          {agreement.map((a, i) => (
+            <span key={a.label} className="flex items-center gap-1.5">
+              <span className="font-mono font-semibold text-text-secondary">{a.label}</span>
+              <span className={clsx('font-medium', a.color)}>{a.word}</span>
+              {i < agreement.length - 1 && <span className="text-text-muted/40">·</span>}
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-5 gap-2">
         {rows.map((row) => {
@@ -529,9 +787,302 @@ function MultiTimeframeGrid({ assetId }: { assetId: string }) {
   )
 }
 
+// ─── Thesis Builder (save chart setups) ─────────────────────────────────────────
+
+function ThesisBuilderPanel({ assetId, symbol, range, price, signal }: {
+  assetId: string; symbol: string; range: string; price: number | null; signal: string | null
+}) {
+  const { theses, addThesis, removeThesis } = useThesisStore()
+  const [open, setOpen] = useState(false)
+  const [entryThesis, setEntryThesis] = useState('')
+  const [target, setTarget] = useState('')
+  const [invalidation, setInvalidation] = useState('')
+  const [notes, setNotes] = useState('')
+
+  const rr = price != null ? computeRiskReward(String(price), target, invalidation) : null
+  const canSave = entryThesis.trim().length > 0
+
+  function save() {
+    if (!canSave) return
+    addThesis({ assetId, symbol, range, priceAtSave: price, signalAtSave: signal, entryThesis: entryThesis.trim(), target: target.trim(), invalidation: invalidation.trim(), notes: notes.trim() })
+    setEntryThesis(''); setTarget(''); setInvalidation(''); setNotes(''); setOpen(false)
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Chart Notes / Thesis</span>
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border text-xs text-text-secondary hover:bg-bg-elevated transition-colors"
+        >
+          <PenLine size={12} /> {open ? 'Cancel' : `New thesis for ${symbol}`}
+        </button>
+      </div>
+
+      {open && (
+        <div className="rounded-lg border border-border bg-bg-elevated/40 p-3 flex flex-col gap-2.5">
+          <div className="text-[10px] text-text-muted">
+            Snapshot: {symbol} · {range} · {price != null ? '$' + price.toLocaleString(undefined, { maximumFractionDigits: price > 100 ? 2 : 4 }) : 'n/a'} · signal {signal ?? 'n/a'}
+          </div>
+          <textarea
+            value={entryThesis} onChange={e => setEntryThesis(e.target.value)}
+            placeholder="Entry thesis — why this setup? (required)"
+            rows={2}
+            className="w-full text-xs bg-bg-card border border-border rounded px-2 py-1.5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue resize-none"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input value={target} onChange={e => setTarget(e.target.value)} placeholder="Target (e.g. 75000)" className="text-xs bg-bg-card border border-border rounded px-2 py-1.5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue" />
+            <input value={invalidation} onChange={e => setInvalidation(e.target.value)} placeholder="Invalidation (e.g. 58000)" className="text-xs bg-bg-card border border-border rounded px-2 py-1.5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue" />
+          </div>
+          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" className="text-xs bg-bg-card border border-border rounded px-2 py-1.5 text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue" />
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-text-muted">
+              {rr != null ? <>Risk/Reward <span className={clsx('font-semibold', rr >= 2 ? 'text-emerald-400' : rr >= 1 ? 'text-amber-400' : 'text-red-400')}>{rr.toFixed(2)}:1</span></> : 'Enter numeric target + invalidation for R/R'}
+            </span>
+            <button
+              onClick={save} disabled={!canSave}
+              className="px-3 py-1.5 rounded-lg bg-accent-blue text-white text-xs font-medium disabled:opacity-40 hover:bg-blue-600 transition-colors"
+            >
+              Save thesis
+            </button>
+          </div>
+        </div>
+      )}
+
+      {theses.length === 0 ? (
+        <p className="text-[11px] text-text-muted text-center py-2">No saved theses yet. Saved locally in your browser.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {theses.map((t) => {
+            const tRr = computeRiskReward(String(t.priceAtSave ?? ''), t.target, t.invalidation)
+            return (
+              <div key={t.id} className="rounded-lg border border-border bg-bg-elevated/40 p-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-mono font-bold text-xs text-text-primary">{t.symbol}</span>
+                    <span className="text-[10px] text-text-muted">{t.range}</span>
+                    {t.priceAtSave != null && <span className="text-[10px] text-text-muted">@ ${t.priceAtSave.toLocaleString(undefined, { maximumFractionDigits: t.priceAtSave > 100 ? 2 : 4 })}</span>}
+                    {tRr != null && <span className={clsx('text-[10px] font-semibold', tRr >= 2 ? 'text-emerald-400' : tRr >= 1 ? 'text-amber-400' : 'text-red-400')}>{tRr.toFixed(1)}:1</span>}
+                  </div>
+                  <button onClick={() => removeThesis(t.id)} className="text-text-muted hover:text-red-400 transition-colors shrink-0" title="Delete">
+                    <Trash2 size={12} />
+                  </button>
+                </div>
+                <p className="text-[11px] text-text-secondary mt-1">{t.entryThesis}</p>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1 text-[10px] text-text-muted">
+                  {t.target && <span><Target size={9} className="inline mb-0.5 text-emerald-400" /> {t.target}</span>}
+                  {t.invalidation && <span><ShieldAlert size={9} className="inline mb-0.5 text-amber-400" /> {t.invalidation}</span>}
+                  <span>{new Date(t.createdAt).toLocaleDateString()}</span>
+                </div>
+                {t.notes && <p className="text-[10px] text-text-muted italic mt-1">{t.notes}</p>}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Market Structure panel (crypto-native overlays, feature #3) ─────────────────
+
+function MarketStructurePanel({ symbol }: { symbol: string }) {
+  const { data: funding } = useQuery({
+    queryKey: ['ms-funding'],
+    queryFn: () => fetch('/live-data/funding-rates').then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 5 * 60 * 1000,
+  })
+  const { data: reserves } = useQuery({
+    queryKey: ['ms-reserves'],
+    queryFn: () => fetch('/live-data/reserves').then(r => r.json()),
+    staleTime: 10 * 60 * 1000,
+  })
+
+  const row = (funding?.rates ?? []).find((r: { symbol: string }) => r.symbol?.toUpperCase() === symbol.toUpperCase())
+  const stableTotal: number | null = reserves?.assets
+    ? reserves.assets.reduce((a: number, s: { circulatingUsd?: number }) => a + (s.circulatingUsd ?? 0), 0)
+    : null
+
+  const fmtUsd = (n: number) => n >= 1e9 ? `$${(n / 1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n / 1e6).toFixed(1)}M` : `$${n.toLocaleString()}`
+
+  return (
+    <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Market Structure</span>
+        <DataBadge status={row || stableTotal ? 'live' : 'unavailable'} source="OKX · DefiLlama" />
+      </div>
+
+      <div className="space-y-2">
+        {/* Funding rate */}
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="flex items-center gap-1.5 text-text-muted"><Gauge size={12} /> Funding (annualized)</span>
+          {row ? (
+            <span className={clsx('font-mono font-semibold', row.annualized >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+              {row.annualized >= 0 ? '+' : ''}{row.annualized.toFixed(2)}% <span className="text-text-muted font-normal">({row.exchange})</span>
+            </span>
+          ) : <span className="text-text-muted">n/a</span>}
+        </div>
+        {/* Open interest */}
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="flex items-center gap-1.5 text-text-muted"><Scale size={12} /> Open interest</span>
+          {row?.openInterestUsd ? <span className="font-mono font-semibold text-text-primary">{fmtUsd(row.openInterestUsd)}</span> : <span className="text-text-muted">n/a</span>}
+        </div>
+        {/* Long/short ratio */}
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="flex items-center gap-1.5 text-text-muted"><Compass size={12} /> Long/short ratio</span>
+          {row?.longShortRatio != null ? <span className="font-mono font-semibold text-text-primary">{row.longShortRatio.toFixed(2)}</span> : <span className="text-text-muted">n/a — not provided</span>}
+        </div>
+        {/* Stablecoin supply (market-wide) */}
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="flex items-center gap-1.5 text-text-muted"><CircleDollarSign size={12} /> Total stablecoin supply</span>
+          {stableTotal ? <span className="font-mono font-semibold text-text-primary">{fmtUsd(stableTotal)}</span> : <span className="text-text-muted">n/a</span>}
+        </div>
+      </div>
+
+      {/* Honest unavailable markers — no free real-time source */}
+      <div className="border-t border-border pt-2 space-y-1">
+        {['Liquidation heatmap', 'Exchange in/out-flows'].map((label) => (
+          <div key={label} className="flex items-center justify-between text-[10px] text-text-muted/70">
+            <span className="flex items-center gap-1.5"><MinusCircle size={11} /> {label}</span>
+            <span>not available (paid feed)</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Events panel (event markers, feature #4) ───────────────────────────────────
+
+function EventsPanel({ events }: { events: { time: number; label: string; sentiment?: string; url?: string }[] }) {
+  if (events.length === 0) {
+    return (
+      <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
+        <Newspaper size={24} className="mx-auto mb-2 text-text-muted/40" />
+        <p className="text-xs text-text-muted">No recent events for this asset.</p>
+      </div>
+    )
+  }
+  return (
+    <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-2.5">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Events</span>
+        <span className="text-[10px] text-text-muted">news markers on chart ↑</span>
+      </div>
+      <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
+        {events.slice(0, 25).map((e, i) => {
+          const dot = e.sentiment === 'positive' ? 'bg-emerald-400' : e.sentiment === 'negative' ? 'bg-red-400' : 'bg-slate-400'
+          return (
+            <a key={i} href={e.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 group">
+              <span className={clsx('mt-1 size-1.5 rounded-full shrink-0', dot)} />
+              <div className="min-w-0">
+                <p className="text-[11px] text-text-secondary group-hover:text-accent-blue transition-colors leading-snug flex items-start gap-1">
+                  {e.label}
+                  {e.url && <ExternalLink size={9} className="text-text-muted shrink-0 mt-0.5" />}
+                </p>
+                <span className="text-[10px] text-text-muted">{new Date(e.time * 1000).toLocaleDateString()}</span>
+              </div>
+            </a>
+          )
+        })}
+      </div>
+      <p className="text-[10px] text-text-muted/70 border-t border-border pt-2">
+        Sourced from the live news feed. Token unlocks &amp; CPI/FOMC require a paid calendar feed — not shown.
+      </p>
+    </div>
+  )
+}
+
+// ─── Strategy Backtest panel (feature #7) ───────────────────────────────────────
+
+function BacktestPanel({ candles, symbol, range }: { candles: OhlcvCandle[]; symbol: string; range: string }) {
+  const [strategyKey, setStrategyKey] = useState(STRATEGIES[0].key)
+  const result = useMemo(() => candles.length > 0 ? runBacktest(candles, strategyKey) : null, [candles, strategyKey])
+  const strat = STRATEGIES.find(s => s.key === strategyKey)!
+
+  const metricCard = (label: string, value: string, tone?: string) => (
+    <div className="rounded-lg border border-border bg-bg-card px-3 py-2.5 text-center">
+      <div className={clsx('text-lg font-bold font-mono', tone ?? 'text-text-primary')}>{value}</div>
+      <div className="text-[10px] text-text-muted mt-0.5">{label}</div>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Strategy selector */}
+      <div className="flex flex-wrap items-center gap-2">
+        <FlaskConical size={14} className="text-accent-blue" />
+        {STRATEGIES.map(s => (
+          <button
+            key={s.key}
+            onClick={() => setStrategyKey(s.key)}
+            className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', strategyKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-text-muted">{strat.description} · Backtested on {symbol} {range} ({candles.length} candles). Long-only, full position, one trade at a time.</p>
+
+      {!result ? (
+        <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
+          Not enough history for this strategy at the current range — try a longer range (needs ≥{strat.minBars} candles).
+        </div>
+      ) : result.metrics.sampleCount === 0 ? (
+        <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
+          This strategy produced no trades on {symbol} over the selected range.
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+            {metricCard('Win rate', `${result.metrics.winRate.toFixed(0)}%`, result.metrics.winRate >= 50 ? 'text-emerald-400' : 'text-amber-400')}
+            {metricCard('Avg return', `${result.metrics.averageReturn >= 0 ? '+' : ''}${result.metrics.averageReturn.toFixed(1)}%`, result.metrics.averageReturn >= 0 ? 'text-emerald-400' : 'text-red-400')}
+            {metricCard('Total return', `${result.metrics.totalReturn >= 0 ? '+' : ''}${result.metrics.totalReturn.toFixed(1)}%`, result.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400')}
+            {metricCard('Max drawdown', `-${result.metrics.maxDrawdown.toFixed(1)}%`, 'text-red-400')}
+            {metricCard('Trades', `${result.metrics.sampleCount}`)}
+            {metricCard('Avg hold', `${result.metrics.averageHoldingPeriod.toFixed(0)} bars`)}
+          </div>
+
+          {/* Trades table */}
+          <div className="rounded-xl border border-border overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border bg-bg-elevated">
+                  <th className="text-left px-4 py-2 text-text-muted font-medium">#</th>
+                  <th className="text-right px-3 py-2 text-text-muted font-medium">Entry</th>
+                  <th className="text-right px-3 py-2 text-text-muted font-medium">Exit</th>
+                  <th className="text-right px-3 py-2 text-text-muted font-medium">Return</th>
+                  <th className="text-right px-4 py-2 text-text-muted font-medium">Bars held</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {result.trades.map((t, i) => (
+                  <tr key={i} className="hover:bg-bg-elevated transition-colors">
+                    <td className="px-4 py-2 text-text-muted">{i + 1}</td>
+                    <td className="px-3 py-2 text-right font-mono text-text-secondary">${t.entryPrice.toLocaleString(undefined, { maximumFractionDigits: t.entryPrice > 100 ? 2 : 4 })}</td>
+                    <td className="px-3 py-2 text-right font-mono text-text-secondary">${t.exitPrice.toLocaleString(undefined, { maximumFractionDigits: t.exitPrice > 100 ? 2 : 4 })}</td>
+                    <td className={clsx('px-3 py-2 text-right font-mono font-semibold', t.returnPct >= 0 ? 'text-emerald-400' : 'text-red-400')}>{t.returnPct >= 0 ? '+' : ''}{t.returnPct.toFixed(2)}%</td>
+                    <td className="px-4 py-2 text-right font-mono text-text-muted">{t.bars}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-text-muted/70">
+            Hypothetical, no fees or slippage; past performance does not predict future results. Not financial advice.
+          </p>
+        </>
+      )}
+    </div>
+  )
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'chart' | 'screener' | 'patterns'
+type Tab = 'chart' | 'patterns' | 'scanner' | 'backtest'
 
 export default function TechnicalAnalysisPage() {
   const searchParams = useSearchParams()
@@ -595,12 +1146,43 @@ export default function TechnicalAnalysisPage() {
     queryFn: async () => {
       const res = await fetch(`/live-data/ohlcv?id=${assetId}&range=${range}`)
       if (!res.ok) throw new Error('fetch failed')
-      return res.json() as Promise<{ ok: boolean; candles: OhlcvCandle[] }>
+      return res.json() as Promise<{ ok: boolean; candles: OhlcvCandle[]; source?: string; granularity?: string }>
     },
     staleTime: range === '1H' ? 60_000 : range === '4H' || range === '1M' ? 300_000 : 900_000,
   })
 
-  const candles: OhlcvCandle[] = data?.candles ?? []
+  const ohlcvSource = data?.source === 'binance' ? 'Binance' : data?.source === 'coingecko' ? 'CoinGecko' : undefined
+
+  // News-derived event markers for the chart (feature #4)
+  const [showEvents, setShowEvents] = useState(true)
+  const { data: newsData } = useQuery({
+    queryKey: ['ta-news', assetId],
+    queryFn: () => fetch(`/live-data/news?asset=${assetId}&limit=40`).then(r => r.json()),
+    staleTime: 5 * 60 * 1000,
+  })
+  const eventsList = useMemo(() => {
+    return (newsData?.articles ?? []).map((a: { headline: string; publishedAt: string; sentiment?: string; url?: string }) => ({
+      time: Math.floor(new Date(a.publishedAt).getTime() / 1000),
+      label: a.headline,
+      sentiment: a.sentiment,
+      url: a.url,
+    }))
+  }, [newsData])
+
+  const candles = useMemo<OhlcvCandle[]>(() => data?.candles ?? [], [data])
+
+  const chartEvents = useMemo<ChartEventMarker[]>(() => {
+    if (!showEvents || candles.length === 0) return []
+    const firstTime = candles[0].time as number
+    const lastTime = candles[candles.length - 1].time as number
+    return (newsData?.articles ?? [])
+      .map((a: { headline: string; publishedAt: string; sentiment?: string }) => ({
+        time: Math.floor(new Date(a.publishedAt).getTime() / 1000),
+        label: a.headline,
+        sentiment: (a.sentiment === 'positive' || a.sentiment === 'negative' ? a.sentiment : 'neutral') as ChartEventMarker['sentiment'],
+      }))
+      .filter((e: ChartEventMarker) => e.time >= firstTime && e.time <= lastTime)
+  }, [newsData, showEvents, candles])
 
   const summary = useMemo(() => candles.length >= 50 ? computeSignalSummary(candles) : null, [candles])
   const patterns = useMemo(() => candles.length >= 20 ? detectPatterns(candles) : [], [candles])
@@ -634,17 +1216,34 @@ export default function TechnicalAnalysisPage() {
       {/* Controls bar */}
       <div className="flex flex-wrap items-center gap-3">
         {/* Asset selector */}
-        <div className="relative">
-          <select
-            value={assetId}
-            onChange={(e) => setAssetId(e.target.value)}
-            className="appearance-none bg-bg-secondary border border-border rounded-lg pl-3 pr-7 py-1.5 text-sm text-text-primary focus:outline-none focus:border-accent-blue/60 cursor-pointer"
-          >
-            {chartAssets.map((a) => (
-              <option key={a.id} value={a.id}>{a.symbol} — {a.label}{a.rank < 9999 ? ` (#${a.rank})` : ''}</option>
-            ))}
-          </select>
-          <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <select
+              value={assetId}
+              onChange={(e) => setAssetId(e.target.value)}
+              className="appearance-none bg-bg-secondary border border-border rounded-lg pl-3 pr-7 py-1.5 text-sm text-text-primary focus:outline-none focus:border-accent-blue/60 cursor-pointer"
+            >
+              {chartAssets.map((a) => (
+                <option key={a.id} value={a.id}>{a.symbol} — {a.label}{a.rank < 9999 ? ` (#${a.rank})` : ''}</option>
+              ))}
+            </select>
+            <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" />
+          </div>
+          {candles.length > 0 && (() => {
+            const lastClose = candles[candles.length - 1].close
+            const prevClose = candles[candles.length - 2]?.close
+            const pct = prevClose ? ((lastClose - prevClose) / prevClose) * 100 : null
+            return (
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-bold text-2xl text-text-primary">{formatPrice(lastClose)}</span>
+                {pct !== null && (
+                  <span className={clsx('text-base font-semibold', pct >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                    {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            )
+          })()}
         </div>
 
         {/* Range selector */}
@@ -710,7 +1309,7 @@ export default function TechnicalAnalysisPage() {
 
         {/* Tabs */}
         <div className="ml-auto flex items-center rounded-lg border border-border overflow-hidden">
-          {([['chart', 'Chart'], ['screener', 'Screener'], ['patterns', 'Patterns']] as [Tab, string][]).map(([t, label]) => (
+          {([['chart', 'Chart'], ['patterns', 'Patterns'], ['scanner', 'Scanner'], ['backtest', 'Backtest']] as [Tab, string][]).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -877,6 +1476,19 @@ export default function TechnicalAnalysisPage() {
                 Clear ({drawings.length})
               </button>
             )}
+
+            {/* Event markers toggle */}
+            <button
+              onClick={() => setShowEvents(v => !v)}
+              title="Plot news events on the chart"
+              className={clsx(
+                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ml-auto',
+                showEvents ? 'border-accent-blue/60 bg-accent-blue/10 text-accent-blue' : 'border-border text-text-muted hover:text-text-secondary hover:bg-bg-elevated',
+              )}
+            >
+              <Newspaper size={12} />
+              Events {chartEvents.length > 0 && <span className="opacity-70">({chartEvents.length})</span>}
+            </button>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
@@ -899,6 +1511,7 @@ export default function TechnicalAnalysisPage() {
                     setDrawingTool('none')
                   }}
                   patterns={patterns}
+                  events={chartEvents}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-text-muted text-sm">
@@ -909,21 +1522,38 @@ export default function TechnicalAnalysisPage() {
 
             {/* Right panel */}
             <div className="flex flex-col gap-4 overflow-y-auto" style={{ maxHeight: 520 }}>
+              {/* Provenance for the price series + derived signals */}
+              {candles.length > 0 && (
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-bg-card px-3 py-2">
+                  <DataBadge
+                    status={ohlcvSource ? 'live' : 'unavailable'}
+                    source={ohlcvSource ? `${ohlcvSource} OHLCV` : undefined}
+                  />
+                  <span className="text-[10px] text-text-muted">
+                    {candles.length} candles · indicators derived
+                  </span>
+                </div>
+              )}
+              {summary && <TechnicalReadPanel candles={candles} summary={summary} />}
+              <MarketStructurePanel symbol={asset.symbol} />
               {summary && <SignalSummaryPanel summary={summary} />}
+              {candles.length > 0 && <SupportResistancePanel candles={candles} />}
+              {showEvents && <EventsPanel events={eventsList} />}
               {candles.length > 0 && <KeyLevelsPanel candles={candles} />}
             </div>
           </div>
 
           {/* Multi-timeframe confluence */}
           <MultiTimeframeGrid assetId={assetId} />
-        </div>
-      )}
 
-      {/* ── Screener Tab ── */}
-      {tab === 'screener' && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-text-muted">Scanning all tracked assets using 1D OHLCV data. Signals update with each page load.</p>
-          <ScreenerPanel />
+          {/* Chart notes / thesis builder */}
+          <ThesisBuilderPanel
+            assetId={assetId}
+            symbol={asset.symbol}
+            range={range}
+            price={candles.length > 0 ? candles[candles.length - 1].close : null}
+            signal={summary?.overall ?? null}
+          />
         </div>
       )}
 
@@ -931,12 +1561,35 @@ export default function TechnicalAnalysisPage() {
       {tab === 'patterns' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="flex flex-col gap-4">
-            <PatternsPanel patterns={patterns} />
+            <PatternsPanel patterns={patterns} candles={candles} />
           </div>
           <div className="flex flex-col gap-4">
+            {candles.length > 0 && <SupportResistancePanel candles={candles} />}
             {candles.length > 0 && <KeyLevelsPanel candles={candles} />}
             {summary && <SignalSummaryPanel summary={summary} />}
           </div>
+        </div>
+      )}
+
+      {/* ── Scanner Tab ── */}
+      {tab === 'scanner' && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-text-muted">
+            Scans all tracked assets on 1D OHLCV for technical setups — breakouts, oversold bounces,
+            moving-average crosses, volume spikes, and volatility compression. Updates on each load.
+          </p>
+          <ScannerPanel />
+        </div>
+      )}
+
+      {/* ── Backtest Tab ── */}
+      {tab === 'backtest' && (
+        <div className="flex flex-col gap-2">
+          <p className="text-xs text-text-muted">
+            Backtest a preset technical strategy on the currently selected asset and range, using the
+            same OHLCV the chart shows.
+          </p>
+          <BacktestPanel candles={candles} symbol={asset.symbol} range={range} />
         </div>
       )}
     </div>

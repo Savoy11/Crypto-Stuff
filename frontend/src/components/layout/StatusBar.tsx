@@ -45,7 +45,9 @@ export function StatusBar() {
         </span>
         <span className="text-border">|</span>
         <span className={statusColor}>
-          Stream: {connectionStatus.toUpperCase()}
+          {/* Live-only mode serves data via REST polling, not a websocket —
+              label it honestly rather than claiming a stream that isn't there. */}
+          Data: {connectionStatus === 'connected' ? 'LIVE (polling)' : connectionStatus.toUpperCase()}
         </span>
       </div>
 

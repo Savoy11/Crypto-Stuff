@@ -11,6 +11,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { clsx } from 'clsx'
 import {
   STAKING_PROVIDERS, STAKING_COIN_INFO, DEFAULT_LIVE_APR_KEY,
+  resolveYieldType, YIELD_TYPE_META,
   type StakingProvider, type StakingCoinId, type ProviderCategory,
 } from '@/lib/data/stakingProviders'
 import type { StakingRatesResponse } from '@/app/live-data/staking-rates/route'
@@ -55,11 +56,13 @@ function aprDisplay(
 function ProviderCard({
   provider,
   coinFilter,
+  showAdjacent,
   rates,
   sources,
 }: {
   provider: StakingProvider
   coinFilter: StakingCoinId | 'all'
+  showAdjacent: boolean
   rates: Partial<Record<string, number>>
   sources: Partial<Record<string, 'live' | 'estimate'>>
 }) {
@@ -68,9 +71,13 @@ function ProviderCard({
 
   const visibleAssets = useMemo(() => {
     const entries = Object.entries(provider.assets) as [StakingCoinId, NonNullable<(typeof provider.assets)[StakingCoinId]>][]
-    if (coinFilter === 'all') return entries
-    return entries.filter(([id]) => id === coinFilter)
-  }, [provider.assets, coinFilter])
+    return entries.filter(([id, asset]) => {
+      if (coinFilter !== 'all' && id !== coinFilter) return false
+      // Hide governance-token / lending yield unless explicitly shown
+      if (!showAdjacent && !YIELD_TYPE_META[resolveYieldType(provider, asset)].stakesQueriedAsset) return false
+      return true
+    })
+  }, [provider, coinFilter, showAdjacent])
 
   if (visibleAssets.length === 0) return null
 
@@ -145,6 +152,8 @@ function ProviderCard({
         {visibleAssets.map(([coinId, asset]) => {
           const info = STAKING_COIN_INFO[coinId]
           const { apr, live } = aprDisplay(asset.staticApr, asset.liveAprKey, rates, sources, coinId as StakingCoinId)
+          const yieldType = resolveYieldType(provider, asset)
+          const yieldMeta = YIELD_TYPE_META[yieldType]
 
           return (
             <div key={coinId} className="p-3">
@@ -195,6 +204,16 @@ function ProviderCard({
                     {asset.liquid && <span className="text-[9px] text-cyan-400/60">liquid</span>}
                   </div>
                 )}
+
+                {/* Yield type — distinguishes native/liquid/cefi/restaking from
+                    governance-token or lending yield that doesn't stake the coin */}
+                <span
+                  className={clsx('ml-auto px-1.5 py-0.5 text-[10px] font-medium rounded border shrink-0', yieldMeta.badge)}
+                  title={yieldMeta.description}
+                >
+                  {yieldMeta.label}
+                  {!yieldMeta.stakesQueriedAsset && <span className="ml-1 opacity-70">· not {info.symbol} staking</span>}
+                </span>
 
               </div>
 
@@ -395,6 +414,8 @@ type CategoryFilter = 'all' | ProviderCategory
 export default function StakingPage() {
   const [coinFilter, setCoinFilter] = useState<StakingCoinId | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
+  // Off by default: "ETH staking" should mean ETH staking, not governance/lending.
+  const [showAdjacent, setShowAdjacent] = useState(false)
 
   const { data: ratesData } = useQuery<StakingRatesResponse>({
     queryKey: ['staking-rates'],
@@ -413,13 +434,16 @@ export default function StakingPage() {
     return STAKING_PROVIDERS.filter(p => {
       if (p.defunct) return false
       if (categoryFilter !== 'all' && p.category !== categoryFilter) return false
-      if (coinFilter !== 'all') {
-        const hasAsset = Object.keys(p.assets).includes(coinFilter)
-        if (!hasAsset) return false
-      }
-      return true
+      // Provider must have at least one asset that survives the coin + adjacency filters
+      const entries = Object.entries(p.assets) as [StakingCoinId, NonNullable<(typeof p.assets)[StakingCoinId]>][]
+      const hasVisible = entries.some(([id, asset]) => {
+        if (coinFilter !== 'all' && id !== coinFilter) return false
+        if (!showAdjacent && !YIELD_TYPE_META[resolveYieldType(p, asset)].stakesQueriedAsset) return false
+        return true
+      })
+      return hasVisible
     })
-  }, [categoryFilter, coinFilter])
+  }, [categoryFilter, coinFilter, showAdjacent])
 
   const COINS = Object.keys(STAKING_COIN_INFO) as StakingCoinId[]
   const CATEGORIES: { value: CategoryFilter; label: string }[] = [
@@ -483,6 +507,21 @@ export default function StakingPage() {
             ))}
           </div>
 
+          {/* Adjacent-yield toggle */}
+          <button
+            onClick={() => setShowAdjacent(v => !v)}
+            title="Governance-token staking (e.g. Aave, Convex) and lending yield (e.g. Nexo) earn on a different token or by lending — they don't stake the selected coin. Hidden by default."
+            className={clsx(
+              'ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+              showAdjacent
+                ? 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/40'
+                : 'border-border text-text-muted hover:text-text-primary'
+            )}
+          >
+            <Info size={12} />
+            {showAdjacent ? 'Hiding nothing — showing adjacent yield' : 'Show adjacent yield (governance / lending)'}
+          </button>
+
         </div>
       </div>
 
@@ -500,6 +539,7 @@ export default function StakingPage() {
             key={provider.id}
             provider={provider}
             coinFilter={coinFilter}
+            showAdjacent={showAdjacent}
             rates={rates}
             sources={sources}
           />

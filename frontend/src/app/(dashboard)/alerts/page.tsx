@@ -7,10 +7,8 @@ import {
   Info, Loader2, RefreshCw, TrendingDown, TrendingUp, Minus,
 } from 'lucide-react'
 import { AlertFeed } from '@/components/alerts/AlertFeed'
-import { AlertFilters } from '@/components/alerts/AlertFilters'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useAlertStore } from '@/store/useAlertStore'
-import { RAW_ALERTS } from '@/lib/api/mock/mockAlerts'
 import { LIVE_DATA } from '@/lib/constants'
 import { clsx } from 'clsx'
 import type { LiveAlert, AlertSeverity } from '@/app/live-data/alerts/route'
@@ -262,20 +260,6 @@ export default function AlertsPage() {
             </div>
           )}
         </>
-      )}
-
-      {/* Mock mode */}
-      {!LIVE_DATA && (
-        <div className="flex gap-6">
-          {showFilters && (
-            <div className="w-64 flex-shrink-0">
-              <AlertFilters />
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <AlertFeed alerts={RAW_ALERTS} />
-          </div>
-        </div>
       )}
     </div>
   )

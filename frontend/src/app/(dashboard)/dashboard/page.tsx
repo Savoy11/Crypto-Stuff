@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   DndContext,
   closestCenter,
@@ -221,6 +221,12 @@ function CustomizePanel({ onClose }: { onClose: () => void }) {
 export default function DashboardPage() {
   const [customizing, setCustomizing] = useState(false)
   const [activeId, setActiveId] = useState<string | null>(null)
+  // The dashboard layout/order/visibility is persisted to localStorage, so it
+  // differs from the server's default render. Gate the persisted-dependent grid
+  // behind a mount flag so the first client render matches the server (avoids
+  // hydration mismatch), then render the real layout after mount.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
   const { widgets, poppedOut, reorder, popOut, dock, setVisible } = useDashboardStore()
 
   const sensors = useSensors(
@@ -268,8 +274,20 @@ export default function DashboardPage() {
 
       {customizing && <CustomizePanel onClose={() => setCustomizing(false)} />}
 
-      {/* DnD grid */}
-      {dockedVisible.length > 0 ? (
+      {/* DnD grid — only rendered after mount to avoid a persisted-layout
+          hydration mismatch. A static skeleton holds the space before then. */}
+      {!mounted ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {[3, 2, 1].map((span, i) => (
+            <div
+              key={i}
+              className={`h-48 rounded-xl border border-border bg-bg-card animate-pulse ${
+                span === 3 ? 'lg:col-span-3' : span === 2 ? 'lg:col-span-2' : 'lg:col-span-1'
+              }`}
+            />
+          ))}
+        </div>
+      ) : dockedVisible.length > 0 ? (
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
@@ -311,7 +329,7 @@ export default function DashboardPage() {
       )}
 
       {/* Floating windows */}
-      {floatingIds.map((id, idx) => {
+      {mounted && floatingIds.map((id, idx) => {
         const meta = REGISTRY_MAP[id]
         if (!meta) return null
         const Comp = meta.component

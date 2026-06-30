@@ -55,8 +55,8 @@ import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS, LIVE_DATA } from '@/lib/constants
 import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import { useQuery } from '@tanstack/react-query'
-import { getMockNews, NEWS_CATEGORIES } from '@/lib/api/mock/mockNews'
-import type { NewsCategory } from '@/lib/api/mock/mockNews'
+import { NEWS_CATEGORIES } from '@/lib/data/newsCategories'
+import type { NewsCategory } from '@/lib/data/newsCategories'
 import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import type { LiveReserveAsset } from '@/app/live-data/reserves/route'
 import { Loader2 } from 'lucide-react'
@@ -222,7 +222,7 @@ function TechnicalAnalysisTab({ asset }: { asset: NonNullable<ReturnType<typeof 
     staleTime: range === '1M' ? 300_000 : 900_000,
   })
 
-  const candles: OhlcvCandle[] = data?.candles ?? []
+  const candles = useMemo<OhlcvCandle[]>(() => data?.candles ?? [], [data])
   const summary = useMemo(() => candles.length >= 50 ? computeSignalSummary(candles) : null, [candles])
 
   function toggleIndicator(key: string) {
@@ -720,9 +720,8 @@ function NewsTab({ assetId }: { assetId: string }) {
   const liveArticles = (liveData?.articles ?? []).filter(
     (a) => catFilter === 'all' || a.category === catFilter
   )
-  const mockArticles = LIVE_DATA ? [] : getMockNews(assetId, catFilter)
-  const articles = LIVE_DATA ? liveArticles : mockArticles
-  const noProviders = LIVE_DATA && !isLoading && (liveData?.providers ?? []).length === 0
+  const articles = liveArticles
+  const noProviders = !isLoading && (liveData?.providers ?? []).length === 0
 
   if (noProviders) {
     return (

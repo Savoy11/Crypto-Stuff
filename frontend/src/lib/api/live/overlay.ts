@@ -1,5 +1,5 @@
 import type { Asset, AssetDetail, MarketData } from '@/types/asset'
-import { MOCK_ASSETS } from '@/lib/api/mock/mockAssets'
+import { ASSET_CATALOG } from '@/lib/data/assetCatalog'
 import { coingeckoIdFor } from './coingeckoIds'
 import type { LiveQuote } from './liveClient'
 
@@ -42,7 +42,7 @@ function overlayQuote(meta: Asset, quote: LiveQuote | undefined): Asset {
 }
 
 export function buildLiveAssets(quotes: Record<string, LiveQuote>): Asset[] {
-  return MOCK_ASSETS.map((meta) => overlayQuote(meta, quotes[meta.id]))
+  return ASSET_CATALOG.map((meta) => overlayQuote(meta, quotes[meta.id]))
 }
 
 export function buildLiveMarketData(assetId: string, quote: LiveQuote | undefined): MarketData {
@@ -64,7 +64,7 @@ export function buildLiveMarketData(assetId: string, quote: LiveQuote | undefine
 }
 
 export function buildLiveAssetDetail(assetId: string, quote: LiveQuote | undefined): AssetDetail {
-  const meta = MOCK_ASSETS.find((a) => a.id === assetId) ?? MOCK_ASSETS[0]
+  const meta = ASSET_CATALOG.find((a) => a.id === assetId) ?? ASSET_CATALOG[0]
   const asset = overlayQuote(meta, quote)
   return {
     ...asset,

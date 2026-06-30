@@ -14,11 +14,11 @@ import { useAuthStore }     from '@/store/useAuthStore'
 import { useRecentAlerts }  from '@/hooks/useAlerts'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
 import { PullToRefresh }    from '@/components/ui/PullToRefresh'
-import { USE_MOCK, LIVE_DATA } from '@/lib/constants'
+import { LIVE_DATA } from '@/lib/constants'
 
-// In mock or live-data mode the app runs without a backend, so the login wall
-// is bypassed. Auth is only enforced when talking to the real API backend.
-const REQUIRE_AUTH = !USE_MOCK && !LIVE_DATA
+// In live-only mode the app runs without a backend, so the login wall is
+// bypassed. Auth would only be enforced when talking to a real API backend.
+const REQUIRE_AUTH = !LIVE_DATA
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   useWebSocket()

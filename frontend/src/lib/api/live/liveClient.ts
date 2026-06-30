@@ -1,5 +1,5 @@
 import { LIVE_DATA_BASE } from '@/lib/constants'
-import type { PriceCandle } from '@/lib/api/mock/mockPriceHistory'
+import type { PriceCandle } from '@/lib/data/priceHistoryMeta'
 
 // Thin browser-side client for the in-app live-data proxy routes. These call
 // the Next.js route handlers (which in turn call CoinGecko server-side), so no

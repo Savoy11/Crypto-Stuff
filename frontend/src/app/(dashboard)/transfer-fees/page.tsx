@@ -8,10 +8,13 @@ import {
   Clock, Zap, DollarSign, ArrowLeftRight, Plus, X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { DataBadge } from '@/components/ui/DataBadge'
 import { clsx } from 'clsx'
 import {
   EXCHANGES, COIN_INFO, NETWORKS, PERSONAL_WALLET_ID,
   EVM_NETWORKS, findTransferPaths,
+  TRANSFER_FEES_LAST_VERIFIED, transferFeesAreStale, transferFeesAgeDays,
+  getTransferFeeProvenance,
   type CoinId, type TransferPath, type TransferWarning,
   type NetworkFeeMap, type CoinPriceMap,
 } from '@/lib/data/transferFees'
@@ -407,8 +410,8 @@ export default function TransferFeesPage() {
     return () => { cancelled = true }
   }, [])
 
-  const networkFees: NetworkFeeMap = data?.networkFees ?? {}
-  const coinPrices: CoinPriceMap   = data?.coinPrices  ?? {}
+  const networkFees = useMemo<NetworkFeeMap>(() => data?.networkFees ?? {}, [data])
+  const coinPrices  = useMemo<CoinPriceMap>(() => data?.coinPrices  ?? {}, [data])
 
   // Determine if selected coin has fee data in our database
   const isSupportedCoin = SUPPORTED_SYMBOLS.has(coinId.toUpperCase())
@@ -480,6 +483,7 @@ export default function TransferFeesPage() {
               Refresh fees
             </button>
           )}
+          <DataBadge status="live" source="CoinGecko + mempool.space" />
           {dataUpdatedAt && (
             <span className="text-[10px] text-slate-500">
               Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
@@ -487,6 +491,37 @@ export default function TransferFeesPage() {
           )}
         </div>
       </div>
+
+      {/* Provenance / freshness notice for hand-maintained withdrawal fees */}
+      {(() => {
+        const prov = getTransferFeeProvenance()
+        const confMeta = {
+          high:   { label: 'High confidence',   chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
+          medium: { label: 'Medium confidence', chip: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
+          low:    { label: 'Low confidence',     chip: 'bg-rose-500/15 text-rose-300 border-rose-500/30' },
+        }[prov.confidence]
+        return (
+          <div
+            className={clsx(
+              'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-xs',
+              prov.stale
+                ? 'border-amber-500/30 bg-amber-500/5 text-amber-300/90'
+                : 'border-slate-700/60 bg-slate-800/30 text-slate-400'
+            )}
+          >
+            <span className="font-medium">
+              {prov.stale ? '⚠ Withdrawal fees may be out of date' : 'Exchange withdrawal fees'}
+            </span>
+            <span className={clsx('px-1.5 py-0.5 rounded border text-[10px] font-semibold', confMeta.chip)}>
+              {confMeta.label}
+            </span>
+            <span className="opacity-80">
+              — {prov.source.toLowerCase()}, verified {new Date(TRANSFER_FEES_LAST_VERIFIED).toLocaleDateString()} ({transferFeesAgeDays()} days ago).
+              Network gas is live; withdrawal fees are static estimates — always confirm on the exchange before sending.
+            </span>
+          </div>
+        )
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         {/* Left column: calculator */}
@@ -711,6 +746,19 @@ export default function TransferFeesPage() {
             </div>
           ) : isSupportedCoin ? (
             <div className="space-y-5">
+              {/* When the withdrawal-fee table is stale, degrade the "cheapest route"
+                  claim rather than presenting the ranking as authoritative. */}
+              {transferFeesAreStale() && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-300/90">
+                  <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                  <span>
+                    Withdrawal fees were last verified {transferFeesAgeDays()} days ago. The
+                    &ldquo;Best&rdquo; ranking below is indicative only — confirm the actual withdrawal
+                    fee on each exchange before relying on the cheapest-route result.
+                  </span>
+                </div>
+              )}
+
               {/* Multi-leg cumulative summary */}
               {stops.length > 2 && (
                 <div className="flex items-center justify-between rounded-lg bg-blue-500/8 border border-blue-500/20 px-3 py-2.5">

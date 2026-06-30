@@ -4,13 +4,15 @@ import { useEffect, useRef, useCallback } from 'react'
 import { getWsClient, type WsStatus } from './client'
 import type { WebSocketMessage } from '@/types/api'
 import { useStreamStore } from '@/store/useStreamStore'
-import { USE_MOCK } from '@/lib/constants'
+import { LIVE_DATA } from '@/lib/constants'
 
 export function useWebSocket() {
   const { setConnectionStatus } = useStreamStore()
 
   useEffect(() => {
-    if (USE_MOCK) {
+    // Live-only mode has no backend WebSocket — data is served over the
+    // /live-data REST routes via React Query. Mark connected and skip the socket.
+    if (LIVE_DATA) {
       setConnectionStatus('connected')
       return
     }
@@ -38,7 +40,7 @@ export function useWsChannel(
   handlerRef.current = handler
 
   useEffect(() => {
-    if (USE_MOCK) return
+    if (LIVE_DATA) return
 
     const client = getWsClient()
     client.subscribe(channel, assetId)
@@ -60,7 +62,7 @@ export function useWsMessage<T = unknown>(
   handlerRef.current = handler
 
   useEffect(() => {
-    if (USE_MOCK) return
+    if (LIVE_DATA) return
 
     const client = getWsClient()
     const off = client.on(messageType, (msg) => {

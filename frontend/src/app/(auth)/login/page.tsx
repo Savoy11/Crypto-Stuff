@@ -4,14 +4,14 @@ import { useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { Activity, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/store/useAuthStore'
-import { APP_NAME, APP_FULL_NAME, USE_MOCK } from '@/lib/constants'
+import { APP_NAME, APP_FULL_NAME } from '@/lib/constants'
 import { clsx } from 'clsx'
 
 export default function LoginPage() {
   const router = useRouter()
   const { login, isLoading, error, clearError } = useAuthStore()
-  const [email, setEmail] = useState(USE_MOCK ? 'analyst@caep.io' : '')
-  const [password, setPassword] = useState(USE_MOCK ? 'demo' : '')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = useCallback(
@@ -19,25 +19,6 @@ export default function LoginPage() {
       e.preventDefault()
       clearError()
       try {
-        if (USE_MOCK) {
-          // Bypass auth in mock mode
-          useAuthStore.setState({
-            user: {
-              id: 'mock-user',
-              email,
-              name: 'Demo Analyst',
-              role: 'analyst',
-              organization: 'CAEP Demo',
-              createdAt: new Date().toISOString(),
-              lastLoginAt: new Date().toISOString(),
-            },
-            accessToken: 'mock-token',
-            refreshToken: 'mock-refresh',
-            isAuthenticated: true,
-          })
-          router.push('/dashboard')
-          return
-        }
         await login({ email, password })
         router.push('/dashboard')
       } catch {
@@ -65,9 +46,7 @@ export default function LoginPage() {
         <div className="text-center mb-2">
           <h2 className="text-base font-semibold text-text-primary">Institutional Sign In</h2>
           <p className="text-xs text-text-muted mt-1">
-            {USE_MOCK
-              ? 'Running in demo mode. Credentials pre-filled.'
-              : 'Access restricted to authorized personnel'}
+            Access restricted to authorized personnel
           </p>
         </div>
 
@@ -142,11 +121,6 @@ export default function LoginPage() {
           )}
         </button>
 
-        {USE_MOCK && (
-          <p className="text-[11px] text-center text-text-muted">
-            Demo mode active — no real authentication required
-          </p>
-        )}
       </form>
 
       {/* Footer */}

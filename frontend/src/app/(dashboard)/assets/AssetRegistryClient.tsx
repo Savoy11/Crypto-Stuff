@@ -14,7 +14,6 @@ import { useAssetStore } from '@/store/useAssetStore'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { formatCurrency, formatCompact, formatDate, formatPercent } from '@/lib/utils/format'
-import { MOCK_ASSETS } from '@/lib/api/mock/mockAssets'
 import { LIVE_DATA } from '@/lib/constants'
 import type { LiveReserveAsset } from '@/app/live-data/reserves/route'
 
@@ -22,37 +21,6 @@ type ViewMode = 'table' | 'grid'
 type Tab = 'assets' | 'reserves'
 
 // ─── Reserve helpers ──────────────────────────────────────────────────────────
-
-const ATTESTERS: Record<string, string> = {
-  usdc: 'Grant Thornton', usdt: 'BDO', dai: 'Chainlink Oracles',
-  frax: 'Frax Protocol', tusd: 'Armanino', busd: 'Paxos Trust',
-  pyusd: 'Ernst & Young', usdp: 'Withum', gusd: 'BPM', lusd: 'On-Chain',
-}
-
-const MOCK_RESERVES = MOCK_ASSETS.map((a, i) => {
-  const marketCap = a.marketCap ?? 0
-  const reserveRatio = a.reserveRatio ?? 0
-  const reservesUsd = marketCap * 1.02
-  return {
-    assetId: a.id,
-    symbol: a.symbol,
-    name: a.name,
-    attester: ATTESTERS[a.id] ?? 'Third Party Auditor',
-    attestationDate: `2024-0${Math.min(9, i + 1)}-15`,
-    attestationUrl: '#',
-    totalReservesUsd: reservesUsd,
-    collateralizationRatio: reserveRatio,
-    verified: reserveRatio > 0.99,
-    chains: [] as string[],
-    composition: [
-      { category: 'Cash & Equivalents', amount: reservesUsd * 0.22, percentage: 22, description: 'USD cash deposits' },
-      { category: 'US Treasury Bills',  amount: reservesUsd * 0.50, percentage: 50, description: 'Short-term T-bills' },
-      { category: 'Commercial Paper',   amount: reservesUsd * 0.15, percentage: 15, description: 'A-1 rated CP' },
-      { category: 'Other',              amount: reservesUsd * 0.13, percentage: 13, description: 'Corporate bonds & other' },
-    ],
-    pegMechanism: undefined as string | undefined,
-  }
-})
 
 function VerificationBadge({ verified }: { verified: boolean }) {
   return verified ? (
@@ -134,7 +102,7 @@ function ReserveMonitor() {
     pegMechanism: a.pegMechanism as string | undefined,
   }))
 
-  const reserves = LIVE_DATA ? liveAssets : MOCK_RESERVES
+  const reserves = liveAssets
   const selected = reserves.find((r) => r.assetId === selectedId)
   const totalReserves = reserves.reduce((s, r) => s + r.totalReservesUsd, 0)
   const fullyCollateralized = reserves.filter((r) => r.collateralizationRatio >= 1.0).length

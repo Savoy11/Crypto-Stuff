@@ -1,5 +1,11 @@
 'use client'
 
+/* eslint-disable @next/next/no-img-element --
+   Coin icons are remote CoinGecko CDN avatars rendered at 28–36px with an onError
+   fallback that hides broken images. next/image would require per-domain
+   remotePatterns config and doesn't cleanly support the inline onError fallback,
+   for no real benefit at this size. Plain <img> is intentional here. */
+
 import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Search, Plus, Star, X, ChevronDown, ChevronUp, Coins, Trash2, TrendingUp, AlertTriangle, Eye, ExternalLink, Database, LayoutGrid, Rows3 } from 'lucide-react'
@@ -300,7 +306,7 @@ function SearchTab() {
       )}
 
       {debouncedQ.length >= 2 && !isFetching && data?.coins?.length === 0 && (
-        <p className="text-sm text-text-muted text-center py-8">No coins found for "{debouncedQ}"</p>
+        <p className="text-sm text-text-muted text-center py-8">No coins found for &quot;{debouncedQ}&quot;</p>
       )}
 
       {debouncedQ.length < 2 && (
@@ -352,7 +358,7 @@ function AddedCoinsTab() {
               {coin.recommendation ? <RecommendationBadge level={coin.recommendation} /> : null}
               <span>Added {new Date(coin.addedAt).toLocaleDateString()}</span>
             </div>
-            {coin.notes && <p className="text-xs text-text-secondary mt-1 italic">"{coin.notes}"</p>}
+            {coin.notes && <p className="text-xs text-text-secondary mt-1 italic">&quot;{coin.notes}&quot;</p>}
           </div>
           <button onClick={() => removeCoin(coin.cgId)} className="p-1.5 text-text-muted hover:text-red-400 rounded transition-colors" title="Remove">
             <Trash2 className="w-4 h-4" />
@@ -505,7 +511,9 @@ export default function CoinDiscoveryPage() {
           )}
         </div>
         <p className="text-xs text-text-muted">
-          Searching CoinGecko {LIMIT_OPTIONS.find(o => o.value === limit)?.label.toLowerCase()} coins by market cap
+          {isLoading
+            ? `Searching CoinGecko ${LIMIT_OPTIONS.find(o => o.value === limit)?.label.toLowerCase()} coins by market cap…`
+            : `Ranked from CoinGecko ${LIMIT_OPTIONS.find(o => o.value === limit)?.label.toLowerCase()} coins by market cap`}
         </p>
       </div>
 

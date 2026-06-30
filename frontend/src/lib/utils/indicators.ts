@@ -1515,3 +1515,189 @@ export function detectPatterns(candles: OhlcvCandle[]): DetectedPattern[] {
 
   return patterns.sort((a, b) => b.confidence - a.confidence)
 }
+
+// ─── Plain-English technical read (Signal Summary, feature #1) ────────────────
+
+export interface TechnicalRead {
+  trendBias:    { state: 'bullish' | 'bearish' | 'neutral'; detail: string }
+  momentum:     { state: 'strengthening' | 'weakening' | 'overbought' | 'oversold' | 'neutral'; detail: string }
+  volatility:   { state: 'expanding' | 'contracting' | 'normal'; detail: string }
+  srProximity:  { detail: string }
+  confidence:   number // 0–100 — agreement-weighted conviction
+  sourceExplanation: string
+}
+
+/**
+ * Translate the raw indicator stack into a compact, plain-English read. Pure
+ * derivation from the candle series — no external data. `summary` is reused so we
+ * don't recompute the indicator votes.
+ */
+export function buildTechnicalRead(candles: OhlcvCandle[], summary: SignalSummary): TechnicalRead {
+  const closes = candles.map((c) => c.close)
+  const n = candles.length
+  const last = closes[n - 1]
+
+  // Trend — EMA stack + price position
+  const ema20 = ema(closes, 20)[n - 1]
+  const ema50 = ema(closes, 50)[n - 1]
+  const ema200 = ema(closes, 200)[n - 1]
+  let trendState: TechnicalRead['trendBias']['state'] = 'neutral'
+  let trendDetail = 'No clear trend — price near its moving averages.'
+  if (ema20 !== null && ema50 !== null) {
+    const above200 = ema200 !== null ? last > ema200 : null
+    if (last > ema20 && ema20 > ema50 && (above200 ?? true)) {
+      trendState = 'bullish'
+      trendDetail = `Price above EMA20 > EMA50${ema200 !== null && above200 ? ' and above EMA200' : ''} — aligned uptrend.`
+    } else if (last < ema20 && ema20 < ema50 && (above200 === false || above200 === null)) {
+      trendState = 'bearish'
+      trendDetail = `Price below EMA20 < EMA50${ema200 !== null && above200 === false ? ' and below EMA200' : ''} — aligned downtrend.`
+    } else {
+      trendDetail = 'Moving averages are mixed — trend is transitioning or ranging.'
+    }
+  }
+
+  // Momentum — RSI level + MACD histogram direction
+  const rsiNow = rsi(closes, 14)[n - 1]
+  const { histogram } = macd(closes)
+  const hNow = histogram[n - 1]
+  const hPrev = histogram[n - 2]
+  let momState: TechnicalRead['momentum']['state'] = 'neutral'
+  let momDetail = 'Momentum is flat.'
+  if (rsiNow !== null) {
+    const histRising = hNow !== null && hPrev !== null && hNow > hPrev
+    if (rsiNow > 70) { momState = 'overbought'; momDetail = `RSI ${rsiNow.toFixed(0)} — overbought; pullback risk rising.` }
+    else if (rsiNow < 30) { momState = 'oversold'; momDetail = `RSI ${rsiNow.toFixed(0)} — oversold; bounce potential.` }
+    else if (histRising && rsiNow >= 50) { momState = 'strengthening'; momDetail = `RSI ${rsiNow.toFixed(0)} with MACD histogram rising — momentum building.` }
+    else if (!histRising && rsiNow < 50) { momState = 'weakening'; momDetail = `RSI ${rsiNow.toFixed(0)} with MACD histogram falling — momentum fading.` }
+    else { momDetail = `RSI ${rsiNow.toFixed(0)} — neutral momentum.` }
+  }
+
+  // Volatility — current ATR vs its own recent average (proxy for expansion/contraction)
+  const atrVals = atr(candles, 14)
+  const atrNow = atrVals[n - 1]
+  const atrWindow = atrVals.slice(Math.max(0, n - 50)).filter((v): v is number => v !== null)
+  const atrAvg = atrWindow.length ? atrWindow.reduce((a, b) => a + b, 0) / atrWindow.length : null
+  let volState: TechnicalRead['volatility']['state'] = 'normal'
+  let volDetail = 'Volatility near its recent average.'
+  if (atrNow !== null && atrAvg !== null && atrAvg > 0) {
+    const ratio = atrNow / atrAvg
+    const atrPctOfPrice = (atrNow / last) * 100
+    if (ratio > 1.25) { volState = 'expanding'; volDetail = `ATR ${atrPctOfPrice.toFixed(1)}% of price — ${Math.round((ratio - 1) * 100)}% above its 50-bar average; expanding.` }
+    else if (ratio < 0.8) { volState = 'contracting'; volDetail = `ATR ${atrPctOfPrice.toFixed(1)}% of price — compressed vs average; breakouts often follow.` }
+    else { volDetail = `ATR ${atrPctOfPrice.toFixed(1)}% of price — typical volatility.` }
+  }
+
+  // Support/Resistance proximity — nearest detected level
+  const levels = detectSupportResistance(candles)
+  let srDetail = 'No nearby support/resistance level detected.'
+  if (levels.length > 0) {
+    const nearest = levels.reduce((a, b) => Math.abs(a.distancePct) < Math.abs(b.distancePct) ? a : b)
+    const dir = nearest.distancePct >= 0 ? 'above' : 'below'
+    srDetail = `Nearest ${nearest.type} ~$${nearest.price.toLocaleString(undefined, { maximumFractionDigits: nearest.price > 100 ? 0 : 4 })} (${Math.abs(nearest.distancePct).toFixed(1)}% ${dir}).`
+  }
+
+  // Confidence — agreement-weighted: |score| (0–2) scaled by share of non-neutral votes
+  const totalVotes = summary.buy + summary.neutral + summary.sell
+  const decisiveShare = totalVotes > 0 ? (summary.buy + summary.sell) / totalVotes : 0
+  const confidence = Math.round(Math.min(100, (Math.abs(summary.score) / 2) * 100 * (0.4 + 0.6 * decisiveShare)))
+
+  return {
+    trendBias:   { state: trendState, detail: trendDetail },
+    momentum:    { state: momState, detail: momDetail },
+    volatility:  { state: volState, detail: volDetail },
+    srProximity: { detail: srDetail },
+    confidence,
+    sourceExplanation: `Derived from ${n} candles via client-side EMA/RSI/MACD/Bollinger/ATR. Not financial advice.`,
+  }
+}
+
+// ─── Auto support / resistance (feature #2) ───────────────────────────────────
+
+export interface SRLevel {
+  price: number
+  type: 'support' | 'resistance'
+  strength: number    // number of swing touches clustered into this level
+  distancePct: number // signed % from current price (+ = above price)
+}
+
+/**
+ * Detect horizontal support/resistance by finding swing highs/lows and clustering
+ * nearby ones into levels. Strength = how many swings fall in the cluster. Pure
+ * derivation from candles.
+ */
+export function detectSupportResistance(
+  candles: OhlcvCandle[],
+  { swingWindow = 4, clusterPct = 0.012, maxLevels = 6 } = {},
+): SRLevel[] {
+  const n = candles.length
+  if (n < swingWindow * 2 + 1) return []
+  const highs = candles.map((c) => c.high)
+  const lows = candles.map((c) => c.low)
+  const last = candles[n - 1].close
+
+  // Collect swing pivots
+  const pivots: number[] = []
+  for (let i = swingWindow; i < n - swingWindow; i++) {
+    const wH = highs.slice(i - swingWindow, i + swingWindow + 1)
+    const wL = lows.slice(i - swingWindow, i + swingWindow + 1)
+    if (highs[i] === Math.max(...wH)) pivots.push(highs[i])
+    if (lows[i] === Math.min(...wL)) pivots.push(lows[i])
+  }
+  if (pivots.length === 0) return []
+
+  // Cluster pivots within clusterPct of each other
+  pivots.sort((a, b) => a - b)
+  const clusters: number[][] = []
+  for (const p of pivots) {
+    const lastCluster = clusters[clusters.length - 1]
+    if (lastCluster && Math.abs(p - lastCluster[0]) / lastCluster[0] <= clusterPct) {
+      lastCluster.push(p)
+    } else {
+      clusters.push([p])
+    }
+  }
+
+  const levels: SRLevel[] = clusters.map((c) => {
+    const price = c.reduce((a, b) => a + b, 0) / c.length
+    return {
+      price,
+      type: price >= last ? 'resistance' : 'support',
+      strength: c.length,
+      distancePct: ((price - last) / last) * 100,
+    }
+  })
+
+  // Rank by strength then proximity; keep the most relevant, display high→low
+  return levels
+    .sort((a, b) => b.strength - a.strength || Math.abs(a.distancePct) - Math.abs(b.distancePct))
+    .slice(0, maxLevels)
+    .sort((a, b) => b.price - a.price)
+}
+
+// ─── Pattern projection: invalidation + measured move (feature #6) ────────────
+
+export interface PatternProjection {
+  invalidationLevel: number
+  measuredMoveTarget: number
+  breakLevel: number
+}
+
+/**
+ * Derive an invalidation level and a measured-move target for a detected pattern
+ * from its price range. Generic heuristic (height projected from the break level);
+ * returns null for neutral patterns where direction is undefined.
+ */
+export function patternProjection(p: DetectedPattern, candles: OhlcvCandle[]): PatternProjection | null {
+  if (p.type === 'neutral') return null
+  const slice = candles.slice(p.startIndex, p.endIndex + 1)
+  if (slice.length === 0) return null
+  const hi = Math.max(...slice.map((c) => c.high))
+  const lo = Math.min(...slice.map((c) => c.low))
+  const height = hi - lo
+  if (p.type === 'bullish') {
+    // Breaks up through resistance (top of range); invalidated below the range low.
+    return { breakLevel: hi, invalidationLevel: lo, measuredMoveTarget: hi + height }
+  }
+  // Bearish: breaks down through support (bottom of range); invalidated above range high.
+  return { breakLevel: lo, invalidationLevel: hi, measuredMoveTarget: lo - height }
+}

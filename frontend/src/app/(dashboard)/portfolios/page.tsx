@@ -574,7 +574,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
     staleTime: 60_000, refetchInterval: 120_000, enabled: !!ids,
   })
 
-  const prices  = priceData?.prices ?? {}
+  const prices  = useMemo(() => priceData?.prices ?? {}, [priceData])
   const holdings = useMemo(() => computeHoldings(portfolio, prices), [portfolio, prices])
   const metrics  = useMemo(() => computeMetrics(portfolio, holdings), [portfolio, holdings])
   const warnings = useMemo(() => getDiversificationWarnings(holdings, metrics), [holdings, metrics])

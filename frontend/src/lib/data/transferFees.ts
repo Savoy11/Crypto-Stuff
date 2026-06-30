@@ -1,7 +1,52 @@
 // Transfer fee data for the CAEP Transfer Fee Calculator.
 // Exchange withdrawal fees are approximate and change frequently — always verify
 // on the exchange website before initiating a transfer.
-// Last reviewed: June 2025
+
+// Machine-readable date the exchange withdrawal fees were last hand-verified.
+// Surfaced in the UI; drives the staleness warning. Update when fees are reviewed.
+export const TRANSFER_FEES_LAST_VERIFIED = '2025-06-01'
+
+// Days after which the hand-maintained withdrawal fees are considered stale.
+export const TRANSFER_FEES_STALE_AFTER_DAYS = 120
+
+export function transferFeesAgeDays(now: Date = new Date()): number {
+  const verified = new Date(TRANSFER_FEES_LAST_VERIFIED)
+  return Math.floor((now.getTime() - verified.getTime()) / 86_400_000)
+}
+
+export function transferFeesAreStale(now: Date = new Date()): boolean {
+  return transferFeesAgeDays(now) > TRANSFER_FEES_STALE_AFTER_DAYS
+}
+
+export type TransferFeeConfidence = 'high' | 'medium' | 'low'
+
+export interface TransferFeeProvenance {
+  source: string
+  verifiedAt: string
+  ageDays: number
+  stale: boolean
+  confidence: TransferFeeConfidence
+}
+
+/**
+ * Provenance for the hand-maintained withdrawal-fee table. The table is verified as
+ * a whole on a single date, so confidence is a function of age (we don't fabricate
+ * per-fee verification timestamps we don't actually have):
+ *   ≤60d → high · ≤120d → medium · beyond the stale threshold → low.
+ */
+export function getTransferFeeProvenance(now: Date = new Date()): TransferFeeProvenance {
+  const ageDays = transferFeesAgeDays(now)
+  const stale = ageDays > TRANSFER_FEES_STALE_AFTER_DAYS
+  const confidence: TransferFeeConfidence =
+    ageDays <= 60 ? 'high' : ageDays <= TRANSFER_FEES_STALE_AFTER_DAYS ? 'medium' : 'low'
+  return {
+    source: 'Hand-verified exchange withdrawal-fee schedules',
+    verifiedAt: TRANSFER_FEES_LAST_VERIFIED,
+    ageDays,
+    stale,
+    confidence,
+  }
+}
 
 export type NetworkId =
   | 'erc20' | 'trc20' | 'bep20' | 'solana' | 'polygon'

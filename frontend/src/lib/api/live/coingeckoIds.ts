@@ -79,6 +79,16 @@ export const COINGECKO_IDS: Record<string, string> = {
   iota: 'iota',
   dcr: 'decred',
   theta: 'theta-token',
+  atom: 'cosmos',
+
+  // ── DeFi ─────────────────────────────────────────────────────
+  uni: 'uniswap',
+  aave: 'aave',
+  mkr: 'maker',
+  snx: 'havven',
+  crv: 'curve-dao-token',
+  ldo: 'lido-dao',
+  grt: 'the-graph',
 }
 
 // Reverse map: CoinGecko id → internal asset id (for decoding batch responses).

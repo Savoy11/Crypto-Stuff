@@ -75,6 +75,7 @@ export function SearchInput({ className, placeholder = 'Search assets...', onSel
           aria-label="Search assets"
           aria-autocomplete="list"
           aria-expanded={isOpen}
+          aria-controls="search-results-listbox"
           role="combobox"
         />
         <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -91,6 +92,7 @@ export function SearchInput({ className, placeholder = 'Search assets...', onSel
       {isOpen && results && results.length > 0 && (
         <div
           ref={dropdownRef}
+          id="search-results-listbox"
           className="absolute top-full left-0 right-0 mt-1 bg-bg-card border border-border rounded shadow-card-hover z-50 overflow-hidden animate-fade-in"
           role="listbox"
           aria-label="Search results"

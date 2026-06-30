@@ -4,6 +4,30 @@
 export type StakingCoinId = 'eth' | 'sol' | 'ada' | 'dot' | 'atom' | 'matic' | 'avax' | 'bnb' | 'trx' | 'btc' | 'cro' | 'osmo' | 'ksm' | 'inj' | 'tia' | 'near'
 export type ProviderCategory = 'cefi' | 'wallet' | 'liquid'
 
+/**
+ * What *kind* of yield a product actually is. The coarse ProviderCategory
+ * (cefi/wallet/liquid) doesn't distinguish a true ETH liquid-staking token from a
+ * governance-token staking position or a lending product — so opportunities for the
+ * same coin used to be mixed together. YieldType separates them.
+ */
+export type YieldType = 'native' | 'liquid' | 'cefi' | 'lending' | 'governance' | 'restaking'
+
+export const YIELD_TYPE_META: Record<YieldType, {
+  label: string
+  short: string
+  description: string
+  /** Does this product actually stake the queried coin via a validator (vs. lending it or staking a different token)? */
+  stakesQueriedAsset: boolean
+  badge: string
+}> = {
+  native:     { label: 'Native staking',        short: 'Native',     description: 'Direct proof-of-stake delegation of the asset to a validator.',                              stakesQueriedAsset: true,  badge: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+  liquid:     { label: 'Liquid staking',        short: 'Liquid',     description: 'Stakes the asset and issues a tradeable receipt token (e.g. stETH, mSOL) you can exit anytime.', stakesQueriedAsset: true,  badge: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+  cefi:       { label: 'CeFi staking',          short: 'CeFi',       description: 'Custodial exchange staking — the platform stakes on your behalf and holds the keys.',          stakesQueriedAsset: true,  badge: 'bg-amber-500/15 text-amber-400 border-amber-500/30' },
+  restaking:  { label: 'Restaking',             short: 'Restaking',  description: 'Restakes the asset for shared security / extra rewards (EigenLayer, Babylon). Added smart-contract risk.', stakesQueriedAsset: true, badge: 'bg-violet-500/15 text-violet-400 border-violet-500/30' },
+  governance: { label: 'Governance-token yield', short: 'Governance', description: 'Stakes a separate governance token (not the queried asset) to earn protocol revenue. Not asset staking.', stakesQueriedAsset: false, badge: 'bg-fuchsia-500/15 text-fuchsia-400 border-fuchsia-500/30' },
+  lending:    { label: 'Lending yield',         short: 'Lending',    description: 'Yield from lending the asset to borrowers — not validator staking. Counterparty/credit risk.',  stakesQueriedAsset: false, badge: 'bg-rose-500/15 text-rose-400 border-rose-500/30' },
+}
+
 export const STAKING_COIN_INFO: Record<StakingCoinId, { name: string; symbol: string; color: string; aprNote?: string }> = {
   eth:  { name: 'Ethereum',  symbol: 'ETH',  color: '#627EEA', aprNote: 'PoS — network APR ~3–4%' },
   sol:  { name: 'Solana',    symbol: 'SOL',  color: '#9945FF', aprNote: 'Inflation-based ~6–8%' },
@@ -43,12 +67,14 @@ export interface StakingAsset {
   liveAprKey?: string        // key in StakingRatesResponse
   features: string[]
   assetRisks?: Partial<RiskProfile> // overrides provider base risks for this asset
+  yieldType?: YieldType      // overrides the provider/category-derived classification for this asset
 }
 
 export interface StakingProvider {
   id: string
   name: string
   category: ProviderCategory
+  defaultYieldType?: YieldType  // provider-wide yield classification when assets don't specify their own
   defunct?: boolean
   defunctDate?: string
   defunctNote?: string
@@ -84,6 +110,20 @@ export function getRiskLevel(score: number): 'low' | 'medium' | 'high' | 'critic
   if (score <= 5.5) return 'medium'
   if (score <= 7.5) return 'high'
   return 'critical'
+}
+
+/**
+ * Resolve the yield classification for a provider/asset pair. Precedence:
+ *   1. asset.yieldType (most specific)
+ *   2. provider.defaultYieldType
+ *   3. derived from category + whether the position is liquid with a receipt token
+ */
+export function resolveYieldType(provider: StakingProvider, asset: StakingAsset): YieldType {
+  if (asset.yieldType) return asset.yieldType
+  if (provider.defaultYieldType) return provider.defaultYieldType
+  if (provider.category === 'cefi') return 'cefi'
+  if (provider.category === 'liquid') return asset.liquid && asset.receiptToken ? 'liquid' : 'native'
+  return 'native' // wallet = self-custody native staking
 }
 
 /**
@@ -755,6 +795,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'etherfi',
     name: 'EtherFi',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'Native restaking protocol — eETH earns ETH staking + EigenLayer restaking rewards',
     description: 'EtherFi is the largest native restaking protocol built on EigenLayer. Depositing ETH gives you eETH, which earns standard Ethereum PoS staking rewards plus additional restaking rewards from EigenLayer AVS operators. Node operators in EtherFi use distributed validator technology for resilience. EtherFi is the only protocol where node operators never hold user keys.',
     custodyModel: 'smart-contract',
@@ -1011,6 +1052,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'nexo',
     name: 'Nexo',
     category: 'cefi',
+    defaultYieldType: 'lending',
     tagline: 'Crypto lending platform offering yield on deposited assets — not pure staking',
     description: 'Nexo offers yield on crypto deposits by lending them to institutional borrowers. This is lending-based yield, not validator staking — similar in risk profile to Celsius. Nexo survived 2022 but faced regulatory investigations in Bulgaria and the US. It exited the US market in 2023. Higher yields come with higher counterparty and lending risk.',
     custodyModel: 'custodial',
@@ -1198,6 +1240,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'swell',
     name: 'Swell Network',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'swETH + rswETH — ETH liquid staking with native EigenLayer restaking integration',
     description: 'Swell offers two tokens: swETH (standard ETH liquid staking) and rswETH (restaked ETH via EigenLayer). Both can be used across DeFi. Swell became a significant player in the EigenLayer restaking narrative in 2024, accumulating significant restaked TVL. The protocol also runs a points program that will convert to SWELL governance token rewards.',
     custodyModel: 'smart-contract',
@@ -1238,6 +1281,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'renzo',
     name: 'Renzo Protocol',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'ezETH — one of the largest EigenLayer restaking protocols by TVL',
     description: 'Renzo is a liquid restaking protocol on top of EigenLayer, issuing ezETH as the liquid receipt token. Users deposit ETH (or LSTs like stETH) and receive ezETH, which earns Ethereum staking rewards plus EigenLayer restaking rewards from multiple Active Validator Services (AVSs). Renzo reached $3B+ TVL in early 2024 driven by EigenLayer points farming.',
     custodyModel: 'smart-contract',
@@ -1278,6 +1322,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'kelp-dao',
     name: 'Kelp DAO',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'rsETH — multi-AVS EigenLayer restaking with broad LST acceptance',
     description: 'Kelp DAO is a liquid restaking protocol issuing rsETH, which represents ETH restaked across multiple EigenLayer AVS operators. A key differentiator is that Kelp accepts a wide range of LSTs (stETH, cbETH, rETH, sfrxETH, ETHx) as deposit collateral, allowing users to restake their existing liquid staking positions without unwrapping. Backed by the StaderLabs team.',
     custodyModel: 'smart-contract',
@@ -1317,6 +1362,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'puffer',
     name: 'Puffer Finance',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'pufETH — native restaking with anti-slashing hardware security modules',
     description: 'Puffer Finance is a native liquid restaking protocol using secure-enclave hardware (Intel TDX) to protect validators from slashing. Node operators run in trusted execution environments, which allows Puffer to permit operators with much less ETH collateral (1 ETH instead of the typical 2 ETH in Rocket Pool). pufETH earns both staking and EigenLayer restaking rewards.',
     custodyModel: 'smart-contract',
@@ -1397,6 +1443,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'bedrock',
     name: 'Bedrock',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'uniETH and uniBTC — multi-chain liquid staking with Bitcoin restaking support',
     description: 'Bedrock (by RockX) offers liquid staking tokens for ETH (uniETH) and Bitcoin (uniBTC). uniETH integrates with EigenLayer for restaking rewards. uniBTC is notable for enabling Bitcoin to earn yield via the Babylon restaking protocol, wrapped on EVM chains. Bedrock targets institutional and retail stakers across Ethereum and the emerging Bitcoin restaking narrative.',
     custodyModel: 'smart-contract',
@@ -1553,6 +1600,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'babylon',
     name: 'Babylon Protocol',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'The first Bitcoin native staking protocol — BTC secures PoS chains without bridging',
     description: 'Babylon enables Bitcoin holders to stake BTC without bridging or wrapping. BTC remains on the Bitcoin L1 in a self-custodial timelock script; if a staker misbehaves (provable double-signing on a PoS chain), the BTC is slashable via Bitcoin\'s own script logic. Babylon connects to PoS chains as a shared security provider, earning BTC rewards from those chains. As of 2024, Babylon had over $4B in BTC staking commitments in its cap-limited mainnet phases.',
     custodyModel: 'smart-contract',
@@ -1594,6 +1642,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     id: 'lombard',
     name: 'Lombard Finance',
     category: 'liquid',
+    defaultYieldType: 'restaking',
     tagline: 'LBTC — liquid Bitcoin staking token backed by Babylon-staked BTC',
     description: 'Lombard wraps Babylon-staked Bitcoin into LBTC, an EVM-compatible liquid token that enables BTC holders to earn staking yield while using their position in DeFi. LBTC is minted 1:1 against BTC that is staked on Babylon\'s protocol. It trades on Ethereum and other EVM chains, providing the DeFi composability that native Bitcoin staking lacks.',
     custodyModel: 'smart-contract',
@@ -1670,6 +1719,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
           'stkAAVE has voting power in Aave governance',
         ],
         assetRisks: { slashingRisk: 6, liquidityRisk: 5 },
+        yieldType: 'governance',
       },
     },
   },
@@ -1709,6 +1759,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
           '4 security audits',
         ],
         assetRisks: { contractRisk: 5, liquidityRisk: 4, slashingRisk: 1 },
+        yieldType: 'governance',
       },
     },
   },

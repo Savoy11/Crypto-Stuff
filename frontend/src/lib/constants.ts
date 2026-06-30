@@ -4,14 +4,15 @@ export const APP_VERSION = '1.0.0'
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000/ws'
-export const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK === 'true'
 
-// When enabled, numeric market fields (price, market cap, volume, 24h change,
-// circulating supply) are sourced live from CoinGecko via the /live-data/*
-// route handlers. Metadata (name, chain, issuer, etc.) still comes from the
-// static catalog. Derived metrics (risk, reserves, peg analytics) have no free
-// live source and are surfaced as "not available" rather than fabricated.
-export const LIVE_DATA = process.env.NEXT_PUBLIC_LIVE_DATA !== 'false'
+// CAEP runs in live-only mode. Numeric market fields (price, market cap, volume,
+// 24h change, circulating supply) are sourced live from CoinGecko via the
+// /live-data/* route handlers. Metadata (name, chain, issuer, etc.) comes from
+// the static catalog (lib/data/assetCatalog.ts). Derived metrics (risk,
+// reserves, peg analytics) with no free live source are surfaced as "not
+// available" rather than fabricated. There is no mock/demo data path — see
+// DATA-AVAILABILITY.md.
+export const LIVE_DATA = true
 
 // Base path for the in-app live-data proxy routes (see src/app/live-data/*).
 export const LIVE_DATA_BASE = '/live-data'
