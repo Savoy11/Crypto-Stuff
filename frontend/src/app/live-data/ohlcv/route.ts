@@ -117,12 +117,27 @@ function applySlice(candles: OhlcvCandle[], cfg: RangeConfig): OhlcvCandle[] {
 
 // ─── Binance ───────────────────────────────────────────────────────────────────
 
+// Internal id → Binance USDT pair. Tried first (fast, high rate limits); any id
+// without a mapping — or whose pair isn't listed on the reachable host — falls
+// back to CoinGecko automatically. Wrong/unlisted symbols are harmless: the
+// request just fails and we fall through. Kept broad so the scanner can cover
+// the whole monitored universe over Binance wherever a pair exists.
 const BINANCE_SYMBOL: Record<string, string> = {
+  // Majors / L1s
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT', bnb: 'BNBUSDT',
   xrp: 'XRPUSDT', ada: 'ADAUSDT', doge: 'DOGEUSDT', avax: 'AVAXUSDT',
-  dot: 'DOTUSDT', matic: 'MATICUSDT', ltc: 'LTCUSDT', link: 'LINKUSDT',
-  atom: 'ATOMUSDT', near: 'NEARUSDT', apt: 'APTUSDT', arb: 'ARBUSDT',
-  op: 'OPUSDT', inj: 'INJUSDT', sui: 'SUIUSDT',
+  dot: 'DOTUSDT', matic: 'MATICUSDT', pol: 'POLUSDT', ltc: 'LTCUSDT',
+  trx: 'TRXUSDT', ton: 'TONUSDT', bch: 'BCHUSDT', hbar: 'HBARUSDT',
+  near: 'NEARUSDT', atom: 'ATOMUSDT', icp: 'ICPUSDT', etc: 'ETCUSDT',
+  algo: 'ALGOUSDT', fil: 'FILUSDT', apt: 'APTUSDT', sui: 'SUIUSDT',
+  sei: 'SEIUSDT', tia: 'TIAUSDT', tao: 'TAOUSDT', flr: 'FLRUSDT',
+  vet: 'VETUSDT', xtz: 'XTZUSDT', iota: 'IOTAUSDT', theta: 'THETAUSDT',
+  cfx: 'CFXUSDT', chz: 'CHZUSDT', zec: 'ZECUSDT', xmr: 'XMRUSDT',
+  // L2s / infra
+  link: 'LINKUSDT', arb: 'ARBUSDT', op: 'OPUSDT', inj: 'INJUSDT',
+  // DeFi
+  uni: 'UNIUSDT', aave: 'AAVEUSDT', mkr: 'MKRUSDT', snx: 'SNXUSDT',
+  crv: 'CRVUSDT', ldo: 'LDOUSDT', grt: 'GRTUSDT',
 }
 
 // Binance hosts, tried in order. api.binance.com is geo-blocked (HTTP 451) in
