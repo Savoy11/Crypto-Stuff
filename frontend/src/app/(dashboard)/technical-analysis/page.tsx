@@ -16,7 +16,7 @@ import {
 import { clsx } from 'clsx'
 import type { ChartType, DrawingTool, Drawing, ChartEventMarker } from './CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
-import { runBacktest, STRATEGIES } from '@/lib/utils/backtest'
+import { runBacktest, STRATEGIES, type StrategyCategory } from '@/lib/utils/backtest'
 import {
   rsi, macd, bollingerBands, ema, sma, stochasticRsi, atr, obv, vwap,
   ichimoku, fibRetracement, computeSignalSummary, detectPatterns,
@@ -1041,23 +1041,30 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Strategy selector */}
-      <div className="flex flex-wrap items-center gap-2">
-        <FlaskConical size={14} className="text-accent-blue" />
-        {STRATEGIES.map(s => {
-          const tradeCount = allResults[s.key]?.metrics.sampleCount
-          return (
-            <button
-              key={s.key}
-              onClick={() => setStrategyKey(s.key)}
-              className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', activeKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-            >
-              {s.name}
-              {tradeCount != null && <span className="ml-1 text-[10px] opacity-70">({tradeCount})</span>}
-            </button>
-          )
-        })}
-      </div>
+      {/* Strategy selector — grouped by category */}
+      {(['trend', 'mean-reversion', 'volatility'] as StrategyCategory[]).map(cat => {
+        const group = STRATEGIES.filter(s => s.category === cat)
+        if (group.length === 0) return null
+        const catLabel: Record<StrategyCategory, string> = { trend: 'Trend', 'mean-reversion': 'Mean Reversion', momentum: 'Momentum', volatility: 'Volatility' }
+        return (
+          <div key={cat} className="flex flex-wrap items-center gap-2">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted w-24 flex-shrink-0">{catLabel[cat]}</span>
+            {group.map(s => {
+              const tradeCount = allResults[s.key]?.metrics.sampleCount
+              return (
+                <button
+                  key={s.key}
+                  onClick={() => setStrategyKey(s.key)}
+                  className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', activeKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+                >
+                  {s.name}
+                  {tradeCount != null && <span className="ml-1 text-[10px] opacity-70">({tradeCount})</span>}
+                </button>
+              )
+            })}
+          </div>
+        )
+      })}
 
       <p className="text-xs text-text-muted">{strat.description} · Backtested on {symbol} over {candles.length} daily candles (~{(candles.length / 365).toFixed(1)}y). Long-only, full position, one trade at a time.</p>
 

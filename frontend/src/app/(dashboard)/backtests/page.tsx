@@ -359,8 +359,8 @@ export default function BacktestsPage() {
             <FlaskConical size={18} className="text-violet-400" aria-hidden />
           </div>
           <div>
-            <h1 className="text-lg font-semibold text-text-primary">Historical Backtests</h1>
-            <p className="text-xs text-text-muted">How CAEP&apos;s scoring model would have performed on major depeg events</p>
+            <h1 className="text-lg font-semibold text-text-primary">Risk Case Studies</h1>
+            <p className="text-xs text-text-muted">How CAEP&apos;s risk scoring model would have flagged major historical depeg events</p>
           </div>
         </div>
       </div>

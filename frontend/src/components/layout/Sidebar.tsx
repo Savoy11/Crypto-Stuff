@@ -57,7 +57,7 @@ const NAV_ITEMS: Array<{ href: string; label: string; icon: React.ElementType; b
   { href: '/staking-discovery', label: 'Staking Discovery', icon: TrendingUp },
   { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
   { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
-  { href: '/backtests', label: 'Backtests', icon: FlaskConical },
+  { href: '/backtests', label: 'Risk Case Studies', icon: FlaskConical },
   { href: '/reports', label: 'Reports', icon: FileBarChart },
   { href: '/research', label: 'Research', icon: Microscope },
   { href: '/agent-config', label: 'AI Agents', icon: Bot },
