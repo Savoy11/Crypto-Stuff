@@ -997,11 +997,21 @@ function EventsPanel({ events }: { events: { time: number; label: string; sentim
 
 // ─── Strategy Backtest panel (feature #7) ───────────────────────────────────────
 
+const CAT_LABEL: Partial<Record<StrategyCategory, string>> = {
+  trend: 'Trend', 'mean-reversion': 'Mean Reversion',
+  volatility: 'Volatility', volume: 'Volume', 'multi-factor': 'Multi-Factor',
+}
+const CAT_ORDER: StrategyCategory[] = ['trend', 'mean-reversion', 'volatility', 'volume', 'multi-factor']
+
+const FEE_OPTIONS = [
+  { label: 'No fees', value: 0 },
+  { label: '0.05%', value: 0.0005 },
+  { label: '0.1%', value: 0.001 },
+  { label: '0.25%', value: 0.0025 },
+]
+
 function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string }) {
-  // Backtests use their own dedicated long DAILY series (range=BT, ~1000 bars)
-  // rather than the chart's selected range. A 200-period MA needs 200 bars of
-  // warm-up; on the chart's default 1Y (365 daily) that leaves only ~165 usable
-  // bars, which is too short for the trend strategies to ever trigger.
+  // Dedicated long DAILY series so 200-period strategies have enough warm-up data.
   const { data, isFetching } = useQuery({
     queryKey: ['ta-backtest-ohlcv', assetId],
     queryFn: async () => {
@@ -1013,54 +1023,65 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
   })
   const candles = useMemo<OhlcvCandle[]>(() => data?.candles ?? [], [data])
 
-  // Results for every strategy, so we can both render the active one and
-  // auto-select a strategy that actually produced trades on first load.
+  const [strategyKey, setStrategyKey] = useState<string | null>(null)
+  const [feesPct, setFeesPct]         = useState(0)
+  const [direction, setDirection]     = useState<'long' | 'short'>('long')
+
+  // Recompute all results when candles, fees, or direction change.
   const allResults = useMemo(
-    () => Object.fromEntries(STRATEGIES.map(s => [s.key, candles.length > 0 ? runBacktest(candles, s.key) : null])),
-    [candles],
+    () => Object.fromEntries(
+      STRATEGIES.map(s => [s.key, candles.length > 0 ? runBacktest(candles, s.key, { feesPct, direction }) : null])
+    ),
+    [candles, feesPct, direction],
   )
 
-  // null = "not yet chosen by the user"; we pick a sensible default once data lands.
-  const [strategyKey, setStrategyKey] = useState<string | null>(null)
+  // Auto-pick the first strategy that has trades on first data load.
   useEffect(() => {
     if (strategyKey !== null || candles.length === 0) return
-    const firstWithTrades = STRATEGIES.find(s => (allResults[s.key]?.metrics.sampleCount ?? 0) > 0)
-    setStrategyKey((firstWithTrades ?? STRATEGIES[0]).key)
+    const first = STRATEGIES.find(s => (allResults[s.key]?.metrics.sampleCount ?? 0) > 0)
+    setStrategyKey((first ?? STRATEGIES[0]).key)
   }, [allResults, candles.length, strategyKey])
 
   const activeKey = strategyKey ?? STRATEGIES[0].key
-  const result = allResults[activeKey] ?? null
-  const strat = STRATEGIES.find(s => s.key === activeKey)!
+  const result    = allResults[activeKey] ?? null
+  const strat     = STRATEGIES.find(s => s.key === activeKey)!
 
-  const metricCard = (label: string, value: string, tone?: string) => (
+  const fmtRatio = (v: number | null) => v === null ? 'n/a' : v.toFixed(2)
+  const ratioTone = (v: number | null) =>
+    v === null ? 'text-text-muted' : v >= 1 ? 'text-emerald-400' : v >= 0 ? 'text-amber-400' : 'text-red-400'
+
+  const metricCard = (label: string, value: string, tone?: string, sub?: string) => (
     <div className="rounded-lg border border-border bg-bg-card px-3 py-2.5 text-center">
       <div className={clsx('text-lg font-bold font-mono', tone ?? 'text-text-primary')}>{value}</div>
       <div className="text-[10px] text-text-muted mt-0.5">{label}</div>
+      {sub && <div className="text-[9px] text-text-muted/60 mt-0.5">{sub}</div>}
     </div>
   )
 
   return (
     <div className="flex flex-col gap-4">
+
       {/* Strategy selector — grouped by category */}
-      {(['trend', 'mean-reversion', 'volatility'] as StrategyCategory[]).map(cat => {
+      {CAT_ORDER.map(cat => {
         const group = STRATEGIES.filter(s => s.category === cat)
         if (group.length === 0) return null
-        const catLabel: Record<StrategyCategory, string> = { trend: 'Trend', 'mean-reversion': 'Mean Reversion', momentum: 'Momentum', volatility: 'Volatility' }
         return (
           <div key={cat} className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted w-24 flex-shrink-0">{catLabel[cat]}</span>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted w-24 flex-shrink-0">{CAT_LABEL[cat]}</span>
             {group.map(s => {
               const tradeCount = allResults[s.key]?.metrics.sampleCount
               return (
                 <div key={s.key} className="relative group/strat">
                   <button
                     onClick={() => setStrategyKey(s.key)}
-                    className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', activeKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+                    className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
+                      activeKey === s.key
+                        ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30'
+                        : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
                   >
                     {s.name}
                     {tradeCount != null && <span className="ml-1 text-[10px] opacity-70">({tradeCount})</span>}
                   </button>
-                  {/* Hover tooltip */}
                   <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-64 rounded-lg border border-border bg-bg-elevated px-3 py-2 shadow-lg opacity-0 group-hover/strat:opacity-100 transition-opacity duration-150">
                     <p className="text-[11px] font-medium text-text-primary mb-1">{s.name}</p>
                     <p className="text-[11px] text-text-muted leading-relaxed">{s.description}</p>
@@ -1073,7 +1094,47 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
         )
       })}
 
-      <p className="text-xs text-text-muted">{strat.description} · Backtested on {symbol} over {candles.length} daily candles (~{(candles.length / 365).toFixed(1)}y). Long-only, full position, one trade at a time.</p>
+      {/* Simulation controls */}
+      <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-bg-card px-3 py-2">
+        {/* Direction */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted">Direction</span>
+          {(['long', 'short'] as const).map(d => (
+            <button
+              key={d}
+              onClick={() => setDirection(d)}
+              className={clsx('px-2.5 py-1 rounded text-xs font-medium border transition-colors capitalize',
+                direction === d
+                  ? d === 'long' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-red-500/20 text-red-400 border-red-500/30'
+                  : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+            >
+              {d}
+            </button>
+          ))}
+        </div>
+        {/* Fees */}
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted">Fees / side</span>
+          {FEE_OPTIONS.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setFeesPct(f.value)}
+              className={clsx('px-2.5 py-1 rounded text-xs font-medium border transition-colors',
+                feesPct === f.value
+                  ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30'
+                  : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="text-xs text-text-muted">
+        {strat.description} · {symbol} · {candles.length} daily candles (~{(candles.length / 365).toFixed(1)}y) ·{' '}
+        {direction === 'long' ? 'Long-only' : 'Short-only'}, full position, one trade at a time
+        {feesPct > 0 ? `, ${(feesPct * 100).toFixed(2)}% fee per side` : ', no fees'}.
+      </p>
 
       {isFetching && candles.length === 0 ? (
         <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
@@ -1081,24 +1142,31 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
         </div>
       ) : !result ? (
         <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
-          Not enough price history for this strategy — it needs ≥{strat.minBars} daily candles and only {candles.length} are
-          available for {symbol}. The Bollinger-bounce strategy works on shorter histories; the 200-period trend strategies
-          need roughly two or more years of daily data.
+          Not enough price history — needs ≥{strat.minBars} daily candles, {symbol} has {candles.length}.
+          Bollinger-bounce works on shorter histories; 200-period trend strategies need ~2+ years.
         </div>
       ) : result.metrics.sampleCount === 0 ? (
         <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
-          There was enough data, but this strategy&apos;s entry conditions never triggered for {symbol} over the last{' '}
-          {(candles.length / 365).toFixed(1)} years — so it took no trades. Try another strategy above (trade counts are shown in parentheses).
+          Enough data, but entry conditions never triggered for {symbol} over{' '}
+          {(candles.length / 365).toFixed(1)} years. Try another strategy (trade counts in parentheses).
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
-            {metricCard('Win rate', `${result.metrics.winRate.toFixed(0)}%`, result.metrics.winRate >= 50 ? 'text-emerald-400' : 'text-amber-400')}
-            {metricCard('Avg return', `${result.metrics.averageReturn >= 0 ? '+' : ''}${result.metrics.averageReturn.toFixed(1)}%`, result.metrics.averageReturn >= 0 ? 'text-emerald-400' : 'text-red-400')}
-            {metricCard('Total return', `${result.metrics.totalReturn >= 0 ? '+' : ''}${result.metrics.totalReturn.toFixed(1)}%`, result.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400')}
-            {metricCard('Max drawdown', `-${result.metrics.maxDrawdown.toFixed(1)}%`, 'text-red-400')}
-            {metricCard('Trades', `${result.metrics.sampleCount}`)}
-            {metricCard('Avg hold', `${result.metrics.averageHoldingPeriod.toFixed(0)} bars`)}
+          {/* Metrics grid — 8 cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+            {metricCard('Win rate',    `${result.metrics.winRate.toFixed(0)}%`,
+              result.metrics.winRate >= 50 ? 'text-emerald-400' : 'text-amber-400')}
+            {metricCard('Avg return',  `${result.metrics.averageReturn >= 0 ? '+' : ''}${result.metrics.averageReturn.toFixed(1)}%`,
+              result.metrics.averageReturn >= 0 ? 'text-emerald-400' : 'text-red-400')}
+            {metricCard('Total return',`${result.metrics.totalReturn >= 0 ? '+' : ''}${result.metrics.totalReturn.toFixed(1)}%`,
+              result.metrics.totalReturn >= 0 ? 'text-emerald-400' : 'text-red-400')}
+            {metricCard('Max drawdown',`-${result.metrics.maxDrawdown.toFixed(1)}%`, 'text-red-400')}
+            {metricCard('Trades',      `${result.metrics.sampleCount}`)}
+            {metricCard('Avg hold',    `${result.metrics.averageHoldingPeriod.toFixed(0)} bars`)}
+            {metricCard('Sharpe',      fmtRatio(result.metrics.sharpeRatio),
+              ratioTone(result.metrics.sharpeRatio), 'annualised')}
+            {metricCard('Sortino',     fmtRatio(result.metrics.sortinoRatio),
+              ratioTone(result.metrics.sortinoRatio), 'downside only')}
           </div>
 
           {/* Trades table */}
@@ -1106,10 +1174,10 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
             <table className="w-full text-xs">
               <thead>
                 <tr className="border-b border-border bg-bg-elevated">
-                  <th className="text-left px-4 py-2 text-text-muted font-medium">#</th>
+                  <th className="text-left  px-4 py-2 text-text-muted font-medium">#</th>
                   <th className="text-right px-3 py-2 text-text-muted font-medium">Entry</th>
                   <th className="text-right px-3 py-2 text-text-muted font-medium">Exit</th>
-                  <th className="text-right px-3 py-2 text-text-muted font-medium">Return</th>
+                  <th className="text-right px-3 py-2 text-text-muted font-medium">Return{feesPct > 0 ? ' (net)' : ''}</th>
                   <th className="text-right px-4 py-2 text-text-muted font-medium">Bars held</th>
                 </tr>
               </thead>
@@ -1127,7 +1195,7 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
             </table>
           </div>
           <p className="text-[10px] text-text-muted/70">
-            Hypothetical, no fees or slippage; past performance does not predict future results. Not financial advice.
+            Hypothetical{feesPct > 0 ? ` (${(feesPct * 100).toFixed(2)}% fee per side applied)` : ', no fees or slippage'}; past performance does not predict future results. Not financial advice.
           </p>
         </>
       )}
