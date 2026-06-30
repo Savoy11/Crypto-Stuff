@@ -1052,14 +1052,21 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
             {group.map(s => {
               const tradeCount = allResults[s.key]?.metrics.sampleCount
               return (
-                <button
-                  key={s.key}
-                  onClick={() => setStrategyKey(s.key)}
-                  className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', activeKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-                >
-                  {s.name}
-                  {tradeCount != null && <span className="ml-1 text-[10px] opacity-70">({tradeCount})</span>}
-                </button>
+                <div key={s.key} className="relative group/strat">
+                  <button
+                    onClick={() => setStrategyKey(s.key)}
+                    className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', activeKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+                  >
+                    {s.name}
+                    {tradeCount != null && <span className="ml-1 text-[10px] opacity-70">({tradeCount})</span>}
+                  </button>
+                  {/* Hover tooltip */}
+                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-64 rounded-lg border border-border bg-bg-elevated px-3 py-2 shadow-lg opacity-0 group-hover/strat:opacity-100 transition-opacity duration-150">
+                    <p className="text-[11px] font-medium text-text-primary mb-1">{s.name}</p>
+                    <p className="text-[11px] text-text-muted leading-relaxed">{s.description}</p>
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-border" />
+                  </div>
+                </div>
               )
             })}
           </div>
