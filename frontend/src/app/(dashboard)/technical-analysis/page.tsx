@@ -1173,7 +1173,12 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
   // Recompute all results when candles, fees, or direction change.
   const allResults = useMemo(
     () => Object.fromEntries(
-      STRATEGIES.map(s => [s.key, candles.length > 0 ? runBacktest(candles, s.key, { feesPct, direction }) : null])
+      STRATEGIES.map(s => {
+        if (candles.length === 0) return [s.key, null]
+        // Isolate failures: a single misbehaving strategy must not crash the panel.
+        try { return [s.key, runBacktest(candles, s.key, { feesPct, direction })] }
+        catch { return [s.key, null] }
+      })
     ),
     [candles, feesPct, direction],
   )

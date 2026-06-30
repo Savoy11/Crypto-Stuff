@@ -85,12 +85,14 @@ interface StrategyContext {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function crossedAbove(a: (number | null)[], b: (number | null)[], i: number): boolean {
+  if (!a || !b || i < 1) return false
   const a0 = a[i - 1], a1 = a[i], b0 = b[i - 1], b1 = b[i]
-  return a0 !== null && a1 !== null && b0 !== null && b1 !== null && a0 <= b0 && a1 > b1
+  return a0 != null && a1 != null && b0 != null && b1 != null && a0 <= b0 && a1 > b1
 }
 function crossedBelow(a: (number | null)[], b: (number | null)[], i: number): boolean {
+  if (!a || !b || i < 1) return false
   const a0 = a[i - 1], a1 = a[i], b0 = b[i - 1], b1 = b[i]
-  return a0 !== null && a1 !== null && b0 !== null && b1 !== null && a0 >= b0 && a1 < b1
+  return a0 != null && a1 != null && b0 != null && b1 != null && a0 >= b0 && a1 < b1
 }
 
 function atrArr(candles: OhlcvCandle[], period = 14): (number | null)[] {
