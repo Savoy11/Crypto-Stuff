@@ -997,10 +997,40 @@ function EventsPanel({ events }: { events: { time: number; label: string; sentim
 
 // ─── Strategy Backtest panel (feature #7) ───────────────────────────────────────
 
-function BacktestPanel({ candles, symbol, range }: { candles: OhlcvCandle[]; symbol: string; range: string }) {
-  const [strategyKey, setStrategyKey] = useState(STRATEGIES[0].key)
-  const result = useMemo(() => candles.length > 0 ? runBacktest(candles, strategyKey) : null, [candles, strategyKey])
-  const strat = STRATEGIES.find(s => s.key === strategyKey)!
+function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string }) {
+  // Backtests use their own dedicated long DAILY series (range=BT, ~1000 bars)
+  // rather than the chart's selected range. A 200-period MA needs 200 bars of
+  // warm-up; on the chart's default 1Y (365 daily) that leaves only ~165 usable
+  // bars, which is too short for the trend strategies to ever trigger.
+  const { data, isFetching } = useQuery({
+    queryKey: ['ta-backtest-ohlcv', assetId],
+    queryFn: async () => {
+      const res = await fetch(`/live-data/ohlcv?id=${assetId}&range=BT`)
+      if (!res.ok) throw new Error('fetch failed')
+      return res.json() as Promise<{ ok: boolean; candles: OhlcvCandle[]; source?: string }>
+    },
+    staleTime: 60 * 60 * 1000,
+  })
+  const candles = useMemo<OhlcvCandle[]>(() => data?.candles ?? [], [data])
+
+  // Results for every strategy, so we can both render the active one and
+  // auto-select a strategy that actually produced trades on first load.
+  const allResults = useMemo(
+    () => Object.fromEntries(STRATEGIES.map(s => [s.key, candles.length > 0 ? runBacktest(candles, s.key) : null])),
+    [candles],
+  )
+
+  // null = "not yet chosen by the user"; we pick a sensible default once data lands.
+  const [strategyKey, setStrategyKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (strategyKey !== null || candles.length === 0) return
+    const firstWithTrades = STRATEGIES.find(s => (allResults[s.key]?.metrics.sampleCount ?? 0) > 0)
+    setStrategyKey((firstWithTrades ?? STRATEGIES[0]).key)
+  }, [allResults, candles.length, strategyKey])
+
+  const activeKey = strategyKey ?? STRATEGIES[0].key
+  const result = allResults[activeKey] ?? null
+  const strat = STRATEGIES.find(s => s.key === activeKey)!
 
   const metricCard = (label: string, value: string, tone?: string) => (
     <div className="rounded-lg border border-border bg-bg-card px-3 py-2.5 text-center">
@@ -1014,26 +1044,37 @@ function BacktestPanel({ candles, symbol, range }: { candles: OhlcvCandle[]; sym
       {/* Strategy selector */}
       <div className="flex flex-wrap items-center gap-2">
         <FlaskConical size={14} className="text-accent-blue" />
-        {STRATEGIES.map(s => (
-          <button
-            key={s.key}
-            onClick={() => setStrategyKey(s.key)}
-            className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', strategyKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-          >
-            {s.name}
-          </button>
-        ))}
+        {STRATEGIES.map(s => {
+          const tradeCount = allResults[s.key]?.metrics.sampleCount
+          return (
+            <button
+              key={s.key}
+              onClick={() => setStrategyKey(s.key)}
+              className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors', activeKey === s.key ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+            >
+              {s.name}
+              {tradeCount != null && <span className="ml-1 text-[10px] opacity-70">({tradeCount})</span>}
+            </button>
+          )
+        })}
       </div>
 
-      <p className="text-xs text-text-muted">{strat.description} · Backtested on {symbol} {range} ({candles.length} candles). Long-only, full position, one trade at a time.</p>
+      <p className="text-xs text-text-muted">{strat.description} · Backtested on {symbol} over {candles.length} daily candles (~{(candles.length / 365).toFixed(1)}y). Long-only, full position, one trade at a time.</p>
 
-      {!result ? (
+      {isFetching && candles.length === 0 ? (
         <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
-          Not enough history for this strategy at the current range — try a longer range (needs ≥{strat.minBars} candles).
+          Loading {symbol} daily history…
+        </div>
+      ) : !result ? (
+        <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
+          Not enough price history for this strategy — it needs ≥{strat.minBars} daily candles and only {candles.length} are
+          available for {symbol}. The Bollinger-bounce strategy works on shorter histories; the 200-period trend strategies
+          need roughly two or more years of daily data.
         </div>
       ) : result.metrics.sampleCount === 0 ? (
         <div className="rounded-xl border border-border bg-bg-card p-8 text-center text-text-muted text-sm">
-          This strategy produced no trades on {symbol} over the selected range.
+          There was enough data, but this strategy&apos;s entry conditions never triggered for {symbol} over the last{' '}
+          {(candles.length / 365).toFixed(1)} years — so it took no trades. Try another strategy above (trade counts are shown in parentheses).
         </div>
       ) : (
         <>
@@ -1586,10 +1627,10 @@ export default function TechnicalAnalysisPage() {
       {tab === 'backtest' && (
         <div className="flex flex-col gap-2">
           <p className="text-xs text-text-muted">
-            Backtest a preset technical strategy on the currently selected asset and range, using the
-            same OHLCV the chart shows.
+            Backtest a preset technical strategy on {asset.symbol}, using a dedicated multi-year daily
+            history (independent of the chart range) so the trend strategies have enough warm-up data.
           </p>
-          <BacktestPanel candles={candles} symbol={asset.symbol} range={range} />
+          <BacktestPanel assetId={assetId} symbol={asset.symbol} />
         </div>
       )}
     </div>

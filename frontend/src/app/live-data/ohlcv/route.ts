@@ -47,6 +47,9 @@ interface RangeConfig {
 }
 
 const RANGE_CONFIG: Record<string, RangeConfig> = {
+  // Backtest-only: a long DAILY series (~2.7y) so 200-period strategies have a
+  // real usable window. Not exposed in the chart range picker.
+  'BT':  { cgDays: 'max', resample: 'daily',  candleSize: '1D',  revalidate: 3600, binanceInterval: '1d',  binanceLimit: 1000 },
   '15m': { cgDays: '1',   resample: 'none',   candleSize: '15m', revalidate: 60,   binanceInterval: '15m', binanceLimit: 200  },
   '1H':  { cgDays: '1',   resample: 'none',   candleSize: '30m', revalidate: 60,   binanceInterval: '1h',  binanceLimit: 168  },
   '4H':  { cgDays: '7',   resample: 'none',   candleSize: '4H',  revalidate: 300,  binanceInterval: '4h',  binanceLimit: 540  },
