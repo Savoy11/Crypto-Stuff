@@ -1061,38 +1061,33 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
   return (
     <div className="flex flex-col gap-4">
 
-      {/* Strategy selector — grouped by category */}
-      {CAT_ORDER.map(cat => {
-        const group = STRATEGIES.filter(s => s.category === cat)
-        if (group.length === 0) return null
-        return (
-          <div key={cat} className="flex flex-wrap items-center gap-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-text-muted w-24 flex-shrink-0">{CAT_LABEL[cat]}</span>
-            {group.map(s => {
-              const tradeCount = allResults[s.key]?.metrics.sampleCount
-              return (
-                <div key={s.key} className="relative group/strat">
-                  <button
-                    onClick={() => setStrategyKey(s.key)}
-                    className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
-                      activeKey === s.key
-                        ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30'
-                        : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-                  >
-                    {s.name}
-                    {tradeCount != null && <span className="ml-1 text-[10px] opacity-70">({tradeCount})</span>}
-                  </button>
-                  <div className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-64 rounded-lg border border-border bg-bg-elevated px-3 py-2 shadow-lg opacity-0 group-hover/strat:opacity-100 transition-opacity duration-150">
-                    <p className="text-[11px] font-medium text-text-primary mb-1">{s.name}</p>
-                    <p className="text-[11px] text-text-muted leading-relaxed">{s.description}</p>
-                    <div className="absolute left-1/2 -translate-x-1/2 top-full w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-border" />
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )
-      })}
+      {/* Strategy selector dropdown — grouped by category */}
+      <div className="flex items-center gap-3">
+        <label htmlFor="bt-strategy" className="text-xs text-text-muted flex-shrink-0">Strategy</label>
+        <select
+          id="bt-strategy"
+          value={activeKey}
+          onChange={e => setStrategyKey(e.target.value)}
+          className="flex-1 rounded-lg border border-border bg-bg-card px-3 py-1.5 text-sm text-text-primary focus:outline-none focus:border-accent-blue/60 transition-colors"
+        >
+          {CAT_ORDER.map(cat => {
+            const group = STRATEGIES.filter(s => s.category === cat)
+            if (group.length === 0) return null
+            return (
+              <optgroup key={cat} label={CAT_LABEL[cat] ?? cat}>
+                {group.map(s => {
+                  const n = allResults[s.key]?.metrics.sampleCount
+                  return (
+                    <option key={s.key} value={s.key}>
+                      {s.name}{n != null ? ` (${n} trades)` : ''}
+                    </option>
+                  )
+                })}
+              </optgroup>
+            )
+          })}
+        </select>
+      </div>
 
       {/* Simulation controls */}
       <div className="flex flex-wrap items-center gap-4 rounded-lg border border-border bg-bg-card px-3 py-2">
