@@ -11,10 +11,10 @@ import {
   LineChart, GitBranch, Layers,
   MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2, Ruler,
   Compass, Gauge, Waves, Target, ShieldAlert,
-  Newspaper, CircleDollarSign, Scale, FlaskConical, ExternalLink, MinusCircle,
+  CircleDollarSign, Scale, FlaskConical, MinusCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import type { ChartType, DrawingTool, Drawing, ChartEventMarker } from './CandlestickChart'
+import type { ChartType, DrawingTool, Drawing } from './CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
 import { runBacktest, STRATEGIES, type StrategyCategory } from '@/lib/utils/backtest'
 import {
@@ -1097,47 +1097,6 @@ function MarketStructurePanel({ symbol }: { symbol: string }) {
   )
 }
 
-// ─── Events panel (event markers, feature #4) ───────────────────────────────────
-
-function EventsPanel({ events }: { events: { time: number; label: string; sentiment?: string; url?: string }[] }) {
-  if (events.length === 0) {
-    return (
-      <div className="rounded-xl border border-border bg-bg-card p-4 text-center">
-        <Newspaper size={24} className="mx-auto mb-2 text-text-muted/40" />
-        <p className="text-xs text-text-muted">No recent events for this asset.</p>
-      </div>
-    )
-  }
-  return (
-    <div className="rounded-xl border border-border bg-bg-card p-4 flex flex-col gap-2.5">
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-text-muted">Events</span>
-        <span className="text-[10px] text-text-muted">news markers on chart ↑</span>
-      </div>
-      <div className="flex flex-col gap-2 max-h-64 overflow-y-auto">
-        {events.slice(0, 25).map((e, i) => {
-          const dot = e.sentiment === 'positive' ? 'bg-emerald-400' : e.sentiment === 'negative' ? 'bg-red-400' : 'bg-slate-400'
-          return (
-            <a key={i} href={e.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2 group">
-              <span className={clsx('mt-1 size-1.5 rounded-full shrink-0', dot)} />
-              <div className="min-w-0">
-                <p className="text-[11px] text-text-secondary group-hover:text-accent-blue transition-colors leading-snug flex items-start gap-1">
-                  {e.label}
-                  {e.url && <ExternalLink size={9} className="text-text-muted shrink-0 mt-0.5" />}
-                </p>
-                <span className="text-[10px] text-text-muted">{new Date(e.time * 1000).toLocaleDateString()}</span>
-              </div>
-            </a>
-          )
-        })}
-      </div>
-      <p className="text-[10px] text-text-muted/70 border-t border-border pt-2">
-        Sourced from the live news feed. Token unlocks &amp; CPI/FOMC require a paid calendar feed — not shown.
-      </p>
-    </div>
-  )
-}
-
 // ─── Strategy Backtest panel (feature #7) ───────────────────────────────────────
 
 const CAT_LABEL: Partial<Record<StrategyCategory, string>> = {
@@ -1420,35 +1379,7 @@ export default function TechnicalAnalysisPage() {
   const ohlcvSource = data?.source === 'binance' ? 'Binance' : data?.source === 'coingecko' ? 'CoinGecko' : undefined
 
   // News-derived event markers for the chart (feature #4)
-  const [showEvents, setShowEvents] = useState(true)
-  const { data: newsData } = useQuery({
-    queryKey: ['ta-news', assetId],
-    queryFn: () => fetch(`/live-data/news?asset=${assetId}&limit=40`).then(r => r.json()),
-    staleTime: 5 * 60 * 1000,
-  })
-  const eventsList = useMemo(() => {
-    return (newsData?.articles ?? []).map((a: { headline: string; publishedAt: string; sentiment?: string; url?: string }) => ({
-      time: Math.floor(new Date(a.publishedAt).getTime() / 1000),
-      label: a.headline,
-      sentiment: a.sentiment,
-      url: a.url,
-    }))
-  }, [newsData])
-
   const candles = useMemo<OhlcvCandle[]>(() => data?.candles ?? [], [data])
-
-  const chartEvents = useMemo<ChartEventMarker[]>(() => {
-    if (!showEvents || candles.length === 0) return []
-    const firstTime = candles[0].time as number
-    const lastTime = candles[candles.length - 1].time as number
-    return (newsData?.articles ?? [])
-      .map((a: { headline: string; publishedAt: string; sentiment?: string }) => ({
-        time: Math.floor(new Date(a.publishedAt).getTime() / 1000),
-        label: a.headline,
-        sentiment: (a.sentiment === 'positive' || a.sentiment === 'negative' ? a.sentiment : 'neutral') as ChartEventMarker['sentiment'],
-      }))
-      .filter((e: ChartEventMarker) => e.time >= firstTime && e.time <= lastTime)
-  }, [newsData, showEvents, candles])
 
   const summary = useMemo(() => candles.length >= 50 ? computeSignalSummary(candles) : null, [candles])
   const patterns = useMemo(() => candles.length >= 20 ? detectPatterns(candles) : [], [candles])
@@ -1743,19 +1674,6 @@ export default function TechnicalAnalysisPage() {
                 Clear ({drawings.length})
               </button>
             )}
-
-            {/* Event markers toggle */}
-            <button
-              onClick={() => setShowEvents(v => !v)}
-              title="Plot news events on the chart"
-              className={clsx(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors ml-auto',
-                showEvents ? 'border-accent-blue/60 bg-accent-blue/10 text-accent-blue' : 'border-border text-text-muted hover:text-text-secondary hover:bg-bg-elevated',
-              )}
-            >
-              <Newspaper size={12} />
-              Events {chartEvents.length > 0 && <span className="opacity-70">({chartEvents.length})</span>}
-            </button>
           </div>
 
           <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4">
@@ -1778,7 +1696,6 @@ export default function TechnicalAnalysisPage() {
                     setDrawingTool('none')
                   }}
                   patterns={patterns}
-                  events={chartEvents}
                 />
               ) : (
                 <div className="flex items-center justify-center h-full text-text-muted text-sm">
@@ -1805,7 +1722,6 @@ export default function TechnicalAnalysisPage() {
               <MarketStructurePanel symbol={asset.symbol} />
               {summary && <SignalSummaryPanel summary={summary} />}
               {candles.length > 0 && <SupportResistancePanel candles={candles} />}
-              {showEvents && <EventsPanel events={eventsList} />}
               {candles.length > 0 && <KeyLevelsPanel candles={candles} />}
             </div>
           </div>

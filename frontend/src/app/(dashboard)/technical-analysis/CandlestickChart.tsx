@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import {
   createChart, ColorType, CrosshairMode,
   CandlestickSeries, LineSeries, HistogramSeries, AreaSeries, BarSeries, BaselineSeries,
-  LineType, createSeriesMarkers,
-  type IChartApi, type ISeriesApi, type Time, LineStyle, type SeriesMarker,
+  LineType,
+  type IChartApi, type ISeriesApi, type Time, LineStyle,
 } from 'lightweight-charts'
 import { type OhlcvCandle, type DetectedPattern } from '@/lib/utils/indicators'
 import { INDICATOR_RENDER, type RenderSpec } from './indicatorRegistry'
@@ -111,12 +111,6 @@ const FIB_COLORS  = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#3b82f6', '#8b
 
 // ── Props ──────────────────────────────────────────────────────────────────────
 
-export interface ChartEventMarker {
-  time: number        // UNIX seconds
-  label: string
-  sentiment?: 'positive' | 'negative' | 'neutral'
-}
-
 interface Props {
   candles: OhlcvCandle[]
   activeIndicators: Set<string>
@@ -125,7 +119,6 @@ interface Props {
   drawings?: Drawing[]
   onDrawingComplete?: (d: Drawing) => void
   patterns?: DetectedPattern[]
-  events?: ChartEventMarker[]
 }
 
 // ── Heikin Ashi transformation ─────────────────────────────────────────────────
@@ -150,7 +143,7 @@ function toHeikinAshi(candles: OhlcvCandle[]): OhlcvCandle[] {
 export default function CandlestickChart({
   candles, activeIndicators, chartType = 'candlestick',
   drawingTool = 'none', drawings = [], onDrawingComplete,
-  patterns = [], events = [],
+  patterns = [],
 }: Props) {
   const containerRef    = useRef<HTMLDivElement>(null)
   const chartRef        = useRef<IChartApi | null>(null)
@@ -431,35 +424,6 @@ export default function CandlestickChart({
       setCrosshairData({ time: fmtTime(c.time as Time), candle: c, indicators })
     })
 
-    // ── Event markers ──────────────────────────────────────────────────────────
-    // Snap each event to the candle whose time is the latest <= event time, so
-    // markers land on real series points (required by lightweight-charts).
-    if (events.length > 0 && mainSeriesRef.current && candles.length > 0) {
-      const times = candles.map((c) => c.time as number)
-      const snapped = new Map<number, ChartEventMarker[]>()
-      for (const ev of events) {
-        // binary-ish search for latest candle time <= ev.time
-        let lo = 0, hi = times.length - 1, idx = -1
-        while (lo <= hi) {
-          const mid = (lo + hi) >> 1
-          if (times[mid] <= ev.time) { idx = mid; lo = mid + 1 } else { hi = mid - 1 }
-        }
-        if (idx < 0) continue
-        const t = times[idx]
-        if (!snapped.has(t)) snapped.set(t, [])
-        snapped.get(t)!.push(ev)
-      }
-      const markers: SeriesMarker<Time>[] = [...snapped.entries()]
-        .sort((a, b) => a[0] - b[0])
-        .map(([t, evs]) => {
-          const sentiment = evs[0].sentiment ?? 'neutral'
-          const color = sentiment === 'positive' ? '#10b981' : sentiment === 'negative' ? '#ef4444' : '#94a3b8'
-          const text = evs.length > 1 ? `${evs.length} events` : evs[0].label.slice(0, 28)
-          return { time: t as Time, position: 'aboveBar', color, shape: 'circle', text }
-        })
-      createSeriesMarkers(mainSeriesRef.current, markers)
-    }
-
     // Trigger SVG re-render when chart pans/zooms
     chart.timeScale().subscribeVisibleLogicalRangeChange(() => setSvgTick(t => t + 1))
     setSvgTick(t => t + 1)
@@ -478,7 +442,7 @@ export default function CandlestickChart({
       chartRef.current = null
       mainSeriesRef.current = null
     }
-  }, [candles, activeIndicators, chartType, events])
+  }, [candles, activeIndicators, chartType])
 
   // ── SVG drawing interaction ──────────────────────────────────────────────────
 
