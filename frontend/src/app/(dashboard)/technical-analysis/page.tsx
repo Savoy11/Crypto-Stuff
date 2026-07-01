@@ -9,7 +9,7 @@ import {
   Activity, Filter, X, SlidersHorizontal,
   CandlestickChart as CandlestickIcon, AreaChart, BarChart2,
   LineChart, GitBranch, Layers,
-  MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2,
+  MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2, Ruler,
   Compass, Gauge, Waves, Target, ShieldAlert,
   Newspaper, CircleDollarSign, Scale, FlaskConical, ExternalLink, MinusCircle,
 } from 'lucide-react'
@@ -1716,11 +1716,12 @@ export default function TechnicalAnalysisPage() {
               { tool: 'hray' as DrawingTool,      icon: MoveHorizontal,   label: 'H. Ray' },
               { tool: 'rectangle' as DrawingTool, icon: Square,           label: 'Rectangle' },
               { tool: 'fib' as DrawingTool,       icon: Hash,             label: 'Fibonacci' },
+              { tool: 'measure' as DrawingTool,   icon: Ruler,            label: 'Measure' },
             ]).map(({ tool, icon: Icon, label }) => (
               <button
                 key={tool}
                 onClick={() => setDrawingTool(t => t === tool ? 'none' : tool)}
-                title={label}
+                title={tool === 'measure' ? 'Measure growth: click a start point, then an end point' : label}
                 className={clsx(
                   'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium transition-colors',
                   drawingTool === tool

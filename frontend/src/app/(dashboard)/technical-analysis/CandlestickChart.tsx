@@ -22,7 +22,7 @@ export type ChartType =
 
 // ── Drawing types ──────────────────────────────────────────────────────────────
 
-export type DrawingTool = 'none' | 'trendline' | 'hray' | 'rectangle' | 'fib'
+export type DrawingTool = 'none' | 'trendline' | 'hray' | 'rectangle' | 'fib' | 'measure'
 
 export interface DrawingPoint { time: Time; price: number }
 
@@ -30,13 +30,80 @@ export interface TrendlineDrawing { id: string; kind: 'trendline'; p1: DrawingPo
 export interface HRayDrawing      { id: string; kind: 'hray';      p1: DrawingPoint }
 export interface RectDrawing      { id: string; kind: 'rectangle'; p1: DrawingPoint; p2: DrawingPoint }
 export interface FibDrawing       { id: string; kind: 'fib';       p1: DrawingPoint; p2: DrawingPoint }
-export type Drawing = TrendlineDrawing | HRayDrawing | RectDrawing | FibDrawing
+export interface MeasureDrawing   { id: string; kind: 'measure';   p1: DrawingPoint; p2: DrawingPoint }
+export type Drawing = TrendlineDrawing | HRayDrawing | RectDrawing | FibDrawing | MeasureDrawing
 
 const DRAW_COLORS: Record<Exclude<DrawingTool, 'none'>, string> = {
   trendline: '#3b82f6',
   hray:      '#10b981',
   rectangle: '#8b5cf6',
   fib:       '#f59e0b',
+  measure:   '#eab308',
+}
+
+// Growth stats for the measure tool: % change, absolute change, elapsed time,
+// and a CAGR-style annualized rate (only meaningful once the span is a few days).
+interface MeasureStats {
+  pctChange: number
+  absChange: number
+  days: number
+  annualizedPct: number | null
+}
+
+function computeMeasureStats(p1: DrawingPoint, p2: DrawingPoint): MeasureStats {
+  const t1 = typeof p1.time === 'number' ? p1.time : new Date(p1.time as string).getTime() / 1000
+  const t2 = typeof p2.time === 'number' ? p2.time : new Date(p2.time as string).getTime() / 1000
+  const [startPrice, endPrice, days] = t2 >= t1
+    ? [p1.price, p2.price, (t2 - t1) / 86400]
+    : [p2.price, p1.price, (t1 - t2) / 86400]
+
+  const pctChange = startPrice !== 0 ? ((endPrice - startPrice) / startPrice) * 100 : 0
+  const absChange = endPrice - startPrice
+  const annualizedPct = days >= 2 && startPrice > 0 && endPrice > 0
+    ? (Math.pow(endPrice / startPrice, 365 / days) - 1) * 100
+    : null
+
+  return { pctChange, absChange, days, annualizedPct }
+}
+
+function fmtDuration(days: number): string {
+  if (days < 1) return `${Math.max(1, Math.round(days * 24))}h`
+  if (days < 30) return `${Math.round(days)}d`
+  if (days < 365) return `${(days / 30).toFixed(1)}mo`
+  return `${(days / 365).toFixed(1)}y`
+}
+
+// Magnitude-aware absolute-change formatter so low-priced coins keep precision
+// instead of collapsing tiny deltas to "0.0000".
+function fmtDelta(v: number): string {
+  const a = Math.abs(v)
+  if (a >= 100)  return v.toLocaleString('en-US', { maximumFractionDigits: 0 })
+  if (a >= 1)    return v.toFixed(2)
+  if (a >= 0.01) return v.toFixed(4)
+  if (a === 0)   return '0'
+  return v.toPrecision(2)
+}
+
+// Nearest candle to a unix time (candles are sorted ascending). Used by the
+// measure tool to snap clicks to a real candle's close — keeps growth
+// close-to-close and correct on every chart type, including the transformed
+// Heikin-Ashi view (candles here are always the real, untransformed series).
+function nearestCandleByTime(candles: OhlcvCandle[], time: number): OhlcvCandle | null {
+  const n = candles.length
+  if (n === 0) return null
+  if (time <= candles[0].time) return candles[0]
+  if (time >= candles[n - 1].time) return candles[n - 1]
+  let lo = 0, hi = n - 1
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1
+    const t = candles[mid].time
+    if (t === time) return candles[mid]
+    if (t < time) lo = mid + 1
+    else hi = mid - 1
+  }
+  const prev = candles[Math.max(0, lo - 1)]
+  const next = candles[Math.min(n - 1, lo)]
+  return Math.abs(prev.time - time) <= Math.abs(next.time - time) ? prev : next
 }
 
 const FIB_RATIOS  = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
@@ -92,6 +159,7 @@ export default function CandlestickChart({
   const onCompleteRef   = useRef(onDrawingComplete)
   const inProgressRef   = useRef<{ p1: DrawingPoint } | null>(null)
   const mouseRef        = useRef<{ x: number; y: number } | null>(null)
+  const candlesRef      = useRef(candles)
 
   // svgTick forces SVG to re-render when the chart pans/zooms or user moves mouse
   const [svgTick, setSvgTick] = useState(0)
@@ -109,6 +177,7 @@ export default function CandlestickChart({
   // Keep refs in sync with props (avoids stale closures in event handlers)
   useEffect(() => { drawingToolRef.current = drawingTool }, [drawingTool])
   useEffect(() => { onCompleteRef.current = onDrawingComplete }, [onDrawingComplete])
+  useEffect(() => { candlesRef.current = candles }, [candles])
 
   // Cancel in-progress drawing when tool changes
   useEffect(() => {
@@ -435,7 +504,12 @@ export default function CandlestickChart({
     const price = (mainSeriesRef.current as any)?.coordinateToPrice?.(py) as number | null
     if (time == null || price == null) return
 
-    const point: DrawingPoint = { time, price }
+    let point: DrawingPoint = { time, price }
+    // Measure snaps to the nearest candle's real close (see nearestCandleByTime).
+    if (tool === 'measure') {
+      const c = nearestCandleByTime(candlesRef.current, time as number)
+      if (c) point = { time: c.time as Time, price: c.close }
+    }
 
     if (tool === 'hray') {
       // Single-click tool
@@ -451,6 +525,7 @@ export default function CandlestickChart({
       if (tool === 'trendline')  onCompleteRef.current?.({ id, kind: 'trendline',  p1, p2: point })
       if (tool === 'rectangle')  onCompleteRef.current?.({ id, kind: 'rectangle',  p1, p2: point })
       if (tool === 'fib')        onCompleteRef.current?.({ id, kind: 'fib',        p1, p2: point })
+      if (tool === 'measure')    onCompleteRef.current?.({ id, kind: 'measure',    p1, p2: point })
       inProgressRef.current = null
     }
     setSvgTick(t => t + 1)
@@ -544,7 +619,67 @@ export default function CandlestickChart({
       )
     }
 
+    if (d.kind === 'measure') {
+      const a = toXY(d.p1.time, d.p1.price)
+      const b = toXY(d.p2.time, d.p2.price)
+      if (!a || !b) return null
+      const stats = computeMeasureStats(d.p1, d.p2)
+      const positive = stats.pctChange >= 0
+      const color = positive ? '#10b981' : '#ef4444'
+      return (
+        <g key={d.id}>
+          <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={color} strokeWidth={1.5} strokeDasharray="5 3" />
+          <circle cx={a[0]} cy={a[1]} r={3} fill={color} />
+          <circle cx={b[0]} cy={b[1]} r={3} fill={color} />
+          {renderMeasureBox(a, b, stats, color)}
+        </g>
+      )
+    }
+
     return null
+  }
+
+  // Stats card for the measure tool — anchored to the MIDPOINT of the line so it
+  // rides with the line as it is drawn, panned, or zoomed. Sits just above the
+  // line's centre (flips below if that would clip the top), lightly clamped so it
+  // stays on-screen without detaching from the line.
+  function renderMeasureBox(a: [number, number], b: [number, number], stats: MeasureStats, color: string): React.ReactNode {
+    const H = containerRef.current?.clientHeight ?? 500
+    const boxW = 152
+    const hasAnn = stats.annualizedPct != null
+    const boxH = hasAnn ? 74 : 58
+    const midX = (a[0] + b[0]) / 2
+    const midY = (a[1] + b[1]) / 2
+    const bx = Math.min(Math.max(midX - boxW / 2, 4), W - boxW - 4)
+    let by = midY - boxH - 12
+    if (by < 4) by = midY + 12
+    by = Math.min(by, H - boxH - 4)
+    const p = 8
+    const rightX = bx + boxW - p
+    const LBL = '#64748b'
+    const VAL = '#cbd5e1'
+    const pctSign = stats.pctChange >= 0 ? '+' : ''
+    const absSign = stats.absChange >= 0 ? '+' : ''
+
+    // Labeled metric row: caption on the left, value right-aligned.
+    const row = (y: number, label: string, value: string, valueFill: string, size = 10, weight = '400') => (
+      <>
+        <text x={bx + p} y={y} fill={LBL} fontSize={8.5} fontFamily="system-ui, sans-serif" letterSpacing="0.04em">{label}</text>
+        <text x={rightX} y={y} fill={valueFill} fontSize={size} fontWeight={weight} fontFamily="monospace" textAnchor="end">{value}</text>
+      </>
+    )
+
+    return (
+      <g style={{ pointerEvents: 'none' }}>
+        <rect x={bx} y={by} width={boxW} height={boxH} rx={6}
+          fill="rgba(15,23,42,0.94)" stroke={color} strokeWidth={1} strokeOpacity={0.5} />
+        {row(by + 18, 'CHANGE',   `${pctSign}${stats.pctChange.toFixed(2)}%`, color, 13, '700')}
+        {row(by + 34, '$ CHANGE', `${absSign}${fmtDelta(stats.absChange)}`, VAL)}
+        {row(by + 48, 'PERIOD',   fmtDuration(stats.days), VAL)}
+        {stats.annualizedPct != null &&
+          row(by + 64, 'PER YEAR', `${stats.annualizedPct >= 0 ? '+' : ''}${stats.annualizedPct.toFixed(1)}%`, VAL)}
+      </g>
+    )
   }
 
   function renderInProgress(): React.ReactNode {
@@ -570,6 +705,26 @@ export default function CandlestickChart({
         <rect x={rx} y={ry} width={rw} height={rh}
           stroke={DRAW_COLORS.rectangle} strokeWidth={1.5} strokeDasharray="5 3"
           fill={`${DRAW_COLORS.rectangle}12`} />
+      )
+    }
+    if (tool === 'measure') {
+      // Snap the live endpoint to the nearest candle close so the preview matches
+      // the final measurement (and stays correct on Heikin-Ashi / candle charts).
+      const time = chartRef.current?.timeScale().coordinateToTime(mx) as Time | null
+      const c = time != null ? nearestCandleByTime(candles, time as number) : null
+      const snapped = c ? { time: c.time as Time, price: c.close } : null
+      const end = snapped ? toXY(snapped.time, snapped.price) : null
+      const [ex, ey] = end ?? [mx, my]
+      const stats = snapped ? computeMeasureStats(inProgressRef.current.p1, snapped) : null
+      const color = stats ? (stats.pctChange >= 0 ? '#10b981' : '#ef4444') : DRAW_COLORS.measure
+      return (
+        <g>
+          <line x1={a[0]} y1={a[1]} x2={ex} y2={ey}
+            stroke={color} strokeWidth={1.5} strokeDasharray="5 3" opacity={0.7} />
+          <circle cx={a[0]} cy={a[1]} r={3} fill={color} />
+          {end && <circle cx={ex} cy={ey} r={3} fill={color} />}
+          {stats && renderMeasureBox(a, [ex, ey], stats, color)}
+        </g>
       )
     }
     if (tool === 'fib') {

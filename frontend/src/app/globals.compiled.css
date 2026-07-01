@@ -3268,10 +3268,6 @@ ul, ol {
   color: rgb(252 211 77 / var(--tw-text-opacity, 1));
 }
 
-.text-amber-300\/60 {
-  color: rgb(252 211 77 / 0.6);
-}
-
 .text-amber-300\/70 {
   color: rgb(252 211 77 / 0.7);
 }
