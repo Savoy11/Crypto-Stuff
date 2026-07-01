@@ -3364,6 +3364,10 @@ ul, ol {
   color: rgb(52 211 153 / var(--tw-text-opacity, 1));
 }
 
+.text-emerald-400\/60 {
+  color: rgb(52 211 153 / 0.6);
+}
+
 .text-emerald-400\/70 {
   color: rgb(52 211 153 / 0.7);
 }

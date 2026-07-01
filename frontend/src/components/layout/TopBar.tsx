@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Bell, Settings, RefreshCw, ChevronDown } from 'lucide-react'
-import Link from 'next/link'
-import { useAlertStore }   from '@/store/useAlertStore'
+import { useLiveAlerts }   from '@/hooks/useLiveAlerts'
+import { LiveAlertRow }    from '@/components/alerts/LiveAlertRow'
 import { useRefreshStore, INTERVAL_OPTIONS } from '@/store/useRefreshStore'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
 import { SearchInput }     from '@/components/ui/SearchInput'
@@ -91,10 +91,79 @@ function IntervalSelector() {
   )
 }
 
+// ── Alerts bell dropdown ───────────────────────────────────────────────────────
+
+function AlertsBell() {
+  const { alerts, activeCount, criticalCount, checkedAt } = useLiveAlerts()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="relative p-2 rounded hover:bg-bg-elevated transition-colors text-text-secondary hover:text-text-primary"
+        aria-label={`Alerts${activeCount > 0 ? `, ${activeCount} active` : ''}`}
+        title="Alerts"
+      >
+        <Bell size={16} aria-hidden />
+        {activeCount > 0 && (
+          <span
+            className={clsx(
+              'absolute top-1 right-1 size-4 rounded-full text-white text-[9px] font-bold flex items-center justify-center',
+              criticalCount > 0 ? 'bg-red-500' : 'bg-amber-500',
+            )}
+            aria-hidden
+          >
+            {activeCount > 9 ? '9+' : activeCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-border bg-bg-card shadow-2xl z-50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+            <span className="text-xs font-semibold text-text-primary">Alerts</span>
+            {activeCount > 0 && (
+              <span className="text-[10px] text-text-muted">
+                {criticalCount > 0 && <span className="text-red-400">{criticalCount} critical</span>}
+                {criticalCount > 0 ? ' · ' : ''}{activeCount} active
+              </span>
+            )}
+          </div>
+
+          {alerts.length === 0 ? (
+            <div className="px-4 py-8 text-center text-xs text-text-muted">
+              All monitored assets within range
+            </div>
+          ) : (
+            <div className="max-h-96 overflow-y-auto divide-y divide-border/50">
+              {alerts.slice(0, 15).map((a) => <LiveAlertRow key={a.id} alert={a} />)}
+            </div>
+          )}
+
+          <div className="px-4 py-2 border-t border-border">
+            <span className="text-[10px] text-text-muted/70">
+              Live peg &amp; 24h price-move monitoring{checkedAt ? ` · ${new Date(checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── TopBar ────────────────────────────────────────────────────────────────────
 
 export function TopBar() {
-  const { unreadCount }  = useAlertStore()
   const { isRefreshing } = useRefreshStore()
   const { refresh }      = useGlobalRefresh()
 
@@ -142,18 +211,7 @@ export function TopBar() {
         </div>
 
         {/* Alerts bell */}
-        <Link
-          href="/alerts"
-          className="relative p-2 rounded hover:bg-bg-elevated transition-colors text-text-secondary hover:text-text-primary"
-          aria-label={`View alerts${unreadCount > 0 ? `, ${unreadCount} unread` : ''}`}
-        >
-          <Bell size={16} aria-hidden />
-          {unreadCount > 0 && (
-            <span className="absolute top-1 right-1 size-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center" aria-hidden>
-              {unreadCount > 9 ? '9+' : unreadCount}
-            </span>
-          )}
-        </Link>
+        <AlertsBell />
 
         {/* Settings */}
         <button className="p-2 rounded hover:bg-bg-elevated transition-colors text-text-secondary hover:text-text-primary" aria-label="Settings">
