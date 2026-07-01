@@ -769,7 +769,7 @@ function NewsTab({ assetId }: { assetId: string }) {
         <div className="space-y-3">
           {articles.map((article) => {
             const providerLabel = 'providerLabel' in article ? article.providerLabel : null
-            const provider = 'provider' in article ? (article as LiveNewsArticle).provider : 'mock'
+            const provider = 'provider' in article ? (article as LiveNewsArticle).provider : 'unknown'
             const badgeStyle = PROVIDER_BADGE_STYLES[provider]
             return (
               <article

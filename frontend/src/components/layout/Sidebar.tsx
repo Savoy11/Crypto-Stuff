@@ -11,7 +11,6 @@ import {
   Star,
   FileBarChart,
   Activity,
-  LogOut,
   User,
   Newspaper,
   MessageSquare,
@@ -184,7 +183,7 @@ export function Sidebar() {
   const pathname = usePathname()
   const { unreadCount } = useAlertStore()
   const { connectionStatus } = useStreamStore()
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
 
   const [order, setOrder] = useState<string[]>(DEFAULT_ORDER)
   const [reordering, setReordering] = useState(false)
@@ -382,13 +381,8 @@ export function Sidebar() {
                 <div className="text-[10px] text-text-muted capitalize">{user.role}</div>
               </div>
             </div>
-            <button
-              onClick={logout}
-              className="text-text-muted hover:text-text-secondary transition-colors p-1"
-              aria-label="Log out"
-            >
-              <LogOut size={14} aria-hidden />
-            </button>
+            {/* Logout removed while the login wall is disabled (see (dashboard)/layout.tsx).
+                Restore this button when re-enabling login. */}
           </div>
         )}
       </div>

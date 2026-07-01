@@ -14,11 +14,11 @@ import { useAuthStore }     from '@/store/useAuthStore'
 import { useRecentAlerts }  from '@/hooks/useAlerts'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
 import { PullToRefresh }    from '@/components/ui/PullToRefresh'
-import { LIVE_DATA } from '@/lib/constants'
-
-// In live-only mode the app runs without a backend, so the login wall is
-// bypassed. Auth would only be enforced when talking to a real API backend.
-const REQUIRE_AUTH = !LIVE_DATA
+// LOGIN TEMPORARILY DISABLED (by request, until the risk framework is done).
+// The auth wall is fully off so it cannot affect the build or block access.
+// To RE-ENABLE later: restore `import { LIVE_DATA } from '@/lib/constants'`
+// and `const REQUIRE_AUTH = !LIVE_DATA`, and revert the /login redirect.
+const REQUIRE_AUTH = false
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
   useWebSocket()

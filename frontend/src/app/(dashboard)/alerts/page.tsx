@@ -1,14 +1,12 @@
 'use client'
 
-import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
-  Bell, Filter, CheckCheck, AlertTriangle, AlertOctagon,
+  Bell, CheckCheck, AlertTriangle, AlertOctagon,
   Info, Loader2, RefreshCw, TrendingDown, TrendingUp, Minus,
 } from 'lucide-react'
 import { AlertFeed } from '@/components/alerts/AlertFeed'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { useAlertStore } from '@/store/useAlertStore'
 import { LIVE_DATA } from '@/lib/constants'
 import { clsx } from 'clsx'
 import type { LiveAlert, AlertSeverity } from '@/app/live-data/alerts/route'
@@ -19,6 +17,10 @@ async function fetchLiveAlerts(): Promise<{ alerts: LiveAlert[]; checkedAt: stri
   const res = await fetch('/live-data/alerts')
   if (!res.ok) throw new Error('Failed to fetch alerts')
   return res.json()
+}
+
+function fmtPrice(p: number): string {
+  return p < 1 ? `$${p.toFixed(4)}` : `$${p.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
 }
 
 // ─── Severity config ──────────────────────────────────────────────────────────
@@ -58,6 +60,7 @@ const SEVERITY_CONFIG: Record<AlertSeverity, {
 function LiveAlertCard({ alert }: { alert: LiveAlert }) {
   const cfg = SEVERITY_CONFIG[alert.severity]
   const SeverityIcon = cfg.icon
+  const isPriceMove = alert.type === 'price_move'
   const isAbove = alert.deviation > 0
   const DeviationIcon = Math.abs(alert.deviation) < 0.05 ? Minus : isAbove ? TrendingUp : TrendingDown
   const deviationColor = Math.abs(alert.deviation) < 0.05
@@ -89,11 +92,13 @@ function LiveAlertCard({ alert }: { alert: LiveAlert }) {
           <div className="flex items-center gap-1">
             <DeviationIcon size={12} className={deviationColor} aria-hidden />
             <span className={clsx('font-mono text-xs font-bold', deviationColor)}>
-              {alert.deviation > 0 ? '+' : ''}{alert.deviation.toFixed(3)}%
+              {alert.deviation > 0 ? '+' : ''}{alert.deviation.toFixed(isPriceMove ? 2 : 3)}%{isPriceMove ? ' · 24h' : ''}
             </span>
           </div>
           <span className="text-[10px] text-text-muted">
-            ${alert.value.toFixed(4)} vs ${alert.threshold.toFixed(2)} target
+            {isPriceMove
+              ? `${fmtPrice(alert.value)} spot`
+              : `$${alert.value.toFixed(4)} vs $${alert.threshold.toFixed(2)} target`}
           </span>
           <span className="text-[10px] text-text-muted ml-auto">via {alert.source}</span>
         </div>
@@ -110,9 +115,9 @@ function AllClearPanel({ checkedAt, assetsChecked }: { checkedAt: string; assets
       <div className="size-12 rounded-full bg-emerald-400/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-3">
         <CheckCheck size={22} className="text-emerald-400" aria-hidden />
       </div>
-      <p className="text-sm font-semibold text-emerald-300">All pegs within normal range</p>
+      <p className="text-sm font-semibold text-emerald-300">All monitored assets within normal range</p>
       <p className="text-xs text-text-muted mt-1">
-        {assetsChecked} assets checked · no deviation {'>'} 0.15% detected
+        {assetsChecked} assets checked · no peg or 24h price-move threshold breached
       </p>
       <p className="text-[11px] text-text-muted/60 mt-2 font-mono">
         Last checked: {new Date(checkedAt).toLocaleTimeString()}
@@ -124,9 +129,6 @@ function AllClearPanel({ checkedAt, assetsChecked }: { checkedAt: string; assets
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function AlertsPage() {
-  const [showFilters, setShowFilters] = useState(false)
-  const { markAllRead, unreadCount } = useAlertStore()
-
   const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery({
     queryKey: ['live-alerts'],
     queryFn: fetchLiveAlerts,
@@ -148,23 +150,18 @@ export default function AlertsPage() {
           <PageHeader
             title="Alert Center"
             subtitle={LIVE_DATA
-              ? 'Live peg deviation monitoring via CoinGecko · checks every 2 minutes'
+              ? 'Live peg & 24h price-move monitoring via CoinGecko · checks every 2 minutes'
               : 'Real-time risk events and threshold breaches'}
-            description="The Alert Center monitors all tracked assets for risk threshold breaches and peg stability issues. In live mode, peg deviations are checked every 2 minutes using CoinGecko price data. Alerts are ranked by severity so the most urgent issues surface first."
+            description="The Alert Center monitors stablecoins for peg deviation and major assets for sharp 24h price moves. In live mode both are checked every 2 minutes using CoinGecko price data, and alerts are ranked by severity so the most urgent issues surface first."
             details={[
-              { label: 'Severity levels', text: 'Critical — immediate action needed (e.g. peg break >2%). Warning — approaching threshold. Info — monitoring only.' },
-              { label: 'Live mode', text: 'Alerts fire when a stablecoin price deviates beyond the configured threshold. Risk score and reserve alerts require backend integration.' },
-              { label: 'Mock mode', text: 'Pre-seeded alerts across all severity levels are shown for demonstration purposes.' },
+              { label: 'Severity levels', text: 'Critical — immediate action needed (peg break ≥1%, or ≥10% 24h move). Warning — approaching threshold. Info — monitoring only.' },
+              { label: 'Live mode', text: 'Depeg alerts fire when a stablecoin drifts from its $1 target; price-move alerts fire when a major asset swings sharply over 24h. 14 stablecoins and 16 majors are checked.' },
+              { label: 'Data source', text: 'All checks use live CoinGecko price data — there is no mock or demo mode. If a feed is unavailable, no alert is shown rather than a fabricated one.' },
             ]}
           />
           {LIVE_DATA && criticalCount > 0 && (
             <span className="rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-bold text-red-400 border border-red-500/30">
               {criticalCount} critical
-            </span>
-          )}
-          {!LIVE_DATA && unreadCount > 0 && (
-            <span className="rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400">
-              {unreadCount} unread
             </span>
           )}
         </div>
@@ -178,26 +175,6 @@ export default function AlertsPage() {
               <RefreshCw size={14} className={isLoading ? 'animate-spin' : ''} />
               Refresh
             </button>
-          )}
-          {!LIVE_DATA && (
-            <>
-              <button
-                onClick={() => setShowFilters((f) => !f)}
-                className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors"
-              >
-                <Filter className="h-4 w-4" />
-                Filters
-              </button>
-              {unreadCount > 0 && (
-                <button
-                  onClick={markAllRead}
-                  className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 hover:bg-slate-700 transition-colors"
-                >
-                  <CheckCheck className="h-4 w-4" />
-                  Mark all read
-                </button>
-              )}
-            </>
           )}
         </div>
       </div>
@@ -222,11 +199,19 @@ export default function AlertsPage() {
           )}
 
           {/* Thresholds legend */}
-          <div className="flex flex-wrap gap-3 text-[11px] text-text-muted">
-            <span className="font-medium text-text-primary">Thresholds:</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-blue-400 inline-block" /> Monitor ≥ 0.15%</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400 inline-block" /> Warning ≥ 0.50%</span>
-            <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-400 inline-block" /> Critical ≥ 1.00%</span>
+          <div className="flex flex-col gap-1.5 text-[11px] text-text-muted">
+            <div className="flex flex-wrap gap-3 items-center">
+              <span className="font-medium text-text-primary w-28">Stablecoin peg:</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-blue-400 inline-block" /> Monitor ≥ 0.15%</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400 inline-block" /> Warning ≥ 0.50%</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-400 inline-block" /> Critical ≥ 1.00%</span>
+            </div>
+            <div className="flex flex-wrap gap-3 items-center">
+              <span className="font-medium text-text-primary w-28">Price move (24h):</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-blue-400 inline-block" /> Monitor ≥ 3%</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-amber-400 inline-block" /> Warning ≥ 5%</span>
+              <span className="flex items-center gap-1"><span className="size-2 rounded-full bg-red-400 inline-block" /> Critical ≥ 10%</span>
+            </div>
           </div>
 
           {isLoading && (

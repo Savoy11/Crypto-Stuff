@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Activity, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react'
 import { useAuthStore } from '@/store/useAuthStore'
@@ -28,7 +28,15 @@ export default function LoginPage() {
     [email, password, login, router, clearError]
   )
 
-  return (
+  // LOGIN TEMPORARILY DISABLED (by request, until the risk framework is done).
+  // Redirect away so the screen never renders; the form below is preserved.
+  // To RE-ENABLE later: remove this block and the `LOGIN_DISABLED` gate on the return.
+  const LOGIN_DISABLED = true
+  useEffect(() => {
+    if (LOGIN_DISABLED) router.replace('/dashboard')
+  }, [router])
+
+  return LOGIN_DISABLED ? null : (
     <div className="flex flex-col gap-8">
       {/* Logo */}
       <div className="flex flex-col items-center gap-3">

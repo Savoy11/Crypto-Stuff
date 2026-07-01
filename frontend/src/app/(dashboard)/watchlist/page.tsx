@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { Star, Plus, Trash2, Search } from 'lucide-react'
+import { Star, Plus, Trash2, Search, Lock } from 'lucide-react'
+import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { formatCurrency, formatScore, formatOrNA } from '@/lib/utils/format'
 import { getRiskColor } from '@/lib/utils/risk'
 import { useAssets } from '@/hooks/useAssets'
+import { useTierStore } from '@/store/useTierStore'
+import { TIER_LABELS, TIER_COLORS } from '@/lib/tier'
 
 export default function WatchlistPage() {
   const [search, setSearch] = useState('')
@@ -18,6 +21,13 @@ export default function WatchlistPage() {
   // Live asset catalog with real market figures (risk metrics render as N/A).
   const { data } = useAssets({ pageSize: 100 })
   const allAssets = useMemo(() => data?.data ?? [], [data])
+
+  // Risk columns are a premium feature — unlocked on the Paid (or Custom) tier.
+  // The actual paid risk-data source is wired in the Risk Scores work (item 1);
+  // here we only gate the UI on tier state.
+  const mode = useTierStore((s) => s.mode)
+  const setMode = useTierStore((s) => s.setMode)
+  const unlocked = mode !== 'free'
 
   // Seed the watchlist with the first few assets once live data arrives.
   useEffect(() => {
@@ -52,13 +62,40 @@ export default function WatchlistPage() {
             />
           </div>
         </div>
-        <button
-          onClick={() => setShowNewList(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
-        >
-          <Plus className="h-4 w-4" /> New List
-        </button>
+        <div className="flex items-center gap-3">
+          <span className={clsx('inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium border', TIER_COLORS[mode])}>
+            {TIER_LABELS[mode]}
+          </span>
+          <button
+            onClick={() => setShowNewList(true)}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+          >
+            <Plus className="h-4 w-4" /> New List
+          </button>
+        </div>
       </div>
+
+      {/* Paid-tier upgrade prompt for risk data */}
+      {!unlocked && (
+        <div className="flex items-center justify-between gap-4 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <Lock className="h-5 w-5 text-amber-400 flex-shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-amber-200">Risk scores are a Paid-tier feature</p>
+              <p className="text-xs text-slate-400">
+                Switch to the Paid tier to route risk data in from premium providers (CoinGecko Pro, Messari, etc.).
+                Configure keys in Settings → Integrations.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setMode('paid')}
+            className="flex-shrink-0 rounded-lg bg-amber-500/90 px-3 py-1.5 text-xs font-semibold text-slate-900 hover:bg-amber-400 transition-colors"
+          >
+            Switch to Paid
+          </button>
+        </div>
+      )}
 
       {/* Active watchlist */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/50">
@@ -89,10 +126,20 @@ export default function WatchlistPage() {
                   <span className="font-medium text-slate-100">{asset.symbol}</span>
                   <span className="text-xs text-slate-500">{asset.name}</span>
                 </div>
-                <span className={`font-mono font-bold tabular-nums ${asset.riskBand ? getRiskColor(asset.riskBand) : 'text-slate-400'}`}>
-                  {formatOrNA(asset.riskScore, formatScore)}
-                </span>
-                <RiskScoreBadge band={asset.riskBand} score={asset.riskScore} />
+                {unlocked ? (
+                  <span className={clsx('font-mono font-bold tabular-nums', asset.riskBand ? getRiskColor(asset.riskBand) : 'text-slate-400')}>
+                    {formatOrNA(asset.riskScore, formatScore)}
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 font-mono text-xs text-slate-600">
+                    <Lock size={11} aria-hidden /> Paid
+                  </span>
+                )}
+                {unlocked ? (
+                  <RiskScoreBadge band={asset.riskBand} score={asset.riskScore} />
+                ) : (
+                  <span className="text-xs text-slate-600">—</span>
+                )}
                 <span className="font-mono text-slate-300 tabular-nums">
                   {formatOrNA(asset.price, (v) => formatCurrency(v, 4))}
                 </span>

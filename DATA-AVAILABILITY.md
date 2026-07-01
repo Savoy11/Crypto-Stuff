@@ -40,7 +40,7 @@ backed by real data, with no fabricated ("mock") figures presented as real._
 | **Risk scores** | 🔴 Not available | — | Composite risk scoring is a derived analytic with no free real-time source. Returns empty; UI shows "not available". |
 | **Peg deviation history** | 🔴 Not available | — | No free historical peg series. Returns empty. |
 | **Per-row price sparklines** | 🔴 Not available | — | No free per-asset trend source at list scale; shows "n/a". |
-| **Reports (AUM, risk tables)** | 🔴 → being fixed | — | ⚠️ Currently fabricated from static catalog **even in live mode** (the one real mock leak). Being reworked to derive from live market data or show "not available". |
+| **Reports (AUM, risk tables)** | 🔴 Not available | — | Shows an explicit "not available" notice (no live-mode mock leak). Would derive from live market data if/when a backend is added. |
 | **Backtests** | 🔴 Not available | — | Requires a backtesting backend; not present. |
 
 ---

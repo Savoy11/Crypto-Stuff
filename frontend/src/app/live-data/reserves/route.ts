@@ -133,7 +133,23 @@ export async function GET() {
     const coins: DefiLlamaStablecoin[] = data.peggedAssets ?? []
     const filtered = coins.filter((c) => TARGET_SYMBOLS.has(c.symbol?.toUpperCase()))
 
-    const assets: LiveReserveAsset[] = filtered.map((coin): LiveReserveAsset => {
+    // DefiLlama returns several distinct tokens that share a ticker (e.g. multiple "USDP"/"USDp",
+    // duplicate "GUSD"). Uppercasing the symbol for matching collapses these together, so without
+    // de-duping we double-count supply AND attach an issuer's real attestation (e.g. Paxos/Withum)
+    // to an unrelated lookalike token. Keep only the canonical entry per symbol — the one with the
+    // largest circulating supply, which is reliably the real major stablecoin for our target set.
+    const bySymbol = new Map<string, DefiLlamaStablecoin>()
+    for (const coin of filtered) {
+      const sym = coin.symbol?.toUpperCase() ?? ''
+      const existing = bySymbol.get(sym)
+      const circ = coin.circulating?.peggedUSD ?? 0
+      if (!existing || circ > (existing.circulating?.peggedUSD ?? 0)) {
+        bySymbol.set(sym, coin)
+      }
+    }
+    const deduped = Array.from(bySymbol.values())
+
+    const assets: LiveReserveAsset[] = deduped.map((coin): LiveReserveAsset => {
       const sym = coin.symbol?.toUpperCase() ?? ''
       const meta = ATTESTATION_META[sym] ?? null
       const rawComposition = COMPOSITION_MAP[sym] ?? []

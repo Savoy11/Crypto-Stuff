@@ -427,14 +427,6 @@ function CbdcNewsPanel() {
 
   const articles = data ? filterCbdcNews(data.articles).slice(0, 12) : []
 
-  if (!LIVE_DATA) {
-    return (
-      <div className="rounded-xl border border-border bg-bg-card p-4 text-center text-xs text-text-muted">
-        CBDC policy updates available in live mode only.
-      </div>
-    )
-  }
-
   return (
     <div className="rounded-xl border border-border bg-bg-card overflow-hidden">
       <div className="flex items-center gap-2.5 px-4 py-3 border-b border-border">

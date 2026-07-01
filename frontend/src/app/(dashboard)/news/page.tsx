@@ -38,7 +38,7 @@ const PROVIDER_STYLES: Record<string, string> = {
   cryptopanic: 'text-orange-400 bg-orange-400/10 border-orange-500/20',
   messari:     'text-purple-400 bg-purple-400/10 border-purple-500/20',
   newsapi:     'text-sky-400 bg-sky-400/10 border-sky-500/20',
-  mock:        'text-slate-400 bg-slate-400/10 border-slate-500/20',
+  unknown:     'text-slate-400 bg-slate-400/10 border-slate-500/20',
 }
 
 function timeAgo(iso: string): string {
@@ -91,9 +91,9 @@ function ShareButton({ url, title }: { url: string; title: string }) {
 }
 
 function ArticleCard({ article }: { article: AnyArticle }) {
-  const provider = 'provider' in article ? article.provider : 'mock'
+  const provider = 'provider' in article ? article.provider : 'unknown'
   const providerLabel = 'providerLabel' in article ? article.providerLabel : null
-  const providerStyle = PROVIDER_STYLES[provider] ?? PROVIDER_STYLES.mock
+  const providerStyle = PROVIDER_STYLES[provider] ?? PROVIDER_STYLES.unknown
   const categoryStyle = CATEGORY_STYLES[article.category] ?? CATEGORY_STYLES.general
 
   return (
@@ -270,7 +270,7 @@ export default function NewsPage() {
               details={[
                 { label: 'Asset detection', text: 'Articles are tagged using coin name/ticker matching, issuer mapping (e.g. Circle → USDC), and regulatory inference (e.g. MiCA → USDC, USDT).' },
                 { label: 'Sentiment', text: 'Positive (green dot) · Neutral (grey) · Negative (red). Sentiment is inferred from headline keywords.' },
-                { label: 'Sources', text: 'Live mode aggregates RSS and JSON feeds from The Block, CoinDesk, Cointelegraph, and others. Mock mode uses pre-seeded articles.' },
+                { label: 'Sources', text: 'CAEP aggregates live RSS and JSON feeds from The Block, CoinDesk, Cointelegraph, and others. There is no mock mode — if no feed is reachable the list is shown as empty rather than seeded with fabricated articles.' },
                 { label: 'Keyword filter', text: 'Type a word or phrase to filter the feed by topic. Keywords match against each story’s headline, summary, classified category, tagged assets, sentiment, and source — so terms like "regulation" or "btc" match relevant stories even when the word isn’t in the title. Multiple keywords are combined with AND (every keyword must match); matching is case-insensitive. Adding a keyword also queries the news providers (NewsAPI, GNews) for fresh stories on that term, so the feed pulls in matching coverage rather than only filtering what is already loaded.' },
               ]}
             />
@@ -342,7 +342,7 @@ export default function NewsPage() {
 
       {/* Filters — visible whenever we have content to filter (or are past the
           initial load). Not gated on background refetches. */}
-      {(!LIVE_DATA || (!noProviders && (liveArticles.length > 0 || !isLoading))) && (
+      {(!noProviders && (liveArticles.length > 0 || !isLoading)) && (
         <div className="flex flex-col gap-3">
           {/* Row 1: asset + sentiment + keyword search */}
           <div className="flex flex-wrap items-center gap-3">

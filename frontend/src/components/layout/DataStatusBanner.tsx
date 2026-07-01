@@ -1,7 +1,7 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import { Radio, FlaskConical, AlertTriangle } from 'lucide-react'
+import { Radio, AlertTriangle } from 'lucide-react'
 import { formatDistanceToNow, parseISO } from 'date-fns'
 import { fetchLiveMarkets } from '@/lib/api/live/liveClient'
 import { LIVE_DATA } from '@/lib/constants'
@@ -43,18 +43,6 @@ export function DataStatusBanner() {
     enabled: LIVE_DATA,
     staleTime: 30 * 1000,
   })
-
-  if (!LIVE_DATA) {
-    return (
-      <div className="flex items-center gap-2 px-4 py-1.5 text-xs border-b border-amber-500/20 bg-amber-500/5 text-amber-300/90">
-        <FlaskConical size={13} aria-hidden />
-        <span className="font-medium">Demo mode</span>
-        <span className="text-amber-300/60">
-          — figures are illustrative sample data, not live market values.
-        </span>
-      </div>
-    )
-  }
 
   const ok = marketData?.ok ?? false
   const updatedAt = marketData?.updatedAt ?? null

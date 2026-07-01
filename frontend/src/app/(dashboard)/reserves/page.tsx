@@ -77,7 +77,7 @@ export default function ReservesPage() {
     refetchInterval: 10 * 60 * 1000,
   })
 
-  // Normalise live assets into the same shape as mock
+  // Normalise live assets into the shape the table expects
   const liveAssets = (liveData?.assets ?? []).map((a) => ({
     assetId: a.id,
     symbol: a.symbol,
@@ -152,7 +152,7 @@ export default function ReservesPage() {
       )}
 
       {/* Content */}
-      {(!LIVE_DATA || (!isLoading && !isError)) && reserves.length > 0 && (
+      {(!isLoading && !isError) && reserves.length > 0 && (
         <>
           {/* KPIs */}
           <div className="grid grid-cols-3 gap-4">

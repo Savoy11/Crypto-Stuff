@@ -7,7 +7,7 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade crypto analytics dashboard built with Next.js 14 (App Router). It evaluates crypto asset risk, tracks reserves, monitors news sentiment, and provides tools for comparing transfer fees and staking opportunities. The backend API is a separate service (not in this repo) — the frontend either connects to it or falls back to mock data.
+An institutional-grade crypto analytics dashboard built with Next.js 14 (App Router). It evaluates crypto asset risk, tracks reserves, monitors news sentiment, and provides tools for comparing transfer fees and staking opportunities. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers (an optional legacy backend exists for auth/agent features only). Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
@@ -83,8 +83,7 @@ frontend/src/
 │   │   ├── transferFees.ts         # 25 exchanges × 16 coins × 16 networks
 │   │   └── stakingProviders.ts     # 18 staking providers with risk profiles
 │   ├── api/                        # API client functions
-│   │   ├── live/                   # Live data fetchers (CoinGecko, etc.)
-│   │   └── mock/                   # Mock data for offline/dev mode
+│   │   └── live/                   # Live data fetchers (CoinGecko, DefiLlama, etc.)
 │   ├── utils/
 │   └── websocket/
 │
@@ -188,13 +187,12 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 ## Environment Variables
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000    # Backend API (optional — falls back to mock)
+NEXT_PUBLIC_API_URL=http://localhost:8000   # Optional legacy backend (auth/agent only)
 NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws   # WebSocket (optional)
-NEXT_PUBLIC_USE_MOCK=true                   # Force mock data
-NEXT_PUBLIC_LIVE_DATA=true                  # Enable live CoinGecko prices (default: true)
+# Paid-tier provider keys (CoinGecko Pro, CryptoPanic, etc.) live in .env.local
 ```
 
-The app runs fully without a backend. Set `NEXT_PUBLIC_USE_MOCK=true` or just don't set `NEXT_PUBLIC_API_URL` and all data comes from mock files in `src/lib/api/mock/`.
+CAEP runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
 
 ---
 
@@ -228,22 +226,34 @@ Risk/status color convention used across the app:
 
 ## Feature Inventory (what exists)
 
-| Feature | Route | Data source | Notes |
-|---------|-------|-------------|-------|
-| Dashboard | `/dashboard` | CoinGecko + mock | Overview metrics |
-| Asset Registry | `/assets` | CoinGecko live + mock catalog | 25+ assets |
-| Risk Scores | `/risk-scores` | Mock (derived metrics) | Scoring N/A without backend |
-| Reserves | `/reserves` | Mock | Reserve composition charts |
-| Alerts | `/alerts` | Mock | Alert management |
-| Watchlist | `/watchlist` | Mock | User watchlist |
-| News | `/news` | RSS/JSON multi-provider | Per-coin filtering, sentiment, asset detection |
-| Social | `/social` | Mock | Social sentiment |
-| Global Adoption | `/global-adoption` | Static | Country-level adoption map |
-| Transfer Fee Calc | `/transfer-fees` | `transferFees.ts` + live gas | 25 exchanges, 16 coins, 16 networks |
-| Staking | `/staking` | `stakingProviders.ts` + live APR | 18 providers, risk scoring, Celsius warning |
-| Backtests | `/backtests` | Mock | Strategy backtesting |
-| Reports | `/reports` | Mock | Report generation |
-| Settings | `/settings` (→ Integrations) | — | Integration configuration |
+> **Data-status source of truth:** `DATA-AVAILABILITY.md` (repo root) is the authoritative,
+> regularly-regenerated record of what is 🟢 Live / 🟡 Partial / 🔴 Not available. Consult it,
+> not this table, when in doubt. CAEP is live-only — there is **no mock/demo data path**;
+> "Mock" labels in older docs are obsolete.
+
+| Feature | Route | Status | Source / Notes |
+|---------|-------|--------|----------------|
+| Dashboard | `/dashboard` | 🟢 Live | Overview metrics from CoinGecko (`/live-data/markets`) |
+| Asset Registry | `/assets` | 🟢 Live | Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
+| Asset Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-asset news |
+| Risk Scores | `/risk-scores` | 🔴 Not available | No free real-time source; shows N/A |
+| Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`) |
+| Alerts | `/alerts` | 🟢 Live | `/live-data/alerts` — 14 stablecoin depegs + 16 major-asset 24h price moves |
+| Watchlist | `/watchlist` | 🟢 Live | Live prices via `useAssets`; risk column gated to the Paid tier |
+| News | `/news` | 🟢 Live | Multi-provider RSS/JSON; sentiment + asset detection |
+| Social | `/social` | 🟡 Partial | `/live-data/social` — verify which signals are live vs derived |
+| Global Adoption | `/global-adoption` | 🟡 Partial | Static country data + live CBDC news feed |
+| Transfer Fee Calc | `/transfer-fees` | 🟡 Partial | Static fee table (`transferFees.ts`) + live token prices; staleness-labeled |
+| Staking | `/staking` | 🟡 Partial | Live stETH/mSOL/jitoSOL APR; other providers reference/estimated |
+| Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
+| Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data |
+| Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
+| Portfolios | `/portfolios` | 🟢 Live | Live prices + portfolio history (`/live-data/portfolio-*`) |
+| Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
+| Research / Agent Config | `/research`, `/agent-config` | — | LLM/agent features + configuration UI |
+| Backtests | `/backtests` | 🔴 Not available | Requires a backtesting backend; not present |
+| Reports | `/reports` | 🔴 Not available | Shows explicit notice — no live-mode mock leak |
+| Settings | `/settings` (→ Integrations) | — | API keys, data tier (free/paid/custom), integrations |
 
 ---
 
