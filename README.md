@@ -1,8 +1,19 @@
 # CAEP — Crypto Asset Evaluation Platform
 
-CAEP helps you **evaluate crypto assets and act on that evaluation** — in one place, through a Bloomberg Terminal-style dashboard or programmatically through an AI-agent-native API.
+CAEP is an **AI-assisted companion for analyzing cryptocurrency**. It helps users of every skill level research, plan, and execute trades, transfers, and purchases — with artificial intelligence woven through the entire application, not bolted on.
 
-The project started as institutional-grade stablecoin risk analytics (risk scores, reserve transparency, peg stability) and has grown into a full evaluation platform covering ~100 assets: the top 50 Layer 1 coins and top 50 stablecoins.
+It covers much of the same ground as other crypto dashboards, but differentiates on four things:
+
+1. **Transfer Fee Calculator** — find the cheapest route for moving coins between exchanges
+2. **Customizable news feed** — multi-provider news with per-coin filtering and sentiment
+3. **Research assistant** — an AI agent linked to the platform's data, where *you* control what it analyzes
+4. **Pump Report** — AI-driven detection of pump-and-dumps, scams, and traps
+
+An ever-present in-app AI assistant provides context for every tool, discusses best practices, and helps users navigate the app — backed by a built-in knowledge base. Autonomous agents work in the background to flag fraud and scams encountered during research.
+
+**Data philosophy:** CAEP is bring-your-own-keys. The platform doesn't resell market data — users connect their own API keys for data providers and AI models, keeping costs transparent and data access under the user's control. (Today, live prices/fees/APRs come from free public APIs with no keys required; the BYO-key model applies to premium data sources and AI features.)
+
+The project began as institutional-grade stablecoin risk analytics (risk scores, reserve transparency, peg stability) — that scoring engine remains a core pillar, now alongside a catalog of ~100 assets: the top 50 Layer 1 coins and top 50 stablecoins.
 
 ## What it does
 
