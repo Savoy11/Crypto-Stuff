@@ -51,6 +51,10 @@ export interface ProviderConfig {
   lastTested?: string
   lastStatus?: ProviderStatus
   lastError?: string
+  /** Utilization tracking — written by data routes after each real fetch */
+  lastFetchAt?: string
+  lastFetchCount?: number
+  lastFetchError?: string
 }
 
 export interface ActiveProvider extends BuiltinProviderDef {
@@ -137,10 +141,10 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     id: 'cryptopanic',
     name: 'CryptoPanic',
     category: 'news',
-    description: 'Aggregates 50+ crypto news sources with per-asset tagging and sentiment scoring. Free API key available on signup.',
+    description: 'Aggregates 50+ crypto news sources with per-asset tagging and sentiment scoring. Requires a paid API key — the free tier was discontinued in April 2026.',
     features: ['Asset-tagged articles', 'Sentiment scoring', 'Breaking news flags', 'Source attribution'],
     requiresKey: true,
-    freeTierLabel: 'Free tier available — sign up to get a key',
+    freeTierLabel: 'Paid plan required (free tier ended Apr 2026)',
     keyUrl: 'https://cryptopanic.com/developers/api/',
   },
   {
@@ -244,7 +248,11 @@ export function getAllProviders(): AnyActiveProvider[] {
     else if (apiKey || !def.requiresKey) status = 'active'
     results.push({
       ...def,
-      config: { enabled, apiKey, lastTested: cfg.lastTested, lastStatus: cfg.lastStatus, lastError: cfg.lastError },
+      config: {
+        enabled, apiKey,
+        lastTested: cfg.lastTested, lastStatus: cfg.lastStatus, lastError: cfg.lastError,
+        lastFetchAt: cfg.lastFetchAt, lastFetchCount: cfg.lastFetchCount, lastFetchError: cfg.lastFetchError,
+      },
       status,
     })
   }
@@ -260,7 +268,11 @@ export function getAllProviders(): AnyActiveProvider[] {
     else status = 'active'
     results.push({
       ...def,
-      config: { enabled, apiKey, lastTested: cfg.lastTested, lastStatus: cfg.lastStatus, lastError: cfg.lastError },
+      config: {
+        enabled, apiKey,
+        lastTested: cfg.lastTested, lastStatus: cfg.lastStatus, lastError: cfg.lastError,
+        lastFetchAt: cfg.lastFetchAt, lastFetchCount: cfg.lastFetchCount, lastFetchError: cfg.lastFetchError,
+      },
       status,
     })
   }
@@ -320,4 +332,23 @@ export function saveProviderConfig(providerId: string, update: Partial<ProviderC
   const file = readConfigFile()
   file.configs[providerId] = { ...(file.configs[providerId] ?? {}), ...update }
   writeConfigFile(file)
+}
+
+/** Resolve the effective API key for a provider (saved config, else env var). */
+export function getProviderKey(providerId: string): string | undefined {
+  const file = readConfigFile()
+  return file.configs[providerId]?.apiKey ?? envKey(providerId)
+}
+
+/**
+ * Record the outcome of a real data fetch for a provider, so the Integrations
+ * page can show whether a configured provider is actually serving data
+ * (vs. silently failing or contributing nothing).
+ */
+export function recordProviderFetch(providerId: string, outcome: { count?: number; error?: string }): void {
+  saveProviderConfig(providerId, {
+    lastFetchAt: new Date().toISOString(),
+    lastFetchCount: outcome.error ? undefined : (outcome.count ?? 0),
+    lastFetchError: outcome.error,
+  })
 }

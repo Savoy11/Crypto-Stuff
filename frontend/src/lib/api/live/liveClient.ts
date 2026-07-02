@@ -1,5 +1,7 @@
 import { LIVE_DATA_BASE } from '@/lib/constants'
 import type { PriceCandle } from '@/lib/data/priceHistoryMeta'
+import { useTierStore } from '@/store/useTierStore'
+import { resolveSource } from '@/lib/tier'
 
 // Thin browser-side client for the in-app live-data proxy routes. These call
 // the Next.js route handlers (which in turn call CoinGecko server-side), so no
@@ -17,6 +19,8 @@ export interface LiveMarketsResult {
   ok: boolean
   updatedAt: string | null
   quotes: Record<string, LiveQuote>
+  /** Provider that actually served this response (e.g. "coinmarketcap", "coingecko-fallback") */
+  source?: string
 }
 
 function origin(): string {
@@ -27,7 +31,11 @@ function origin(): string {
 
 export async function fetchLiveMarkets(): Promise<LiveMarketsResult> {
   try {
-    const res = await fetch(`${origin()}${LIVE_DATA_BASE}/markets`, {
+    // Route prices through the source selected by the data tier (free / paid /
+    // custom). This is what makes the TierSwitch actually change providers.
+    const { mode, customSources } = useTierStore.getState()
+    const src = resolveSource('prices', mode, customSources)
+    const res = await fetch(`${origin()}${LIVE_DATA_BASE}/markets?source=${encodeURIComponent(src)}`, {
       headers: { Accept: 'application/json' },
     })
     if (!res.ok) return { ok: false, updatedAt: null, quotes: {} }

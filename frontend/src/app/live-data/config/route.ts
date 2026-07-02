@@ -94,10 +94,14 @@ export async function POST(req: NextRequest) {
     const key = body.apiKey ?? provider.config.apiKey
     try {
       const result = await testProvider(provider, key)
+      // "No test available" is a neutral outcome, NOT a provider failure —
+      // recording it as 'error' would silently bench the provider (getNews/
+      // SocialProviders exclude error-status providers from the data pipeline).
+      const untestable = !result.ok && result.error === 'No test available for this provider'
       saveProviderConfig(providerId, {
         lastTested: new Date().toISOString(),
-        lastStatus: result.ok ? 'active' : 'error',
-        lastError: result.ok ? undefined : result.error,
+        lastStatus: result.ok ? 'active' : untestable ? undefined : 'error',
+        lastError: result.ok || untestable ? undefined : result.error,
         ...(body.apiKey ? { apiKey: body.apiKey } : {}),
       })
       return NextResponse.json(result)
@@ -172,7 +176,7 @@ async function testBinance(): Promise<TestResult> {
 }
 
 async function testCryptoPanic(key?: string): Promise<TestResult> {
-  if (!key) return { ok: false, error: 'API key required — free tier available at cryptopanic.com/developers/api' }
+  if (!key) return { ok: false, error: 'Paid API key required — CryptoPanic discontinued its free tier in April 2026' }
   const res = await fetch(`https://cryptopanic.com/api/v1/posts/?auth_token=${key}&public=true&limit=1`, {
     headers: { Accept: 'application/json' },
   })

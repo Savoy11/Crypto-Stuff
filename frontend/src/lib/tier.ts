@@ -21,10 +21,10 @@ export const TIER_CATEGORIES: Record<string, TierCategory> = {
   prices: {
     label: 'Spot Prices',
     description: 'Real-time asset prices and 24h market data',
-    freeSource: 'binance',
-    freeSourceLabel: 'Binance (30s)',
-    paidSource: 'coingecko',
-    paidSourceLabel: 'CoinGecko Pro (60s)',
+    freeSource: 'coingecko',
+    freeSourceLabel: 'CoinGecko (keyless)',
+    paidSource: 'coinmarketcap',
+    paidSourceLabel: 'CoinMarketCap Pro',
     queryParam: 'source',
   },
   ohlcv: {

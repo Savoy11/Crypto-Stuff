@@ -725,7 +725,7 @@ function NewsTab({ assetId }: { assetId: string }) {
 
   if (noProviders) {
     return (
-      <LiveUnavailable message="No news sources are configured. Enable CryptoPanic (free, no key needed) in Integrations to see live news for this asset." />
+      <LiveUnavailable message="No news sources are configured. Add a news source in Integrations to see live news for this asset." />
     )
   }
 

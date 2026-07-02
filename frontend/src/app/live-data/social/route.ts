@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSocialProviders, type AnyActiveProvider } from '@/lib/api/live/providers'
+import { getSocialProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,16 +72,23 @@ export async function GET(req: NextRequest) {
   const allSignals: SocialSignal[] = []
   const seenIds = new Set<string>()
 
-  for (const result of results) {
+  results.forEach((result, i) => {
+    const providerId = providers[i].id
     if (result.status === 'fulfilled') {
+      recordProviderFetch(providerId, { count: result.value.length })
       for (const signal of result.value) {
         if (!seenIds.has(signal.id)) {
           seenIds.add(signal.id)
           allSignals.push(signal)
         }
       }
+    } else {
+      // Surface the failure on the Integrations page instead of swallowing it.
+      recordProviderFetch(providerId, {
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      })
     }
-  }
+  })
 
   allSignals.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
@@ -292,11 +299,18 @@ function decodeHtmlEntities(s: string): string {
 async function fetchLunarCrush(apiKey: string, assetFilter: string, limit: number): Promise<SocialSignal[]> {
   const symbol = assetFilter === 'all' ? 'BTC' : assetFilter.toUpperCase()
   const url = `https://lunarcrush.com/api4/public/coins/${symbol}/v1`
+  // LunarCrush sits behind Cloudflare bot protection that 403s bare server
+  // fetches (Error 1010) — send browser-like headers so the request passes.
   const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/json',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
     next: { revalidate: 300 },
   })
-  if (!res.ok) throw new Error(`LunarCrush HTTP ${res.status}`)
+  if (!res.ok) throw new Error(`LunarCrush HTTP ${res.status}${res.status === 403 ? ' (Cloudflare bot block)' : ''}`)
   const data = await res.json()
   const coin = data?.data
 

@@ -20,6 +20,7 @@ import {
   Pencil,
   X,
 } from 'lucide-react'
+import { timeAgo } from '@/lib/utils/format'
 
 // ─── Subreddit manager (embedded inside Reddit provider card) ─────────────────
 
@@ -134,6 +135,9 @@ interface BuiltinProviderView {
     lastTested?: string
     lastStatus?: ProviderStatus
     lastError?: string
+    lastFetchAt?: string
+    lastFetchCount?: number
+    lastFetchError?: string
   }
 }
 
@@ -156,6 +160,9 @@ interface CustomProviderView {
     lastTested?: string
     lastStatus?: ProviderStatus
     lastError?: string
+    lastFetchAt?: string
+    lastFetchCount?: number
+    lastFetchError?: string
   }
 }
 
@@ -193,6 +200,41 @@ function StatusBadge({ status }: { status?: ProviderStatus }) {
 }
 
 // ─── Built-in provider card ───────────────────────────────────────────────────
+
+// ── Utilization indicator ───────────────────────────────────────────────────
+// Shows whether a configured provider is ACTUALLY serving data — the truth the
+// enable-toggle alone can't tell you. Written by the data routes on every fetch.
+function UtilizationLine({ config, enabled }: {
+  config: { lastFetchAt?: string; lastFetchCount?: number; lastFetchError?: string }
+  enabled: boolean
+}) {
+  if (!enabled) return null
+  const { lastFetchAt, lastFetchCount, lastFetchError } = config
+
+  if (lastFetchError) {
+    return (
+      <p className="text-[11px] text-red-400 mt-1 truncate" title={lastFetchError}>
+        ⚠ Last fetch failed: {lastFetchError}{lastFetchAt ? ` · ${timeAgo(lastFetchAt)}` : ''}
+      </p>
+    )
+  }
+  if (lastFetchCount != null && lastFetchAt) {
+    return lastFetchCount > 0 ? (
+      <p className="text-[11px] text-emerald-400/90 mt-1">
+        ● Serving data — {lastFetchCount} item{lastFetchCount === 1 ? '' : 's'} in last fetch · {timeAgo(lastFetchAt)}
+      </p>
+    ) : (
+      <p className="text-[11px] text-amber-400/90 mt-1">
+        ○ Connected but contributed 0 items in last fetch · {timeAgo(lastFetchAt)}
+      </p>
+    )
+  }
+  return (
+    <p className="text-[11px] text-slate-500 mt-1">
+      ◌ No data fetched yet — not consumed by any feed so far
+    </p>
+  )
+}
 
 function ProviderCard({ provider, onUpdate }: { provider: BuiltinProviderView; onUpdate: () => void }) {
   const [expanded, setExpanded] = useState(false)
@@ -265,6 +307,7 @@ function ProviderCard({ provider, onUpdate }: { provider: BuiltinProviderView; o
             )}
           </div>
           <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{provider.description}</p>
+          <UtilizationLine config={provider.config} enabled={enabled} />
         </div>
         <button onClick={() => setExpanded(!expanded)} className="text-slate-500 hover:text-slate-300 transition-colors p-1">
           <ChevronRight size={16} className={`transition-transform ${expanded ? 'rotate-90' : ''}`} />
@@ -464,6 +507,7 @@ function CustomProviderCard({ provider, onUpdate }: { provider: CustomProviderVi
             <StatusBadge status={status} />
           </div>
           <p className="text-xs text-slate-500 mt-0.5 font-mono truncate">{provider.url}</p>
+          <UtilizationLine config={provider.config} enabled={enabled} />
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -890,22 +934,6 @@ export default function SettingsPage() {
               <h2 className="text-sm font-semibold text-slate-300">News & Analysis</h2>
               <span className="text-xs text-slate-500">— all active providers run in parallel, articles merged and attributed</span>
             </div>
-            {/* CryptoPanic free-tier callout — show if not yet configured */}
-            {newsProviders.find((p) => p.id === 'cryptopanic' && !p.config.hasKey) && (
-              <div className="mb-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 flex items-start gap-3">
-                <span className="text-emerald-400 text-lg leading-none flex-shrink-0">🔑</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-emerald-300">CryptoPanic has a free tier — takes 30 seconds to activate</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Sign up at <a href="https://cryptopanic.com/developers/api/" target="_blank" rel="noopener noreferrer"
-                      className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
-                      cryptopanic.com/developers/api
-                    </a>{' '}— your free auth token appears on the dashboard immediately.
-                    Paste it into the CryptoPanic card below to unlock asset-tagged news with sentiment scores.
-                  </p>
-                </div>
-              </div>
-            )}
             <div className="space-y-2">
               {newsProviders.map((p) => (
                 <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />

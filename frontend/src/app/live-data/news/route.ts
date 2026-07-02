@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getNewsProviders, type AnyActiveProvider, type CustomProviderDef } from '@/lib/api/live/providers'
+import { getNewsProviders, recordProviderFetch, type AnyActiveProvider, type CustomProviderDef } from '@/lib/api/live/providers'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,16 +43,23 @@ export async function GET(req: NextRequest) {
   const allArticles: LiveNewsArticle[] = []
   const seenUrls = new Set<string>()
 
-  for (const result of results) {
+  results.forEach((result, i) => {
+    const providerId = providers[i].id
     if (result.status === 'fulfilled') {
+      recordProviderFetch(providerId, { count: result.value.length })
       for (const article of result.value) {
         if (!seenUrls.has(article.url)) {
           seenUrls.add(article.url)
           allArticles.push(article)
         }
       }
+    } else {
+      // Surface the failure on the Integrations page instead of swallowing it.
+      recordProviderFetch(providerId, {
+        error: result.reason instanceof Error ? result.reason.message : String(result.reason),
+      })
     }
-  }
+  })
 
   allArticles.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
@@ -570,9 +577,11 @@ const GNEWS_ASSET_QUERY: Record<string, string> = {
 }
 
 async function fetchGNews(apiKey: string, assetFilter: string, limit: number, search = ''): Promise<LiveNewsArticle[]> {
+  // GNews ANDs bare keywords — the old 5-word default matched almost nothing.
+  // Use OR so the broad sweep actually returns current articles.
   const base = assetFilter !== 'all'
     ? (GNEWS_ASSET_QUERY[assetFilter] ?? `${assetFilter} cryptocurrency`)
-    : 'cryptocurrency bitcoin ethereum stablecoin DeFi'
+    : 'cryptocurrency OR bitcoin OR ethereum OR stablecoin'
   // Keyword search takes priority, scoped to the asset when one is selected.
   const q = search
     ? (assetFilter !== 'all' ? `${assetFilter} ${search}` : search)

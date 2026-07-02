@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ALL_COINGECKO_IDS, ASSET_ID_BY_COINGECKO } from '@/lib/api/live/coingeckoIds'
+import { ALL_COINGECKO_IDS, ASSET_ID_BY_COINGECKO, COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
+import { getProviderKey, recordProviderFetch } from '@/lib/api/live/providers'
 
 // Server-side proxy for market data.
 // Supports multiple sources via ?source= query param:
 //   "coingecko" (default) — CoinGecko free/paid tier
 //   "binance"             — Binance public API (no key, higher rate limits)
+//   "coinmarketcap"       — CoinMarketCap Pro (requires key from Integrations)
+//
+// Each source falls back to the others on failure; the response's `source`
+// field reports which provider actually served the data.
 //
 // Response shape:
 //   { ok, updatedAt, quotes: Record<assetId, LiveQuote>, source }
@@ -80,33 +85,81 @@ async function fetchBinance(): Promise<Record<string, unknown>> {
   return quotes
 }
 
+async function fetchCoinMarketCap(): Promise<Record<string, unknown>> {
+  const key = getProviderKey('coinmarketcap')
+  if (!key) throw new Error('CoinMarketCap key not configured')
+
+  // Internal asset ids are lowercase ticker symbols — query CMC by symbol.
+  // skip_invalid tolerates symbols CMC doesn't recognise (parity with the
+  // Binance source, which also covers a subset of the universe).
+  const symbols = Object.keys(COINGECKO_IDS).map((id) => id.toUpperCase()).join(',')
+  const url = `https://pro-api.coinmarketcap.com/v2/cryptocurrency/quotes/latest?symbol=${symbols}&skip_invalid=true&aux=circulating_supply`
+  const res = await fetch(url, {
+    headers: { 'X-CMC_PRO_API_KEY': key, Accept: 'application/json' },
+    next: { revalidate: 60 },
+  })
+  if (!res.ok) throw new Error(`CoinMarketCap ${res.status}`)
+
+  const body = await res.json() as {
+    data?: Record<string, Array<{
+      symbol: string
+      circulating_supply: number | null
+      quote?: { USD?: { price: number | null; market_cap: number | null; volume_24h: number | null; percent_change_24h: number | null } }
+    }>>
+  }
+
+  const quotes: Record<string, unknown> = {}
+  for (const [symbol, entries] of Object.entries(body.data ?? {})) {
+    if (!Array.isArray(entries) || entries.length === 0) continue
+    // CMC returns every token sharing a ticker — keep the canonical one
+    // (largest market cap), same de-dup rule as the reserves route.
+    const best = [...entries].sort(
+      (a, b) => (b.quote?.USD?.market_cap ?? 0) - (a.quote?.USD?.market_cap ?? 0),
+    )[0]
+    const usd = best.quote?.USD
+    if (!usd) continue
+    quotes[symbol.toLowerCase()] = {
+      price: usd.price ?? null,
+      marketCap: usd.market_cap ?? null,
+      volume24h: usd.volume_24h ?? null,
+      priceChange24h: usd.percent_change_24h ?? null,
+      circulatingSupply: best.circulating_supply ?? null,
+    }
+  }
+  return quotes
+}
+
+type SourceId = 'coingecko' | 'binance' | 'coinmarketcap'
+
+const FETCHERS: Record<SourceId, () => Promise<Record<string, unknown>>> = {
+  coingecko: fetchCoinGecko,
+  binance: fetchBinance,
+  coinmarketcap: fetchCoinMarketCap,
+}
+
 export async function GET(request: NextRequest) {
   const source = request.nextUrl.searchParams.get('source') ?? 'coingecko'
 
-  try {
-    let quotes: Record<string, unknown>
-    let resolvedSource = source
+  // Requested source first, then the others as fallbacks.
+  const requested: SourceId = source === 'binance' || source === 'coinmarketcap' ? source : 'coingecko'
+  const chain: SourceId[] = [requested, ...(['coingecko', 'binance', 'coinmarketcap'] as SourceId[]).filter((s) => s !== requested)]
 
-    if (source === 'binance') {
-      try {
-        quotes = await fetchBinance()
-      } catch {
-        // Fall back to CoinGecko if Binance fails
-        quotes = await fetchCoinGecko()
-        resolvedSource = 'coingecko-fallback'
-      }
-    } else {
-      try {
-        quotes = await fetchCoinGecko()
-      } catch {
-        // Fall back to Binance if CoinGecko fails
-        quotes = await fetchBinance()
-        resolvedSource = 'binance-fallback'
-      }
+  for (let i = 0; i < chain.length; i++) {
+    const src = chain[i]
+    try {
+      const quotes = await FETCHERS[src]()
+      if (Object.keys(quotes).length === 0) throw new Error(`${src} returned no quotes`)
+      recordProviderFetch(src, { count: Object.keys(quotes).length })
+      return NextResponse.json({
+        ok: true,
+        updatedAt: new Date().toISOString(),
+        quotes,
+        source: i === 0 ? src : `${src}-fallback`,
+      })
+    } catch (err) {
+      recordProviderFetch(src, { error: err instanceof Error ? err.message : String(err) })
     }
-
-    return NextResponse.json({ ok: true, updatedAt: new Date().toISOString(), quotes, source: resolvedSource })
-  } catch {
-    return NextResponse.json({ ok: false, updatedAt: null, quotes: {}, source, error: 'fetch_failed' })
   }
+
+  return NextResponse.json({ ok: false, updatedAt: null, quotes: {}, source, error: 'fetch_failed' })
 }

@@ -306,7 +306,7 @@ export default function NewsPage() {
           <Newspaper className="mx-auto h-7 w-7 text-amber-400/70" />
           <p className="mt-2 font-medium text-slate-200 text-sm">No news sources configured</p>
           <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
-            CryptoPanic&apos;s free tier requires no API key. Enable it in Integrations to start seeing live news.
+            CryptoPanic now requires a paid API key (its free tier ended April 2026). Add a news source in Integrations to start seeing live news.
           </p>
           <Link
             href="/settings"

@@ -47,9 +47,16 @@ export function DataStatusBanner() {
   const ok = marketData?.ok ?? false
   const updatedAt = marketData?.updatedAt ?? null
 
-  const priceProviders = (activeProviders ?? []).filter((p) => p.category === 'price')
   const newsProviders = (activeProviders ?? []).filter((p) => p.category === 'news')
-  const priceLabel = priceProviders.map((p) => p.name).join(', ') || 'CoinGecko'
+  // Report the provider that ACTUALLY served the last price fetch (from the
+  // markets response), not merely the providers that are enabled.
+  const SOURCE_NAMES: Record<string, string> = {
+    coingecko: 'CoinGecko', binance: 'Binance', coinmarketcap: 'CoinMarketCap',
+  }
+  const rawSource = marketData?.source ?? 'coingecko'
+  const isFallback = rawSource.endsWith('-fallback')
+  const baseSource = rawSource.replace(/-fallback$/, '')
+  const priceLabel = (SOURCE_NAMES[baseSource] ?? baseSource) + (isFallback ? ' (fallback)' : '')
   const newsLabel = newsProviders.map((p) => p.name).join(', ')
 
   if (!ok) {
