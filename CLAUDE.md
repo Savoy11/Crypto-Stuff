@@ -79,6 +79,11 @@ frontend/src/
 │
 ├── lib/
 │   ├── constants.ts                # App-wide constants, stale times, API URLs
+│   ├── risk/                       # Unified risk framework (pure TS, vitest-tested)
+│   │   │                           #   see docs/architecture/risk-framework.md
+│   │   ├── engine.ts               # composeRisk() — profile-agnostic scoring
+│   │   ├── normalize.ts            # piecewise/linear normalizers, vol, drawdown
+│   │   └── profiles/               # equity, optionsTrade, stakingAdapter
 │   ├── data/                       # Static/semi-static data files (no API calls)
 │   │   ├── transferFees.ts         # 25 exchanges × 16 coins × 16 networks
 │   │   └── stakingProviders.ts     # 18 staking providers with risk profiles
