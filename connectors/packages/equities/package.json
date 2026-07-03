@@ -1,0 +1,31 @@
+{
+  "name": "@caep/connector-equities",
+  "version": "0.1.0",
+  "description": "Equities asset-class connector for the CAEP suite — stock quotes, search, and EOD history via Financial Modeling Prep (API key required; demo mode included)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@caep/connector-core": "^0.1.0"
+  },
+  "keywords": [
+    "caep",
+    "equities",
+    "stocks",
+    "fmp",
+    "connector"
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@caep/connector-forex",
+  "version": "0.1.0",
+  "description": "Forex asset-class connector for the CAEP suite — daily ECB reference rates and history via Frankfurter (no API key required)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@caep/connector-core": "^0.1.0"
+  },
+  "keywords": [
+    "caep",
+    "forex",
+    "fx",
+    "connector"
+  ]
+}

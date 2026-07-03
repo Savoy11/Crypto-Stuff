@@ -1,0 +1,19 @@
+{
+  "name": "caep-connectors",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CAEP Asset-Class Connector Suite — independently sellable market-data connectors sharing one core SDK",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @caep/connector-core && npm run build -w @caep/connector-crypto -w @caep/connector-forex -w @caep/connector-equities -w @caep/connector-commodities && npm run build -w @caep/connector-suite",
+    "demo": "node examples/suite-demo.mjs",
+    "clean": "rm -rf packages/*/dist packages/*/*.tsbuildinfo"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}

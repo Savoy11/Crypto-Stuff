@@ -1,0 +1,34 @@
+{
+  "name": "@caep/connector-suite",
+  "version": "0.1.0",
+  "description": "The full CAEP asset-class connector bundle — crypto, equities, forex, and commodities pre-wired into one registry",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@caep/connector-core": "^0.1.0",
+    "@caep/connector-crypto": "^0.1.0",
+    "@caep/connector-equities": "^0.1.0",
+    "@caep/connector-forex": "^0.1.0",
+    "@caep/connector-commodities": "^0.1.0"
+  },
+  "keywords": [
+    "caep",
+    "market-data",
+    "connector",
+    "bundle"
+  ]
+}
