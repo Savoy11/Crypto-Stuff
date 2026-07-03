@@ -11,6 +11,8 @@
     "lint": "next lint",
     "type-check": "tsc --noEmit",
     "smoke": "node scripts/smoke.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "restart": "npx kill-port 3000 & rmdir /s /q .next & npm run dev"
   },
   "dependencies": {
@@ -45,6 +47,7 @@
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.0"
+    "eslint-config-next": "14.2.0",
+    "vitest": "^3.0.0"
   }
 }
