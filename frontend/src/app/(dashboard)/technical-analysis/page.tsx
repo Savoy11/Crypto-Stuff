@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
@@ -533,7 +533,17 @@ function MultiTimeframeGrid({ assetId }: { assetId: string }) {
 
 type Tab = 'chart' | 'screener' | 'patterns'
 
+// useSearchParams() forces a CSR bailout, so the page body must sit inside a
+// Suspense boundary for `next build` prerendering to succeed.
 export default function TechnicalAnalysisPage() {
+  return (
+    <Suspense>
+      <TechnicalAnalysisContent />
+    </Suspense>
+  )
+}
+
+function TechnicalAnalysisContent() {
   const searchParams = useSearchParams()
 
   // Fetch live coin list to enrich OHLCV-supported assets with names + ranks

@@ -19,7 +19,53 @@ import {
   Globe,
   Pencil,
   X,
+  Blocks,
 } from 'lucide-react'
+import { OPTIONAL_MODULES } from '@/lib/modules/registry'
+import { useEntitlementStore } from '@/store/useEntitlementStore'
+
+// ─── Suite modules panel ──────────────────────────────────────────────────────
+// Toggles which suite modules (Crypto, Equities, ETFs & Funds) appear in the
+// sidebar. Backed by the entitlement store — becomes license-driven when
+// billing lands (docs/ROADMAP.md, Phase 6).
+
+function ModulesPanel() {
+  const { isEnabled, setEnabled } = useEntitlementStore()
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <Blocks size={15} className="text-accent-blue" />
+        <h2 className="text-sm font-semibold text-slate-300">Suite Modules</h2>
+        <span className="text-xs text-slate-500">— disabled modules disappear from the sidebar and their pages lock</span>
+      </div>
+      <div className="space-y-2">
+        {OPTIONAL_MODULES.map((mod) => {
+          const enabled = isEnabled(mod.id)
+          return (
+            <div key={mod.id} className="flex items-center justify-between rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-slate-200">{mod.label}</p>
+                <p className="text-[11px] text-slate-500">
+                  {mod.navItems.length} page{mod.navItems.length !== 1 ? 's' : ''} · {mod.routePrefixes.join(', ')}
+                </p>
+              </div>
+              <button
+                onClick={() => setEnabled(mod.id, !enabled)}
+                role="switch"
+                aria-checked={enabled}
+                aria-label={`${enabled ? 'Disable' : 'Enable'} ${mod.label} module`}
+                className={`relative h-5 w-9 rounded-full transition-colors ${enabled ? 'bg-accent-blue' : 'bg-slate-700'}`}
+              >
+                <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${enabled ? 'left-[18px]' : 'left-0.5'}`} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
 
 // ─── Subreddit manager (embedded inside Reddit provider card) ─────────────────
 
@@ -865,6 +911,9 @@ export default function SettingsPage() {
         </div>
       ) : (
         <>
+          {/* Suite modules */}
+          <ModulesPanel />
+
           {/* Market data */}
           <section>
             <div className="flex items-center gap-2 mb-3">
