@@ -47,7 +47,7 @@ function ModulesPanel() {
               <div>
                 <p className="text-sm font-medium text-slate-200">{mod.label}</p>
                 <p className="text-[11px] text-slate-500">
-                  {mod.navItems.length} page{mod.navItems.length !== 1 ? 's' : ''} · {mod.routePrefixes.join(', ')}
+                  {mod.navItems.length} page{mod.navItems.length !== 1 ? 's' : ''} · {mod.navItems.map((item) => item.href).join(', ')}
                 </p>
               </div>
               <button
