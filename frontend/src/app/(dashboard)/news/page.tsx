@@ -457,12 +457,14 @@ export default function NewsPage() {
             </p>
           </div>
 
-          {/* Row 2: category buttons */}
+          {/* Row 2: category buttons — no "All" button; nothing selected = all
+              categories, and reclicking the active category deselects it */}
           <div className="flex flex-wrap gap-1.5">
-            {NEWS_CATEGORIES.map((cat) => (
+            {NEWS_CATEGORIES.filter((cat) => cat.value !== 'all').map((cat) => (
               <button
                 key={cat.value}
-                onClick={() => setCategoryFilter(cat.value as NewsCategory | 'all')}
+                onClick={() => setCategoryFilter(categoryFilter === cat.value ? 'all' : (cat.value as NewsCategory))}
+                title={categoryFilter === cat.value ? 'Click again to show all categories' : undefined}
                 className={clsx(
                   'px-2.5 py-1 rounded text-xs font-medium border transition-all',
                   categoryFilter === cat.value
