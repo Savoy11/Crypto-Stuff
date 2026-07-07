@@ -11,6 +11,8 @@ import type { NewsCategory, NewsArticle } from '@/lib/data/newsCategories'
 import { LIVE_DATA } from '@/lib/constants'
 import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import { useAssetList } from '@/lib/hooks/useAssetList'
+import { useTierStore } from '@/store/useTierStore'
+import { resolveNewsProviders } from '@/lib/tier'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -176,9 +178,14 @@ function ArticleCard({ article }: { article: AnyArticle }) {
 
 // ─── Live news fetcher ────────────────────────────────────────────────────────
 
-async function fetchLiveNews(asset: string, keywords: string[]): Promise<{ articles: LiveNewsArticle[]; providers: { id: string; name: string }[] }> {
+async function fetchLiveNews(
+  asset: string,
+  keywords: string[],
+  providersFilter: string | null,
+): Promise<{ articles: LiveNewsArticle[]; providers: { id: string; name: string }[] }> {
   const params = new URLSearchParams({ asset, limit: '60' })
   if (keywords.length > 0) params.set('q', keywords.join(','))
+  if (providersFilter) params.set('providers', providersFilter)
   const res = await fetch(`/live-data/news?${params}`)
   if (!res.ok) return { articles: [], providers: [] }
   return res.json()
@@ -206,10 +213,16 @@ export default function NewsPage() {
     setKeywords((prev) => prev.filter((k) => k !== kw))
   }, [])
 
-  // Live mode: fetch from all configured news providers
+  // Live mode: fetch from configured news providers. In the Custom tier the
+  // user can select a subset of sources (TierSwitch multi-select) — that
+  // selection flows through as a ?providers= filter.
+  const tierMode = useTierStore((s) => s.mode)
+  const customSources = useTierStore((s) => s.customSources)
+  const providersFilter = resolveNewsProviders(tierMode, customSources)
+
   const { data: liveData, isLoading, isFetching, isError, refetch } = useQuery({
-    queryKey: ['live-news', assetFilter, keywords],
-    queryFn: () => fetchLiveNews(assetFilter, keywords),
+    queryKey: ['live-news', assetFilter, keywords, providersFilter],
+    queryFn: () => fetchLiveNews(assetFilter, keywords, providersFilter),
     enabled: LIVE_DATA,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,

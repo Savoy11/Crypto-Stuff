@@ -15,6 +15,9 @@ export interface TierCategory {
   paidSource: string
   paidSourceLabel: string
   queryParam: string  // value passed as ?source= to the route
+  /** Multi-select category (custom mode lets the user pick several sources). */
+  multi?: boolean
+  multiOptions?: { id: string; label: string }[]
 }
 
 export const TIER_CATEGORIES: Record<string, TierCategory> = {
@@ -40,10 +43,16 @@ export const TIER_CATEGORIES: Record<string, TierCategory> = {
     label: 'News Feed',
     description: 'Crypto news articles and headlines',
     freeSource: 'rss',
-    freeSourceLabel: 'RSS Feeds',
+    freeSourceLabel: 'All enabled sources (merged)',
     paidSource: 'cryptopanic',
-    paidSourceLabel: 'CryptoPanic + Messari',
-    queryParam: 'source',
+    paidSourceLabel: 'All enabled sources (merged)',
+    queryParam: 'providers',
+    // News merges providers, so custom mode is a multi-select — pick any set.
+    // The option list itself is NOT static: it's built at render time from the
+    // live /live-data/config provider list (see TierSwitch), filtered to
+    // category 'news' AND config.enabled, so every individually-enabled source
+    // (including each custom RSS feed) shows up, and disabled ones don't.
+    multi: true,
   },
   social: {
     label: 'Social Signals',
@@ -108,6 +117,18 @@ export function resolveSource(
 export function tierQueryParam(categoryKey: string, mode: TierMode, custom?: Record<string, string>): string {
   const source = resolveSource(categoryKey, mode, custom)
   return `source=${source}`
+}
+
+/**
+ * News provider filter for the current tier. Returns a comma-separated provider
+ * list to pass as ?providers= (custom mode with a selection), or null meaning
+ * "no filter — merge all enabled providers" (free/paid, or nothing selected).
+ */
+export function resolveNewsProviders(mode: TierMode, custom?: Record<string, string>): string | null {
+  if (mode !== 'custom') return null
+  const sel = (custom?.news ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+  if (sel.length === 0) return null
+  return sel.join(',')
 }
 
 export const TIER_LABELS: Record<TierMode, string> = {

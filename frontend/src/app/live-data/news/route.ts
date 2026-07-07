@@ -31,7 +31,21 @@ export async function GET(req: NextRequest) {
     .filter(Boolean)
   const searchQuery = keywords.join(' ')
 
-  const providers = getNewsProviders()
+  // Optional provider filter (?providers=rss,newsapi,…) — set by the Custom
+  // tier's multi-select. "rss" selects all custom feed providers. Absent or
+  // empty = merge every enabled provider (default behaviour).
+  const providerFilter = (searchParams.get('providers') ?? '')
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+
+  let providers = getNewsProviders()
+  if (providerFilter.length > 0) {
+    providers = providers.filter((p) =>
+      providerFilter.includes(p.id.toLowerCase()) ||
+      (providerFilter.includes('rss') && p.isCustom)
+    )
+  }
   if (providers.length === 0) {
     return NextResponse.json({ ok: false, articles: [], providers: [] })
   }

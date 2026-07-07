@@ -1,10 +1,25 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ChevronDown, Zap, Crown, Sliders, Check } from 'lucide-react'
 import { useTierStore } from '@/store/useTierStore'
 import { TIER_CATEGORIES, TIER_LABELS, TIER_COLORS, type TierMode } from '@/lib/tier'
+
+interface LiveProviderInfo {
+  id: string
+  name: string
+  category: string
+  config: { enabled: boolean }
+}
+
+async function fetchLiveProviders(): Promise<LiveProviderInfo[]> {
+  const res = await fetch('/live-data/config')
+  if (!res.ok) return []
+  const data = await res.json()
+  return data.providers ?? []
+}
 
 const TIER_ICONS: Record<TierMode, React.ReactNode> = {
   free:   <Zap size={11} />,
@@ -22,6 +37,17 @@ export function TierSwitch() {
   const { mode, customSources, setMode, setCustomSource } = useTierStore()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+
+  // Live provider list — powers the multi-select option lists (News Feed) so
+  // they reflect exactly what's enabled on the Integrations page, including
+  // each custom RSS feed individually. Only fetched once the dropdown is
+  // opened; cached after that.
+  const { data: liveProviders } = useQuery({
+    queryKey: ['tier-switch-live-providers'],
+    queryFn: fetchLiveProviders,
+    enabled: open,
+    staleTime: 30_000,
+  })
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -92,6 +118,25 @@ export function TierSwitch() {
                 : mode === 'paid' ? cat.paidSourceLabel : cat.freeSourceLabel
               const isSame = cat.freeSource === cat.paidSource
 
+              // Multi-select categories (news): custom mode shows checkboxes so
+              // several sources can be combined. Empty selection = all sources.
+              const selected = (customSources[key] ?? '')
+                .split(',').map((s) => s.trim()).filter(Boolean)
+              const toggleOption = (id: string) => {
+                const next = selected.includes(id)
+                  ? selected.filter((s) => s !== id)
+                  : [...selected, id]
+                setCustomSource(key, next.join(','))
+              }
+              // Options for a multi-select category = every provider currently
+              // ENABLED on the Integrations page for that category — disabled
+              // providers never appear here, and each custom feed is its own row.
+              const liveOptions = cat.multi
+                ? (liveProviders ?? [])
+                    .filter((p) => p.category === key && p.config.enabled)
+                    .map((p) => ({ id: p.id, label: p.name }))
+                : []
+
               return (
                 <div key={key} className="px-4 py-2.5 border-b border-border/50 last:border-0">
                   <div className="flex items-start justify-between gap-3">
@@ -100,7 +145,7 @@ export function TierSwitch() {
                       <p className="text-[10px] text-text-muted">{cat.description}</p>
                     </div>
                     <div className="flex-shrink-0 text-right">
-                      {mode === 'custom' ? (
+                      {mode === 'custom' && !cat.multi ? (
                         <select
                           value={customSources[key] ?? cat.freeSource}
                           onChange={(e) => setCustomSource(key, e.target.value)}
@@ -111,6 +156,10 @@ export function TierSwitch() {
                             <option value={cat.paidSource}>{cat.paidSourceLabel}</option>
                           )}
                         </select>
+                      ) : mode === 'custom' && cat.multi ? (
+                        <span className="text-[10px] text-text-muted">
+                          {selected.length > 0 ? `${selected.length} selected` : 'all sources'}
+                        </span>
                       ) : (
                         <span className={clsx(
                           'inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded',
@@ -121,6 +170,41 @@ export function TierSwitch() {
                       )}
                     </div>
                   </div>
+
+                  {/* Checkbox list for multi-select categories in custom mode */}
+                  {mode === 'custom' && cat.multi && (
+                    liveOptions.length > 0 ? (
+                      <div className="mt-2 grid grid-cols-1 gap-1">
+                        {liveOptions.map((opt) => {
+                          const checked = selected.length === 0 || selected.includes(opt.id)
+                          return (
+                            <label key={opt.id} className="flex items-center gap-2 cursor-pointer text-[11px] text-text-secondary hover:text-text-primary">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => {
+                                  // From the implicit "all" state, unchecking one
+                                  // materialises the explicit remaining set.
+                                  if (selected.length === 0) {
+                                    setCustomSource(key, liveOptions
+                                      .map((o) => o.id).filter((id) => id !== opt.id).join(','))
+                                  } else {
+                                    toggleOption(opt.id)
+                                  }
+                                }}
+                                className="accent-blue-500 size-3"
+                              />
+                              {opt.label}
+                            </label>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-[11px] text-text-muted/70 italic">
+                        No {cat.label.toLowerCase()} sources enabled — enable one in Settings → Integrations.
+                      </p>
+                    )
+                  )}
                 </div>
               )
             })}
