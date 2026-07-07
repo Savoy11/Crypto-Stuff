@@ -117,7 +117,7 @@ function applySlice(candles: OhlcvCandle[], cfg: RangeConfig): OhlcvCandle[] {
 const BINANCE_SYMBOL: Record<string, string> = {
   btc: 'BTCUSDT', eth: 'ETHUSDT', sol: 'SOLUSDT', bnb: 'BNBUSDT',
   xrp: 'XRPUSDT', ada: 'ADAUSDT', doge: 'DOGEUSDT', avax: 'AVAXUSDT',
-  dot: 'DOTUSDT', matic: 'MATICUSDT', ltc: 'LTCUSDT', link: 'LINKUSDT',
+  dot: 'DOTUSDT', pol: 'POLUSDT', ltc: 'LTCUSDT', link: 'LINKUSDT',
   atom: 'ATOMUSDT', near: 'NEARUSDT', apt: 'APTUSDT', arb: 'ARBUSDT',
   op: 'OPUSDT', inj: 'INJUSDT', sui: 'SUIUSDT',
 }

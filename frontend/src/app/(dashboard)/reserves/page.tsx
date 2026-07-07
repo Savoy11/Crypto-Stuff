@@ -18,7 +18,7 @@ const ATTESTERS: Record<string, string> = {
   pyusd: 'Ernst & Young', usdp: 'Withum', gusd: 'BPM', lusd: 'On-Chain',
 }
 
-const MOCK_RESERVES = MOCK_ASSETS.map((a, i) => {
+const MOCK_RESERVES = MOCK_ASSETS.filter((a) => a.assetType === 'stablecoin').map((a, i) => {
   const marketCap = a.marketCap ?? 0
   const reserveRatio = a.reserveRatio ?? 0
   const reservesUsd = marketCap * 1.02

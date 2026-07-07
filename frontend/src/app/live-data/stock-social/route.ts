@@ -78,8 +78,9 @@ function detectSymbols(text: string): string[] {
     const sym = match[1].toUpperCase()
     if (KNOWN_SYMBOLS.has(sym)) found.add(sym)
   }
+  const CASHTAG_ONLY = new Set(['NOW', 'LOW', 'CAT', 'COST', 'ALL', 'SO', 'ON'])
   for (const match of text.matchAll(/\b([A-Z]{3,5})\b/g)) {
-    if (KNOWN_SYMBOLS.has(match[1])) found.add(match[1])
+    if (KNOWN_SYMBOLS.has(match[1]) && !CASHTAG_ONLY.has(match[1])) found.add(match[1])
   }
   return Array.from(found).slice(0, 6)
 }

@@ -394,8 +394,8 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
     setTimeout(() => setCopied(false), 1500)
   }, [asset.contractAddress])
 
-  const priceUp = asset.latestMarketData?.priceChange24h ?? 0 >= 0
-  const pegClass = getPegDeviationColorClass(asset.pegDeviation)
+  const priceUp = (asset.latestMarketData?.priceChange24h ?? 0) >= 0
+  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
 
   return (
     <div className="rounded-card border border-border bg-bg-card p-6">
@@ -423,7 +423,14 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
             <p className="text-xs text-text-muted max-w-xl leading-relaxed">{asset.description}</p>
           )}
 
-          {/* Contract address */}
+          {/* Contract address — sentinel placeholders (0x000…000N) must not
+              display as a real address */}
+          {/^0x0{30,}[0-9a-fA-F]*$/.test(asset.contractAddress) ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-muted">Contract:</span>
+              <span className="text-xs text-text-muted italic">not on file</span>
+            </div>
+          ) : (
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Contract:</span>
             <code className="font-mono text-xs text-text-secondary">
@@ -463,6 +470,7 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
               </a>
             )}
           </div>
+          )}
         </div>
 
         {/* Right: risk score gauge */}
@@ -502,7 +510,7 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
                 <>
                   <div className="text-[10px] text-text-muted uppercase">Peg Dev</div>
                   <div className={clsx('font-mono text-sm', pegClass)}>
-                    {formatOrNA(asset.pegDeviation, formatBps)}
+                    {formatOrNA(asset.pegDeviationBps ?? asset.pegDeviation, formatBps)}
                   </div>
                 </>
               )}

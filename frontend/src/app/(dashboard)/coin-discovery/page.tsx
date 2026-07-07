@@ -428,7 +428,7 @@ export default function CoinDiscoveryPage() {
             details={[
               { label: 'Data source', text: 'Candidates are fetched from CoinGecko and filtered to assets above the minimum market cap threshold.' },
               { label: 'Recommendations', text: 'Strong Add — meets all quality criteria. Consider — good fundamentals, minor concerns. Monitor — borderline. Too Speculative — high risk or insufficient history.' },
-              { label: 'Adding assets', text: 'Clicking "Add to Registry" saves the asset to your local discovery store for review — it does not modify the main Asset Registry without backend integration.' },
+              { label: 'Adding assets', text: 'Clicking "Add" saves the asset to your local discovery store for review — it does not modify the main Asset Registry without backend integration.' },
             ]}
           />
         </div>

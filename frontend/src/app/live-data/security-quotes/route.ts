@@ -28,7 +28,7 @@ function referenceQuotes(symbols: string[]): Record<string, SecurityQuote> {
     if (ref == null) continue
     quotes[symbol] = {
       symbol, price: ref, change: null, changePercent: null,
-      previousClose: null, marketCap: null, volume: null,
+      previousClose: null, marketCap: null, volume: null, reference: true,
     }
   }
   return quotes

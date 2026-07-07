@@ -120,7 +120,7 @@ export default function FundDetailPage() {
   }
 
   const quote = data?.quotes?.[symbol]
-  const live = !!quote && data?.source !== 'reference'
+  const live = !!quote && data?.source !== 'reference' && !quote.reference
   const price = quote?.price ?? entry.referencePrice
   const change = live ? quote?.changePercent ?? null : null
   const category = FUND_CATEGORY_INFO[entry.category]

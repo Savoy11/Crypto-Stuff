@@ -38,6 +38,7 @@ const PROVIDER_STYLES: Record<string, string> = {
   cryptopanic: 'text-orange-400 bg-orange-400/10 border-orange-500/20',
   messari:     'text-purple-400 bg-purple-400/10 border-purple-500/20',
   newsapi:     'text-sky-400 bg-sky-400/10 border-sky-500/20',
+  gnews:       'text-teal-400 bg-teal-400/10 border-teal-500/20',
   mock:        'text-slate-400 bg-slate-400/10 border-slate-500/20',
 }
 
@@ -267,8 +268,8 @@ export default function NewsPage() {
               details={[
                 { label: 'Asset detection', text: 'Articles are tagged using coin name/ticker matching, issuer mapping (e.g. Circle → USDC), and regulatory inference (e.g. MiCA → USDC, USDT).' },
                 { label: 'Sentiment', text: 'Positive (green dot) · Neutral (grey) · Negative (red). Sentiment is inferred from headline keywords.' },
-                { label: 'Sources', text: 'Live mode aggregates RSS and JSON feeds from The Block, CoinDesk, Cointelegraph, and others. Mock mode uses pre-seeded articles.' },
-                { label: 'Keyword filter', text: 'Type a word or phrase to filter the feed by topic. Keywords match against each story’s headline, summary, classified category, tagged assets, sentiment, and source — so terms like "regulation" or "btc" match relevant stories even when the word isn’t in the title. Multiple keywords are combined with AND (every keyword must match); matching is case-insensitive. Adding a keyword also queries the news providers (NewsAPI, GNews) for fresh stories on that term, so the feed pulls in matching coverage rather than only filtering what is already loaded.' },
+                { label: 'Sources', text: 'Live mode aggregates CryptoPanic, Messari, NewsAPI, and GNews (plus any custom RSS/JSON sources you add in Integrations). Mock mode uses pre-seeded articles.' },
+                { label: 'Keyword filter', text: 'Type a word or phrase to filter the feed by topic. Keywords match against each story’s headline, summary, classified category, tagged assets, sentiment, and source — so terms like "regulation" or "btc" match relevant stories even when the word isn’t in the title. Multiple keywords are combined with AND (every keyword must match); matching is case-insensitive. When a NewsAPI or GNews key is configured, adding a keyword also queries those providers for fresh stories on that term; otherwise keywords filter the already-loaded feed.' },
               ]}
             />
           </div>
@@ -303,7 +304,7 @@ export default function NewsPage() {
           <Newspaper className="mx-auto h-7 w-7 text-amber-400/70" />
           <p className="mt-2 font-medium text-slate-200 text-sm">No news sources configured</p>
           <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto">
-            CryptoPanic's free tier requires no API key. Enable it in Integrations to start seeing live news.
+            CryptoPanic offers a free API token (30-second signup). Add it in Integrations to start seeing live news.
           </p>
           <Link
             href="/settings"
@@ -419,9 +420,9 @@ export default function NewsPage() {
               tagged assets, sentiment, and source — so terms like <span className="text-text-secondary">“regulation”</span>,{' '}
               <span className="text-text-secondary">“btc”</span>, or a publication name match stories on that topic even when the word isn’t in the title. Add
               several keywords to narrow further — an article must match <span className="text-text-secondary">all</span> of them. Matching is
-              case-insensitive and combines with the Asset, Sentiment, and Category filters. Adding a keyword also{' '}
-              <span className="text-text-secondary">queries the news providers</span> for fresh stories on that term, so the feed pulls in matching
-              coverage rather than only filtering what’s already loaded.
+              case-insensitive and combines with the Asset, Sentiment, and Category filters. With a NewsAPI or GNews key configured, adding a keyword also{' '}
+              <span className="text-text-secondary">queries those providers</span> for fresh stories on that term; otherwise
+              keywords filter the already-loaded feed.
             </p>
           </div>
 

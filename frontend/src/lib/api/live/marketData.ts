@@ -11,6 +11,8 @@
 
 export interface SecurityQuote {
   symbol: string
+  /** True when this quote is a static catalog reference price, not a live reading. */
+  reference?: boolean
   price: number
   /** Absolute change vs previous close (Stooq: vs today's open). */
   change: number | null
@@ -142,7 +144,7 @@ export async function fetchYahooQuotes(symbols: string[]): Promise<Record<string
       if (price == null) continue
       const prev = s.closes.length >= 2 && s.closes[s.closes.length - 1] === price
         ? s.closes[s.closes.length - 2]
-        : s.previousClose ?? (s.closes.length >= 1 ? s.closes[s.closes.length - 1] : null)
+        : (s.closes.length >= 1 ? s.closes[s.closes.length - 1] : s.previousClose)
       const change = prev != null ? price - prev : null
       quotes[s.symbol.toUpperCase()] = {
         symbol: s.symbol.toUpperCase(),

@@ -123,10 +123,16 @@ function classifyCategory(text: string): MarketNewsCategory {
 // Company names match case-insensitively; tickers require $SYM or an exact
 // uppercase word (3+ chars only — short symbols like T or GE false-positive).
 
+// Symbols that are common English words false-positive as bare uppercase
+// matches — require an explicit $cashtag for these.
+const CASHTAG_ONLY = new Set(['NOW', 'LOW', 'CAT', 'COST', 'ALL', 'SO', 'ON'])
+
 const NAME_MATCHERS = EQUITY_CATALOG.map((e) => ({
   symbol: e.symbol,
   name: new RegExp(`\\b${e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'),
-  ticker: e.symbol.length >= 3 ? new RegExp(`(\\$${e.symbol}\\b|\\b${e.symbol}\\b(?=[^a-z]|$))`) : new RegExp(`\\$${e.symbol}\\b`),
+  ticker: e.symbol.length >= 3 && !CASHTAG_ONLY.has(e.symbol)
+    ? new RegExp(`(\\$${e.symbol}\\b|\\b${e.symbol}\\b(?=[^a-z]|$))`)
+    : new RegExp(`\\$${e.symbol}\\b`),
 }))
 
 function detectSymbols(text: string): string[] {

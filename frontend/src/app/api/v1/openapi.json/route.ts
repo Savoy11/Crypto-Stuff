@@ -111,7 +111,7 @@ const SPEC = {
       get: {
         tags: ['news'],
         summary: 'Get recent crypto news with sentiment',
-        description: 'Returns news articles from multiple providers (CoinDesk, Cointelegraph, Decrypt, Bitcoin.com News, Forkast). Each article is tagged with sentiment (positive/negative/neutral), category, and the coins it relates to.',
+        description: 'Returns news articles from multiple providers (CryptoPanic, Messari, NewsAPI, GNews — whichever are configured). Each article is tagged with sentiment (positive/negative/neutral), category, and the coins it relates to.',
         parameters: [
           { name: 'coin',      in: 'query', description: 'Filter articles to those relevant to this coin id (e.g. btc, eth)',         schema: { type: 'string', example: 'btc' } },
           { name: 'limit',     in: 'query', description: 'Max articles to return (1–50, default 20)',                                 schema: { type: 'integer', default: 20 } },

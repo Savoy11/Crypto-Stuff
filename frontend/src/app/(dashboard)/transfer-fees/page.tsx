@@ -439,10 +439,9 @@ export default function TransferFeesPage() {
 
   const hasAdjacentDuplicate = stops.some((s, i) => i > 0 && s === stops[i - 1])
 
-  // Price: use COIN_INFO lookup, then live coin price, then 1
-  const coinPriceUsd = coinInfo
-    ? (coinPrices[coinId] ?? coinInfo.defaultAmount)
-    : (liveCoin?.price ?? 1)
+  // Price: live route price first, then live coin quote, then 1 as a last
+  // resort. (Never coinInfo.defaultAmount — that's a transfer quantity.)
+  const coinPriceUsd = coinPrices[coinId] ?? liveCoin?.price ?? 1
   const amountUsd = numAmount * coinPriceUsd
 
   // Build dynamic coin groups for dropdown

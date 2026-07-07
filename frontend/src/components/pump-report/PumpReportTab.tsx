@@ -23,6 +23,7 @@ interface ChatMessage {
 // ─── Risk helpers ─────────────────────────────────────────────────────────────
 
 function riskColor(level: string) {
+  if (level === 'error') return 'text-slate-400'
   if (level === 'critical') return 'text-red-400'
   if (level === 'flagged'  || level === 'high')    return 'text-orange-400'
   if (level === 'suspicious' || level === 'elevated') return 'text-amber-400'
@@ -30,6 +31,7 @@ function riskColor(level: string) {
 }
 
 function riskBg(level: string) {
+  if (level === 'error')      return 'bg-slate-500/15 border-slate-500/30'
   if (level === 'critical')   return 'bg-red-500/15 border-red-500/30'
   if (level === 'flagged'   || level === 'high')    return 'bg-orange-500/15 border-orange-500/30'
   if (level === 'suspicious'|| level === 'elevated') return 'bg-amber-500/15 border-amber-500/30'
@@ -40,7 +42,7 @@ function riskBg(level: string) {
 function riskLabel(level: string) {
   const map: Record<string, string> = {
     critical: 'CRITICAL', flagged: 'FLAGGED', suspicious: 'SUSPICIOUS',
-    high: 'HIGH', elevated: 'ELEVATED', moderate: 'MODERATE', low: 'LOW', clean: 'CLEAN',
+    high: 'HIGH', elevated: 'ELEVATED', moderate: 'MODERATE', low: 'LOW', clean: 'CLEAN', error: 'SCAN FAILED',
   }
   return map[level] ?? level.toUpperCase()
 }

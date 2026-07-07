@@ -155,6 +155,75 @@ Watchlist and Portfolios sections. Findings and fixes:
   routes. End-to-end browser test confirmed add → reload → persist and that
   all ten added assets are searchable.
 
+
+---
+
+# Addendum — App-wide accuracy audit (all sections)
+
+Six parallel audits swept every section for the same bug classes found in the
+watchlist/portfolio audit. ~30 findings were confirmed and fixed; highlights:
+
+**Wrong data (high severity, fixed)**
+- Alerts peg monitor: USDP used the wrong CoinGecko id — a real depeg could
+  never fire while the page claimed 9 assets checked.
+- Wallets: all six non-Ethereum EVM chains queried Ethereum mainnet, showing
+  the wrong chain's balance under a confident chain label. Per-chain RPCs now.
+- Asset detail header: an operator-precedence bug rendered negative 24h moves
+  green with a "+"; peg-deviation color/value were fed fractions instead of
+  bps (always green, 10,000× too small).
+- Staking: providers without their own live-rate feed displayed a different
+  provider's rate (e.g. Lido's stETH APR on CeFi cards) with a LIVE badge; the
+  rates route also marked arithmetic offsets of Lido's rate as "live" for
+  Coinbase/Kraken/Binance/Ankr. Keyless providers now use their curated
+  estimates; derived rates are labeled estimates.
+- News sentiment never counted keywords (non-global regexes) and several stem
+  alternatives could never match; Reddit sentiment matched substrings ("ath"
+  in *death*, "gain" in *against*), skewing feeds positive. Both rewritten.
+- Transfer fees: direct CEX withdrawals double-counted on-chain gas (the
+  withdrawal fee already includes it); multi-hop quotes summed gas across two
+  independently chosen networks — now prefers a shared network and charges
+  gas only on the wallet leg. A missing live price also fell back to the coin's
+  default transfer *quantity* as its price.
+- Pump-report scans that errored were labeled CLEAN — now "SCAN FAILED".
+
+**Mislabeled/misleading (fixed)**
+- Reserve monitor listed all 108 assets (incl. BTC) as stablecoin reserves →
+  stablecoins only; vBUSD and AMPL reclassified (not stablecoins).
+- Undisclosed placeholder contract addresses (0x000…000N) rendered as real →
+  now "not on file".
+- Risk-scores description said "lower is safer, 0–10 bands" — actual scale is
+  0–100, higher is safer; copy now matches the code thresholds.
+- Social feeds stamped generic front-page Reddit posts with whatever asset was
+  selected → unsupported assets now get targeted subreddit searches.
+- News asset detection covered 14 of ~90 dropdown assets → generic name/
+  cashtag detection now covers the full universe (with common-word blocklists;
+  same guard added to equities market-news and stock-social for NOW/LOW/CAT/COST).
+- Copy corrections: CryptoPanic key requirement, actual news providers
+  (also in the OpenAPI spec + MCP tool descriptions), keyword-search behavior,
+  staking provider count (now dynamic), "Total TVL" → "Top-20 Chain TVL",
+  Binance connector labeled Binance.US (it hits the .us API), OKX/Bybit removed
+  from the picker (no server implementation), Kraken XXBT→BTC, DCash CBDC
+  marked discontinued, "70+ countries" → 55+, wallet-connect copy, MCP risk
+  legend gap, equities "24h" column → "Chg %".
+- Equities/funds (self-audit): reference-price backfills are now flagged
+  per-symbol so they can't render as live; Yahoo previous-close fallback no
+  longer uses a week-old reference; UTILITY_MAP CoinGecko ids corrected
+  (pendle, io-net, berachain-bera, axelar, dogs-2; dead aave-v3 removed);
+  Polygon Binance tickers updated MATIC→POL; TRC-20 gas estimate corrected.
+
+**Verified clean (not exhaustive)**: dashboard widgets' N/A discipline, peg
+math and alert thresholds, reports CSV/PDF consistency, OHLCV units and
+resampling, indicator formulas (RSI/MACD/Bollinger/stochastic), backtest
+math (both modules), reserve composition sums, transfer-fee min-withdraw and
+disabled-leg enforcement, coin catalog scoring weights, api/v1 ↔ spec parity,
+watchlist/portfolio fixes from the prior audit.
+
+**Known remaining (documented, not fixed)**: crypto Social's Reddit RSS
+carries no scores (JSON migration would restore vote metrics); mock-mode
+Alerts filter sidebar isn't wired to the mock feed (live mode unaffected);
+CBDC→USDC/USDT regulatory inference is by design; ATR uses SMA smoothing
+rather than Wilder's.
+
 ---
 
 ## Deliberately NOT added yet (candidates for next session)

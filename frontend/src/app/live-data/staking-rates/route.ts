@@ -169,7 +169,9 @@ export async function GET() {
         rates.coinbase_eth = round2(pct - 0.5)
         rates.kraken_eth   = round2(pct - 0.2)
         rates.binance_eth  = round2(pct - 0.6)
-        for (const k of ['lido_eth','ankr_eth','coinbase_eth','kraken_eth','binance_eth']) sources[k] = 'live'
+        // Only Lido's number is a live reading — the others are derived offsets
+        sources.lido_eth = 'live'
+        for (const k of ['ankr_eth','coinbase_eth','kraken_eth','binance_eth']) sources[k] = 'estimate'
       }
     } catch { /* keep fallback */ }
   }
@@ -213,7 +215,7 @@ export async function GET() {
   if (sources.marinade_sol === 'live' || sources.jito_sol === 'live') {
     const vals = [rates.marinade_sol, rates.jito_sol].filter(Boolean) as number[]
     rates.native_sol = round2(vals.reduce((a, b) => a + b, 0) / vals.length)
-    sources.native_sol = 'live'
+    sources.native_sol = 'estimate' // derived from liquid-staking APYs, not a native-staking reading
   }
 
   // ── 5. Stride (stATOM, stINJ, stTIA) ──────────────────────────────────────
@@ -308,7 +310,7 @@ export async function GET() {
         rates.lido_matic   = round2(pct)
         rates.native_matic = round2(pct + 0.3)   // native is slightly higher
         sources.lido_matic = 'live'
-        sources.native_matic = 'live'
+        sources.native_matic = 'estimate' // derived offset, not a live reading
       }
     } catch { /* fallback */ }
   }

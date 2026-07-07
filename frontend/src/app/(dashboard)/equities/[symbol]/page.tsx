@@ -41,7 +41,7 @@ export default function EquityDetailPage() {
   }
 
   const quote = data?.quotes?.[symbol]
-  const live = !!quote && data?.source !== 'reference'
+  const live = !!quote && data?.source !== 'reference' && !quote.reference
   const price = quote?.price ?? entry.referencePrice
   const change = live ? quote?.changePercent ?? null : null
   const sector = SECTOR_INFO[entry.sector]

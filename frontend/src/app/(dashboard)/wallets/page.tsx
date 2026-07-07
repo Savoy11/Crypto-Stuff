@@ -59,7 +59,7 @@ function useBalance(wallet: WatchedWallet) {
   const load = useCallback(async () => {
     setBusy(true); setErr(undefined)
     const t = CHAIN_META[wallet.chain].type
-    const url = t === 'evm' ? `/live-data/wallet/eth?address=${wallet.address}`
+    const url = t === 'evm' ? `/live-data/wallet/eth?address=${wallet.address}&chain=${wallet.chain}`
               : t === 'sol' ? `/live-data/wallet/sol?address=${wallet.address}`
               :               `/live-data/wallet/btc?address=${wallet.address}`
     try {
@@ -256,7 +256,7 @@ function ConnectTab() {
   return (
     <div className="space-y-4">
       <p className="text-sm text-text-muted">
-        Connect a browser extension wallet. The app reads your address and balance only — it will never initiate transactions.
+        Connect a browser extension wallet. The app reads your address only — it will never initiate transactions.
       </p>
 
       {connected.length > 0 && (
@@ -367,7 +367,9 @@ function ExchangeCard({ conn }: { conn: ExchangeConnection }) {
   )
 }
 
-const EXCHANGE_IDS: ExchangeId[] = ['binance', 'coinbase', 'kraken', 'okx', 'bybit']
+// OKX/Bybit remain in ExchangeId for stored connections but have no server-side
+// balance implementation yet — offering them would always error.
+const EXCHANGE_IDS: ExchangeId[] = ['binance', 'coinbase', 'kraken']
 
 function AddExchangeForm() {
   const { addExchange } = useWalletStore()

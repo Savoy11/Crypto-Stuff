@@ -44,7 +44,7 @@ export function EquitiesClient() {
   const rows: Row[] = useMemo(() => {
     return EQUITY_CATALOG.map((entry) => {
       const quote = data?.quotes?.[entry.symbol.toUpperCase()]
-      const live = !!quote && data?.source !== 'reference'
+      const live = !!quote && data?.source !== 'reference' && !quote.reference
       return {
         ...entry,
         price: quote?.price ?? entry.referencePrice,
@@ -212,7 +212,7 @@ export function EquitiesClient() {
           <div className="col-span-3"><SortHeader label="Company" colKey="symbol" /></div>
           <div className="col-span-2"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">Sector</span></div>
           <div className="col-span-2 flex justify-end"><SortHeader label="Price" colKey="price" /></div>
-          <div className="col-span-1 flex justify-end"><SortHeader label="24h" colKey="change" /></div>
+          <div className="col-span-1 flex justify-end"><SortHeader label="Chg %" colKey="change" /></div>
           <div className="col-span-2 flex justify-end"><SortHeader label="Mkt Cap" colKey="marketCap" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="P/E" colKey="pe" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="Yield" colKey="dividend" /></div>

@@ -49,7 +49,7 @@ const FALLBACK_DATA: CbdcEntry[] = [
     sourceUrl: 'https://www.boj.org.jm/',
   },
   {
-    country: 'Eastern Caribbean', flag: '🇦🇬', currency: 'DCash', status: 'launched', type: 'retail', region: 'Americas', launchYear: 2021, tech: 'Bitt Inc.',
+    country: 'Eastern Caribbean', flag: '🇦🇬', currency: 'DCash', status: 'cancelled', type: 'retail', region: 'Americas', launchYear: 2021, tech: 'Bitt Inc.',
     notes: 'DCash covers the eight member states of the Eastern Caribbean Currency Union — Antigua & Barbuda, Dominica, Grenada, Montserrat, St Kitts & Nevis, St Lucia, St Vincent & the Grenadines, and Anguilla. Built by Barbadian fintech Bitt Inc. on a private blockchain, it is one of the first multi-jurisdiction CBDCs in the world. In January 2022 a technical outage took DCash offline for two months, exposing resilience risks in single-vendor CBDC infrastructure. The ECCB resumed service in March 2022 and has since focused on redundancy improvements. The shared-currency model makes DCash a closely watched template for monetary unions.',
     sourceUrl: 'https://www.eccb-centralbank.org/',
   },

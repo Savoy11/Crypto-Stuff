@@ -53,7 +53,7 @@ export function FundsClient() {
   const rows: Row[] = useMemo(() => {
     return FUND_CATALOG.map((entry) => {
       const quote = data?.quotes?.[entry.symbol.toUpperCase()]
-      const live = !!quote && data?.source !== 'reference'
+      const live = !!quote && data?.source !== 'reference' && !quote.reference
       return {
         ...entry,
         price: quote?.price ?? entry.referencePrice,
@@ -202,7 +202,7 @@ export function FundsClient() {
           <div className="col-span-4"><SortHeader label="Fund" colKey="symbol" /></div>
           <div className="col-span-2"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">Category</span></div>
           <div className="col-span-2 flex justify-end"><SortHeader label="Price / NAV" colKey="price" /></div>
-          <div className="col-span-1 flex justify-end"><SortHeader label="24h" colKey="change" /></div>
+          <div className="col-span-1 flex justify-end"><SortHeader label="Chg %" colKey="change" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="AUM" colKey="aum" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="Yield" colKey="yield" /></div>
