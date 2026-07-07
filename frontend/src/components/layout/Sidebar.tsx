@@ -15,6 +15,8 @@ import {
   Rss,
   PieChart,
   TrendingUp,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAlertStore } from '@/store/useAlertStore'
@@ -22,7 +24,7 @@ import { useStreamStore } from '@/store/useStreamStore'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { usePopoutStore, POPOUT_META, type PopoutKey } from '@/store/usePopoutStore'
-import { MODULES, type ModuleId, type SuiteModule } from '@/lib/modules/registry'
+import { MODULES, moduleForPath, type ModuleId, type SuiteModule } from '@/lib/modules/registry'
 import { APP_NAME, APP_VERSION } from '@/lib/constants'
 
 // Navigation is driven by the suite module registry (lib/modules/registry.ts).
@@ -32,6 +34,7 @@ import { APP_NAME, APP_VERSION } from '@/lib/constants'
 type SectionOrder = Partial<Record<ModuleId, string[]>>
 
 const STORAGE_KEY = 'caep:nav-order:v2'
+const COLLAPSE_KEY = 'caep:nav-collapsed'
 
 function defaultOrder(mod: SuiteModule): string[] {
   return mod.navItems.map((item) => item.href)
@@ -168,8 +171,49 @@ export function Sidebar() {
   const [drag, setDrag] = useState<{ mod: ModuleId; index: number } | null>(null)
   const [drop, setDrop] = useState<{ mod: ModuleId; index: number } | null>(null)
 
-  // Load persisted order on mount
-  useEffect(() => { setOrder(loadOrder()) }, [])
+  // Collapsible module sections. `undefined` = automatic (expanded only while
+  // the current route lives in that module); explicit true/false = the user's
+  // saved choice from clicking a section header.
+  const [collapsedChoice, setCollapsedChoice] = useState<Partial<Record<ModuleId, boolean>>>({})
+
+  // Load persisted order + collapse choices on mount
+  useEffect(() => {
+    setOrder(loadOrder())
+    try {
+      const stored = localStorage.getItem(COLLAPSE_KEY)
+      if (stored) setCollapsedChoice(JSON.parse(stored))
+    } catch { /* ignore */ }
+  }, [])
+
+  const activeModule = moduleForPath(pathname)
+
+  // Navigating into a module always reveals its items, even if it was
+  // manually collapsed earlier.
+  useEffect(() => {
+    if (activeModule && collapsedChoice[activeModule.id] === true) {
+      setCollapsedChoice((prev) => {
+        const next = { ...prev, [activeModule.id]: false }
+        try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch {}
+        return next
+      })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname])
+
+  const isExpanded = useCallback((mod: SuiteModule) => {
+    if (!mod.label || reordering) return true // core section + reorder mode always show items
+    const choice = collapsedChoice[mod.id]
+    if (choice !== undefined) return !choice
+    return activeModule?.id === mod.id
+  }, [collapsedChoice, activeModule, reordering])
+
+  const toggleSection = useCallback((mod: SuiteModule) => {
+    setCollapsedChoice((prev) => {
+      const next = { ...prev, [mod.id]: isExpanded(mod) }
+      try { localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [isExpanded])
 
   const visibleModules = MODULES.filter((mod) => isEnabled(mod.id))
 
@@ -270,13 +314,34 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto" role="navigation">
-        {visibleModules.map((mod) => (
-          <div key={mod.id} className={mod.label ? 'mt-4' : undefined}>
+        {visibleModules.map((mod) => {
+          const expanded = isExpanded(mod)
+          const containsActive = activeModule?.id === mod.id
+          return (
+          <div key={mod.id} className={mod.label ? 'mt-3' : undefined}>
             {mod.label && (
-              <p className="px-3 pb-1 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
-                {mod.label}
-              </p>
+              <button
+                onClick={() => toggleSection(mod)}
+                aria-expanded={expanded}
+                className={clsx(
+                  'w-full flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors',
+                  containsActive && !expanded
+                    ? 'text-accent-blue hover:bg-bg-elevated'
+                    : 'text-text-muted hover:text-text-secondary hover:bg-bg-elevated'
+                )}
+              >
+                {expanded
+                  ? <ChevronDown size={11} className="flex-shrink-0" aria-hidden />
+                  : <ChevronRight size={11} className="flex-shrink-0" aria-hidden />}
+                <span>{mod.label}</span>
+                {!expanded && (
+                  <span className="ml-auto font-mono text-[9px] text-text-muted/70 normal-case tracking-normal">
+                    {mod.navItems.length}
+                  </span>
+                )}
+              </button>
             )}
+            {expanded && (
             <ul className="space-y-0.5" role="list">
               {orderedItems(mod).map(({ href, label, icon: Icon, badge }, index) => {
                 // Prefix-match, but a more specific sibling wins (e.g. /equities
@@ -350,8 +415,10 @@ export function Sidebar() {
                 )
               })}
             </ul>
+            )}
           </div>
-        ))}
+          )
+        })}
       </nav>
 
       {/* Bottom section */}
