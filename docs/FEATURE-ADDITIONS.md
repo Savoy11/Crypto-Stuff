@@ -122,6 +122,41 @@ fan-out reasonable.
 
 ---
 
+# Addendum — Watchlist & Portfolio accuracy audit
+
+Requested: confirm assets are pulled accurately and labeled correctly in the
+Watchlist and Portfolios sections. Findings and fixes:
+
+- **Watchlist didn't persist** despite its own tooltip claiming it did — the
+  list lived in React state only. Now saved to localStorage
+  (`caep:watchlist:v1`), seeded once on first visit, and an empty list stays
+  empty. The dead "New List" button (it set state nothing rendered) was
+  removed and the copy now matches actual behavior.
+- **Wrong CoinGecko ids in the portfolio coin list** meant two coins could
+  never price: USDP used `pax-dollar` (canonical id: `paxos-standard`) and
+  SNX used `synthetix-network-token` (canonical id: `havven`). Both fixed —
+  worth one live spot-check that USDP/SNX prices now populate.
+- **Polygon mislabeled**: the portfolio picker offered only legacy MATIC
+  labeled as "Polygon" while the Asset Registry tracks POL. Added POL
+  (`polygon-ecosystem-token`) as the primary entry and relabeled the legacy
+  token "Polygon (legacy MATIC)" so saved portfolios keep resolving.
+- **Ten claimed assets missing from the registry universe** (which is also the
+  watchlist's add-list): XRP was mapped for live quotes but had no catalog
+  entry; DOGE and the eight DeFi tokens in `assetList.ts` (UNI, AAVE, LINK,
+  MKR, SNX, CRV, LDO, GRT) existed in dropdowns/docs but not in the registry.
+  All ten added with catalog metadata + live-quote mappings (registry is now
+  108 assets).
+- **Watchlist truncated the catalog** at `pageSize: 100`, silently hiding
+  assets at the end of the list from search. Raised above catalog size.
+- **Verified sound**: portfolio localStorage persistence, allocation
+  validation (sums to 100%, duplicate detection), P&L math
+  (`value = target × price/entry`), backtest date-price plumbing, weighted
+  risk scoring, and the live/partial/error source labeling on the prices
+  routes. End-to-end browser test confirmed add → reload → persist and that
+  all ten added assets are searchable.
+
+---
+
 ## Deliberately NOT added yet (candidates for next session)
 
 - **Live fundamentals** (P/E, market cap, dividend yield from a feed) — the

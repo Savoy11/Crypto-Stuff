@@ -34,7 +34,8 @@ export const PORTFOLIO_COINS: PortfolioCoin[] = [
   { cgId: 'first-digital-usd',    symbol: 'FDUSD',  name: 'First Digital USD',    category: 'stablecoin', riskTier: 2,  color: '#64748b' },
   { cgId: 'usdd',                 symbol: 'USDD',   name: 'USDD',                 category: 'stablecoin', riskTier: 4,  color: '#dc2626' },
   { cgId: 'gemini-dollar',        symbol: 'GUSD',   name: 'Gemini Dollar',        category: 'stablecoin', riskTier: 1,  color: '#06b6d4' },
-  { cgId: 'pax-dollar',           symbol: 'USDP',   name: 'PAX Dollar',           category: 'stablecoin', riskTier: 2,  color: '#34d399' },
+  // CoinGecko id for Pax Dollar is the legacy 'paxos-standard' (NOT 'pax-dollar')
+  { cgId: 'paxos-standard',       symbol: 'USDP',   name: 'Pax Dollar',           category: 'stablecoin', riskTier: 2,  color: '#34d399' },
   { cgId: 'magic-internet-money', symbol: 'MIM',    name: 'Magic Internet Money', category: 'stablecoin', riskTier: 5,  color: '#818cf8' },
 
   // ─── Alt L1s ───────────────────────────────────────────────────────────────
@@ -43,7 +44,10 @@ export const PORTFOLIO_COINS: PortfolioCoin[] = [
   { cgId: 'avalanche-2',          symbol: 'AVAX',   name: 'Avalanche',            category: 'layer1',     riskTier: 5,  color: '#ef4444' },
   { cgId: 'polkadot',             symbol: 'DOT',    name: 'Polkadot',             category: 'interop',    riskTier: 5,  color: '#ec4899' },
   { cgId: 'cosmos',               symbol: 'ATOM',   name: 'Cosmos',               category: 'interop',    riskTier: 5,  color: '#6366f1' },
-  { cgId: 'matic-network',        symbol: 'MATIC',  name: 'Polygon',              category: 'layer2',     riskTier: 5,  color: '#8b5cf6' },
+  // Polygon migrated MATIC → POL in 2024; POL is the current native token.
+  // The legacy MATIC entry stays so existing saved portfolios keep resolving.
+  { cgId: 'polygon-ecosystem-token', symbol: 'POL', name: 'Polygon',              category: 'layer2',     riskTier: 5,  color: '#8b5cf6' },
+  { cgId: 'matic-network',        symbol: 'MATIC',  name: 'Polygon (legacy MATIC)', category: 'layer2',   riskTier: 6,  color: '#a78bfa' },
   { cgId: 'tron',                 symbol: 'TRX',    name: 'Tron',                 category: 'layer1',     riskTier: 5,  color: '#ef4444' },
   { cgId: 'litecoin',             symbol: 'LTC',    name: 'Litecoin',             category: 'layer1',     riskTier: 4,  color: '#94a3b8' },
   { cgId: 'dogecoin',             symbol: 'DOGE',   name: 'Dogecoin',             category: 'meme',       riskTier: 7,  color: '#f59e0b' },
@@ -64,7 +68,8 @@ export const PORTFOLIO_COINS: PortfolioCoin[] = [
   { cgId: 'maker',                symbol: 'MKR',    name: 'Maker',                category: 'defi',       riskTier: 5,  color: '#10b981' },
   { cgId: 'compound-governance-token', symbol: 'COMP', name: 'Compound',         category: 'defi',       riskTier: 6,  color: '#22c55e' },
   { cgId: 'curve-dao-token',      symbol: 'CRV',    name: 'Curve DAO',            category: 'defi',       riskTier: 7,  color: '#ef4444' },
-  { cgId: 'synthetix-network-token', symbol: 'SNX', name: 'Synthetix',           category: 'defi',       riskTier: 7,  color: '#3b82f6' },
+  // CoinGecko id for Synthetix is the legacy 'havven' (NOT 'synthetix-network-token')
+  { cgId: 'havven',               symbol: 'SNX',    name: 'Synthetix',            category: 'defi',       riskTier: 7,  color: '#3b82f6' },
   { cgId: 'lido-dao',             symbol: 'LDO',    name: 'Lido DAO',             category: 'defi',       riskTier: 5,  color: '#f97316' },
   { cgId: 'the-graph',            symbol: 'GRT',    name: 'The Graph',            category: 'defi',       riskTier: 6,  color: '#8b5cf6' },
 

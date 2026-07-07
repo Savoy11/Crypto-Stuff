@@ -8,24 +8,57 @@ import { formatCurrency, formatScore, formatOrNA } from '@/lib/utils/format'
 import { getRiskColor } from '@/lib/utils/risk'
 import { useAssets } from '@/hooks/useAssets'
 
+// localStorage persistence. `null` = never saved (first visit → seed defaults);
+// an empty array is a deliberate user choice and must stay empty.
+const WATCHLIST_KEY = 'caep:watchlist:v1'
+
+function loadWatchedIds(): string[] | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const stored = localStorage.getItem(WATCHLIST_KEY)
+    return stored ? (JSON.parse(stored) as string[]) : null
+  } catch {
+    return null
+  }
+}
+
+function saveWatchedIds(ids: Set<string>) {
+  try { localStorage.setItem(WATCHLIST_KEY, JSON.stringify(Array.from(ids))) } catch { /* quota */ }
+}
+
 export default function WatchlistPage() {
   const [search, setSearch] = useState('')
-  const [showNewList, setShowNewList] = useState(false)
   const [watchlistName] = useState('My Watchlist')
   const [watchedIds, setWatchedIds] = useState<Set<string>>(new Set())
-  const [seeded, setSeeded] = useState(false)
+  const [hydrated, setHydrated] = useState(false)
 
   // Live asset catalog with real market figures (risk metrics render as N/A).
-  const { data } = useAssets({ pageSize: 100 })
+  // pageSize must exceed the catalog size or assets at the end become unsearchable.
+  const { data } = useAssets({ pageSize: 500 })
   const allAssets = useMemo(() => data?.data ?? [], [data])
 
-  // Seed the watchlist with the first few assets once live data arrives.
+  // Restore the saved list on mount; on the very first visit, seed with the
+  // top few assets once live data arrives.
   useEffect(() => {
-    if (!seeded && allAssets.length > 0) {
-      setWatchedIds(new Set(allAssets.slice(0, 5).map(a => a.id)))
-      setSeeded(true)
+    const stored = loadWatchedIds()
+    if (stored !== null) {
+      setWatchedIds(new Set(stored))
+      setHydrated(true)
+    } else if (allAssets.length > 0) {
+      const seedIds = new Set(allAssets.slice(0, 5).map(a => a.id))
+      setWatchedIds(seedIds)
+      saveWatchedIds(seedIds)
+      setHydrated(true)
     }
-  }, [allAssets, seeded])
+  }, [allAssets])
+
+  const updateWatched = (updater: (prev: Set<string>) => Set<string>) => {
+    setWatchedIds(prev => {
+      const next = updater(prev)
+      if (hydrated) saveWatchedIds(next)
+      return next
+    })
+  }
 
   const watched = allAssets.filter(a => watchedIds.has(a.id))
   const filtered = allAssets.filter(
@@ -42,22 +75,17 @@ export default function WatchlistPage() {
           <Star className="h-6 w-6 text-amber-400" />
           <div>
             <PageHeader
-              title="Watchlists"
+              title="Watchlist"
               subtitle="Monitor selected assets in one view"
-              description="Watchlists let you pin a curated set of assets for quick monitoring without navigating the full Asset Registry. Create multiple lists for different strategies — e.g. 'High Risk' or 'Stable Reserves'."
+              description="The watchlist pins a curated set of assets for quick monitoring without navigating the full Asset Registry. Multiple named lists are planned alongside account sync."
               details={[
-                { label: 'Adding assets', text: 'Search for any tracked asset and click the star icon to add it to your active list.' },
-                { label: 'Persistence', text: 'Watchlists are stored in your browser. They persist between sessions but are not synced across devices.' },
+                { label: 'Adding assets', text: 'Search any tracked asset below and click Add to pin it to the list.' },
+                { label: 'Persistence', text: 'The list is saved in this browser (localStorage) and persists between sessions on this device. It is not synced across devices until accounts land.' },
+                { label: 'Risk columns', text: 'Score and Band come from the scoring backend and show N/A in live-data mode — no free source exists for them.' },
               ]}
             />
           </div>
         </div>
-        <button
-          onClick={() => setShowNewList(true)}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
-        >
-          <Plus className="h-4 w-4" /> New List
-        </button>
       </div>
 
       {/* Active watchlist */}
@@ -100,7 +128,7 @@ export default function WatchlistPage() {
                   {formatOrNA(asset.marketCap, (v) => formatCurrency(v))}
                 </span>
                 <button
-                  onClick={() => setWatchedIds(prev => { const s = new Set(prev); s.delete(asset.id); return s })}
+                  onClick={() => updateWatched(prev => { const s = new Set(prev); s.delete(asset.id); return s })}
                   className="text-slate-500 hover:text-red-400 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -133,7 +161,7 @@ export default function WatchlistPage() {
                 <span className="text-xs text-slate-500">{asset.name}</span>
               </div>
               <button
-                onClick={() => setWatchedIds(prev => new Set([...prev, asset.id]))}
+                onClick={() => updateWatched(prev => new Set([...prev, asset.id]))}
                 className="flex items-center gap-1 rounded bg-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-blue-600 hover:text-white transition-colors"
               >
                 <Plus className="h-3 w-3" /> Add
