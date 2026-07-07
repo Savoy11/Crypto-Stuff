@@ -103,6 +103,10 @@ export const MODULES: SuiteModule[] = [
     optional: true,
     navItems: [
       { href: '/equities', label: 'Stock Registry', icon: LineChart },
+      { href: '/equities/news', label: 'Market News', icon: Newspaper },
+      { href: '/equities/social', label: 'Stock Social', icon: MessageSquare },
+      { href: '/equities/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
+      { href: '/equities/backtests', label: 'Backtests', icon: FlaskConical },
     ],
   },
   {

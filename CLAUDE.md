@@ -50,7 +50,7 @@ frontend/src/
 │   │   ├── global-adoption/page.tsx
 │   │   ├── transfer-fees/page.tsx  # Transfer Fee Calculator
 │   │   ├── staking/page.tsx        # Staking Opportunities
-│   │   ├── equities/               # EQUITIES MODULE — Stock Registry + [symbol] detail
+│   │   ├── equities/               # EQUITIES MODULE — registry, [symbol], news, social, TA, backtests
 │   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
 │   │   ├── backtests/page.tsx
 │   │   ├── reports/page.tsx
@@ -67,7 +67,9 @@ frontend/src/
 │       ├── staking-rates/route.ts  # Live APR from Lido, Marinade, Jito
 │       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→Yahoo→Stooq→reference)
 │       ├── security-chart/route.ts  # Price history for any Yahoo-quotable symbol
-│       └── market-news/route.ts     # Stock-market RSS news with sentiment
+│       ├── security-ohlcv/route.ts  # Full OHLCV candles for stocks (Yahoo→FMP)
+│       ├── market-news/route.ts     # Stock-market RSS news: sentiment, category, ticker tags
+│       └── stock-social/route.ts    # Reddit finance subs + StockTwits sentiment
 │
 ├── components/
 │   ├── layout/
@@ -77,7 +79,7 @@ frontend/src/
 │   │   ├── StatusBar.tsx
 │   │   └── DataStatusBanner.tsx
 │   ├── ui/                         # Generic reusable components
-│   ├── charts/                     # Recharts wrappers
+│   ├── charts/                     # Recharts wrappers + CandlestickChart/indicatorRegistry (shared TA engine)
 │   ├── markets/                    # Shared equities/funds UI (PriceChartCard, MarketNewsList)
 │   ├── assets/
 │   ├── analytics/
@@ -277,6 +279,10 @@ Risk/status color convention used across the app:
 | Reports | `/reports` | Mock | Report generation |
 | Stock Registry | `/equities` | `equityCatalog.ts` + live quotes | ~70 stocks, 11 sectors, sortable, breadth KPIs |
 | Equity Detail | `/equities/[symbol]` | Live chart/news + reference stats | Chart, 52-wk range, key stats, news |
+| Market News | `/equities/news` | RSS multi-feed | Category/sentiment/ticker filters, breaking section |
+| Stock Social | `/equities/social` | Reddit + StockTwits (keyless) | Sentiment overview bars + signal feed |
+| Equity TA | `/equities/technical-analysis` | `security-ohlcv` (Yahoo→FMP) | Shared candlestick engine, 18 indicators, patterns, screener |
+| Strategy Backtests | `/equities/backtests` | `security-ohlcv` real history | SMA/RSI/MACD vs buy-and-hold, Sharpe, drawdown, trades |
 | Fund Registry | `/funds` | `fundCatalog.ts` + live quotes | ~55 ETFs/mutual funds, expense-ratio color coding |
 | Fund Detail | `/funds/[symbol]` | Live chart/news + fund facts | Fee Drag Analyzer, top holdings, 52-wk range |
 | Settings | `/settings` (→ Integrations) | — | Integration configuration + Suite Modules toggles |

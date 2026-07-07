@@ -73,6 +73,55 @@ and it will block any future deployment (Roadmap Phase 6).
 
 ---
 
+# Addendum — Equities parity build (same day, second session)
+
+Requested: news, social, technical analysis, and backtesting sections for the
+stock module, mirroring the crypto versions. Discretionary choices made while
+delivering that:
+
+## 7. Shared TA engine (refactor, not a feature)
+
+`CandlestickChart.tsx` and `indicatorRegistry.ts` moved from the crypto
+technical-analysis folder to `components/charts/` — the module boundary rules
+forbid equities pages importing crypto module internals, and the whole TA
+engine (60+ indicators, signal aggregation, pattern detection in
+`lib/utils/indicators.ts`) was already asset-agnostic. Crypto pages updated to
+import from the shared location; zero behavioural change.
+
+## 8. Real strategy backtester instead of curated case studies
+
+The crypto Backtests page is a set of narrative depeg case studies with
+simulated scores. For equities, real daily/weekly history is free — so
+`/equities/backtests` runs actual rules-based simulations (SMA 10/40
+crossover, RSI mean-reversion, MACD momentum) bar-by-bar with no lookahead,
+benchmarked against buy & hold, reporting total return, CAGR, max drawdown,
+annualized Sharpe, win rate, exposure, and the trade list, with an equity-curve
+chart. Prominently labelled educational / no costs modelled.
+
+## 9. Ticker detection + category classification in market news
+
+`/live-data/market-news` now classifies each story (earnings / analyst / macro
+/ M&A / dividend / market) and tags catalog tickers via company-name and
+cashtag matching (1–2 letter tickers require a `$` prefix to avoid
+false positives). Ticker chips on news cards deep-link to stock detail pages.
+
+## 10. StockTwits + Reddit finance social feed
+
+`/live-data/stock-social` aggregates r/stocks, r/investing, r/StockMarket, and
+r/wallstreetbets plus StockTwits streams — both keyless. StockTwits authors'
+self-declared Bullish/Bearish labels are used where present (higher quality
+than keyword scoring); per-symbol sentiment summary bars mirror the crypto
+Social page's overview.
+
+## 11. Momentum screener tab on Equity TA
+
+The crypto TA page has a screener; the equity version screens 24 large caps
+for RSI(14), price vs SMA50, and the aggregate signal verdict, sorted to
+surface overbought/oversold names. Bounded symbol list to keep request
+fan-out reasonable.
+
+---
+
 ## Deliberately NOT added yet (candidates for next session)
 
 - **Live fundamentals** (P/E, market cap, dividend yield from a feed) — the

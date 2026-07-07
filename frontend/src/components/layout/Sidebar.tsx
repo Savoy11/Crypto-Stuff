@@ -279,7 +279,15 @@ export function Sidebar() {
             )}
             <ul className="space-y-0.5" role="list">
               {orderedItems(mod).map(({ href, label, icon: Icon, badge }, index) => {
-                const isActive = pathname === href || pathname.startsWith(`${href}/`)
+                // Prefix-match, but a more specific sibling wins (e.g. /equities
+                // stays inactive on /equities/news, which has its own entry).
+                const isActive = pathname === href || (
+                  pathname.startsWith(`${href}/`) &&
+                  !mod.navItems.some((other) =>
+                    other.href !== href && other.href.length > href.length &&
+                    (pathname === other.href || pathname.startsWith(`${other.href}/`))
+                  )
+                )
                 const isDragging = drag?.mod === mod.id && drag.index === index
                 const isDropTarget = drop?.mod === mod.id && drop.index === index && drag?.index !== index
 

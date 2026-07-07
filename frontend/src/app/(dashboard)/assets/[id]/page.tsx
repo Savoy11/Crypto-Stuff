@@ -14,11 +14,11 @@ import {
   ema, computeSignalSummary, fibRetracement,
   type OhlcvCandle, type SignalSummary, type Signal,
 } from '@/lib/utils/indicators'
-import type { ChartType } from '../../technical-analysis/CandlestickChart'
+import type { ChartType } from '@/components/charts/CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
 
 const TACandlestickChart = dynamic(
-  () => import('../../technical-analysis/CandlestickChart'),
+  () => import('@/components/charts/CandlestickChart'),
   { ssr: false }
 )
 

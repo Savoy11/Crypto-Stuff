@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 
 // Server-side proxy for stock-market news (equities & funds modules).
 //   GET /live-data/market-news                → general market headlines
@@ -13,6 +14,9 @@ export const dynamic = 'force-dynamic'
 
 export type MarketSentiment = 'positive' | 'negative' | 'neutral'
 
+export type MarketNewsCategory =
+  | 'earnings' | 'analyst' | 'macro' | 'ma' | 'dividend' | 'market' | 'general'
+
 export interface MarketArticle {
   id: string
   title: string
@@ -21,6 +25,11 @@ export interface MarketArticle {
   publishedAt: string
   summary: string
   sentiment: MarketSentiment
+  category: MarketNewsCategory
+  /** Catalog tickers detected in the headline/summary. */
+  relatedSymbols: string[]
+  /** Published within the last hour. */
+  isBreaking: boolean
 }
 
 export interface MarketNewsResponse {
@@ -58,7 +67,7 @@ function extractTag(item: string, tag: string): string {
   return match ? decodeEntities(stripCdata(match[1])) : ''
 }
 
-function parseRss(xml: string, source: string): Omit<MarketArticle, 'sentiment'>[] {
+function parseRss(xml: string, source: string): Omit<MarketArticle, 'sentiment' | 'category' | 'relatedSymbols' | 'isBreaking'>[] {
   const items = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? []
   return items.map((item) => {
     const title = extractTag(item, 'title')
@@ -92,6 +101,43 @@ function scoreSentiment(text: string): MarketSentiment {
   return 'neutral'
 }
 
+// ─── Category classification ──────────────────────────────────────────────────
+
+const CATEGORY_PATTERNS: Array<[MarketNewsCategory, RegExp]> = [
+  ['earnings', /\b(earnings|quarterly results|q[1-4] (results|revenue)|eps|guidance|revenue (beat|miss)|reports? (q[1-4]|fiscal))\b/i],
+  ['analyst',  /\b(upgrade[sd]?|downgrade[sd]?|price target|analyst[s]?|initiat(es|ed) coverage|overweight|underweight|buy rating|sell rating)\b/i],
+  ['ma',       /\b(acqui(re[sd]?|sition)|merger|takeover|buyout|deal to buy|stake in|spin-?off|ipo)\b/i],
+  ['dividend', /\b(dividend[s]?|buyback[s]?|share repurchase|payout)\b/i],
+  ['macro',    /\b(fed|federal reserve|inflation|cpi|ppi|jobs report|payrolls|interest rate[s]?|treasury yield[s]?|gdp|recession|fomc|tariff[s]?|rate (cut|hike))\b/i],
+  ['market',   /\b(s&p 500|nasdaq|dow (jones)?|wall street|stock market|stocks (rise|fall|climb|slip)|futures|market (rally|selloff|close[sd]?))\b/i],
+]
+
+function classifyCategory(text: string): MarketNewsCategory {
+  for (const [category, pattern] of CATEGORY_PATTERNS) {
+    if (pattern.test(text)) return category
+  }
+  return 'general'
+}
+
+// ─── Related-ticker detection ─────────────────────────────────────────────────
+// Company names match case-insensitively; tickers require $SYM or an exact
+// uppercase word (3+ chars only — short symbols like T or GE false-positive).
+
+const NAME_MATCHERS = EQUITY_CATALOG.map((e) => ({
+  symbol: e.symbol,
+  name: new RegExp(`\\b${e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'),
+  ticker: e.symbol.length >= 3 ? new RegExp(`(\\$${e.symbol}\\b|\\b${e.symbol}\\b(?=[^a-z]|$))`) : new RegExp(`\\$${e.symbol}\\b`),
+}))
+
+function detectSymbols(text: string): string[] {
+  const found: string[] = []
+  for (const m of NAME_MATCHERS) {
+    if (m.name.test(text) || m.ticker.test(text)) found.push(m.symbol)
+    if (found.length >= 6) break
+  }
+  return found
+}
+
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 export async function GET(request: NextRequest) {
@@ -119,7 +165,16 @@ export async function GET(request: NextRequest) {
       const key = article.title.toLowerCase()
       if (seen.has(key)) continue
       seen.add(key)
-      articles.push({ ...article, sentiment: scoreSentiment(`${article.title} ${article.summary}`) })
+      const text = `${article.title} ${article.summary}`
+      const related = detectSymbols(text)
+      if (symbol && !related.includes(symbol)) related.unshift(symbol)
+      articles.push({
+        ...article,
+        sentiment: scoreSentiment(text),
+        category: classifyCategory(text),
+        relatedSymbols: related,
+        isBreaking: Date.now() - new Date(article.publishedAt).getTime() < 60 * 60 * 1000,
+      })
     }
   }
 

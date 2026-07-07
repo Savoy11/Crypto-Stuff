@@ -12,7 +12,7 @@ import {
   MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import type { ChartType, DrawingTool, Drawing } from './CandlestickChart'
+import type { ChartType, DrawingTool, Drawing } from '@/components/charts/CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
 import {
   rsi, macd, bollingerBands, ema, sma, stochasticRsi, atr, obv, vwap,
@@ -23,7 +23,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
 import type { CoinListResponse } from '@/lib/types/coinList'
 
-const CandlestickChart = dynamic(() => import('./CandlestickChart'), { ssr: false })
+const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickChart'), { ssr: false })
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
