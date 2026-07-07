@@ -21,6 +21,11 @@ export interface LiveReserveAsset {
   collateralizationRatio: number | null  // null = not publicly disclosed
 }
 
+// Snapshot date of the curated ATTESTATION_META below. These attester names,
+// URLs, and dates are issuer-disclosure snapshots, NOT a live feed — update
+// META_AS_OF whenever the table is refreshed.
+const META_AS_OF = '2024-12-01'
+
 // Known attestation metadata — keyed by uppercase symbol for reliable matching
 // (DefiLlama coin IDs like 'usd-coin' are not stable across API responses)
 const ATTESTATION_META: Record<string, {
@@ -51,7 +56,7 @@ const ATTESTATION_META: Record<string, {
     collateralizationRatio: 1.0,
   },
   'TUSD': {
-    attester: 'Armanino',
+    attester: 'Moore Hong Kong',
     attestationUrl: 'https://real-time-attest.trustexplorer.io/truecurrencies',
     lastAttestedDate: '2024-10-01',
     collateralizationRatio: 1.0,
@@ -166,7 +171,7 @@ export async function GET() {
 
     assets.sort((a, b) => b.circulatingUsd - a.circulatingUsd)
 
-    return NextResponse.json({ ok: true, assets, updatedAt: new Date().toISOString() })
+    return NextResponse.json({ ok: true, assets, metaAsOf: META_AS_OF, updatedAt: new Date().toISOString() })
   } catch (err) {
     return NextResponse.json(
       { ok: false, assets: [], error: String(err), updatedAt: new Date().toISOString() },

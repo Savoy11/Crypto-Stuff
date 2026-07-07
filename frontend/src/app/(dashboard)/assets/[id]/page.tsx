@@ -888,8 +888,8 @@ function AnalyticsTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset
 }
 
 function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
-  const ratio = liveAsset.collateralizationRatio ?? 1.0
-  const ratioColor = ratio >= 1.0 ? '#10b981' : ratio >= 0.95 ? '#f59e0b' : '#ef4444'
+  const ratio = liveAsset.collateralizationRatio // null = issuer does not disclose
+  const ratioColor = ratio == null ? '#64748b' : ratio >= 1.0 ? '#10b981' : ratio >= 0.95 ? '#f59e0b' : '#ef4444'
   const composition = liveAsset.composition.length > 0
     ? liveAsset.composition
     : [{ category: 'Undisclosed', percentage: 100, amount: liveAsset.circulatingUsd, description: '' }]
@@ -904,7 +904,7 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
         />
         <MetricCard
           title="Collateralization"
-          value={liveAsset.collateralizationRatio != null ? `${(ratio * 100).toFixed(1)}%` : 'N/D'}
+          value={ratio != null ? `${(ratio * 100).toFixed(1)}%` : 'N/D'}
           accentColor={ratioColor}
         />
         <MetricCard
@@ -924,7 +924,7 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
         <ErrorBoundary>
           <ReserveComposition
             composition={composition}
-            collateralizationRatio={ratio}
+            collateralizationRatio={ratio ?? undefined}
             totalReserves={liveAsset.circulatingUsd}
           />
         </ErrorBoundary>
@@ -945,7 +945,7 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
             <div className="flex justify-between gap-2">
               <span className="text-text-muted">Collateralization</span>
               <span className="font-mono" style={{ color: ratioColor }}>
-                {liveAsset.collateralizationRatio != null ? `${(ratio * 100).toFixed(1)}%` : 'Not disclosed'}
+                {ratio != null ? `${(ratio * 100).toFixed(1)}%` : 'Not disclosed'}
               </span>
             </div>
             {liveAsset.chains.length > 0 && (

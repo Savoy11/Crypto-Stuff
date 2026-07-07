@@ -66,7 +66,10 @@ function VerificationBadge({ verified }: { verified: boolean }) {
   )
 }
 
-function CollateralizationBar({ ratio }: { ratio: number }) {
+function CollateralizationBar({ ratio }: { ratio: number | null }) {
+  if (ratio == null) {
+    return <span className="text-xs text-text-muted italic" title="Issuer does not disclose a collateralization ratio">not disclosed</span>
+  }
   const pct = Math.min(ratio * 100, 200)
   const color = ratio >= 1.0 ? 'bg-emerald-500' : ratio >= 0.95 ? 'bg-amber-500' : 'bg-red-500'
   const textColor = ratio >= 1.0 ? 'text-emerald-400' : ratio >= 0.95 ? 'text-amber-400' : 'text-red-400'
@@ -98,7 +101,7 @@ function PegMechBadge({ mech }: { mech: string }) {
   )
 }
 
-async function fetchLiveReserves(): Promise<{ assets: LiveReserveAsset[]; updatedAt: string }> {
+async function fetchLiveReserves(): Promise<{ assets: LiveReserveAsset[]; updatedAt: string; metaAsOf?: string }> {
   const res = await fetch('/live-data/reserves')
   if (!res.ok) throw new Error('Failed to fetch reserve data')
   return res.json()
@@ -125,7 +128,7 @@ function ReserveMonitor() {
     attestationDate: a.lastAttestedDate,
     attestationUrl: a.attestationUrl,
     totalReservesUsd: a.circulatingUsd,
-    collateralizationRatio: a.collateralizationRatio ?? 1.0,
+    collateralizationRatio: a.collateralizationRatio,
     verified: a.collateralizationRatio !== null,
     chains: a.chains,
     composition: a.composition.length > 0
@@ -137,7 +140,8 @@ function ReserveMonitor() {
   const reserves = LIVE_DATA ? liveAssets : MOCK_RESERVES
   const selected = reserves.find((r) => r.assetId === selectedId)
   const totalReserves = reserves.reduce((s, r) => s + r.totalReservesUsd, 0)
-  const fullyCollateralized = reserves.filter((r) => r.collateralizationRatio >= 1.0).length
+  const disclosed = reserves.filter((r) => r.collateralizationRatio != null)
+  const fullyCollateralized = disclosed.filter((r) => (r.collateralizationRatio ?? 0) >= 1.0).length
   const verifiedCount = reserves.filter((r) => r.verified).length
 
   if (LIVE_DATA && isLoading) {
@@ -183,7 +187,7 @@ function ReserveMonitor() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: 'Total Monitored Supply', value: formatCompact(totalReserves), sub: `${reserves.length} assets via DefiLlama` },
-          { label: 'Fully Collateralized',   value: `${fullyCollateralized}/${reserves.length}`, sub: 'assets ≥ 100%' },
+          { label: 'Fully Collateralized',   value: `${fullyCollateralized}/${disclosed.length}`, sub: 'of assets with disclosed ratios' },
           { label: 'Verified Attestations',  value: `${verifiedCount}/${reserves.length}`, sub: 'by third-party auditor' },
         ].map(({ label, value, sub }) => (
           <div key={label} className="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
@@ -251,7 +255,7 @@ function ReserveMonitor() {
                   </a>
                 )}
               </div>
-              <ReserveComposition composition={selected.composition} collateralizationRatio={selected.collateralizationRatio} />
+              <ReserveComposition composition={selected.composition} collateralizationRatio={selected.collateralizationRatio ?? undefined} />
             </div>
             <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm space-y-2">
               <div className="flex justify-between">
@@ -260,7 +264,7 @@ function ReserveMonitor() {
               </div>
               {selected.attestationDate && (
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Last attested</span>
+                  <span className="text-slate-400">Last attested (per issuer disclosure)</span>
                   <span className="text-slate-200">{formatDate(selected.attestationDate)}</span>
                 </div>
               )}
@@ -285,7 +289,7 @@ function ReserveMonitor() {
           <a href="https://stablecoins.llama.fi" target="_blank" rel="noopener noreferrer" className="text-blue-400/70 hover:text-blue-400">
             DefiLlama Stablecoins API
           </a>{' '}
-          · Attestation metadata from issuer disclosures · Composition breakdowns are approximate
+          · Attester names, dates, and composition splits are curated snapshots of issuer disclosures{liveData?.metaAsOf ? ` (as of ${liveData.metaAsOf})` : ''} — not a live feed — and may lag current filings
         </p>
       )}
     </div>
