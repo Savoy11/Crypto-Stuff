@@ -63,11 +63,26 @@ export async function GET(req: NextRequest) {
 
   allArticles.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
+  // Keyword topic filter — must run BEFORE the recency slice. Keyword-search
+  // hits from NewsAPI/GNews are often hours older than the RSS firehose, so
+  // without this they sort below the newest unfiltered feed items and get cut
+  // by `limit` — leaving the client's identical filter almost nothing to show.
+  // Matches the client's semantics: every keyword must appear in the article's
+  // headline, summary, category, sentiment, source, or tagged assets.
+  const keywordFiltered = keywords.length > 0
+    ? allArticles.filter((a) => {
+        const topic = [a.headline, a.summary, a.category, a.sentiment, a.source, ...a.relatedAssets]
+          .join(' ')
+          .toLowerCase()
+        return keywords.every((kw) => topic.includes(kw.toLowerCase()))
+      })
+    : allArticles
+
   // Server-side asset filter — keep articles that mention the selected asset
   // or are broadly relevant (relatedAssets empty = truly general crypto news)
   const filtered = assetFilter === 'all'
-    ? allArticles
-    : allArticles.filter((a) =>
+    ? keywordFiltered
+    : keywordFiltered.filter((a) =>
         a.relatedAssets.includes(assetFilter) ||
         a.relatedAssets.includes('general')
       )
