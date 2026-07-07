@@ -4,26 +4,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
-  LayoutDashboard,
-  Database,
-  Shield,
-  Bell,
-  Star,
-  FileBarChart,
   Activity,
   LogOut,
   User,
-  Newspaper,
-  MessageSquare,
-  Settings,
-  FlaskConical,
-  Globe,
-  ArrowLeftRight,
-  Coins,
-  Search,
-  TrendingUp,
-  CandlestickChart,
-  Briefcase,
   GripVertical,
   RotateCcw,
   LayoutPanelLeft,
@@ -31,58 +14,51 @@ import {
   BarChart2,
   Rss,
   PieChart,
-  Bot,
-  Microscope,
-  Wallet,
+  TrendingUp,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useAlertStore } from '@/store/useAlertStore'
 import { useStreamStore } from '@/store/useStreamStore'
 import { useAuthStore } from '@/store/useAuthStore'
+import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { usePopoutStore, POPOUT_META, type PopoutKey } from '@/store/usePopoutStore'
+import { MODULES, type ModuleId, type SuiteModule } from '@/lib/modules/registry'
 import { APP_NAME, APP_VERSION } from '@/lib/constants'
 
-const NAV_ITEMS: Array<{ href: string; label: string; icon: React.ElementType; badge?: boolean }> = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/assets', label: 'Assets', icon: Database },
-  { href: '/alerts', label: 'Alerts', icon: Bell, badge: true },
-  { href: '/watchlist', label: 'Watchlist', icon: Star },
-  { href: '/news', label: 'News', icon: Newspaper },
-  { href: '/social', label: 'Social', icon: MessageSquare },
-  { href: '/global-adoption', label: 'Global', icon: Globe },
-  { href: '/portfolios', label: 'Portfolios', icon: Briefcase },
-  { href: '/wallets', label: 'Wallets', icon: Wallet },
-  { href: '/transfer-fees', label: 'Transfer Fees', icon: ArrowLeftRight },
-  { href: '/staking', label: 'Staking', icon: Coins },
-  { href: '/staking-discovery', label: 'Staking Discovery', icon: TrendingUp },
-  { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
-  { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
-  { href: '/backtests', label: 'Backtests', icon: FlaskConical },
-  { href: '/reports', label: 'Reports', icon: FileBarChart },
-  { href: '/research', label: 'Research', icon: Microscope },
-  { href: '/agent-config', label: 'AI Agents', icon: Bot },
-  { href: '/settings', label: 'Integrations', icon: Settings },
-]
+// Navigation is driven by the suite module registry (lib/modules/registry.ts).
+// Each enabled module contributes a sidebar section; items can be drag-reordered
+// within their section and the order persists per module.
 
-const DEFAULT_ORDER = NAV_ITEMS.map((item) => item.href)
-const STORAGE_KEY = 'caep:nav-order'
+type SectionOrder = Partial<Record<ModuleId, string[]>>
 
-function loadOrder(): string[] {
-  if (typeof window === 'undefined') return DEFAULT_ORDER
+const STORAGE_KEY = 'caep:nav-order:v2'
+
+function defaultOrder(mod: SuiteModule): string[] {
+  return mod.navItems.map((item) => item.href)
+}
+
+function loadOrder(): SectionOrder {
+  if (typeof window === 'undefined') return {}
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return DEFAULT_ORDER
-    const parsed: string[] = JSON.parse(stored)
-    // Ensure all current hrefs are present (handles newly added pages)
-    const merged = [...parsed.filter((h) => DEFAULT_ORDER.includes(h))]
-    DEFAULT_ORDER.forEach((h) => { if (!merged.includes(h)) merged.push(h) })
+    if (!stored) return {}
+    const parsed: SectionOrder = JSON.parse(stored)
+    // Merge with defaults so newly added pages always appear
+    const merged: SectionOrder = {}
+    for (const mod of MODULES) {
+      const defaults = defaultOrder(mod)
+      const saved = parsed[mod.id] ?? []
+      const order = saved.filter((h) => defaults.includes(h))
+      defaults.forEach((h) => { if (!order.includes(h)) order.push(h) })
+      merged[mod.id] = order
+    }
     return merged
   } catch {
-    return DEFAULT_ORDER
+    return {}
   }
 }
 
-function saveOrder(order: string[]) {
+function saveOrder(order: SectionOrder) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(order)) } catch {}
 }
 
@@ -185,23 +161,27 @@ export function Sidebar() {
   const { unreadCount } = useAlertStore()
   const { connectionStatus } = useStreamStore()
   const { user, logout } = useAuthStore()
+  const isEnabled = useEntitlementStore((s) => s.isEnabled)
 
-  const [order, setOrder] = useState<string[]>(DEFAULT_ORDER)
+  const [order, setOrder] = useState<SectionOrder>({})
   const [reordering, setReordering] = useState(false)
-  const [dragIndex, setDragIndex] = useState<number | null>(null)
-  const [dropIndex, setDropIndex] = useState<number | null>(null)
-  const dragNode = useRef<HTMLLIElement | null>(null)
+  const [drag, setDrag] = useState<{ mod: ModuleId; index: number } | null>(null)
+  const [drop, setDrop] = useState<{ mod: ModuleId; index: number } | null>(null)
 
   // Load persisted order on mount
   useEffect(() => { setOrder(loadOrder()) }, [])
 
-  const orderedItems = order
-    .map((href) => NAV_ITEMS.find((item) => item.href === href))
-    .filter(Boolean) as typeof NAV_ITEMS
+  const visibleModules = MODULES.filter((mod) => isEnabled(mod.id))
 
-  const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
-    setDragIndex(index)
-    dragNode.current = e.currentTarget as HTMLLIElement
+  const orderedItems = useCallback((mod: SuiteModule) => {
+    const hrefs = order[mod.id] ?? defaultOrder(mod)
+    return hrefs
+      .map((href) => mod.navItems.find((item) => item.href === href))
+      .filter(Boolean) as SuiteModule['navItems']
+  }, [order])
+
+  const handleDragStart = useCallback((e: React.DragEvent, mod: ModuleId, index: number) => {
+    setDrag({ mod, index })
     e.dataTransfer.effectAllowed = 'move'
     // Transparent drag ghost
     const ghost = document.createElement('div')
@@ -212,34 +192,36 @@ export function Sidebar() {
     setTimeout(() => document.body.removeChild(ghost), 0)
   }, [])
 
-  const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+  const handleDragOver = useCallback((e: React.DragEvent, mod: ModuleId, index: number) => {
+    if (drag?.mod !== mod) return
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setDropIndex(index)
-  }, [])
+    setDrop({ mod, index })
+  }, [drag])
 
-  const handleDrop = useCallback((e: React.DragEvent, index: number) => {
+  const handleDrop = useCallback((e: React.DragEvent, mod: SuiteModule, index: number) => {
     e.preventDefault()
-    if (dragIndex === null || dragIndex === index) return
+    if (!drag || drag.mod !== mod.id || drag.index === index) return
     setOrder((prev) => {
-      const next = [...prev]
-      const [moved] = next.splice(dragIndex, 1)
-      next.splice(index, 0, moved)
+      const current = [...(prev[mod.id] ?? defaultOrder(mod))]
+      const [moved] = current.splice(drag.index, 1)
+      current.splice(index, 0, moved)
+      const next = { ...prev, [mod.id]: current }
       saveOrder(next)
       return next
     })
-    setDragIndex(null)
-    setDropIndex(null)
-  }, [dragIndex])
+    setDrag(null)
+    setDrop(null)
+  }, [drag])
 
   const handleDragEnd = useCallback(() => {
-    setDragIndex(null)
-    setDropIndex(null)
+    setDrag(null)
+    setDrop(null)
   }, [])
 
   const resetOrder = useCallback(() => {
-    setOrder(DEFAULT_ORDER)
-    saveOrder(DEFAULT_ORDER)
+    setOrder({})
+    saveOrder({})
   }, [])
 
   return (
@@ -274,7 +256,7 @@ export function Sidebar() {
       {/* Reorder mode banner */}
       {reordering && (
         <div className="flex items-center justify-between px-3 py-1.5 bg-accent-blue/10 border-b border-accent-blue/20">
-          <span className="text-[11px] text-accent-blue font-medium">Drag to reorder</span>
+          <span className="text-[11px] text-accent-blue font-medium">Drag to reorder within a section</span>
           <button
             onClick={resetOrder}
             className="flex items-center gap-1 text-[11px] text-text-muted hover:text-text-secondary transition-colors"
@@ -288,71 +270,80 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto" role="navigation">
-        <ul className="space-y-0.5" role="list">
-          {orderedItems.map(({ href, label, icon: Icon, badge }, index) => {
-            const isActive = pathname === href || pathname.startsWith(`${href}/`)
-            const isDragging = dragIndex === index
-            const isDropTarget = dropIndex === index && dragIndex !== index
+        {visibleModules.map((mod) => (
+          <div key={mod.id} className={mod.label ? 'mt-4' : undefined}>
+            {mod.label && (
+              <p className="px-3 pb-1 text-[10px] font-semibold text-text-muted uppercase tracking-wider">
+                {mod.label}
+              </p>
+            )}
+            <ul className="space-y-0.5" role="list">
+              {orderedItems(mod).map(({ href, label, icon: Icon, badge }, index) => {
+                const isActive = pathname === href || pathname.startsWith(`${href}/`)
+                const isDragging = drag?.mod === mod.id && drag.index === index
+                const isDropTarget = drop?.mod === mod.id && drop.index === index && drag?.index !== index
 
-            return (
-              <li
-                key={href}
-                draggable={reordering}
-                onDragStart={reordering ? (e) => handleDragStart(e, index) : undefined}
-                onDragOver={reordering ? (e) => handleDragOver(e, index) : undefined}
-                onDrop={reordering ? (e) => handleDrop(e, index) : undefined}
-                onDragEnd={reordering ? handleDragEnd : undefined}
-                className={clsx(
-                  'rounded transition-all',
-                  reordering && 'cursor-grab active:cursor-grabbing',
-                  isDragging && 'opacity-40',
-                  isDropTarget && 'ring-1 ring-accent-blue/50 ring-offset-1 ring-offset-transparent'
-                )}
-              >
-                {reordering ? (
-                  <div
+                return (
+                  <li
+                    key={href}
+                    draggable={reordering}
+                    onDragStart={reordering ? (e) => handleDragStart(e, mod.id, index) : undefined}
+                    onDragOver={reordering ? (e) => handleDragOver(e, mod.id, index) : undefined}
+                    onDrop={reordering ? (e) => handleDrop(e, mod, index) : undefined}
+                    onDragEnd={reordering ? handleDragEnd : undefined}
                     className={clsx(
-                      'flex items-center justify-between px-3 py-2 rounded text-sm select-none',
-                      isActive
-                        ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
-                        : 'text-text-secondary hover:bg-bg-elevated'
+                      'rounded transition-all',
+                      reordering && 'cursor-grab active:cursor-grabbing',
+                      isDragging && 'opacity-40',
+                      isDropTarget && 'ring-1 ring-accent-blue/50 ring-offset-1 ring-offset-transparent'
                     )}
                   >
-                    <div className="flex items-center gap-3">
-                      <Icon size={16} aria-hidden className={isActive ? 'text-accent-blue' : 'text-text-muted'} />
-                      <span className="font-medium">{label}</span>
-                    </div>
-                    <GripVertical size={14} className="text-text-muted flex-shrink-0" aria-hidden />
-                  </div>
-                ) : (
-                  <Link
-                    href={href}
-                    className={clsx(
-                      'flex items-center justify-between px-3 py-2 rounded text-sm transition-all',
-                      isActive
-                        ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
-                        : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
-                    )}
-                    aria-current={isActive ? 'page' : undefined}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon size={16} aria-hidden className={isActive ? 'text-accent-blue' : 'text-text-muted'} />
-                      <span className="font-medium">{label}</span>
-                    </div>
-                    {badge && unreadCount > 0 && (
-                      <span
-                        className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center"
-                        aria-label={`${unreadCount} unread alerts`}
+                    {reordering ? (
+                      <div
+                        className={clsx(
+                          'flex items-center justify-between px-3 py-2 rounded text-sm select-none',
+                          isActive
+                            ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
+                            : 'text-text-secondary hover:bg-bg-elevated'
+                        )}
                       >
-                        {unreadCount > 99 ? '99+' : unreadCount}
-                      </span>
+                        <div className="flex items-center gap-3">
+                          <Icon size={16} aria-hidden className={isActive ? 'text-accent-blue' : 'text-text-muted'} />
+                          <span className="font-medium">{label}</span>
+                        </div>
+                        <GripVertical size={14} className="text-text-muted flex-shrink-0" aria-hidden />
+                      </div>
+                    ) : (
+                      <Link
+                        href={href}
+                        className={clsx(
+                          'flex items-center justify-between px-3 py-2 rounded text-sm transition-all',
+                          isActive
+                            ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
+                            : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
+                        )}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Icon size={16} aria-hidden className={isActive ? 'text-accent-blue' : 'text-text-muted'} />
+                          <span className="font-medium">{label}</span>
+                        </div>
+                        {badge && unreadCount > 0 && (
+                          <span
+                            className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center"
+                            aria-label={`${unreadCount} unread alerts`}
+                          >
+                            {unreadCount > 99 ? '99+' : unreadCount}
+                          </span>
+                        )}
+                      </Link>
                     )}
-                  </Link>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       {/* Bottom section */}
