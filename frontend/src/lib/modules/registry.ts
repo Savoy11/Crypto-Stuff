@@ -24,6 +24,7 @@ import {
   Compass,
   GitCompareArrows,
   CalendarDays,
+  Sunrise,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -67,6 +68,7 @@ export const MODULES: SuiteModule[] = [
     optional: false,
     navItems: [
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/brief', label: 'Daily Brief', icon: Sunrise },
       { href: '/alerts', label: 'Alerts', icon: Bell, badge: true },
       { href: '/watchlist', label: 'Watchlist', icon: Star },
       { href: '/portfolios', label: 'Portfolios', icon: Briefcase },
