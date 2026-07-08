@@ -181,7 +181,7 @@ server.tool(
 
 server.tool(
   'get_staking_opportunities',
-  'Find staking opportunities for a cryptocurrency across CeFi exchanges (Coinbase, Kraken, Binance…), self-custody wallets (Ledger, MetaMask, Phantom…), and liquid staking protocols (Lido, Rocket Pool, Marinade, Jito…). Each result includes live APY, lock-up period, custody model, and a risk score (1–10 composite across custody, counterparty, smart contract, slashing, liquidity, and regulatory dimensions).',
+  'Find staking opportunities for a cryptocurrency across CeFi exchanges (Coinbase, Kraken, Binance…), self-custody wallets (Ledger, MetaMask, Phantom…), and liquid staking protocols (Lido, Rocket Pool, Marinade, Jito…). Each result includes APR/APY (live where available, otherwise estimates), lock-up period, custody model, and a risk score (1–10 composite across custody, counterparty, smart contract, slashing, liquidity, and regulatory dimensions).',
   {
     coin:     z.string().optional().describe('Coin id to filter by. E.g. "eth", "sol", "ada", "dot", "atom". Omit for all stakeable coins.'),
     category: z.enum(['cefi', 'wallet', 'liquid']).optional().describe('cefi = exchange staking (custodial), wallet = self-custody wallet delegation, liquid = liquid staking protocols (stETH, mSOL, etc.)'),
@@ -240,7 +240,7 @@ server.tool(
     }
 
     text += `---\n🏦 custodial (exchange holds keys)  🔑 non-custodial (you hold keys)  📜 smart-contract (on-chain code)\n`
-    text += `Risk score: 🟢 low (1–3)  🟡 medium (4–5.5)  🟠 high (5.5–7.5)  🔴 critical (7.5+)`
+    text += `Risk score: 🟢 low (≤3)  🟡 medium (>3–5.5)  🟠 high (>5.5–7.5)  🔴 critical (>7.5)`
 
     return { content: [{ type: 'text', text }] }
   }
@@ -250,13 +250,13 @@ server.tool(
 
 server.tool(
   'get_crypto_news',
-  'Get recent crypto news articles with sentiment analysis and coin tagging. Articles are sourced from CoinDesk, Cointelegraph, Decrypt, Bitcoin.com News, and Forkast. Each article is tagged with sentiment (positive/negative/neutral), a category (regulation/security/adoption/macro/protocol/global/general), and the coins it relates to.',
+  'Get recent crypto news articles with sentiment analysis and coin tagging. Articles are aggregated from the configured providers (CryptoPanic, Messari, NewsAPI, GNews). Each article is tagged with sentiment (positive/negative/neutral), a category (regulation/security/adoption/macro/protocol/global/general), and the coins it relates to.',
   {
     coin:      z.string().optional().describe('Filter to articles relevant to this coin. E.g. "btc", "eth", "sol"'),
     limit:     z.number().min(1).max(50).optional().describe('Number of articles to return (1–50, default 10)'),
     sentiment: z.enum(['positive', 'negative', 'neutral']).optional().describe('Filter by sentiment'),
   },
-  async ({ coin, limit = 10, sentiment }) => {
+  async ({ coin, limit = 20, sentiment }) => {
     const params = new URLSearchParams({ limit: String(limit) })
     if (coin)      params.set('coin', coin)
     if (sentiment) params.set('sentiment', sentiment)

@@ -86,7 +86,7 @@ async function fetchKrakenBalances(apiKey: string, apiSecret: string) {
   if (data.error?.length) throw new Error(data.error[0])
 
   return Object.entries(data.result as Record<string, string>).map(([asset, bal]) => ({
-    asset:  asset.replace(/^X(BTC|ETH)$/, '$1').replace(/^Z(USD|EUR|GBP)$/, '$1'),
+    asset:  asset.replace(/^X?X(BT|ETH)$/, (_, sym) => (sym === 'BT' ? 'BTC' : sym)).replace(/^Z(USD|EUR|GBP)$/, '$1'),
     free:   parseFloat(bal),
     locked: 0,
     total:  parseFloat(bal),

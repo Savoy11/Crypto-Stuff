@@ -1744,7 +1744,9 @@ export function findTransferPaths(
     const network = NETWORKS[wNet.networkId]
     const exchangeFeeUsd = wNet.withdrawFee * coinPriceUsd
     const networkFeeUsd = nFee.feeUsd
-    const totalFeeUsd = exchangeFeeUsd + networkFeeUsd
+    // A CEX withdrawal fee already covers the on-chain gas — the network fee
+    // is shown for context, not added on top (it was double-counted before).
+    const totalFeeUsd = exchangeFeeUsd
     const amountUsd = amount * coinPriceUsd
     const feePercent = amountUsd > 0 ? (totalFeeUsd / amountUsd) * 100 : 0
     const isViable = amount >= wNet.minWithdraw
@@ -1770,16 +1772,21 @@ export function findTransferPaths(
 
   // No shared network → multi-hop via wallet
   if (paths.length === 0 && toEx) {
-    const srcNet = fromCoin.networks.find(n => n.withdrawEnabled && networkFees[n.networkId])
-    const dstNet = toCoin!.networks.find(n => n.depositEnabled && networkFees[n.networkId])
+    // Prefer a network both legs support so no bridge/swap is implied
+    const sharedNet = fromCoin.networks.find(n =>
+      n.withdrawEnabled && networkFees[n.networkId] &&
+      toCoin!.networks.some(d => d.networkId === n.networkId && d.depositEnabled)
+    )
+    const srcNet = sharedNet ?? fromCoin.networks.find(n => n.withdrawEnabled && networkFees[n.networkId])
+    const dstNet = sharedNet ?? toCoin!.networks.find(n => n.depositEnabled && networkFees[n.networkId])
 
     if (srcNet && dstNet) {
-      const srcNFee = networkFees[srcNet.networkId]!
       const dstNFee = networkFees[dstNet.networkId]!
       const srcNetwork = NETWORKS[srcNet.networkId]
       const dstNetwork = NETWORKS[dstNet.networkId]
       const exchangeFeeUsd = srcNet.withdrawFee * coinPriceUsd
-      const networkFeeUsd = srcNFee.feeUsd + dstNFee.feeUsd
+      // Exchange fee covers leg-1 gas; the user pays gas on the wallet→exchange leg
+      const networkFeeUsd = dstNFee.feeUsd
       const totalFeeUsd = exchangeFeeUsd + networkFeeUsd
       const amountUsd = amount * coinPriceUsd
 
@@ -1788,7 +1795,7 @@ export function findTransferPaths(
         type: 'multi-hop',
         networkId: srcNet.networkId,
         hops: [
-          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: srcNFee.feeNative, networkFeeUsd: srcNFee.feeUsd, nativeGasToken: srcNFee.nativeToken },
+          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken },
           { step: 2, from: 'Personal Wallet', to: toEx.name, networkId: dstNet.networkId, exchangeFee: 0, exchangeFeeUsd: 0, networkFee: dstNFee.feeNative, networkFeeUsd: dstNFee.feeUsd, nativeGasToken: dstNFee.nativeToken },
         ],
         exchangeFeeCoin: srcNet.withdrawFee, exchangeFeeUsd, networkFeeUsd, totalFeeUsd,

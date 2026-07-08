@@ -20,7 +20,7 @@ const CG_KEY = process.env.COINGECKO_API_KEY && process.env.COINGECKO_API_KEY !=
 const BINANCE_SYMBOL_MAP: Record<string, string> = {
   BTCUSDT: 'btc', ETHUSDT: 'eth', SOLUSDT: 'sol', BNBUSDT: 'bnb',
   XRPUSDT: 'xrp', ADAUSDT: 'ada', DOGEUSDT: 'doge', AVAXUSDT: 'avax',
-  DOTUSDT: 'dot', MATICUSDT: 'matic', LTCUSDT: 'ltc', LINKUSDT: 'link',
+  DOTUSDT: 'dot', POLUSDT: 'pol', LTCUSDT: 'ltc', LINKUSDT: 'link',
   UNIUSDT: 'uni', AAVEUSDT: 'aave', ATOMUSDT: 'atom', NEARUSDT: 'near',
 }
 

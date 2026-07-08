@@ -20,7 +20,7 @@ const GAS_AMOUNTS = {
   optimism:     0.00005,
   bep20:        0.0005,    // BNB gas is cheap
   solana:       0.000025,  // ~5000 lamports
-  trc20:        1.0,       // TRC-20 token transfer ~1 TRX bandwidth/energy
+  trc20:        14,        // TRC-20 token transfer burns ~14 TRX without staked energy
   polygon:      0.1,       // MATIC
   avalanche:    0.01,      // AVAX
   bitcoin:      0.00015,   // ~250 vBytes @ ~60 sat/vByte

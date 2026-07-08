@@ -56,7 +56,7 @@ function symbolToCoinId(symbol: string): string | null {
 }
 
 function hasReceiptToken(symbol: string): boolean {
-  return /^(st|r[A-Z]|j[A-Z]|m[A-Z]|b[A-Z]|an[A-Z]|s[A-Z]{2})/i.test(symbol) && symbol.length > 3
+  return /^(st|r[A-Z]|j[A-Z]|m[A-Z]|b[A-Z]|an[A-Z]|s[A-Z]{2})/.test(symbol) && symbol.length > 3
 }
 
 function buildPool(

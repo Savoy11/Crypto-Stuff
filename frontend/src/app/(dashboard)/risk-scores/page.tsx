@@ -41,9 +41,9 @@ export default function RiskScoresPage() {
           <PageHeader
             title="Risk Score Leaderboard"
             subtitle="Composite risk assessment across all monitored assets"
-            description="The Risk Score Leaderboard ranks every tracked asset by its composite CAEP risk score — a weighted combination of reserve quality, peg stability, network security, and counterparty exposure. Lower scores indicate safer assets."
+            description="The Risk Score Leaderboard ranks every tracked asset by its composite CAEP risk score — a weighted combination of reserve quality, peg stability, network security, and counterparty exposure. Scores run 0–100 — higher scores indicate safer assets."
             details={[
-              { label: 'Score bands', text: 'Low (0–3.5) · Medium (3.5–6) · High (6–8) · Critical (8–10). Bands are shown as color-coded pills on each row.' },
+              { label: 'Score bands', text: 'Low risk (80–100) · Moderate (60–79) · Elevated (40–59) · High (20–39) · Critical (0–19). Bands are shown as color-coded pills on each row.' },
               { label: 'Live mode', text: 'Composite risk scoring requires the CAEP backend. In live mode without a backend connection, scores are shown as N/A to avoid displaying fabricated values.' },
               { label: 'Sub-scores', text: 'Click any asset to see its breakdown: reserve, peg, network, and security sub-scores.' },
             ]}

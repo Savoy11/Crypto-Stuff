@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
@@ -12,7 +12,7 @@ import {
   MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import type { ChartType, DrawingTool, Drawing } from './CandlestickChart'
+import type { ChartType, DrawingTool, Drawing } from '@/components/charts/CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
 import {
   rsi, macd, bollingerBands, ema, sma, stochasticRsi, atr, obv, vwap,
@@ -23,7 +23,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
 import type { CoinListResponse } from '@/lib/types/coinList'
 
-const CandlestickChart = dynamic(() => import('./CandlestickChart'), { ssr: false })
+const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickChart'), { ssr: false })
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -533,7 +533,17 @@ function MultiTimeframeGrid({ assetId }: { assetId: string }) {
 
 type Tab = 'chart' | 'screener' | 'patterns'
 
+// useSearchParams() forces a CSR bailout, so the page body must sit inside a
+// Suspense boundary for `next build` prerendering to succeed.
 export default function TechnicalAnalysisPage() {
+  return (
+    <Suspense>
+      <TechnicalAnalysisContent />
+    </Suspense>
+  )
+}
+
+function TechnicalAnalysisContent() {
   const searchParams = useSearchParams()
 
   // Fetch live coin list to enrich OHLCV-supported assets with names + ranks

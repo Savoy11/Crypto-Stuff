@@ -14,11 +14,11 @@ import {
   ema, computeSignalSummary, fibRetracement,
   type OhlcvCandle, type SignalSummary, type Signal,
 } from '@/lib/utils/indicators'
-import type { ChartType } from '../../technical-analysis/CandlestickChart'
+import type { ChartType } from '@/components/charts/CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
 
 const TACandlestickChart = dynamic(
-  () => import('../../technical-analysis/CandlestickChart'),
+  () => import('@/components/charts/CandlestickChart'),
   { ssr: false }
 )
 
@@ -394,8 +394,8 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
     setTimeout(() => setCopied(false), 1500)
   }, [asset.contractAddress])
 
-  const priceUp = asset.latestMarketData?.priceChange24h ?? 0 >= 0
-  const pegClass = getPegDeviationColorClass(asset.pegDeviation)
+  const priceUp = (asset.latestMarketData?.priceChange24h ?? 0) >= 0
+  const pegClass = getPegDeviationColorClass(asset.pegDeviationBps ?? asset.pegDeviation)
 
   return (
     <div className="rounded-card border border-border bg-bg-card p-6">
@@ -423,7 +423,14 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
             <p className="text-xs text-text-muted max-w-xl leading-relaxed">{asset.description}</p>
           )}
 
-          {/* Contract address */}
+          {/* Contract address — sentinel placeholders (0x000…000N) must not
+              display as a real address */}
+          {/^0x0{30,}[0-9a-fA-F]*$/.test(asset.contractAddress) ? (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-text-muted">Contract:</span>
+              <span className="text-xs text-text-muted italic">not on file</span>
+            </div>
+          ) : (
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Contract:</span>
             <code className="font-mono text-xs text-text-secondary">
@@ -463,6 +470,7 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
               </a>
             )}
           </div>
+          )}
         </div>
 
         {/* Right: risk score gauge */}
@@ -502,7 +510,7 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
                 <>
                   <div className="text-[10px] text-text-muted uppercase">Peg Dev</div>
                   <div className={clsx('font-mono text-sm', pegClass)}>
-                    {formatOrNA(asset.pegDeviation, formatBps)}
+                    {formatOrNA(asset.pegDeviationBps ?? asset.pegDeviation, formatBps)}
                   </div>
                 </>
               )}
@@ -880,8 +888,8 @@ function AnalyticsTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset
 }
 
 function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
-  const ratio = liveAsset.collateralizationRatio ?? 1.0
-  const ratioColor = ratio >= 1.0 ? '#10b981' : ratio >= 0.95 ? '#f59e0b' : '#ef4444'
+  const ratio = liveAsset.collateralizationRatio // null = issuer does not disclose
+  const ratioColor = ratio == null ? '#64748b' : ratio >= 1.0 ? '#10b981' : ratio >= 0.95 ? '#f59e0b' : '#ef4444'
   const composition = liveAsset.composition.length > 0
     ? liveAsset.composition
     : [{ category: 'Undisclosed', percentage: 100, amount: liveAsset.circulatingUsd, description: '' }]
@@ -896,7 +904,7 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
         />
         <MetricCard
           title="Collateralization"
-          value={liveAsset.collateralizationRatio != null ? `${(ratio * 100).toFixed(1)}%` : 'N/D'}
+          value={ratio != null ? `${(ratio * 100).toFixed(1)}%` : 'N/D'}
           accentColor={ratioColor}
         />
         <MetricCard
@@ -916,7 +924,7 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
         <ErrorBoundary>
           <ReserveComposition
             composition={composition}
-            collateralizationRatio={ratio}
+            collateralizationRatio={ratio ?? undefined}
             totalReserves={liveAsset.circulatingUsd}
           />
         </ErrorBoundary>
@@ -937,7 +945,7 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
             <div className="flex justify-between gap-2">
               <span className="text-text-muted">Collateralization</span>
               <span className="font-mono" style={{ color: ratioColor }}>
-                {liveAsset.collateralizationRatio != null ? `${(ratio * 100).toFixed(1)}%` : 'Not disclosed'}
+                {ratio != null ? `${(ratio * 100).toFixed(1)}%` : 'Not disclosed'}
               </span>
             </div>
             {liveAsset.chains.length > 0 && (

@@ -12,7 +12,7 @@ export interface ScanTarget {
 export interface ScanFinding {
   target: ScanTarget
   summary: string
-  riskLevel: 'clean' | 'suspicious' | 'flagged' | 'critical'
+  riskLevel: 'clean' | 'suspicious' | 'flagged' | 'critical' | 'error'
   evidence: string[]
   sources: string[]
   scannedAt: string
@@ -90,7 +90,7 @@ Risk level guide:
     return {
       target,
       summary: 'Scan could not be completed for this target.',
-      riskLevel: 'clean',
+      riskLevel: 'error', // a failed scan must not read as a clean verdict
       evidence: [],
       sources: [],
       scannedAt: new Date().toISOString(),
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
       : {
           target: capped[i],
           summary: 'Scan failed for this target.',
-          riskLevel: 'clean' as const,
+          riskLevel: 'error' as const,
           evidence: [],
           sources: [],
           scannedAt: new Date().toISOString(),

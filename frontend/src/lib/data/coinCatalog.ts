@@ -40,7 +40,7 @@ export const UTILITY_MAP: Record<string, { category: string; utilityScore: numbe
   'injective-protocol':{ category: 'layer1',   utilityScore: 8, note: 'DeFi-native L1, exchange infrastructure' },
   'celestia':          { category: 'layer1',   utilityScore: 8, note: 'Modular data availability layer' },
   'hyperliquid':       { category: 'layer1',   utilityScore: 8, note: 'High-performance perps DEX L1' },
-  'berachain':         { category: 'layer1',   utilityScore: 7, note: 'Proof-of-Liquidity L1' },
+  'berachain-bera':    { category: 'layer1',   utilityScore: 7, note: 'Proof-of-Liquidity L1' },
   'monad':             { category: 'layer1',   utilityScore: 8, note: 'Parallel EVM L1, 10k+ TPS' },
   'iota':              { category: 'layer1',   utilityScore: 6, note: 'Feeless DAG for IoT use cases' },
   'nano':              { category: 'layer1',   utilityScore: 6, note: 'Feeless instant payments' },
@@ -52,10 +52,9 @@ export const UTILITY_MAP: Record<string, { category: string; utilityScore: numbe
   'yearn-finance':     { category: 'defi',    utilityScore: 8, note: 'Yield aggregator, pioneered DeFi vaults' },
   '1inch':             { category: 'defi',    utilityScore: 8, note: 'Multi-chain DEX aggregator' },
   'dydx':              { category: 'defi',    utilityScore: 8, note: 'Decentralised perpetuals exchange' },
-  'pendle-finance':    { category: 'defi',    utilityScore: 8, note: 'Yield trading and tokenisation protocol' },
+  'pendle':            { category: 'defi',    utilityScore: 8, note: 'Yield trading and tokenisation protocol' },
   'ethena':            { category: 'defi',    utilityScore: 8, note: 'Synthetic USD backed by ETH staking + hedging' },
-  'aave-v3':           { category: 'defi',    utilityScore: 9, note: 'Leading DeFi lending protocol' },
-  'ondo-finance':      { category: 'rwa',     utilityScore: 9, note: 'Real-world asset tokenisation (T-bills, bonds)' },
+    'ondo-finance':      { category: 'rwa',     utilityScore: 9, note: 'Real-world asset tokenisation (T-bills, bonds)' },
   'maple':             { category: 'rwa',     utilityScore: 7, note: 'Institutional on-chain credit markets' },
   'centrifuge':        { category: 'rwa',     utilityScore: 7, note: 'Real-world asset DeFi protocol' },
 
@@ -66,7 +65,7 @@ export const UTILITY_MAP: Record<string, { category: string; utilityScore: numbe
   'singularitynet':    { category: 'ai',      utilityScore: 7, note: 'Decentralised AI marketplace' },
   'worldcoin-wld':     { category: 'ai',      utilityScore: 6, note: 'Biometric identity + UBI token' },
   'akash-network':     { category: 'ai',      utilityScore: 8, note: 'Decentralised cloud compute marketplace' },
-  'io':                { category: 'ai',      utilityScore: 8, note: 'Decentralised GPU compute network' },
+  'io-net':            { category: 'ai',      utilityScore: 8, note: 'Decentralised GPU compute network' },
 
   // Exchange Tokens
   'okb':               { category: 'exchange', utilityScore: 6, note: 'OKX exchange token, OKX Chain gas' },
@@ -87,7 +86,7 @@ export const UTILITY_MAP: Record<string, { category: string; utilityScore: numbe
   'floki':             { category: 'meme',    utilityScore: 2, note: 'Meme/gaming hybrid token' },
   'bonk':              { category: 'meme',    utilityScore: 2, note: 'Solana meme coin' },
   'notcoin':           { category: 'meme',    utilityScore: 2, note: 'TON-based tap-to-earn meme coin' },
-  'dogs-breed':        { category: 'meme',    utilityScore: 1, note: 'Meme coin' },
+  'dogs-2':            { category: 'meme',    utilityScore: 1, note: 'Meme coin' },
 
   // Gaming / Metaverse
   'axie-infinity':     { category: 'gaming',  utilityScore: 5, note: 'Pioneer P2E game, declining but notable' },
@@ -100,7 +99,7 @@ export const UTILITY_MAP: Record<string, { category: string; utilityScore: numbe
   'stargate-finance':  { category: 'interop', utilityScore: 7, note: 'Cross-chain liquidity via LayerZero' },
   'wormhole':          { category: 'interop', utilityScore: 7, note: 'Cross-chain messaging and bridge' },
   'layerzero':         { category: 'interop', utilityScore: 8, note: 'Omnichain interoperability protocol' },
-  'axelar-network':    { category: 'interop', utilityScore: 7, note: 'Cross-chain communication network' },
+  'axelar':            { category: 'interop', utilityScore: 7, note: 'Cross-chain communication network' },
 }
 
 // ─── Category metadata ────────────────────────────────────────────────────────

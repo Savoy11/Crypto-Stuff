@@ -28,7 +28,8 @@ const MONITORED_ASSETS = [
   { id: 'frax',        symbol: 'FRAX',  name: 'Frax',            pegTarget: 1.0 },
   { id: 'true-usd',   symbol: 'TUSD',  name: 'TrueUSD',         pegTarget: 1.0 },
   { id: 'paypal-usd', symbol: 'PYUSD', name: 'PayPal USD',      pegTarget: 1.0 },
-  { id: 'pax-dollar', symbol: 'USDP',  name: 'Pax Dollar',      pegTarget: 1.0 },
+  // CoinGecko id for Pax Dollar is the legacy 'paxos-standard' (NOT 'pax-dollar')
+  { id: 'paxos-standard', symbol: 'USDP', name: 'Pax Dollar',   pegTarget: 1.0 },
   { id: 'gemini-dollar', symbol: 'GUSD', name: 'Gemini Dollar', pegTarget: 1.0 },
   { id: 'liquity-usd',  symbol: 'LUSD', name: 'Liquity USD',    pegTarget: 1.0 },
 ]
