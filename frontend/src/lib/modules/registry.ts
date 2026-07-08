@@ -22,6 +22,7 @@ import {
   LineChart,
   Landmark,
   Compass,
+  GitCompareArrows,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -68,6 +69,7 @@ export const MODULES: SuiteModule[] = [
       { href: '/alerts', label: 'Alerts', icon: Bell, badge: true },
       { href: '/watchlist', label: 'Watchlist', icon: Star },
       { href: '/portfolios', label: 'Portfolios', icon: Briefcase },
+      { href: '/compare', label: 'Compare', icon: GitCompareArrows },
       { href: '/reports', label: 'Reports', icon: FileBarChart },
       { href: '/research', label: 'Research', icon: Microscope },
       { href: '/agent-config', label: 'AI Agents', icon: Bot },
