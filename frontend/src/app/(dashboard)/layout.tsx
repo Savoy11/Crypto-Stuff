@@ -14,6 +14,7 @@ import { useWebSocket }     from '@/lib/websocket/hooks'
 import { useAuthStore }     from '@/store/useAuthStore'
 import { useRecentAlerts }  from '@/hooks/useAlerts'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
+import { usePriceAlertMonitor } from '@/hooks/usePriceAlertMonitor'
 import { PullToRefresh }    from '@/components/ui/PullToRefresh'
 import { USE_MOCK, LIVE_DATA } from '@/lib/constants'
 
@@ -25,6 +26,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   useWebSocket()
   useRecentAlerts(20)
   const { refresh } = useGlobalRefresh()   // registers auto-refresh interval
+  usePriceAlertMonitor()                   // user price alerts, app-wide
 
   return (
     <div className="flex min-h-screen bg-bg-primary">
