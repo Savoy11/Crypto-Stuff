@@ -9,6 +9,7 @@ import {
 import { AlertFeed } from '@/components/alerts/AlertFeed'
 import { AlertFilters } from '@/components/alerts/AlertFilters'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { PriceAlertsPanel } from '@/components/alerts/PriceAlertsPanel'
 import { useAlertStore } from '@/store/useAlertStore'
 import { RAW_ALERTS } from '@/lib/api/mock/mockAlerts'
 import { LIVE_DATA } from '@/lib/constants'
@@ -203,6 +204,9 @@ export default function AlertsPage() {
           )}
         </div>
       </div>
+
+      {/* User-defined price alerts (crypto + stocks + funds) */}
+      <PriceAlertsPanel />
 
       {/* Live mode */}
       {LIVE_DATA && (

@@ -7,12 +7,14 @@ import { TopBar } from '@/components/layout/TopBar'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { DataStatusBanner } from '@/components/layout/DataStatusBanner'
 import { PopoutLayer } from '@/components/layout/PopoutLayer'
+import { CommandPalette } from '@/components/layout/CommandPalette'
 import { AssistantWidget } from '@/components/agents/AssistantWidget'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { useWebSocket }     from '@/lib/websocket/hooks'
 import { useAuthStore }     from '@/store/useAuthStore'
 import { useRecentAlerts }  from '@/hooks/useAlerts'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
+import { usePriceAlertMonitor } from '@/hooks/usePriceAlertMonitor'
 import { PullToRefresh }    from '@/components/ui/PullToRefresh'
 import { USE_MOCK, LIVE_DATA } from '@/lib/constants'
 
@@ -24,6 +26,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
   useWebSocket()
   useRecentAlerts(20)
   const { refresh } = useGlobalRefresh()   // registers auto-refresh interval
+  usePriceAlertMonitor()                   // user price alerts, app-wide
 
   return (
     <div className="flex min-h-screen bg-bg-primary">
@@ -42,6 +45,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         <StatusBar />
       </div>
       <PopoutLayer />
+      <CommandPalette />
       <AssistantWidget />
     </div>
   )

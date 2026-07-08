@@ -7,6 +7,8 @@ export type CoinCategory =
   | 'layer1' | 'layer2' | 'defi' | 'stablecoin'
   | 'exchange' | 'privacy' | 'meme' | 'gaming'
   | 'interop' | 'ai' | 'rwa' | 'storage' | 'unknown'
+  // Cross-asset categories used by lib/data/instruments.ts
+  | 'equity' | 'fund' | 'bond'
 
 export interface PortfolioCoin {
   cgId:      string
@@ -108,4 +110,7 @@ export const CATEGORY_META: Record<CoinCategory, { label: string; color: string 
   rwa:        { label: 'Real World Asset',color: '#f59e0b' },
   storage:    { label: 'Storage',         color: '#64748b' },
   unknown:    { label: 'Other',           color: '#475569' },
+  equity:     { label: 'Stocks',          color: '#3b82f6' },
+  fund:       { label: 'ETFs & Funds',    color: '#14b8a6' },
+  bond:       { label: 'Bonds',           color: '#64748b' },
 }
