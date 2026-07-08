@@ -23,6 +23,7 @@ import {
   Landmark,
   Compass,
   GitCompareArrows,
+  CalendarDays,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -110,6 +111,7 @@ export const MODULES: SuiteModule[] = [
       { href: '/equities/social', label: 'Stock Social', icon: MessageSquare },
       { href: '/equities/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
       { href: '/equities/backtests', label: 'Backtests', icon: FlaskConical },
+      { href: '/equities/calendar', label: 'Calendar', icon: CalendarDays },
     ],
   },
   {
