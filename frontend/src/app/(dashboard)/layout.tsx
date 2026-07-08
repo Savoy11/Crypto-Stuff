@@ -7,6 +7,7 @@ import { TopBar } from '@/components/layout/TopBar'
 import { StatusBar } from '@/components/layout/StatusBar'
 import { DataStatusBanner } from '@/components/layout/DataStatusBanner'
 import { PopoutLayer } from '@/components/layout/PopoutLayer'
+import { CommandPalette } from '@/components/layout/CommandPalette'
 import { AssistantWidget } from '@/components/agents/AssistantWidget'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { useWebSocket }     from '@/lib/websocket/hooks'
@@ -42,6 +43,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
         <StatusBar />
       </div>
       <PopoutLayer />
+      <CommandPalette />
       <AssistantWidget />
     </div>
   )
