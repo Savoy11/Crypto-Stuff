@@ -21,6 +21,7 @@ import {
   Wallet,
   LineChart,
   Landmark,
+  Compass,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -36,7 +37,7 @@ import {
 //  2. Cross-module data flows through /live-data or /api/v1 routes, never
 //     through direct imports of another module's page code.
 
-export type ModuleId = 'core' | 'crypto' | 'equities' | 'funds'
+export type ModuleId = 'core' | 'crypto' | 'equities' | 'funds' | 'builder'
 
 export interface ModuleNavItem {
   href: string
@@ -107,6 +108,16 @@ export const MODULES: SuiteModule[] = [
       { href: '/equities/social', label: 'Stock Social', icon: MessageSquare },
       { href: '/equities/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
       { href: '/equities/backtests', label: 'Backtests', icon: FlaskConical },
+    ],
+  },
+  {
+    // Premium module — sold under its own entitlement (separate fee).
+    id: 'builder',
+    label: 'Portfolio Builder',
+    routePrefixes: ['/portfolio-builder'],
+    optional: true,
+    navItems: [
+      { href: '/portfolio-builder', label: 'Portfolio Builder', icon: Compass },
     ],
   },
   {

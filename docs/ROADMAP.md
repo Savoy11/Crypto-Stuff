@@ -166,6 +166,30 @@ with history and a credible 12-month projection.
 
 ---
 
+
+## Portfolio Builder (paid module — owner spec, 2026-07-07)
+
+A separately licensed module (own entitlement → own SKU) that builds **highly
+diversified portfolios aligned to the user**, not generic model portfolios:
+
+1. **Inputs (questionnaire):** risk tolerance; sector focus/exclusions; time
+   horizon to retirement; and when the invested money will actually be used
+   (glide path anchors to the *spend date*, not just retirement date);
+   crypto comfort level.
+2. **Output:** a target allocation across asset classes mapped to concrete
+   instruments from the catalogs (broad ETFs first, then sector tilts, bonds
+   laddered to the spend date, optional crypto sleeve capped by risk), each
+   with a written rationale and a diversification score.
+3. **Rebalancing:** every built portfolio carries drift bands (e.g. ±5% abs);
+   the app reminds the user when actual weights breach bands and shows the
+   exact trades to rebalance.
+4. **Ongoing suitability monitoring:** periodic checks that holdings still fit
+   the plan (risk drift, fee creep, concentration, aging glide path) with
+   plain-language flags.
+5. Depends on the cross-asset instrument layer + DB persistence (Phase 0/1);
+   reminders need notifications; monetized via the entitlement system (Phase 6).
+   Not investment advice — educational tooling with prominent disclaimers.
+
 ## Rough sizing (from prior analysis)
 
 - Foundation + porting CAEP into the module shell: ~3–4 weeks part-time.

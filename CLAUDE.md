@@ -285,6 +285,7 @@ Risk/status color convention used across the app:
 | Strategy Backtests | `/equities/backtests` | `security-ohlcv` real history | SMA/RSI/MACD vs buy-and-hold, Sharpe, drawdown, trades |
 | Fund Registry | `/funds` | `fundCatalog.ts` + live quotes | ~55 ETFs/mutual funds, expense-ratio color coding |
 | Fund Detail | `/funds/[symbol]` | Live chart/news + fund facts | Fee Drag Analyzer, top holdings, 52-wk range |
+| Portfolio Builder | `/portfolio-builder` | `portfolioBuilder.ts` engine | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands, review reminders |
 | Settings | `/settings` (→ Integrations) | — | Integration configuration + Suite Modules toggles |
 
 ---
