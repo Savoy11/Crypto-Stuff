@@ -15,13 +15,15 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { clsx } from 'clsx'
 import { usePortfolioStore } from '@/store/usePortfolioStore'
 import {
-  PORTFOLIO_COINS, COIN_BY_CGID, CATEGORY_META, type PortfolioCoin,
+  CATEGORY_META,
 } from '@/lib/data/portfolioCoins'
 import {
   computeHoldings, computeMetrics, validateHoldings, getDiversificationWarnings,
   type Portfolio, type PortfolioHolding,
 } from '@/lib/data/portfolioUtils'
 import type { PortfolioPricesResponse } from '@/app/live-data/portfolio-prices/route'
+import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, type Instrument } from '@/lib/data/instruments'
+import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
 import type { PortfolioHistoryResponse } from '@/app/live-data/portfolio-history/route'
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
@@ -100,7 +102,7 @@ function PortfolioCard({ portfolio, onSelect, onDelete }: {
       </div>
       <div className="mt-3 flex flex-wrap gap-1">
         {portfolio.holdings.slice(0, 6).map(h => {
-          const meta = COIN_BY_CGID[h.cgId]
+          const meta = INSTRUMENT_BY_KEY[h.cgId]
           return (
             <span key={h.cgId} className="text-[10px] px-1.5 py-0.5 rounded border border-border bg-bg-elevated text-text-muted font-mono">
               {h.symbol} {h.targetAlloc.toFixed(0)}%
@@ -122,7 +124,7 @@ function HoldingRow({ holding, total, onUpdate, onRemove, disabled }: {
   onRemove: () => void
   disabled?: boolean
 }) {
-  const meta = COIN_BY_CGID[holding.cgId]
+  const meta = INSTRUMENT_BY_KEY[holding.cgId]
   const warn = total > 100.5 || total < 99.5
 
   return (
@@ -189,9 +191,9 @@ function PortfolioEditor({ existing, onSave, onCancel }: {
   const [coinSearch, setCoinSearch] = useState('')
   const [errors, setErrors] = useState<string[]>([])
 
-  const filteredCoins: PortfolioCoin[] = useMemo(() => {
+  const filteredCoins: Instrument[] = useMemo(() => {
     const q = coinSearch.toLowerCase()
-    return PORTFOLIO_COINS.filter(c =>
+    return INSTRUMENTS.filter(c =>
       !holdings.some(h => h.cgId === c.cgId) &&
       (c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
     ).slice(0, 20)
@@ -199,7 +201,7 @@ function PortfolioEditor({ existing, onSave, onCancel }: {
 
   const allocTotal = holdings.reduce((s, h) => s + (h.targetAlloc || 0), 0)
 
-  function addHolding(coin: PortfolioCoin) {
+  function addHolding(coin: Instrument) {
     const even = parseFloat((100 / (holdings.length + 1)).toFixed(1))
     // Redistribute evenly
     const updated: PortfolioHolding[] = holdings.map(h => ({ ...h, targetAlloc: even }))
@@ -304,7 +306,7 @@ function PortfolioEditor({ existing, onSave, onCancel }: {
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
           <input className="w-full pl-8 pr-3 py-2 bg-bg-elevated border border-border rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue"
-            placeholder="Search to add a coin…"
+            placeholder="Search to add a coin, stock, or fund…"
             value={coinSearch} onChange={e => setCoinSearch(e.target.value)} />
         </div>
         {coinSearch.length > 0 && (
@@ -364,7 +366,7 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
 
   const { data: currentData } = useQuery<PortfolioPricesResponse>({
     queryKey: ['portfolio-prices', ids],
-    queryFn:  () => fetch(`/live-data/portfolio-prices?ids=${ids}`).then(r => r.json()),
+    queryFn:  () => fetchInstrumentPrices(ids.split(',').filter(Boolean)),
     staleTime: 60_000, enabled: !!ids,
   })
 
@@ -374,13 +376,15 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
     staleTime: Infinity, enabled: !!runDate && !!ids,
   })
 
+  const hasSecurities = portfolio.holdings.some(h => h.cgId.startsWith('sec:'))
+
   const results = useMemo(() => {
     if (!histData || !currentData) return null
     return portfolio.holdings.map(h => {
       const priceThen = histData.prices[h.cgId] ?? null
       const priceNow  = currentData.prices[h.cgId] ?? null
       const allocVal  = portfolio.startingCapital * (h.targetAlloc / 100)
-      const meta      = COIN_BY_CGID[h.cgId]
+      const meta      = INSTRUMENT_BY_KEY[h.cgId]
 
       let returnPct: number | null = null
       let valueThen: number | null = null
@@ -469,6 +473,11 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
         </div>
       )}
 
+      {hasSecurities && (
+        <p className="text-[11px] text-amber-400/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+          Historical backtesting covers crypto holdings only for now — stock/fund positions show current value but no historical return until a securities history source is wired in.
+        </p>
+      )}
       {summary && !isLoading && (
         <>
           {/* Summary cards */}
@@ -477,7 +486,7 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
               { label: 'Starting Value', value: fmt$(summary.totalThen), sub: runDate ?? '' },
               { label: 'Current Value',  value: fmt$(summary.totalNow),  sub: 'today' },
               { label: 'Total Return',   value: fmtPct(summary.pnlPct),  sub: fmt$(summary.pnlUsd), color: pnlColor(summary.pnlPct) },
-              { label: 'Coins with data', value: String(results?.filter(r => r.returnPct != null).length ?? 0), sub: `of ${portfolio.holdings.length}` },
+              { label: 'Assets with data', value: String(results?.filter(r => r.returnPct != null).length ?? 0), sub: `of ${portfolio.holdings.length}` },
             ].map(({ label, value, sub, color }) => (
               <div key={label} className="bg-bg-card border border-border rounded-xl p-4 text-center">
                 <div className={clsx('text-xl font-bold', color ?? 'text-text-primary')}>{value}</div>
@@ -570,7 +579,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
   const ids = portfolio.holdings.map(h => h.cgId).join(',')
   const { data: priceData } = useQuery<PortfolioPricesResponse>({
     queryKey: ['portfolio-prices', ids],
-    queryFn:  () => fetch(`/live-data/portfolio-prices?ids=${ids}`).then(r => r.json()),
+    queryFn:  () => fetchInstrumentPrices(ids.split(',').filter(Boolean)),
     staleTime: 60_000, refetchInterval: 120_000, enabled: !!ids,
   })
 
@@ -871,7 +880,7 @@ export default function PortfoliosPage() {
               <PageHeader
                 title="Portfolios"
                 subtitle="Hypothetical portfolios for investment research and backtesting"
-                description="The Portfolios tool lets you build and analyze hypothetical crypto allocations. Add coins with target weights, fetch live prices, and see P&L, Sharpe ratio, max drawdown, and concentration warnings — without committing real funds."
+                description="The Portfolios tool builds and analyzes hypothetical CROSS-ASSET allocations — crypto, stocks, ETFs, and mutual funds in one portfolio. Add holdings with target weights, fetch live prices, and see P&L, category mix, weighted risk, and concentration warnings — without committing real funds."
                 details={[
                   { label: 'Live pricing', text: 'Portfolio valuations use live CoinGecko prices when in live mode. Historical performance uses 30-day OHLC data.' },
                   { label: 'Risk metrics', text: 'Sharpe ratio uses a 4% risk-free rate. Max drawdown is computed over the available price history window.' },
