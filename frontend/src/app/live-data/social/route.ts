@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ASSET_LIST } from '@/lib/data/assetList'
 import { getSocialProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
 
 export const dynamic = 'force-dynamic'
@@ -224,8 +225,22 @@ const REDDIT_FEEDS: Record<string, string[]> = {
   ],
 }
 
+// Assets without a curated feed get targeted subreddit searches by name and
+// symbol — attributing generic front-page posts to them mislabeled the feed.
+function searchFeedsFor(assetId: string): string[] | null {
+  const entry = ASSET_LIST.find((a) => a.id === assetId)
+  if (!entry) return null
+  const q = encodeURIComponent(`"${entry.name}" OR ${entry.symbol}`)
+  return [
+    `https://www.reddit.com/r/CryptoCurrency/search.rss?q=${q}&sort=new&restrict_sr=1`,
+    `https://www.reddit.com/r/CryptoMarkets/search.rss?q=${q}&sort=new&restrict_sr=1`,
+  ]
+}
+
 async function fetchReddit(assetFilter: string, limit: number, extraSubs: string[] = []): Promise<SocialSignal[]> {
-  const baseFeedUrls = REDDIT_FEEDS[assetFilter] ?? REDDIT_FEEDS.all
+  const baseFeedUrls = REDDIT_FEEDS[assetFilter]
+    ?? (assetFilter !== 'all' ? searchFeedsFor(assetFilter) : null)
+    ?? REDDIT_FEEDS.all
   const extraFeedUrls = extraSubs.map((s) => `https://www.reddit.com/r/${s}/hot.rss`)
   const feeds = [...new Set([...baseFeedUrls, ...extraFeedUrls])]
   const perFeed = Math.ceil(limit / feeds.length)
@@ -261,8 +276,8 @@ async function fetchRedditRss(feedUrl: string, assetFilter: string, limit: numbe
 
     const text = (title + ' ' + content).toLowerCase()
     const sentiment: SocialSignal['sentiment'] =
-      /bullish|surge|soar|ath|gain|grow|pump|rally|breakout|good|great|positive|up \d/.test(text) ? 'positive' :
-      /bearish|crash|dump|hack|exploit|scam|fraud|rugpull|down \d|collapse|risk|fear|lose|loss/.test(text) ? 'negative' :
+      /\b(bullish|surge\w*|soar\w*|ath|gains?|grow(?:th|ing)?|pump\w*|rall(?:y|ies)|breakout|good|great|positive|up \d)\b/.test(text) ? 'positive' :
+      /\b(bearish|crash\w*|dump\w*|hack(?:ed|s)?|exploit\w*|scam\w*|fraud\w*|rugpull|down \d|collapse\w*|risky?|fear|lose|loss(?:es)?)\b/.test(text) ? 'negative' :
       'neutral'
 
     return {
@@ -339,8 +354,11 @@ async function fetchLunarCrush(apiKey: string, assetFilter: string, limit: numbe
 // ─── Santiment ────────────────────────────────────────────────────────────────
 
 async function fetchSantiment(apiKey: string, assetFilter: string, _limit: number): Promise<SocialSignal[]> {
-  const slug = assetFilter === 'all' ? 'bitcoin' : assetFilter === 'usdt' ? 'tether'
-    : assetFilter === 'usdc' ? 'usd-coin' : assetFilter
+  const SANTIMENT_SLUGS: Record<string, string> = {
+    all: 'bitcoin', btc: 'bitcoin', eth: 'ethereum', sol: 'solana',
+    bnb: 'binance-coin', usdt: 'tether', usdc: 'usd-coin', dai: 'multi-collateral-dai',
+  }
+  const slug = SANTIMENT_SLUGS[assetFilter] ?? assetFilter
 
   const query = `{
     socialVolume(slug: "${slug}", from: "utc_now-1d", to: "utc_now", interval: "1d", socialVolumeType: TOTAL_SEARCH_RESULTS) {

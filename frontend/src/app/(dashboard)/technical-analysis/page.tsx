@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
 import { useSearchParams } from 'next/navigation'
@@ -14,7 +14,7 @@ import {
   CircleDollarSign, Scale, FlaskConical, MinusCircle,
 } from 'lucide-react'
 import { clsx } from 'clsx'
-import type { ChartType, DrawingTool, Drawing } from './CandlestickChart'
+import type { ChartType, DrawingTool, Drawing } from '@/components/charts/CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
 import { runBacktest, STRATEGIES, type StrategyCategory } from '@/lib/utils/backtest'
 import {
@@ -29,7 +29,7 @@ import { useThesisStore, computeRiskReward } from '@/store/useThesisStore'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
 import type { CoinListResponse } from '@/lib/types/coinList'
 
-const CandlestickChart = dynamic(() => import('./CandlestickChart'), { ssr: false })
+const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickChart'), { ssr: false })
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -1309,7 +1309,17 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
 
 type Tab = 'chart' | 'patterns' | 'scanner' | 'backtest'
 
+// useSearchParams() forces a CSR bailout, so the page body must sit inside a
+// Suspense boundary for `next build` prerendering to succeed.
 export default function TechnicalAnalysisPage() {
+  return (
+    <Suspense>
+      <TechnicalAnalysisContent />
+    </Suspense>
+  )
+}
+
+function TechnicalAnalysisContent() {
   const searchParams = useSearchParams()
 
   // Fetch live coin list to enrich OHLCV-supported assets with names + ranks

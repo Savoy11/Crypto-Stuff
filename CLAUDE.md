@@ -7,7 +7,7 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade crypto analytics dashboard built with Next.js 14 (App Router). It evaluates crypto asset risk, tracks reserves, monitors news sentiment, and provides tools for comparing transfer fees and staking opportunities. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers (an optional legacy backend exists for auth/agent features only). Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 14 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): the **Crypto** module (original CAEP), an **Equities** module (`/equities`), and an **ETFs & Funds** module (`/funds`). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, and modules can be toggled in Integrations → Suite Modules. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers (an optional legacy backend exists for auth/agent features only). Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
@@ -50,28 +50,37 @@ frontend/src/
 │   │   ├── global-adoption/page.tsx
 │   │   ├── transfer-fees/page.tsx  # Transfer Fee Calculator
 │   │   ├── staking/page.tsx        # Staking Opportunities
+│   │   ├── equities/               # EQUITIES MODULE — registry, [symbol], news, social, TA, backtests
+│   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
 │   │   ├── backtests/page.tsx
 │   │   ├── reports/page.tsx
-│   │   └── settings/page.tsx
+│   │   └── settings/page.tsx       # Integrations + Suite Modules toggles
 │   └── live-data/                  # Server-side API proxy routes (no API keys exposed)
 │       ├── markets/route.ts        # CoinGecko price data
-│       ├── news/route.ts           # Multi-provider news (RSS + JSON feeds)
+│       ├── news/route.ts           # Multi-provider crypto news (RSS + JSON feeds)
 │       ├── social/route.ts         # Social sentiment data
 │       ├── reserves/route.ts       # Reserve data
 │       ├── alerts/route.ts
 │       ├── chart/route.ts
 │       ├── config/route.ts
 │       ├── network-fees/route.ts   # Live BTC fees + all 16-network gas prices
-│       └── staking-rates/route.ts  # Live APR from Lido, Marinade, Jito
+│       ├── staking-rates/route.ts  # Live APR from Lido, Marinade, Jito
+│       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→Yahoo→Stooq→reference)
+│       ├── security-chart/route.ts  # Price history for any Yahoo-quotable symbol
+│       ├── security-ohlcv/route.ts  # Full OHLCV candles for stocks (Yahoo→FMP)
+│       ├── market-news/route.ts     # Stock-market RSS news: sentiment, category, ticker tags
+│       └── stock-social/route.ts    # Reddit finance subs + StockTwits sentiment
 │
 ├── components/
 │   ├── layout/
-│   │   ├── Sidebar.tsx             # ← ADD NEW PAGES HERE (NAV_ITEMS array)
+│   │   ├── Sidebar.tsx             # Renders from module registry (see lib/modules)
+│   │   ├── ModuleGate.tsx          # Wraps module pages; locks when module disabled
 │   │   ├── TopBar.tsx
 │   │   ├── StatusBar.tsx
 │   │   └── DataStatusBanner.tsx
 │   ├── ui/                         # Generic reusable components
-│   ├── charts/                     # Recharts wrappers
+│   ├── charts/                     # Recharts wrappers + CandlestickChart/indicatorRegistry (shared TA engine)
+│   ├── markets/                    # Shared equities/funds UI (PriceChartCard, MarketNewsList)
 │   ├── assets/
 │   ├── analytics/
 │   ├── dashboard/
@@ -79,11 +88,15 @@ frontend/src/
 │
 ├── lib/
 │   ├── constants.ts                # App-wide constants, stale times, API URLs
+│   ├── modules/
+│   │   └── registry.ts             # ← SUITE MODULE REGISTRY — nav + entitlements live here
 │   ├── data/                       # Static/semi-static data files (no API calls)
 │   │   ├── transferFees.ts         # 25 exchanges × 16 coins × 16 networks
-│   │   └── stakingProviders.ts     # 18 staking providers with risk profiles
+│   │   ├── stakingProviders.ts     # 18 staking providers with risk profiles
+│   │   ├── equityCatalog.ts        # ~70 large-cap stocks, 11 sectors, reference data
+│   │   └── fundCatalog.ts          # ~55 ETFs/mutual funds + computeFeeDrag()
 │   ├── api/                        # API client functions
-│   │   └── live/                   # Live data fetchers (CoinGecko, DefiLlama, etc.)
+│   │   └── live/                   # Live data fetchers (CoinGecko, DefiLlama, marketData.ts, etc.)
 │   ├── utils/
 │   └── websocket/
 │
@@ -91,10 +104,16 @@ frontend/src/
 │   ├── useAlertStore.ts
 │   ├── useAssetStore.ts
 │   ├── useAuthStore.ts
+│   ├── useEntitlementStore.ts      # Which suite modules are enabled
 │   └── useStreamStore.ts
 │
 └── types/                          # Shared TypeScript types
 ```
+
+### Module boundary rules (keep these or the suite can't be split later)
+1. A module's pages import shared code only from `components/ui`, `components/charts`, `components/markets`, `lib/` core, and its own folders — never another module's internals.
+2. Cross-module data flows through `/live-data` or `/api/v1` routes, never direct page imports.
+3. New module = new entry in `lib/modules/registry.ts` + pages wrapped in `<ModuleGate module="...">`.
 
 ---
 
@@ -104,9 +123,10 @@ frontend/src/
    - Add `'use client'` at top if it uses React hooks
    - Server components are fine for static content
 
-2. **Add to sidebar:** `src/components/layout/Sidebar.tsx`
+2. **Add to sidebar:** `src/lib/modules/registry.ts` (NOT Sidebar.tsx — it renders from the registry)
    - Import the icon from `lucide-react`
-   - Add entry to `NAV_ITEMS` array: `{ href: '/your-page', label: 'Label', icon: IconName }`
+   - Add entry to the owning module's `navItems`: `{ href: '/your-page', label: 'Label', icon: IconName }`
+   - If the page belongs to an optional module, also add its route prefix to that module's `routePrefixes` and wrap the page in `<ModuleGate module="...">`
 
 3. **If you need a live data API route:** `src/app/live-data/your-route/route.ts`
    - Always add `export const dynamic = 'force-dynamic'` (prevents static caching)
@@ -182,6 +202,19 @@ Central data file for the Staking Opportunities page.
 
 To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius should always be kept — it's used as the educational cautionary example.
 
+### `src/lib/data/equityCatalog.ts` (Equities module)
+- **`EQUITY_CATALOG`** — ~70 large-cap US stocks with sector (11 GICS sectors in `SECTOR_INFO`), industry, and approximate reference values (price, market cap, P/E, dividend yield, beta). Reference values are fallbacks — live quotes override price/change.
+- Symbols use Yahoo notation (`BRK-B`, not `BRK.B`) so one string works across Yahoo/Stooq/FMP.
+- To add a stock: append to `EQUITY_CATALOG`; the registry table, detail route, and quote universe pick it up automatically.
+
+### `src/lib/data/fundCatalog.ts` (Funds module)
+- **`FUND_CATALOG`** — ~55 funds (`type: 'etf' | 'mutual'`) with issuer, category (`FUND_CATEGORY_INFO`), expense ratio, AUM, yield, inception, tracked index, and indicative top holdings.
+- **`computeFeeDrag(principal, erPct, years, returnPct)`** — expense-ratio cost projection used by the Fee Drag Analyzer on fund detail pages.
+- To add a fund: append to `FUND_CATALOG` following the pattern.
+
+### Quote plumbing for both modules (`src/lib/api/live/marketData.ts`)
+Source ladder: FMP (needs `FMP_API_KEY`) → Yahoo spark (keyless) → Stooq CSV (keyless) → catalog reference prices. UI labels non-live prices with a small amber `ref` tag; KPIs needing live data show "requires live quotes" instead of fabricated values.
+
 ---
 
 ## Environment Variables
@@ -190,6 +223,7 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 NEXT_PUBLIC_API_URL=http://localhost:8000   # Optional legacy backend (auth/agent only)
 NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws   # WebSocket (optional)
 # Paid-tier provider keys (CoinGecko Pro, CryptoPanic, etc.) live in .env.local
+FMP_API_KEY=...                             # Optional — upgrades equities/funds quotes (adds market cap, proper change %)
 ```
 
 CAEP runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
@@ -238,8 +272,8 @@ Risk/status color convention used across the app:
 | Asset Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-asset news |
 | Risk Scores | `/risk-scores` | 🔴 Not available | No free real-time source; shows N/A |
 | Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`) |
-| Alerts | `/alerts` | 🟢 Live | `/live-data/alerts` — 14 stablecoin depegs + 16 major-asset 24h price moves |
-| Watchlist | `/watchlist` | 🟢 Live | Live prices via `useAssets`; risk column gated to the Paid tier |
+| Alerts | TopBar bell | 🟢 Live | `/live-data/alerts` — stablecoin depegs + major-asset 24h moves; surfaced in the TopBar bell (no standalone page) |
+| Watchlist | `/watchlist` | 🟢 Live | Cross-module: coins, stocks, ETFs & funds in named lists with live prices |
 | News | `/news` | 🟢 Live | Multi-provider RSS/JSON; sentiment + asset detection |
 | Social | `/social` | 🟡 Partial | `/live-data/social` — verify which signals are live vs derived |
 | Global Adoption | `/global-adoption` | 🟡 Partial | Static country data + live CBDC news feed |
@@ -252,8 +286,27 @@ Risk/status color convention used across the app:
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | LLM/agent features + configuration UI |
 | Backtests | `/backtests` | 🔴 Not available | Requires a backtesting backend; not present |
-| Reports | `/reports` | 🔴 Not available | Shows explicit notice — no live-mode mock leak |
-| Settings | `/settings` (→ Integrations) | — | API keys, data tier (free/paid/custom), integrations |
+| Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
+| Compare | `/compare` | 🟢 Live | 2–4 stocks/funds, normalized growth-of-100 + stats (`security-chart`) |
+| Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands |
+| Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
+
+### Equities module (`/equities`)
+| Feature | Route | Status | Source / Notes |
+|---------|-------|--------|----------------|
+| Stock Registry | `/equities` | 🟢 Live | `equityCatalog.ts` + live quotes; ~70 stocks, 11 sectors, breadth KPIs |
+| Equity Detail | `/equities/[symbol]` | 🟢 Live | Live chart/news + reference stats, 52-wk range, key stats |
+| Market News | `/equities/news` | 🟢 Live | RSS multi-feed; category/sentiment/ticker filters |
+| Stock Social | `/equities/social` | 🟡 Partial | Reddit + StockTwits (keyless) sentiment |
+| Equity TA | `/equities/technical-analysis` | 🟢 Derived | Shared candlestick engine, 18 indicators, patterns, screener |
+| Strategy Backtests | `/equities/backtests` | 🟢 Derived | `security-ohlcv` real history; SMA/RSI/MACD vs buy-and-hold |
+| Market Calendar | `/equities/calendar` | 🟡 Partial | FMP calendars (free key); earnings + US economic events |
+
+### ETFs & Funds module (`/funds`)
+| Feature | Route | Status | Source / Notes |
+|---------|-------|--------|----------------|
+| Fund Registry | `/funds` | 🟢 Live | `fundCatalog.ts` + live quotes; ~55 ETFs/mutual funds |
+| Fund Detail | `/funds/[symbol]` | 🟢 Live | Live chart/news + fund facts; Fee Drag Analyzer, top holdings |
 
 ---
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNewsProviders, recordProviderFetch, type AnyActiveProvider, type CustomProviderDef } from '@/lib/api/live/providers'
+import { ASSET_LIST } from '@/lib/data/assetList'
 
 export const dynamic = 'force-dynamic'
 
@@ -145,6 +146,20 @@ const ASSET_SIGNALS: { id: string; re: RegExp }[] = [
   { id: 'sol',  re: /\b(solana|sol\b)\b/i },
 ]
 
+// Name/symbol matchers generated from the full asset list. Ambiguous short or
+// common-word names/symbols are excluded to avoid false tags.
+const GENERIC_NAME_BLOCKLIST = new Set(['chain', 'pi network', 'sun', 'flare', 'core'])
+const GENERIC_SYMBOL_BLOCKLIST = new Set(['ALL', 'ONE', 'SUN', 'CC', 'PI', 'MON', 'NEX', 'KITE'])
+const GENERIC_ASSET_MATCHERS = ASSET_LIST
+  .filter((a) => a.name.length > 2 && !GENERIC_NAME_BLOCKLIST.has(a.name.toLowerCase()))
+  .map((a) => ({
+    id: a.id,
+    re: new RegExp(`\\b${a.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'),
+    symbol: a.symbol.length >= 3 && !GENERIC_SYMBOL_BLOCKLIST.has(a.symbol.toUpperCase())
+      ? new RegExp(`(\\$${a.symbol}\\b|\\b${a.symbol.toUpperCase()}\\b(?=[^a-z]|$))`)
+      : null,
+  }))
+
 // Regulatory & thematic signals that impact specific asset groups even when
 // the coin is not named directly in the article.
 // Example: "MiCA regulation" → affects USDC and USDT because they are the
@@ -226,6 +241,15 @@ function detectRelatedAssets(text: string): string[] {
     if (re.test(text)) found.add(id)
   }
 
+  // Generic pass so every asset in the dropdown universe is detectable, not
+  // just the curated 14: match by full name (word-bounded) or $SYMBOL cashtag /
+  // exact-uppercase symbol (3+ chars to avoid common-word collisions).
+  for (const { id, symbol, re } of GENERIC_ASSET_MATCHERS) {
+    if (found.has(id)) continue
+    if (re.test(text)) found.add(id)
+    else if (symbol && symbol.test(text)) found.add(id)
+  }
+
   // 2. Regulatory / thematic inference
   for (const { re, assets } of REGULATORY_IMPACT) {
     if (re.test(text)) assets.forEach((a) => found.add(a))
@@ -246,8 +270,8 @@ function detectRelatedAssets(text: string): string[] {
 
 // ─── Sentiment detection ──────────────────────────────────────────────────────
 
-const POSITIVE_SIGNALS = /\b(approv|approved|adoption|adopt|bullish|surge|soar|record|ath|legiti|partnership|integrat|launch|growth|win|gain|recov|rally|green|optimis|support|embrace|expand|progress|milestone|breakthrough|signed|passed|clarity|compliance|welcome)\b/i
-const NEGATIVE_SIGNALS = /\b(crash|ban|banned|prohibit|hack|exploit|vulnerab|fraud|scam|fail|collapse|risk|warn|decline|dump|bear|lawsuit|probe|restrict|sanction|suspend|halt|seize|seized|illegal|penalty|fine|shutdown|delist|investigation|enforcement|reject|veto)\b/i
+const POSITIVE_SIGNALS = /\b(approv\w*|adopt\w*|bullish|surge\w*|soar\w*|record|ath|legitim\w*|partnership|integrat\w*|launch\w*|growth|wins?|gain\w*|recover\w*|rall(?:y|ies|ied)|green|optimis\w*|support\w*|embrace\w*|expand\w*|progress|milestone|breakthrough|signed|passed|clarity|compliance|welcome\w*)\b/gi
+const NEGATIVE_SIGNALS = /\b(crash\w*|ban(?:ned|s)?|prohibit\w*|hack\w*|exploit\w*|vulnerab\w*|fraud\w*|scam\w*|fail\w*|collaps\w*|risk[sy]?|warn\w*|declin\w*|dump\w*|bear(?:ish)?|lawsuit\w*|probe[sd]?|restrict\w*|sanction\w*|suspend\w*|halt\w*|seiz\w*|illegal|penalt\w*|fine[sd]?|shutdown|delist\w*|investigat\w*|enforcement|reject\w*|veto\w*)\b/gi
 
 function detectSentiment(text: string): LiveNewsArticle['sentiment'] {
   const pos = (text.match(POSITIVE_SIGNALS) || []).length
@@ -262,7 +286,7 @@ function detectSentiment(text: string): LiveNewsArticle['sentiment'] {
 function detectCategory(text: string): LiveNewsArticle['category'] {
   // Global must come first — international context overrides domestic categories
   const isGlobal =
-    /\b(china|chinese|japan|japanese|korea|korean|india|indian|nigeria|nigerian|brazil|brazilian|argentina|uk |britain|british|europe|european|eu |germany|german|france|french|italy|italian|spain|spanish|singapore|uae|dubai|australia|australian|canada|canadian|mexico|mexican|el salvador|kenya|ghana|indonesia|thailand|vietnam|turkey|turkish|russia|russian|latin america|africa|asia|asia.pacific|middle east|global south|israel|israel|iran|iranian|hong kong)\b/i.test(text) ||
+    /\b(china|chinese|japan|japanese|korea|korean|india|indian|nigeria|nigerian|brazil|brazilian|argentina|uk |britain|british|europe|european|eu |germany|german|france|french|italy|italian|spain|spanish|singapore|uae|dubai|australia|australian|canada|canadian|mexico|mexican|el salvador|kenya|ghana|indonesia|thailand|vietnam|turkey|turkish|russia|russian|latin america|africa|asia|asia.pacific|middle east|global south|israel|iran|iranian|hong kong)\b/i.test(text) ||
     /\b(mica|ecb|fca\b|mas\b|rbi\b|sebi|fsca|bafin|amf\b|jfsa|imf\b|world bank|bis\b|fatf|g20|g7|cross.border|cross border|international|transnational|remittance|foreign|overseas|offshore)\b/i.test(text)
 
   if (isGlobal) return 'global'

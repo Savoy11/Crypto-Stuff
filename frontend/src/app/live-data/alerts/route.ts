@@ -35,7 +35,8 @@ const STABLECOINS = [
   { id: 'crvusd',           symbol: 'crvUSD',pegTarget: 1.0 },
   { id: 'gho',              symbol: 'GHO',   pegTarget: 1.0 },
   { id: 'true-usd',         symbol: 'TUSD',  pegTarget: 1.0 },
-  { id: 'pax-dollar',       symbol: 'USDP',  pegTarget: 1.0 },
+  // CoinGecko id for Pax Dollar is the legacy 'paxos-standard' (NOT 'pax-dollar')
+  { id: 'paxos-standard',   symbol: 'USDP',  pegTarget: 1.0 },
   { id: 'gemini-dollar',    symbol: 'GUSD',  pegTarget: 1.0 },
   { id: 'liquity-usd',      symbol: 'LUSD',  pegTarget: 1.0 },
 ]

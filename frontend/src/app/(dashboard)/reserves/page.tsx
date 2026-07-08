@@ -23,7 +23,10 @@ function VerificationBadge({ verified }: { verified: boolean }) {
   )
 }
 
-function CollateralizationBar({ ratio }: { ratio: number }) {
+function CollateralizationBar({ ratio }: { ratio: number | null }) {
+  if (ratio == null) {
+    return <span className="text-xs text-slate-500 italic" title="Issuer does not disclose a collateralization ratio">not disclosed</span>
+  }
   const pct = Math.min(ratio * 100, 200)
   const color = ratio >= 1.0 ? 'bg-emerald-500' : ratio >= 0.95 ? 'bg-amber-500' : 'bg-red-500'
   const textColor = ratio >= 1.0 ? 'text-emerald-400' : ratio >= 0.95 ? 'text-amber-400' : 'text-red-400'
@@ -86,7 +89,7 @@ export default function ReservesPage() {
     attestationDate: a.lastAttestedDate,
     attestationUrl: a.attestationUrl,
     totalReservesUsd: a.circulatingUsd,
-    collateralizationRatio: a.collateralizationRatio ?? 1.0,
+    collateralizationRatio: a.collateralizationRatio,
     verified: a.collateralizationRatio !== null,
     chains: a.chains,
     composition: a.composition.length > 0
@@ -99,7 +102,7 @@ export default function ReservesPage() {
   const selected = reserves.find((r) => r.assetId === selectedId)
 
   const totalReserves = reserves.reduce((s, r) => s + r.totalReservesUsd, 0)
-  const fullyCollateralized = reserves.filter((r) => r.collateralizationRatio >= 1.0).length
+  const fullyCollateralized = reserves.filter((r) => (r.collateralizationRatio ?? 0) >= 1.0).length
   const verifiedCount = reserves.filter((r) => r.verified).length
 
   return (
@@ -229,7 +232,7 @@ export default function ReservesPage() {
                   </div>
                   <ReserveComposition
                     composition={selected.composition}
-                    collateralizationRatio={selected.collateralizationRatio}
+                    collateralizationRatio={selected.collateralizationRatio ?? undefined}
                   />
                 </div>
                 <div className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 text-sm space-y-2">

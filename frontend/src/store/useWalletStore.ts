@@ -44,7 +44,7 @@ export interface ConnectedWallet {
 export type ExchangeId = 'binance' | 'coinbase' | 'kraken' | 'okx' | 'bybit'
 
 export const EXCHANGE_META: Record<ExchangeId, { label: string; color: string; website: string }> = {
-  binance:  { label: 'Binance',  color: '#F3BA2F', website: 'https://binance.com'  },
+  binance:  { label: 'Binance.US', color: '#F3BA2F', website: 'https://binance.us' },
   coinbase: { label: 'Coinbase', color: '#0052FF', website: 'https://coinbase.com' },
   kraken:   { label: 'Kraken',   color: '#5741D9', website: 'https://kraken.com'   },
   okx:      { label: 'OKX',      color: '#1A1A1A', website: 'https://okx.com'      },

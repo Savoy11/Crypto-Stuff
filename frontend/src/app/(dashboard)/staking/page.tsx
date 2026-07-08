@@ -10,7 +10,7 @@ import {
 import { PageHeader } from '@/components/ui/PageHeader'
 import { clsx } from 'clsx'
 import {
-  STAKING_PROVIDERS, STAKING_COIN_INFO, DEFAULT_LIVE_APR_KEY,
+  STAKING_PROVIDERS, STAKING_COIN_INFO,
   resolveYieldType, YIELD_TYPE_META,
   type StakingProvider, type StakingCoinId, type ProviderCategory,
 } from '@/lib/data/stakingProviders'
@@ -41,13 +41,13 @@ function aprDisplay(
   liveKey: string | undefined,
   rates: Partial<Record<string, number>>,
   sources: Partial<Record<string, 'live' | 'estimate'>>,
-  coinId?: StakingCoinId,
 ) {
-  // Use asset-specific key first, then fall back to coin-level default
-  const key = liveKey ?? (coinId ? DEFAULT_LIVE_APR_KEY[coinId] : undefined)
-  if (!key) return { apr: staticApr, live: false }
-  const live = rates[key]
-  if (live != null) return { apr: live, live: sources[key] === 'live' }
+  // Only providers with their OWN live-rate key show a live number/badge.
+  // The old coin-level default-key fallback displayed a different provider's
+  // rate (e.g. Lido's stETH APR on a CeFi card) as if it were this provider's.
+  if (!liveKey) return { apr: staticApr, live: false }
+  const live = rates[liveKey]
+  if (live != null) return { apr: live, live: sources[liveKey] === 'live' }
   return { apr: staticApr, live: false }
 }
 
@@ -151,7 +151,7 @@ function ProviderCard({
       <div className="border-t border-border divide-y divide-border/50">
         {visibleAssets.map(([coinId, asset]) => {
           const info = STAKING_COIN_INFO[coinId]
-          const { apr, live } = aprDisplay(asset.staticApr, asset.liveAprKey, rates, sources, coinId as StakingCoinId)
+          const { apr, live } = aprDisplay(asset.staticApr, asset.liveAprKey, rates, sources)
           const yieldType = resolveYieldType(provider, asset)
           const yieldMeta = YIELD_TYPE_META[yieldType]
 
@@ -462,7 +462,7 @@ export default function StakingPage() {
           <PageHeader
             title="Staking Opportunities"
             subtitle="Compare APY, lock-up periods, and custody risk across exchanges, wallets, and liquid staking protocols"
-            description="Staking Opportunities evaluates 18 providers across three categories: CeFi exchanges (highest counterparty risk), self-custody wallets, and liquid staking protocols (lowest custody risk). Each provider is scored on six risk dimensions."
+            description={`Staking Opportunities evaluates ${STAKING_PROVIDERS.length} providers across three categories: CeFi exchanges (highest counterparty risk), self-custody wallets, and liquid staking protocols (lowest custody risk). Each provider is scored on six risk dimensions.`}
             details={[
               { label: 'Risk dimensions', text: 'Custody · Counterparty · Smart contract · Slashing · Liquidity · Regulatory — each scored 1–10. Composite score is weighted with counterparty at 25%.' },
               { label: 'Live APY', text: 'Lido, Rocket Pool, Marinade, and Jito pull live APR from their APIs. CeFi rates are static estimates and may differ from current offerings.' },

@@ -207,7 +207,7 @@ function DefiTvlCard() {
           {/* Headline stats */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              { label: 'Total TVL', value: formatCompact(data.totalTvl), color: 'text-blue-400' },
+              { label: 'Top-20 Chain TVL', value: formatCompact(data.totalTvl), color: 'text-blue-400' },
               { label: 'DEX Volume 24h', value: data.dexVolume24h ? formatCompact(data.dexVolume24h) : '—', color: 'text-violet-400' },
               { label: 'Fee Revenue 24h', value: data.feeRevenue24h ? formatCompact(data.feeRevenue24h) : '—', color: 'text-emerald-400' },
             ].map(({ label, value, color }) => (

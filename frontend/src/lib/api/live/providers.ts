@@ -111,7 +111,7 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     name: 'Reddit',
     category: 'social',
     description: 'Public Reddit posts from r/CryptoCurrency, r/stablecoins, r/defi, and related subreddits. No API key required.',
-    features: ['Post sentiment', 'Upvote ratio', 'Community discussion', 'Subreddit coverage'],
+    features: ['Post sentiment', 'Community discussion', 'Subreddit coverage'],
     requiresKey: false,
     freeTierLabel: 'Public API — no key needed',
     keyUrl: 'https://www.reddit.com/wiki/api',

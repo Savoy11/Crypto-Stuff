@@ -1,4 +1,5 @@
-import { COIN_BY_CGID, CATEGORY_META, type CoinCategory } from './portfolioCoins'
+import { CATEGORY_META, type CoinCategory } from './portfolioCoins'
+import { INSTRUMENT_BY_KEY } from './instruments'
 
 // ─── Core types ───────────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ export function computeHoldings(
   prices: Record<string, number>
 ): ComputedHolding[] {
   return portfolio.holdings.map(h => {
-    const meta       = COIN_BY_CGID[h.cgId]
+    const meta       = INSTRUMENT_BY_KEY[h.cgId]
     const targetVal  = portfolio.startingCapital * (h.targetAlloc / 100)
     const price      = prices[h.cgId] ?? null
     const priceSource: 'live' | 'fallback' | 'none' = price != null ? 'live' : 'none'

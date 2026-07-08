@@ -40,6 +40,7 @@ const PROVIDER_STYLES: Record<string, string> = {
   cryptopanic: 'text-orange-400 bg-orange-400/10 border-orange-500/20',
   messari:     'text-purple-400 bg-purple-400/10 border-purple-500/20',
   newsapi:     'text-sky-400 bg-sky-400/10 border-sky-500/20',
+  gnews:       'text-teal-400 bg-teal-400/10 border-teal-500/20',
   unknown:     'text-slate-400 bg-slate-400/10 border-slate-500/20',
 }
 
@@ -451,9 +452,9 @@ export default function NewsPage() {
               tagged assets, sentiment, and source — so terms like <span className="text-text-secondary">“regulation”</span>,{' '}
               <span className="text-text-secondary">“btc”</span>, or a publication name match stories on that topic even when the word isn’t in the title. Add
               several keywords to narrow further — an article must match <span className="text-text-secondary">all</span> of them. Matching is
-              case-insensitive and combines with the Asset, Sentiment, and Category filters. Adding a keyword also{' '}
-              <span className="text-text-secondary">queries the news providers</span> for fresh stories on that term, so the feed pulls in matching
-              coverage rather than only filtering what’s already loaded.
+              case-insensitive and combines with the Asset, Sentiment, and Category filters. With a NewsAPI or GNews key configured, adding a keyword also{' '}
+              <span className="text-text-secondary">queries those providers</span> for fresh stories on that term; otherwise
+              keywords filter the already-loaded feed.
             </p>
           </div>
 

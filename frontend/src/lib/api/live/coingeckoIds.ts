@@ -80,12 +80,14 @@ export const COINGECKO_IDS: Record<string, string> = {
   dcr: 'decred',
   theta: 'theta-token',
   atom: 'cosmos',
+  doge: 'dogecoin',
 
   // ── DeFi ─────────────────────────────────────────────────────
   uni: 'uniswap',
   aave: 'aave',
+  link: 'chainlink',
   mkr: 'maker',
-  snx: 'havven',
+  snx: 'havven', // Synthetix's CoinGecko id is the legacy project name
   crv: 'curve-dao-token',
   ldo: 'lido-dao',
   grt: 'the-graph',
