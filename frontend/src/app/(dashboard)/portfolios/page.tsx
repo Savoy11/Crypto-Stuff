@@ -22,7 +22,9 @@ import {
   type Portfolio, type PortfolioHolding,
 } from '@/lib/data/portfolioUtils'
 import type { PortfolioPricesResponse } from '@/app/live-data/portfolio-prices/route'
-import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, type Instrument } from '@/lib/data/instruments'
+import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, isSecurityKey, securitySymbol, type Instrument } from '@/lib/data/instruments'
+import { getEquity } from '@/lib/data/equityCatalog'
+import { getFund } from '@/lib/data/fundCatalog'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
 import type { PortfolioHistoryResponse } from '@/app/live-data/portfolio-history/route'
 
@@ -481,7 +483,7 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
       {summary && !isLoading && (
         <>
           {/* Summary cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {[
               { label: 'Starting Value', value: fmt$(summary.totalThen), sub: runDate ?? '' },
               { label: 'Current Value',  value: fmt$(summary.totalNow),  sub: 'today' },
@@ -588,6 +590,21 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
   const metrics  = useMemo(() => computeMetrics(portfolio, holdings), [portfolio, holdings])
   const warnings = useMemo(() => getDiversificationWarnings(holdings, metrics), [holdings, metrics])
 
+  // Projected annual dividend/distribution income from security holdings'
+  // reference yields (crypto staking yield is tracked on the Staking page).
+  const annualIncome = useMemo(() => {
+    let income = 0
+    let covered = 0
+    for (const h of holdings) {
+      if (!isSecurityKey(h.cgId)) continue
+      const sym = securitySymbol(h.cgId)
+      const yieldPct = getEquity(sym)?.dividendYieldPct ?? getFund(sym)?.yieldPct ?? null
+      const value = h.currentValue ?? h.targetValue
+      if (yieldPct != null && value > 0) { income += value * yieldPct / 100; covered++ }
+    }
+    return { income, covered }
+  }, [holdings])
+
   const TAB_LABELS: Record<DetailTab, string> = { overview: 'Overview', analysis: 'Analysis', backtest: 'Backtest' }
 
   return (
@@ -629,6 +646,11 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
           <div className={clsx('text-xl font-bold', riskColor(metrics.weightedRisk))}>{metrics.weightedRisk}</div>
           <div className="text-xs text-text-muted mt-0.5">Weighted Risk</div>
           <div className={clsx('text-[10px] mt-0.5', RISK_LABEL_COLOR[metrics.riskLabel])}>{metrics.riskLabel}</div>
+        </div>
+        <div className="bg-bg-card border border-border rounded-xl p-4 text-center">
+          <div className="text-xl font-bold text-emerald-400">{annualIncome.covered > 0 ? fmt$(annualIncome.income, 0) : '—'}</div>
+          <div className="text-xs text-text-muted mt-0.5">Est. Annual Income</div>
+          <div className="text-[10px] text-text-muted mt-0.5">{annualIncome.covered > 0 ? `${annualIncome.covered} yielding holding${annualIncome.covered !== 1 ? 's' : ''} · ref yields` : 'no yielding securities'}</div>
         </div>
         <div className="bg-bg-card border border-border rounded-xl p-4 text-center">
           <div className="text-xl font-bold text-text-primary">{holdings.length}</div>

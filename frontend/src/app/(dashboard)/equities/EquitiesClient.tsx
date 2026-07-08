@@ -32,6 +32,11 @@ export function EquitiesClient() {
   const [sector, setSector] = useState<SectorId | 'all'>('all')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('marketCap')
+  // Fundamental screener filters (reference values; blank = no filter)
+  const [maxPe, setMaxPe] = useState('')
+  const [minYield, setMinYield] = useState('')
+  const [maxBeta, setMaxBeta] = useState('')
+  const [minMcapB, setMinMcapB] = useState('')
   const [sortAsc, setSortAsc] = useState(false)
 
   const { data, isLoading, refetch, isFetching } = useQuery<SecurityQuotesResponse>({
@@ -57,9 +62,15 @@ export function EquitiesClient() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
+    const peLimit = parseFloat(maxPe); const yieldFloor = parseFloat(minYield)
+    const betaLimit = parseFloat(maxBeta); const mcapFloor = parseFloat(minMcapB)
     const subset = rows.filter((row) =>
       (sector === 'all' || row.sector === sector) &&
-      (!query || row.symbol.toLowerCase().includes(query) || row.name.toLowerCase().includes(query))
+      (!query || row.symbol.toLowerCase().includes(query) || row.name.toLowerCase().includes(query)) &&
+      (!isFinite(peLimit) || (row.peRatio != null && row.peRatio <= peLimit)) &&
+      (!isFinite(yieldFloor) || (row.dividendYieldPct != null && row.dividendYieldPct >= yieldFloor)) &&
+      (!isFinite(betaLimit) || row.beta <= betaLimit) &&
+      (!isFinite(mcapFloor) || row.marketCap >= mcapFloor * 1e9)
     )
     const dir = sortAsc ? 1 : -1
     const value = (row: Row): number | string => {
@@ -78,7 +89,7 @@ export function EquitiesClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [rows, sector, search, sortKey, sortAsc])
+  }, [rows, sector, search, sortKey, sortAsc, maxPe, minYield, maxBeta, minMcapB])
 
   const withChange = rows.filter((r) => r.changePercent != null)
   const advancers = withChange.filter((r) => (r.changePercent ?? 0) > 0).length
@@ -204,6 +215,37 @@ export function EquitiesClient() {
             {info.label}
           </button>
         ))}
+      </div>
+
+      {/* Fundamental screener (reference values) */}
+      <div className="flex flex-wrap items-center gap-3 rounded-card border border-border bg-bg-card px-4 py-3">
+        <span className="text-xs font-medium uppercase tracking-wider text-text-muted">Screener</span>
+        {([
+          ['Max P/E', maxPe, setMaxPe, 'e.g. 20'],
+          ['Min yield %', minYield, setMinYield, 'e.g. 2'],
+          ['Max beta', maxBeta, setMaxBeta, 'e.g. 1.2'],
+          ['Min mkt cap ($B)', minMcapB, setMinMcapB, 'e.g. 100'],
+        ] as Array<[string, string, (v: string) => void, string]>).map(([label, value, setter, ph]) => (
+          <label key={label} className="flex items-center gap-1.5 text-xs text-text-muted">
+            {label}
+            <input
+              type="number"
+              value={value}
+              onChange={(e) => setter(e.target.value)}
+              placeholder={ph}
+              className="w-20 rounded border border-border bg-bg-elevated px-2 py-1 text-xs font-mono text-text-primary placeholder:text-text-muted/60 focus:border-accent-blue/50 focus:outline-none"
+            />
+          </label>
+        ))}
+        {(maxPe || minYield || maxBeta || minMcapB) && (
+          <button
+            onClick={() => { setMaxPe(''); setMinYield(''); setMaxBeta(''); setMinMcapB('') }}
+            className="text-xs text-accent-blue hover:underline"
+          >
+            Clear
+          </button>
+        )}
+        <span className="ml-auto text-[11px] text-text-muted">{filtered.length} match{filtered.length !== 1 ? 'es' : ''} · reference fundamentals</span>
       </div>
 
       {/* Table */}
