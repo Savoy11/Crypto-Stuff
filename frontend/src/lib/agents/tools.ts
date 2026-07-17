@@ -1,4 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
+import { EQUITY_CATALOG, SECTOR_INFO } from '@/lib/data/equityCatalog'
+import { FUND_CATALOG, FUND_CATEGORY_INFO } from '@/lib/data/fundCatalog'
 
 // ─── Agent tool registry ──────────────────────────────────────────────────────
 //
@@ -17,6 +19,12 @@ export type ToolName =
   | 'get_staking_opportunities'
   | 'get_news'
   | 'get_price_history'
+  | 'search_securities'
+  | 'get_security_quotes'
+  | 'get_security_history'
+  | 'get_market_news'
+  | 'get_stock_social'
+  | 'get_market_calendar'
 
 export const AGENT_TOOLS: Anthropic.Tool[] = [
   {
@@ -100,6 +108,72 @@ export const AGENT_TOOLS: Anthropic.Tool[] = [
       required: ['coin'],
     },
   },
+  {
+    name: 'search_securities',
+    description: 'Search the equities and funds catalogs (~70 US large-cap stocks, ~55 ETFs/mutual funds) by ticker, name, sector, or category. Use to find the right symbol, discover what stocks/funds the platform tracks, or get reference facts (sector, P/E, expense ratio, top holdings).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', description: 'Ticker or name substring, e.g. "NVDA" or "vanguard"' },
+        type: { type: 'string', enum: ['stock', 'etf', 'mutual'], description: 'Optional: restrict to stocks, ETFs, or mutual funds' },
+        sector: { type: 'string', description: 'Optional stock sector filter, e.g. "technology", "healthcare", "financials"' },
+      },
+    },
+  },
+  {
+    name: 'get_security_quotes',
+    description: 'Get current price quotes for stocks, ETFs, or mutual funds by ticker symbol. Use whenever the user asks about a stock or fund price. Quotes flagged "reference: true" are static fallback values, not live.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbols: { type: 'array', items: { type: 'string' }, description: 'Ticker symbols, e.g. ["AAPL","SPY","VTSAX"]' },
+      },
+      required: ['symbols'],
+    },
+  },
+  {
+    name: 'get_security_history',
+    description: 'Get OHLC price history for a stock, ETF, or mutual fund over a range. Use for trend/performance questions. Returns a compact summary (first, last, high, low, change).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' },
+        range: { type: 'string', enum: ['1M', '3M', '6M', '1Y', '5Y', 'MAX'], description: 'Time range (default 1Y)' },
+      },
+      required: ['symbol'],
+    },
+  },
+  {
+    name: 'get_market_news',
+    description: 'Get recent stock-market news headlines with sentiment and category tags. Pass a ticker for per-company news, or omit it for general market headlines. Use for "what is the news on <stock>" or "what is moving the market" questions.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'Optional ticker, e.g. "AAPL" — omit for general market news' },
+        limit: { type: 'number', description: 'Max articles (default 10, max 25)' },
+      },
+    },
+  },
+  {
+    name: 'get_stock_social',
+    description: 'Get social sentiment for stocks from Reddit finance subs and StockTwits: per-symbol sentiment scores plus top posts. Pass a ticker for one symbol, or omit for general finance chatter.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        symbol: { type: 'string', description: 'Optional ticker, e.g. "TSLA" — omit for general chatter' },
+      },
+    },
+  },
+  {
+    name: 'get_market_calendar',
+    description: 'Get upcoming earnings dates and US economic events (CPI, Fed, jobs reports) for the next N days. Use for "when does X report earnings" or "what events are coming up" questions.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: 'Days ahead to look (default 14, max 30)' },
+      },
+    },
+  },
 ]
 
 // ─── Executor ───────────────────────────────────────────────────────────────
@@ -167,6 +241,111 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
           firstClose: first.close, lastClose: last.close,
           periodHigh: high, periodLow: low,
           changePct: Number(changePct.toFixed(2)),
+        }
+      }
+      case 'search_securities': {
+        const query = String(input.query ?? '').trim().toLowerCase()
+        const type = input.type ? String(input.type) : undefined
+        const sector = input.sector ? String(input.sector).toLowerCase() : undefined
+
+        const stocks = (type && type !== 'stock') ? [] : EQUITY_CATALOG
+          .filter((e) => !sector || e.sector === sector)
+          .filter((e) => !query || e.symbol.toLowerCase().includes(query) || e.name.toLowerCase().includes(query) || e.industry.toLowerCase().includes(query))
+          .slice(0, 15)
+          .map((e) => ({
+            symbol: e.symbol, name: e.name, type: 'stock' as const,
+            sector: SECTOR_INFO[e.sector].label, industry: e.industry,
+            marketCapB: e.marketCapB, peRatio: e.peRatio,
+            dividendYieldPct: e.dividendYieldPct, beta: e.beta,
+          }))
+        const funds = (type === 'stock') ? [] : FUND_CATALOG
+          .filter((f) => !type || f.type === type)
+          .filter((f) => !query || f.symbol.toLowerCase().includes(query) || f.name.toLowerCase().includes(query) || f.issuer.toLowerCase().includes(query))
+          .slice(0, 15)
+          .map((f) => ({
+            symbol: f.symbol, name: f.name, type: f.type, issuer: f.issuer,
+            category: FUND_CATEGORY_INFO[f.category].label,
+            expenseRatioPct: f.expenseRatioPct, aumB: f.aumB, yieldPct: f.yieldPct,
+            indexTracked: f.indexTracked,
+            topHoldings: f.topHoldings.slice(0, 5).map((h) => `${h.symbol} ${h.weightPct}%`),
+          }))
+        if (stocks.length === 0 && funds.length === 0) {
+          return { stocks, funds, note: 'No catalog matches — the symbol may still be quotable via get_security_quotes.' }
+        }
+        return { stocks, funds }
+      }
+      case 'get_security_quotes': {
+        const symbols = (input.symbols as string[] | undefined)?.join(',') ?? ''
+        const data = (await getJson(origin, `/live-data/security-quotes?symbols=${encodeURIComponent(symbols)}`)) as {
+          ok?: boolean; source?: string; quotes?: Record<string, unknown>
+        }
+        return { source: data.source, quotes: data.quotes ?? {} }
+      }
+      case 'get_security_history': {
+        const symbol = String(input.symbol ?? '').toUpperCase()
+        const range = String(input.range ?? '1Y')
+        const data = (await getJson(origin, `/live-data/security-ohlcv?symbol=${encodeURIComponent(symbol)}&range=${range}`)) as {
+          ok?: boolean; candles?: { time: number; open: number; high: number; low: number; close: number }[]; source?: string
+        }
+        const candles = data.candles ?? []
+        if (!data.ok || candles.length === 0) return { error: 'no candle data available', symbol, range }
+        const first = candles[0], last = candles[candles.length - 1]
+        const high = Math.max(...candles.map((c) => c.high))
+        const low = Math.min(...candles.map((c) => c.low))
+        const changePct = ((last.close - first.open) / first.open) * 100
+        // Compact summary — never dump hundreds of candles into context.
+        return {
+          symbol, range, source: data.source, candleCount: candles.length,
+          firstClose: first.close, lastClose: last.close,
+          periodHigh: high, periodLow: low,
+          changePct: Number(changePct.toFixed(2)),
+        }
+      }
+      case 'get_market_news': {
+        const limit = Math.min(Number(input.limit ?? 10) || 10, 25)
+        const symbol = input.symbol ? String(input.symbol).toUpperCase() : undefined
+        const p = new URLSearchParams({ limit: String(limit) })
+        if (symbol) p.set('symbol', symbol)
+        const data = (await getJson(origin, `/live-data/market-news?${p.toString()}`)) as {
+          ok?: boolean
+          articles?: { title: string; url: string; source: string; publishedAt: string; summary: string; sentiment: string; category: string; relatedSymbols: string[] }[]
+        }
+        const articles = (data.articles ?? []).slice(0, limit).map((a) => ({
+          title: a.title, source: a.source, publishedAt: a.publishedAt,
+          sentiment: a.sentiment, category: a.category, relatedSymbols: a.relatedSymbols,
+          summary: a.summary.length > 200 ? `${a.summary.slice(0, 200)}…` : a.summary,
+          url: a.url,
+        }))
+        return { symbol: symbol ?? 'general', count: articles.length, articles }
+      }
+      case 'get_stock_social': {
+        const symbol = input.symbol ? String(input.symbol).toUpperCase() : undefined
+        const p = new URLSearchParams({ limit: '20' })
+        if (symbol) p.set('symbol', symbol)
+        const data = (await getJson(origin, `/live-data/stock-social?${p.toString()}`)) as {
+          ok?: boolean
+          summaries?: unknown[]
+          signals?: { platform: string; title: string; sentiment: string; score: number; symbols: string[]; subreddit?: string; publishedAt: string }[]
+        }
+        const posts = (data.signals ?? []).slice(0, 12).map((s) => ({
+          platform: s.platform, subreddit: s.subreddit,
+          title: s.title.length > 140 ? `${s.title.slice(0, 140)}…` : s.title,
+          sentiment: s.sentiment, score: s.score, symbols: s.symbols, publishedAt: s.publishedAt,
+        }))
+        return { symbol: symbol ?? 'general', summaries: data.summaries ?? [], posts }
+      }
+      case 'get_market_calendar': {
+        const days = Math.min(Number(input.days ?? 14) || 14, 30)
+        const data = (await getJson(origin, `/live-data/market-calendar?days=${days}`)) as {
+          ok?: boolean; configured?: boolean; earnings?: unknown[]; economic?: unknown[]; from?: string; to?: string
+        }
+        if (data.configured === false) {
+          return { error: 'Market calendar requires an FMP API key (FMP_API_KEY) — not configured on this instance.' }
+        }
+        return {
+          from: data.from, to: data.to,
+          earnings: (data.earnings ?? []).slice(0, 40),
+          economic: (data.economic ?? []).slice(0, 25),
         }
       }
       default:
