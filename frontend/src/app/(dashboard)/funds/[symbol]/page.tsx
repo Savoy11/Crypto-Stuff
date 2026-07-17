@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowLeft, Calculator, TrendingDown, TrendingUp } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
+import { FundHoldingsSection } from './FundHoldingsSection'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import { computeFeeDrag, FUND_CATEGORY_INFO, getFund } from '@/lib/data/fundCatalog'
@@ -124,7 +125,6 @@ export default function FundDetailPage() {
   const price = quote?.price ?? entry.referencePrice
   const change = live ? quote?.changePercent ?? null : null
   const category = FUND_CATEGORY_INFO[entry.category]
-  const maxWeight = Math.max(...entry.topHoldings.map((h) => h.weightPct), 0)
 
   const facts: Array<{ label: string; value: string }> = [
     { label: 'Issuer', value: entry.issuer },
@@ -183,28 +183,6 @@ export default function FundDetailPage() {
           <div className="xl:col-span-2 space-y-4">
             <PriceChartCard symbol={symbol} />
             <FiftyTwoWeekBar symbol={symbol} price={price} />
-            {entry.topHoldings.length > 0 && (
-              <div className="rounded-card border border-border bg-bg-card p-4">
-                <h2 className="text-sm font-medium text-text-secondary mb-3">Top Holdings <span className="text-[10px] text-text-muted font-normal">(indicative)</span></h2>
-                <ul className="space-y-2">
-                  {entry.topHoldings.map((holding) => (
-                    <li key={holding.symbol} className="flex items-center gap-3 text-sm">
-                      <span className="w-14 font-mono font-medium text-text-primary flex-shrink-0">{holding.symbol}</span>
-                      <span className="w-40 text-xs text-text-muted truncate flex-shrink-0">{holding.name}</span>
-                      <div className="flex-1 h-1.5 rounded-full bg-bg-elevated">
-                        <div
-                          className="h-full rounded-full bg-accent-blue/60"
-                          style={{ width: `${maxWeight > 0 ? (holding.weightPct / maxWeight) * 100 : 0}%` }}
-                        />
-                      </div>
-                      <span className="w-12 text-right font-mono text-xs tabular-nums text-text-secondary flex-shrink-0">
-                        {holding.weightPct.toFixed(1)}%
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
           </div>
 
           <div className="space-y-4">
@@ -222,6 +200,9 @@ export default function FundDetailPage() {
             <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
           </div>
         </div>
+
+        {/* Full breakdown of underlying investments */}
+        <FundHoldingsSection symbol={symbol} />
 
         {/* News — mutual funds rarely have ticker news, show general market feed */}
         <MarketNewsList symbol={entry.type === 'etf' ? symbol : undefined} limit={8} />
