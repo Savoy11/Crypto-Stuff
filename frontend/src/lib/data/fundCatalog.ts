@@ -41,6 +41,70 @@ export const FUND_CATEGORY_INFO: Record<FundCategoryId, { label: string; color: 
   'balanced':        { label: 'Balanced',          color: '#0ea5e9' },
 }
 
+/** How the portfolio is constructed — beyond plain cap-weighted indexing. */
+export type FundStrategy = 'index' | 'active' | 'equal-weight' | 'covered-call' | 'leveraged' | 'inverse'
+
+export const FUND_STRATEGY_INFO: Record<FundStrategy, { label: string; description: string }> = {
+  'index':        { label: 'Index',        description: 'Passively tracks a cap-weighted benchmark.' },
+  'active':       { label: 'Active',       description: 'Manager discretion over holdings and weights.' },
+  'equal-weight': { label: 'Equal Weight', description: 'Every constituent weighted equally — increased weighting of smaller names vs the cap-weighted index.' },
+  'covered-call': { label: 'Covered Call', description: 'Sells call options against holdings for income, capping upside.' },
+  'leveraged':    { label: 'Leveraged',    description: 'Daily-reset amplified (2×/3×) index exposure via derivatives.' },
+  'inverse':      { label: 'Inverse',      description: 'Daily-reset short exposure — profits when the index falls.' },
+}
+
+export type FundRiskLevel = 'conservative' | 'moderate' | 'aggressive' | 'speculative'
+
+export const FUND_RISK_INFO: Record<FundRiskLevel, { label: string; color: string }> = {
+  conservative: { label: 'Conservative', color: '#22c55e' },
+  moderate:     { label: 'Moderate',     color: '#3b82f6' },
+  aggressive:   { label: 'Aggressive',   color: '#f59e0b' },
+  speculative:  { label: 'Speculative',  color: '#ef4444' },
+}
+
+/** Strategy with a sensible default: tracked index → 'index', else 'active'. */
+export function fundStrategy(f: Pick<FundEntry, 'strategy' | 'indexTracked'>): FundStrategy {
+  return f.strategy ?? (f.indexTracked != null ? 'index' : 'active')
+}
+
+/**
+ * Derived risk profile — a coarse suitability band from structure, not a
+ * market-data risk score (that's the Risk Scores engine's job).
+ */
+export function fundRiskLevel(f: Pick<FundEntry, 'strategy' | 'indexTracked' | 'category'>): FundRiskLevel {
+  const strategy = fundStrategy(f)
+  if (strategy === 'leveraged' || strategy === 'inverse') return 'speculative'
+  if (f.category === 'crypto') return 'speculative'
+  if (f.category === 'bond') return 'conservative'
+  if (['us-broad', 'us-large-value', 'dividend-income', 'balanced', 'global'].includes(f.category)) return 'moderate'
+  return 'aggressive' // growth, small cap, international, emerging, sector, commodity
+}
+
+// Issuer-level frequent-trading policies for mutual funds (public prospectus
+// policies — approximate summaries; check the fund's prospectus for specifics).
+const MUTUAL_FUND_POLICY: Record<string, string> = {
+  'Vanguard': 'Vanguard frequent-trading policy: after selling shares you cannot buy back into the same fund for 30 days (online purchases blocked).',
+  'Fidelity': 'Fidelity excessive-trading policy: round trips within 30 days are flagged; repeated round trips lead to trading blocks.',
+  'T. Rowe Price': 'T. Rowe Price frequent-trading policy: a 30-day purchase block applies after redeeming from the fund.',
+  'American Funds': 'American Funds Class A shares carry a front-end sales load; frequent-trading purchases may be declined after a redemption.',
+  'Dodge & Cox': 'Dodge & Cox monitors frequent trading; purchases may be declined after short-term round trips.',
+  'PIMCO': 'PIMCO restricts excessive trading; short-term round trips may result in purchase blocks.',
+}
+
+/**
+ * Trading restriction / minimum-holding disclaimer for a fund, or null.
+ * Fund-specific note first (e.g. daily-reset leverage), then the issuer's
+ * mutual-fund frequent-trading policy.
+ */
+export function fundTradingRestriction(f: Pick<FundEntry, 'tradingRestriction' | 'type' | 'issuer'>): string | null {
+  if (f.tradingRestriction) return f.tradingRestriction
+  if (f.type === 'mutual') {
+    return MUTUAL_FUND_POLICY[f.issuer]
+      ?? 'Mutual fund orders execute at end-of-day NAV; most issuers restrict repurchases within 30 days of a sale under frequent-trading policies — check the prospectus.'
+  }
+  return null
+}
+
 export interface FundHolding {
   symbol: string
   name: string
@@ -74,6 +138,10 @@ export interface FundEntry {
   focusSector?: SectorId
   /** Narrower industry focus within that sector, e.g. "Semiconductors". */
   focusIndustry?: string
+  /** Portfolio-construction strategy. Defaults via fundStrategy(): index when tracking, else active. */
+  strategy?: FundStrategy
+  /** Fund-specific trading restriction / minimum-holding note (leveraged daily resets, redemption fees…). */
+  tradingRestriction?: string
 }
 
 const MEGA_CAP_HOLDINGS: FundHolding[] = [
@@ -93,7 +161,7 @@ export const FUND_CATALOG: FundEntry[] = [
   { symbol: 'QQQ',  name: 'Invesco QQQ Trust',                 type: 'etf', issuer: 'Invesco',       category: 'us-large-growth', expenseRatioPct: 0.20, aumB: 380, referencePrice: 570, yieldPct: 0.5, inceptionYear: 1999, indexTracked: 'Nasdaq-100', topHoldings: MEGA_CAP_HOLDINGS, website: 'https://www.invesco.com/qqq-etf/en/home.html', description: 'Nasdaq-100 tracker; concentrated mega-cap tech exposure.' },
   { symbol: 'DIA',  name: 'SPDR Dow Jones Industrial Average ETF', type: 'etf', issuer: 'State Street', category: 'us-broad', expenseRatioPct: 0.16, aumB: 40, referencePrice: 470, yieldPct: 1.6, inceptionYear: 1998, indexTracked: 'Dow Jones Industrial Average', topHoldings: [], website: 'https://www.ssga.com/us/en/individual/etfs/spdr-dow-jones-industrial-average-etf-trust-dia', description: 'Price-weighted Dow 30 blue-chip exposure.' },
   { symbol: 'IWM',  name: 'iShares Russell 2000 ETF',          type: 'etf', issuer: 'BlackRock',     category: 'us-small', expenseRatioPct: 0.19, aumB: 75, referencePrice: 240, yieldPct: 1.1, inceptionYear: 2000, indexTracked: 'Russell 2000', topHoldings: [], website: 'https://www.ishares.com/us/products/239710/ishares-russell-2000-etf', description: 'The standard US small-cap benchmark tracker.' },
-  { symbol: 'RSP',  name: 'Invesco S&P 500 Equal Weight ETF',  type: 'etf', issuer: 'Invesco',       category: 'us-broad', expenseRatioPct: 0.20, aumB: 75, referencePrice: 195, yieldPct: 1.5, inceptionYear: 2003, indexTracked: 'S&P 500 Equal Weight', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?audienceType=Investor&ticker=RSP', description: 'Equal-weights the S&P 500 — a hedge against mega-cap concentration.' },
+  { symbol: 'RSP',  name: 'Invesco S&P 500 Equal Weight ETF',  type: 'etf', issuer: 'Invesco',       category: 'us-broad', expenseRatioPct: 0.20, aumB: 75, referencePrice: 195, yieldPct: 1.5, inceptionYear: 2003, indexTracked: 'S&P 500 Equal Weight', strategy: 'equal-weight', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?audienceType=Investor&ticker=RSP', description: 'Equal-weights the S&P 500 — a hedge against mega-cap concentration.' },
 
   // ── Style ETFs ───────────────────────────────────────────────────────────────
   { symbol: 'VUG',  name: 'Vanguard Growth ETF',               type: 'etf', issuer: 'Vanguard', category: 'us-large-growth', expenseRatioPct: 0.04, aumB: 180, referencePrice: 460, yieldPct: 0.4, inceptionYear: 2004, indexTracked: 'CRSP US Large Growth', topHoldings: MEGA_CAP_HOLDINGS, website: 'https://investor.vanguard.com/investment-products/etfs/profile/vug', description: 'Large-cap growth at 4 bps; tech-heavy tilt.' },
@@ -101,8 +169,8 @@ export const FUND_CATALOG: FundEntry[] = [
   { symbol: 'SCHD', name: 'Schwab US Dividend Equity ETF',     type: 'etf', issuer: 'Schwab',   category: 'dividend-income', expenseRatioPct: 0.06, aumB: 70, referencePrice: 28, yieldPct: 3.7, inceptionYear: 2011, indexTracked: 'Dow Jones US Dividend 100', topHoldings: [], website: 'https://www.schwabassetmanagement.com/products/schd', description: 'Quality dividend growers screened for balance-sheet strength.' },
   { symbol: 'VYM',  name: 'Vanguard High Dividend Yield ETF',  type: 'etf', issuer: 'Vanguard', category: 'dividend-income', expenseRatioPct: 0.06, aumB: 65, referencePrice: 135, yieldPct: 2.7, inceptionYear: 2006, indexTracked: 'FTSE High Dividend Yield', topHoldings: [], website: 'https://investor.vanguard.com/investment-products/etfs/profile/vym', description: 'Broad basket of above-average-yield US large caps.' },
   { symbol: 'VIG',  name: 'Vanguard Dividend Appreciation ETF', type: 'etf', issuer: 'Vanguard', category: 'dividend-income', expenseRatioPct: 0.06, aumB: 90, referencePrice: 205, yieldPct: 1.7, inceptionYear: 2006, indexTracked: 'S&P US Dividend Growers', topHoldings: [], website: 'https://investor.vanguard.com/investment-products/etfs/profile/vig', description: 'Companies with 10+ consecutive years of dividend increases.' },
-  { symbol: 'JEPI', name: 'JPMorgan Equity Premium Income ETF', type: 'etf', issuer: 'JPMorgan', category: 'dividend-income', expenseRatioPct: 0.35, aumB: 40, referencePrice: 59, yieldPct: 8.0, inceptionYear: 2020, indexTracked: null, topHoldings: [], website: 'https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-equity-premium-income-etf-etf-shares-46641q332', description: 'Covered-call income strategy on low-volatility US equities.' },
-  { symbol: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium Income ETF', type: 'etf', issuer: 'JPMorgan', category: 'dividend-income', expenseRatioPct: 0.35, aumB: 30, referencePrice: 57, yieldPct: 9.5, inceptionYear: 2022, indexTracked: null, topHoldings: [], website: 'https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-nasdaq-equity-premium-income-etf-etf-shares-46654q203', description: 'Covered-call income on Nasdaq-100 names; higher yield, capped upside.' },
+  { symbol: 'JEPI', name: 'JPMorgan Equity Premium Income ETF', type: 'etf', issuer: 'JPMorgan', category: 'dividend-income', expenseRatioPct: 0.35, aumB: 40, referencePrice: 59, yieldPct: 8.0, inceptionYear: 2020, indexTracked: null, strategy: 'covered-call', topHoldings: [], website: 'https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-equity-premium-income-etf-etf-shares-46641q332', description: 'Covered-call income strategy on low-volatility US equities.' },
+  { symbol: 'JEPQ', name: 'JPMorgan Nasdaq Equity Premium Income ETF', type: 'etf', issuer: 'JPMorgan', category: 'dividend-income', expenseRatioPct: 0.35, aumB: 30, referencePrice: 57, yieldPct: 9.5, inceptionYear: 2022, indexTracked: null, strategy: 'covered-call', topHoldings: [], website: 'https://am.jpmorgan.com/us/en/asset-management/adv/products/jpmorgan-nasdaq-equity-premium-income-etf-etf-shares-46654q203', description: 'Covered-call income on Nasdaq-100 names; higher yield, capped upside.' },
 
   // ── International / Global ETFs ──────────────────────────────────────────────
   { symbol: 'VT',   name: 'Vanguard Total World Stock ETF',    type: 'etf', issuer: 'Vanguard',  category: 'global',        expenseRatioPct: 0.06, aumB: 55, referencePrice: 135, yieldPct: 1.8, inceptionYear: 2008, indexTracked: 'FTSE Global All Cap', topHoldings: [], website: 'https://investor.vanguard.com/investment-products/etfs/profile/vt', description: 'Every investable stock on Earth in one fund, cap-weighted.' },
@@ -164,6 +232,16 @@ export const FUND_CATALOG: FundEntry[] = [
 
   // ── Thematic / Active ETFs ───────────────────────────────────────────────────
   { symbol: 'ARKK', name: 'ARK Innovation ETF',                type: 'etf', issuer: 'ARK Invest', category: 'us-large-growth', expenseRatioPct: 0.75, aumB: 7, referencePrice: 65, yieldPct: null, inceptionYear: 2014, indexTracked: null, topHoldings: [ { symbol: 'TSLA', name: 'Tesla', weightPct: 10 }, { symbol: 'COIN', name: 'Coinbase', weightPct: 8 }, { symbol: 'ROKU', name: 'Roku', weightPct: 7 }, { symbol: 'PLTR', name: 'Palantir', weightPct: 5 }, { symbol: 'RBLX', name: 'Roblox', weightPct: 5 } ], website: 'https://www.ark-funds.com/funds/arkk', description: 'Active high-volatility bets on disruptive innovation.' },
+
+  // ── Leveraged / Inverse / Options-Income ETFs ────────────────────────────────
+  // Daily-reset products: strategy tags drive the Speculative risk profile and
+  // the tradingRestriction disclaimer shown on registry + detail pages.
+  { symbol: 'TQQQ', name: 'ProShares UltraPro QQQ',             type: 'etf', issuer: 'ProShares', category: 'us-large-growth', expenseRatioPct: 0.84, aumB: 26, referencePrice: 90, yieldPct: 1.1, inceptionYear: 2010, indexTracked: 'Nasdaq-100 (3× daily)', strategy: 'leveraged', topHoldings: [], website: 'https://www.proshares.com/our-etfs/leveraged-and-inverse/tqqq', description: '3× daily Nasdaq-100 — amplified tech exposure with daily reset.', tradingRestriction: 'Daily-reset 3× leverage: compounding makes multi-day returns diverge sharply from 3× the index. Designed for single-day tactical holds, not long-term positions.' },
+  { symbol: 'SQQQ', name: 'ProShares UltraPro Short QQQ',       type: 'etf', issuer: 'ProShares', category: 'us-large-growth', expenseRatioPct: 0.95, aumB: 3, referencePrice: 22, yieldPct: null, inceptionYear: 2010, indexTracked: 'Nasdaq-100 (−3× daily)', strategy: 'inverse', topHoldings: [], website: 'https://www.proshares.com/our-etfs/leveraged-and-inverse/sqqq', description: '−3× daily Nasdaq-100 — profits when tech falls; decays when it chops.', tradingRestriction: 'Daily-reset −3× exposure: volatility drag erodes value over any multi-day hold even if the index falls. Single-day hedging instrument only.' },
+  { symbol: 'UPRO', name: 'ProShares UltraPro S&P 500',         type: 'etf', issuer: 'ProShares', category: 'us-broad', expenseRatioPct: 0.91, aumB: 5, referencePrice: 95, yieldPct: null, inceptionYear: 2009, indexTracked: 'S&P 500 (3× daily)', strategy: 'leveraged', topHoldings: [], website: 'https://www.proshares.com/our-etfs/leveraged-and-inverse/upro', description: '3× daily S&P 500 with daily reset.', tradingRestriction: 'Daily-reset 3× leverage: multi-day returns diverge from 3× the index through compounding. Built for single-day tactical use.' },
+  { symbol: 'SH',   name: 'ProShares Short S&P 500',            type: 'etf', issuer: 'ProShares', category: 'us-broad', expenseRatioPct: 0.88, aumB: 1.5, referencePrice: 40, yieldPct: null, inceptionYear: 2006, indexTracked: 'S&P 500 (−1× daily)', strategy: 'inverse', topHoldings: [], website: 'https://www.proshares.com/our-etfs/leveraged-and-inverse/sh', description: '−1× daily S&P 500 — the simplest index hedge.', tradingRestriction: 'Daily-reset −1× exposure: returns track the inverse of the index for one day only; longer holds drift from −1× through compounding.' },
+  { symbol: 'SOXL', name: 'Direxion Daily Semiconductor Bull 3X', type: 'etf', issuer: 'Direxion', category: 'sector', focusSector: 'technology', focusIndustry: 'Semiconductors', expenseRatioPct: 0.76, aumB: 12, referencePrice: 30, yieldPct: 0.5, inceptionYear: 2010, indexTracked: 'ICE Semiconductor (3× daily)', strategy: 'leveraged', topHoldings: [], website: 'https://www.direxion.com/product/daily-semiconductor-bull-bear-3x-etfs', description: '3× daily semiconductors — among the most volatile listed ETFs.', tradingRestriction: 'Daily-reset 3× sector leverage on an already-volatile industry: multi-day holds can lose money even when semiconductors rise. Single-day instrument.' },
+  { symbol: 'QYLD', name: 'Global X Nasdaq 100 Covered Call ETF', type: 'etf', issuer: 'Global X', category: 'dividend-income', expenseRatioPct: 0.61, aumB: 8, referencePrice: 18, yieldPct: 11.5, inceptionYear: 2013, indexTracked: 'Cboe Nasdaq-100 BuyWrite', strategy: 'covered-call', topHoldings: [], website: 'https://www.globalxetfs.com/funds/qyld/', description: 'Sells monthly at-the-money calls on the Nasdaq-100 for high income; upside fully capped.' },
 
   // ── Mutual Funds ─────────────────────────────────────────────────────────────
   { symbol: 'VTSAX', name: 'Vanguard Total Stock Market Index Admiral', type: 'mutual', issuer: 'Vanguard', category: 'us-broad', expenseRatioPct: 0.04, aumB: 1500, referencePrice: 155, yieldPct: 1.2, inceptionYear: 2000, indexTracked: 'CRSP US Total Market', topHoldings: MEGA_CAP_HOLDINGS, website: 'https://investor.vanguard.com/investment-products/mutual-funds/profile/vtsax', description: 'Mutual-fund share class of the total US market (VTI equivalent).' },

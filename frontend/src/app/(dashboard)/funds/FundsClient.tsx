@@ -4,11 +4,14 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, Clock, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MetricCard } from '@/components/ui/MetricCard'
-import { FUND_CATALOG, FUND_CATEGORY_INFO, type FundCategoryId, type FundType } from '@/lib/data/fundCatalog'
-import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
+import {
+  FUND_CATALOG, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
+  type FundCategoryId, type FundRiskLevel, type FundStrategy, type FundType,
+} from '@/lib/data/fundCatalog'
+import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
@@ -120,8 +123,6 @@ function RangeField({ label, unit, range, onChange }: {
 export function FundsClient() {
   const [type, setType] = useState<FundType | 'all'>('all')
   const [category, setCategory] = useState<FundCategoryId | 'all'>('all')
-  const [sectorFocus, setSectorFocus] = useState<SectorId | 'all'>('all')
-  const [industryFocus, setIndustryFocus] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('aum')
   const [sortAsc, setSortAsc] = useState(false)
@@ -130,6 +131,9 @@ export function FundsClient() {
   // Screener filters (reference values; blank = no filter)
   const [issuer, setIssuer] = useState('all')
   const [style, setStyle] = useState<FundStyle>('all')
+  const [industry, setIndustry] = useState<string>('all')
+  const [riskLevel, setRiskLevel] = useState<FundRiskLevel | 'all'>('all')
+  const [strategy, setStrategy] = useState<FundStrategy | 'all'>('all')
   const [curatedOnly, setCuratedOnly] = useState(false)
   const [ranges, setRanges] = useState<Ranges>(EMPTY_RANGES)
   const setRange = (key: RangeKey) => (next: { min: string; max: string }) =>
@@ -138,8 +142,12 @@ export function FundsClient() {
   const returnsFilterActive = RETURN_KEYS.some((k) => rangeActive(ranges[k]))
   const activeFilterCount =
     (type !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) + (curatedOnly ? 1 : 0) +
+    (industry !== 'all' ? 1 : 0) + (riskLevel !== 'all' ? 1 : 0) + (strategy !== 'all' ? 1 : 0) +
     (Object.keys(ranges) as RangeKey[]).filter((k) => rangeActive(ranges[k])).length
-  const clearFilters = () => { setType('all'); setIssuer('all'); setStyle('all'); setCuratedOnly(false); setRanges(EMPTY_RANGES) }
+  const clearFilters = () => {
+    setType('all'); setIssuer('all'); setStyle('all'); setCuratedOnly(false)
+    setIndustry('all'); setRiskLevel('all'); setStrategy('all'); setRanges(EMPTY_RANGES)
+  }
 
   // ── Universe: every US-listed ETF (NASDAQ directory) + curated catalog ──
   const { data: universeData, isLoading, refetch, isFetching } = useQuery<FundUniverseResponse>({
@@ -166,8 +174,9 @@ export function FundsClient() {
       (!curatedOnly || row.inCatalog) &&
       (type === 'all' || row.type === type) &&
       (category === 'all' || row.category === category) &&
-      (category !== 'sector' || sectorFocus === 'all' || row.focusSector === sectorFocus) &&
-      (category !== 'sector' || industryFocus === 'all' || row.focusIndustry === industryFocus) &&
+      (industry === 'all' || row.focusIndustry === industry) &&
+      (riskLevel === 'all' || row.riskLevel === riskLevel) &&
+      (strategy === 'all' || row.strategy === strategy) &&
       (issuer === 'all' || row.issuer === issuer) &&
       (style === 'all' || (row.inCatalog && (style === 'active' ? row.indexTracked == null : row.indexTracked != null))) &&
       inRange(row.expenseRatioPct, ranges.expense) &&
@@ -206,10 +215,10 @@ export function FundsClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [universe, type, category, sectorFocus, industryFocus, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc, returnsFilterData])
+  }, [universe, type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc, returnsFilterData])
 
   // Reset to first page whenever the result set changes
-  useEffect(() => { setPage(0) }, [type, category, sectorFocus, industryFocus, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc])
+  useEffect(() => { setPage(0) }, [type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
@@ -262,6 +271,10 @@ export function FundsClient() {
   }
 
   const issuers = useMemo(() => Array.from(new Set(FUND_CATALOG.map((f) => f.issuer))).sort(), [])
+  const industries = useMemo(
+    () => Array.from(new Set(FUND_CATALOG.map((f) => f.focusIndustry).filter((i): i is string => !!i))).sort(),
+    [],
+  )
   const returnsMissing = columnTab === 'returns' && pageReturnsData != null && pageReturnsData.source === 'none'
 
   const SortHeader = ({ label, colKey }: { label: string; colKey: SortKey }) => (
@@ -356,7 +369,7 @@ export function FundsClient() {
           {(Object.entries(FUND_CATEGORY_INFO) as Array<[FundCategoryId, { label: string; color: string }]>).map(([id, info]) => (
             <button
               key={id}
-              onClick={() => { setCategory(category === id ? 'all' : id); setSectorFocus('all'); setIndustryFocus('all') }}
+              onClick={() => setCategory(category === id ? 'all' : id)}
               className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
                 category === id
                   ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
@@ -368,65 +381,6 @@ export function FundsClient() {
           ))}
         </div>
       </div>
-
-      {/* Sector drill-down — which sector/industry a sector fund actually targets */}
-      {category === 'sector' && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-wider text-text-muted mr-1">Target sector</span>
-          <button
-            onClick={() => { setSectorFocus('all'); setIndustryFocus('all') }}
-            className={clsx('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-              sectorFocus === 'all'
-                ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-          >
-            All
-          </button>
-          {Array.from(new Set(FUND_CATALOG.filter((f) => f.category === 'sector' && f.focusSector).map((f) => f.focusSector as SectorId))).map((id) => (
-            <button
-              key={id}
-              onClick={() => { setSectorFocus(sectorFocus === id ? 'all' : id); setIndustryFocus('all') }}
-              className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                sectorFocus === id
-                  ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                  : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-            >
-              <span className="size-1.5 rounded-full" style={{ backgroundColor: SECTOR_INFO[id].color }} aria-hidden />
-              {SECTOR_INFO[id].label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Industry drill-down — a second level within the selected target sector */}
-      {category === 'sector' && sectorFocus !== 'all' && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs font-medium uppercase tracking-wider text-text-muted mr-1">Industry</span>
-          <button
-            onClick={() => setIndustryFocus('all')}
-            className={clsx('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-              industryFocus === 'all'
-                ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-          >
-            All
-          </button>
-          {Array.from(new Set(FUND_CATALOG
-            .filter((f) => f.category === 'sector' && f.focusSector === sectorFocus && f.focusIndustry)
-            .map((f) => f.focusIndustry as string))).sort().map((industry) => (
-            <button
-              key={industry}
-              onClick={() => setIndustryFocus(industryFocus === industry ? 'all' : industry)}
-              className={clsx('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                industryFocus === industry
-                  ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                  : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-            >
-              {industry}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Screener sidebar + results (ETFdb-style) */}
       <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -497,6 +451,51 @@ export function FundsClient() {
               />
               Curated funds only (full reference facts)
             </label>
+          </FilterGroup>
+
+          <FilterGroup title="Classification" defaultOpen active={(industry !== 'all' ? 1 : 0) + (riskLevel !== 'all' ? 1 : 0) + (strategy !== 'all' ? 1 : 0)}>
+            <div>
+              <p className="text-[11px] text-text-muted mb-1">Industry focus</p>
+              <select
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                className="w-full rounded border border-border bg-bg-elevated px-2 py-1.5 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+              >
+                <option value="all">All industries</option>
+                {industries.map((i) => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-muted mb-1">Risk profile</p>
+              <select
+                value={riskLevel}
+                onChange={(e) => setRiskLevel(e.target.value as FundRiskLevel | 'all')}
+                className="w-full rounded border border-border bg-bg-elevated px-2 py-1.5 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+              >
+                <option value="all">All risk profiles</option>
+                {(Object.entries(FUND_RISK_INFO) as Array<[FundRiskLevel, { label: string }]>).map(([id, info]) => (
+                  <option key={id} value={id}>{info.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-muted mb-1">Strategy</p>
+              <select
+                value={strategy}
+                onChange={(e) => setStrategy(e.target.value as FundStrategy | 'all')}
+                className="w-full rounded border border-border bg-bg-elevated px-2 py-1.5 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+                title={strategy !== 'all' ? FUND_STRATEGY_INFO[strategy].description : undefined}
+              >
+                <option value="all">All strategies</option>
+                {(Object.entries(FUND_STRATEGY_INFO) as Array<[FundStrategy, { label: string }]>).map(([id, info]) => (
+                  <option key={id} value={id}>{info.label}</option>
+                ))}
+              </select>
+            </div>
+            <p className="text-[10px] text-text-muted/80 leading-relaxed">
+              Risk profile is derived from category + strategy (leveraged/inverse and crypto rank Speculative).
+              Classification screens cover the curated set; non-catalog funds are excluded while one is set.
+            </p>
           </FilterGroup>
 
           <FilterGroup title="Expenses & Size" defaultOpen active={['expense', 'aum', 'age'].filter((k) => rangeActive(ranges[k as RangeKey])).length}>
@@ -589,7 +588,21 @@ export function FundsClient() {
                             {row.type === 'etf' ? 'ETF' : 'MF'}
                           </span>
                           <span className="font-mono font-semibold text-text-primary flex-shrink-0">{row.symbol}</span>
-                          <span className="text-xs text-text-muted truncate">{row.name}</span>
+                          {(row.strategy === 'leveraged' || row.strategy === 'inverse') && (
+                            <span
+                              className={clsx('px-1 py-0.5 rounded text-[9px] font-bold border flex-shrink-0',
+                                row.strategy === 'leveraged'
+                                  ? 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+                                  : 'text-red-400 bg-red-400/10 border-red-500/20')}
+                              title={FUND_STRATEGY_INFO[row.strategy].description}
+                            >
+                              {row.strategy === 'leveraged' ? 'LEV' : 'INV'}
+                            </span>
+                          )}
+                          {row.tradingRestriction && (
+                            <Clock size={11} className="text-amber-400/80 flex-shrink-0" aria-label="Trading restriction" />
+                          )}
+                          <span className="text-xs text-text-muted truncate" title={row.tradingRestriction ?? undefined}>{row.name}</span>
                         </div>
                         <div className="col-span-2 min-w-0">
                           {row.category ? (
