@@ -5,14 +5,17 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowLeft, Calculator, ExternalLink, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Calculator, Clock, ExternalLink, TrendingDown, TrendingUp } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { FundHoldingsHistory } from './FundHoldingsHistory'
 import { FundHoldingsSection } from './FundHoldingsSection'
 import { ExplainedLabel } from '@/components/ui/ExplainedLabel'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
-import { computeFeeDrag, FUND_CATEGORY_INFO, getFund } from '@/lib/data/fundCatalog'
+import {
+  computeFeeDrag, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
+  fundRiskLevel, fundStrategy, fundTradingRestriction, getFund,
+} from '@/lib/data/fundCatalog'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_LONG, STALE_TIME_SHORT } from '@/lib/constants'
@@ -160,6 +163,10 @@ export default function FundDetailPage() {
       explain: 'The fund company managing the assets. Scale matters: large issuers tend to mean tighter trading spreads, lower fees, and less risk the fund gets closed.' },
     { label: 'Type', value: entry.type === 'etf' ? 'Exchange-Traded Fund' : 'Mutual Fund',
       explain: 'ETFs trade all day on an exchange at market prices and are generally more tax-efficient; mutual funds price once daily at NAV and may carry investment minimums.' },
+    { label: 'Strategy', value: FUND_STRATEGY_INFO[fundStrategy(entry)].label,
+      explain: FUND_STRATEGY_INFO[fundStrategy(entry)].description },
+    { label: 'Risk Profile', value: FUND_RISK_INFO[fundRiskLevel(entry)].label,
+      explain: 'A coarse suitability band derived from the fund’s category and strategy — leveraged/inverse and crypto funds rank Speculative, bond funds Conservative. Not a market-data risk score.' },
     ...(entry.focusSector ? [{ label: 'Target Sector', value: SECTOR_INFO[entry.focusSector].label,
       explain: 'The single sector this fund concentrates in. Sector funds trade diversification for focused exposure — expect bigger swings than broad-market funds.' }] : []),
     ...(entry.focusIndustry ? [{ label: 'Industry Focus', value: entry.focusIndustry,
@@ -232,6 +239,22 @@ export default function FundDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Trading-restriction disclaimer — minimum holding periods, frequent-trading
+            policies, and daily-reset leverage warnings */}
+        {(() => {
+          const restriction = entry ? fundTradingRestriction(entry) : uniEntry?.tradingRestriction ?? null
+          if (!restriction) return null
+          return (
+            <div className="flex items-start gap-3 rounded-card border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+              <Clock size={14} className="mt-0.5 text-amber-400/80 flex-shrink-0" aria-hidden />
+              <div>
+                <p className="text-xs font-medium text-amber-400">Trading restrictions apply</p>
+                <p className="mt-0.5 text-xs text-text-muted leading-relaxed">{restriction}</p>
+              </div>
+            </div>
+          )
+        })()}
 
         {/* Chart + facts */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">

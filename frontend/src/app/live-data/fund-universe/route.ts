@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
-import { FUND_CATALOG, type FundCategoryId, type FundType } from '@/lib/data/fundCatalog'
+import {
+  FUND_CATALOG, fundRiskLevel, fundStrategy, fundTradingRestriction,
+  type FundCategoryId, type FundRiskLevel, type FundStrategy, type FundType,
+} from '@/lib/data/fundCatalog'
 import type { SectorId } from '@/lib/data/equityCatalog'
 
 // Full ETF universe for the Fund Registry — every US-listed ETF, not just the
@@ -34,6 +37,12 @@ export interface FundUniverseEntry {
   indexTracked: string | null
   focusSector: SectorId | null
   focusIndustry: string | null
+  /** Portfolio-construction strategy (catalog funds only). */
+  strategy: FundStrategy | null
+  /** Coarse suitability band derived from category + strategy (catalog funds only). */
+  riskLevel: FundRiskLevel | null
+  /** Minimum-holding / frequent-trading / daily-reset disclaimer, when applicable. */
+  tradingRestriction: string | null
 }
 
 export interface FundUniverseResponse {
@@ -64,6 +73,8 @@ function catalogEntry(f: (typeof FUND_CATALOG)[number]): FundUniverseEntry {
     aumB: f.aumB, referencePrice: f.referencePrice, yieldPct: f.yieldPct,
     inceptionYear: f.inceptionYear, indexTracked: f.indexTracked,
     focusSector: f.focusSector ?? null, focusIndustry: f.focusIndustry ?? null,
+    strategy: fundStrategy(f), riskLevel: fundRiskLevel(f),
+    tradingRestriction: fundTradingRestriction(f),
   }
 }
 
@@ -194,6 +205,9 @@ function skeleton(e: { symbol: string; name: string }, type: FundType): FundUniv
     category: null, issuer: null, expenseRatioPct: null, aumB: null,
     referencePrice: null, yieldPct: null, inceptionYear: null,
     indexTracked: null, focusSector: null, focusIndustry: null,
+    strategy: null, riskLevel: null,
+    // Mutual funds get the honest generic policy note even without curation.
+    tradingRestriction: type === 'mutual' ? fundTradingRestriction({ tradingRestriction: undefined, type, issuer: '' }) : null,
   }
 }
 
