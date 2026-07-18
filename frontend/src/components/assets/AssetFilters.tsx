@@ -81,7 +81,7 @@ export function AssetFilters() {
     filters.maxRiskScore < 100
 
   return (
-    <aside className="w-52 flex-shrink-0" aria-label="Asset filters">
+    <aside className="w-full lg:w-52 flex-shrink-0" aria-label="Asset filters">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-text-primary">Filters</h3>
         {hasActive && (

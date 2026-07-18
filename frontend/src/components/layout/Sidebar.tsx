@@ -8,6 +8,7 @@ import {
   User,
   GripVertical,
   RotateCcw,
+  X,
   LayoutPanelLeft,
   DollarSign,
   BarChart2,
@@ -158,7 +159,14 @@ const STATUS_LABELS = {
   error: 'Error',
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  /** Whether the mobile drawer is open (ignored on lg+ where the sidebar is always shown). */
+  open?: boolean
+  /** Called when the user dismisses the mobile drawer (close button, backdrop, or nav). */
+  onClose?: () => void
+}
+
+export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { unreadCount } = useAlertStore()
   const { connectionStatus } = useStreamStore()
@@ -269,7 +277,13 @@ export function Sidebar() {
 
   return (
     <aside
-      className="fixed inset-y-0 left-0 w-sidebar flex flex-col bg-sidebar-gradient border-r border-border z-30"
+      className={clsx(
+        'fixed inset-y-0 left-0 w-sidebar flex flex-col bg-sidebar-gradient border-r border-border z-30',
+        'transition-transform duration-200 ease-out',
+        // Off-canvas drawer on small screens; always visible from lg up
+        open ? 'translate-x-0' : '-translate-x-full',
+        'lg:translate-x-0'
+      )}
       aria-label="Main navigation"
     >
       {/* Logo */}
@@ -293,6 +307,14 @@ export function Sidebar() {
           )}
         >
           <GripVertical size={14} aria-hidden />
+        </button>
+        {/* Close button — mobile drawer only */}
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 p-1.5 rounded text-text-muted hover:text-text-primary hover:bg-bg-elevated transition-colors lg:hidden"
+          aria-label="Close navigation menu"
+        >
+          <X size={16} aria-hidden />
         </button>
       </div>
 
@@ -388,6 +410,7 @@ export function Sidebar() {
                     ) : (
                       <Link
                         href={href}
+                        onClick={onClose}
                         className={clsx(
                           'flex items-center justify-between px-3 py-2 rounded text-sm transition-all',
                           isActive
