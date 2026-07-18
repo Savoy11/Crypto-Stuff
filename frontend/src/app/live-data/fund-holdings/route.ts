@@ -261,6 +261,9 @@ export async function GET(request: NextRequest) {
   if (!symbol) {
     return NextResponse.json({ ok: false, error: 'Pass ?symbol=SPY' }, { status: 400 })
   }
+  // Optional explicit source (?source=sec|fmp|yahoo); default is the auto ladder.
+  const forcedParam = request.nextUrl.searchParams.get('source')
+  const forced = forcedParam === 'sec' || forcedParam === 'fmp' || forcedParam === 'yahoo' ? forcedParam : null
 
   const entry = getFund(symbol)
   const base = { symbol, updatedAt: new Date().toISOString() }
@@ -268,9 +271,10 @@ export async function GET(request: NextRequest) {
   // SEC N-PORT covers ETFs and mutual funds alike; FMP's holdings endpoint is
   // ETF-only. Sector weights / asset mix still come from FMP or Yahoo — the
   // N-PORT filing has no GICS classification.
-  const wantFmp = !!FMP_KEY && entry?.type !== 'mutual'
+  const wantSec = !forced || forced === 'sec'
+  const wantFmp = !!FMP_KEY && entry?.type !== 'mutual' && (!forced || forced === 'fmp')
   const [secRes, fmpHoldingsRes, fmpSectorsRes, yahooRes] = await Promise.allSettled([
-    fetchSecHoldings(symbol),
+    wantSec ? fetchSecHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null, totalCount: 0 }),
     wantFmp ? fetchFmpHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null } as FmpHoldingsResult),
     wantFmp ? fetchFmpSectorWeights(symbol) : Promise.resolve([] as SectorWeight[]),
     fetchYahooHoldings(symbol),
@@ -280,6 +284,27 @@ export async function GET(request: NextRequest) {
   const fmp = fmpHoldingsRes.status === 'fulfilled' ? fmpHoldingsRes.value : { holdings: [], asOf: null }
   const fmpSectors = fmpSectorsRes.status === 'fulfilled' ? fmpSectorsRes.value : []
   const yahoo = yahooRes.status === 'fulfilled' ? yahooRes.value : { holdings: [], sectorWeights: [], assetAllocation: [] }
+
+  // An explicit choice is respected: no silent fallback to other providers.
+  if (forced) {
+    const picked = forced === 'sec'
+      ? { source: 'sec' as const, holdings: sec.holdings, asOf: sec.asOf, full: true, count: sec.totalCount || null }
+      : forced === 'fmp'
+        ? { source: 'fmp' as const, holdings: fmp.holdings, asOf: fmp.asOf, full: true, count: fmp.holdings.length || null }
+        : { source: 'yahoo' as const, holdings: yahoo.holdings, asOf: null, full: false, count: null }
+    return NextResponse.json({
+      ok: true, ...base, source: picked.source, full: picked.full && picked.holdings.length > 0, asOf: picked.asOf,
+      holdings: picked.holdings,
+      sectorWeights: forced === 'fmp' && fmpSectors.length > 0 ? fmpSectors : yahoo.sectorWeights,
+      assetAllocation: yahoo.assetAllocation,
+      holdingsCount: picked.count,
+      ...(picked.holdings.length === 0 ? {
+        error: forced === 'fmp' && !FMP_KEY
+          ? 'FMP requires an API key (FMP_API_KEY) — not configured on this instance.'
+          : `The selected source returned no holdings for ${symbol}. Switch back to Auto to use the best available source.`,
+      } : {}),
+    } satisfies FundHoldingsResponse)
+  }
 
   if (sec.holdings.length > 0) {
     return NextResponse.json({
