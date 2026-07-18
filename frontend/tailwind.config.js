@@ -8,6 +8,9 @@ module.exports = {
   ],
   theme: {
     extend: {
+      screens: {
+        xs: '480px',
+      },
       colors: {
         bg: {
           primary: '#0a0b0e',

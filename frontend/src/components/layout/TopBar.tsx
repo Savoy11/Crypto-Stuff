@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Bell, Settings, RefreshCw, ChevronDown } from 'lucide-react'
+import { Bell, Settings, RefreshCw, ChevronDown, Menu } from 'lucide-react'
 import { useLiveAlerts }   from '@/hooks/useLiveAlerts'
 import { LiveAlertRow }    from '@/components/alerts/LiveAlertRow'
 import { useRefreshStore, INTERVAL_OPTIONS } from '@/store/useRefreshStore'
@@ -163,15 +163,29 @@ function AlertsBell() {
 
 // ── TopBar ────────────────────────────────────────────────────────────────────
 
-export function TopBar() {
+interface TopBarProps {
+  /** Opens the mobile navigation drawer (button hidden on lg+ where the sidebar is fixed). */
+  onMenuClick?: () => void
+}
+
+export function TopBar({ onMenuClick }: TopBarProps) {
   const { isRefreshing } = useRefreshStore()
   const { refresh }      = useGlobalRefresh()
 
   return (
     <header
-      className="fixed top-0 right-0 left-sidebar h-topbar flex items-center justify-between px-6 bg-bg-secondary border-b border-border z-20"
+      className="fixed top-0 right-0 left-0 lg:left-sidebar h-topbar flex items-center justify-between px-4 sm:px-6 bg-bg-secondary border-b border-border z-20"
       role="banner"
     >
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuClick}
+        className="p-2 mr-2 -ml-1 rounded hover:bg-bg-elevated transition-colors text-text-secondary hover:text-text-primary lg:hidden"
+        aria-label="Open navigation menu"
+      >
+        <Menu size={18} aria-hidden />
+      </button>
+
       {/* Search */}
       <div className="flex-1 max-w-sm">
         <SearchInput placeholder="Search assets, symbols..." className="w-full" />
@@ -180,16 +194,18 @@ export function TopBar() {
       {/* Right controls */}
       <div className="flex items-center gap-2 ml-4">
         {/* Live indicator */}
-        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/20">
+        <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded bg-emerald-500/10 border border-emerald-500/20">
           <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" aria-hidden />
           <span className="text-xs font-mono text-emerald-400">LIVE</span>
         </div>
 
         {/* Tier switch */}
-        <TierSwitch />
+        <div className="hidden md:block">
+          <TierSwitch />
+        </div>
 
         {/* ── Refresh controls ── */}
-        <div className="flex items-center gap-1 pl-2 border-l border-border/60">
+        <div className="hidden md:flex items-center gap-1 pl-2 border-l border-border/60">
           {/* Countdown to next auto-refresh */}
           <Countdown />
 
