@@ -4050,6 +4050,14 @@ ul, ol {
   color: rgb(71 85 105 / var(--tw-text-opacity, 1));
 }
 
+.placeholder\:text-text-muted\/50::-moz-placeholder {
+  color: rgb(71 85 105 / 0.5);
+}
+
+.placeholder\:text-text-muted\/50::placeholder {
+  color: rgb(71 85 105 / 0.5);
+}
+
 .placeholder\:text-text-muted\/60::-moz-placeholder {
   color: rgb(71 85 105 / 0.6);
 }
@@ -4500,8 +4508,16 @@ ul, ol {
 }
 
 @media (min-width: 1024px) {
+  .lg\:sticky {
+    position: sticky;
+  }
+
   .lg\:left-sidebar {
     left: 240px;
+  }
+
+  .lg\:top-\[calc\(theme\(spacing\.topbar\)\+1rem\)\] {
+    top: calc(56px + 1rem);
   }
 
   .lg\:col-span-1 {
@@ -4530,6 +4546,10 @@ ul, ol {
 
   .lg\:w-52 {
     width: 13rem;
+  }
+
+  .lg\:w-64 {
+    width: 16rem;
   }
 
   .lg\:translate-x-0 {

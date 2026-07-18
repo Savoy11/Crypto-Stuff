@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowDown, ArrowUp, ArrowUpDown, Landmark, RefreshCw, Search } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MetricCard } from '@/components/ui/MetricCard'
 import {
@@ -20,6 +20,80 @@ import type { SecurityReturnsResponse } from '@/app/live-data/security-returns/r
 type SortKey = 'symbol' | 'category' | 'price' | 'change' | 'expense' | 'aum' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
 type ColumnTab = 'overview' | 'returns'
 type FundStyle = 'all' | 'index' | 'active'
+
+// ─── ETFdb-style range screener ───────────────────────────────────────────────
+
+/** Every numeric dimension the screener can bound with a min/max pair. */
+type RangeKey = 'expense' | 'aum' | 'age' | 'price' | 'change' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
+type Ranges = Record<RangeKey, { min: string; max: string }>
+const RETURN_KEYS: RangeKey[] = ['m1', 'm3', 'ytd', 'y1']
+
+const EMPTY_RANGES: Ranges = {
+  expense: { min: '', max: '' }, aum: { min: '', max: '' }, age: { min: '', max: '' },
+  price: { min: '', max: '' }, change: { min: '', max: '' }, yield: { min: '', max: '' },
+  m1: { min: '', max: '' }, m3: { min: '', max: '' }, ytd: { min: '', max: '' }, y1: { min: '', max: '' },
+}
+
+function rangeActive(r: { min: string; max: string }): boolean {
+  return r.min.trim() !== '' || r.max.trim() !== ''
+}
+
+/** Null values fail an active bound (like ETFdb: no data = excluded from that screen). */
+function inRange(value: number | null | undefined, r: { min: string; max: string }): boolean {
+  if (!rangeActive(r)) return true
+  if (value == null) return false
+  const min = parseFloat(r.min); const max = parseFloat(r.max)
+  if (isFinite(min) && value < min) return false
+  if (isFinite(max) && value > max) return false
+  return true
+}
+
+/** Collapsible filter group, ETFdb-sidebar style. */
+function FilterGroup({ title, defaultOpen = false, active = 0, children }: {
+  title: string; defaultOpen?: boolean; active?: number; children: React.ReactNode
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div className="border-b border-border/60 last:border-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="w-full flex items-center gap-1.5 px-3 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-text-secondary hover:text-text-primary transition-colors"
+      >
+        {open ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+        {title}
+        {active > 0 && (
+          <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-accent-blue/20 text-accent-blue text-[10px] font-bold flex items-center justify-center border border-accent-blue/30">
+            {active}
+          </span>
+        )}
+      </button>
+      {open && <div className="px-3 pb-3 space-y-2.5">{children}</div>}
+    </div>
+  )
+}
+
+/** Min/max pair input for one screener dimension. */
+function RangeField({ label, unit, range, onChange }: {
+  label: string; unit?: string; range: { min: string; max: string }
+  onChange: (next: { min: string; max: string }) => void
+}) {
+  const inputClass = 'w-full min-w-0 rounded border border-border bg-bg-elevated px-2 py-1 text-xs font-mono text-text-primary placeholder:text-text-muted/50 focus:border-accent-blue/50 focus:outline-none'
+  return (
+    <div>
+      <p className={clsx('text-[11px] mb-1', rangeActive(range) ? 'text-accent-blue' : 'text-text-muted')}>
+        {label}{unit && <span className="text-text-muted/70"> ({unit})</span>}
+      </p>
+      <div className="flex items-center gap-1.5">
+        <input type="number" value={range.min} placeholder="Min"
+          onChange={(e) => onChange({ ...range, min: e.target.value })} className={inputClass} />
+        <span className="text-text-muted/50 text-xs flex-shrink-0">–</span>
+        <input type="number" value={range.max} placeholder="Max"
+          onChange={(e) => onChange({ ...range, max: e.target.value })} className={inputClass} />
+      </div>
+    </div>
+  )
+}
 
 /** Sort/display label for the category column — sector funds carry their specific sector. */
 function categoryLabel(row: FundEntry): string {
@@ -57,9 +131,15 @@ export function FundsClient() {
   // Screener filters (reference values; blank = no filter)
   const [issuer, setIssuer] = useState('all')
   const [style, setStyle] = useState<FundStyle>('all')
-  const [maxExpense, setMaxExpense] = useState('')
-  const [minAumB, setMinAumB] = useState('')
-  const [minYield, setMinYield] = useState('')
+  const [ranges, setRanges] = useState<Ranges>(EMPTY_RANGES)
+  const setRange = (key: RangeKey) => (next: { min: string; max: string }) =>
+    setRanges((prev) => ({ ...prev, [key]: next }))
+
+  const returnsFilterActive = RETURN_KEYS.some((k) => rangeActive(ranges[k]))
+  const activeFilterCount =
+    (type !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) +
+    (Object.keys(ranges) as RangeKey[]).filter((k) => rangeActive(ranges[k])).length
+  const clearFilters = () => { setType('all'); setIssuer('all'); setStyle('all'); setRanges(EMPTY_RANGES) }
 
   const { data, isLoading, refetch, isFetching } = useQuery<SecurityQuotesResponse>({
     queryKey: ['security-quotes', 'funds'],
@@ -68,12 +148,13 @@ export function FundsClient() {
     refetchInterval: 60_000,
   })
 
-  // Trailing returns are fetched lazily — only once the Returns tab is opened.
+  // Trailing returns are fetched lazily — once the Returns tab is opened OR a
+  // return-based screen is set.
   const { data: returnsData } = useQuery<SecurityReturnsResponse>({
     queryKey: ['security-returns', 'funds'],
     queryFn: () => fetch('/live-data/security-returns?universe=funds').then((r) => r.json()),
     staleTime: 1000 * 60 * 15,
-    enabled: columnTab === 'returns',
+    enabled: columnTab === 'returns' || returnsFilterActive,
   })
 
   const rows: Row[] = useMemo(() => {
@@ -91,9 +172,7 @@ export function FundsClient() {
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
-    const expenseCap = parseFloat(maxExpense)
-    const aumFloor = parseFloat(minAumB)
-    const yieldFloor = parseFloat(minYield)
+    const nowYear = new Date().getFullYear()
     const ret = (row: Row) => returnsData?.returns?.[row.symbol]
     const subset = rows.filter((row) =>
       (type === 'all' || row.type === type) &&
@@ -101,9 +180,16 @@ export function FundsClient() {
       (category !== 'sector' || sectorFocus === 'all' || row.focusSector === sectorFocus) &&
       (issuer === 'all' || row.issuer === issuer) &&
       (style === 'all' || (style === 'active' ? row.indexTracked == null : row.indexTracked != null)) &&
-      (!isFinite(expenseCap) || row.expenseRatioPct <= expenseCap) &&
-      (!isFinite(aumFloor) || row.aumB >= aumFloor) &&
-      (!isFinite(yieldFloor) || (row.yieldPct != null && row.yieldPct >= yieldFloor)) &&
+      inRange(row.expenseRatioPct, ranges.expense) &&
+      inRange(row.aumB, ranges.aum) &&
+      inRange(nowYear - row.inceptionYear, ranges.age) &&
+      inRange(row.price, ranges.price) &&
+      inRange(row.changePercent, ranges.change) &&
+      inRange(row.yieldPct, ranges.yield) &&
+      inRange(ret(row)?.m1, ranges.m1) &&
+      inRange(ret(row)?.m3, ranges.m3) &&
+      inRange(ret(row)?.ytd, ranges.ytd) &&
+      inRange(ret(row)?.y1, ranges.y1) &&
       (!query ||
         row.symbol.toLowerCase().includes(query) ||
         row.name.toLowerCase().includes(query) ||
@@ -132,7 +218,7 @@ export function FundsClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [rows, type, category, sectorFocus, issuer, style, maxExpense, minAumB, minYield, search, sortKey, sortAsc, returnsData])
+  }, [rows, type, category, sectorFocus, issuer, style, ranges, search, sortKey, sortAsc, returnsData])
 
   const etfCount = FUND_CATALOG.filter((f) => f.type === 'etf').length
   const mutualCount = FUND_CATALOG.length - etfCount
@@ -205,20 +291,8 @@ export function FundsClient() {
         <MetricCard title="Combined AUM" loading={isLoading} value={formatCompact(totalAum * 1e9)} subtitle="reference values" accentColor="#8b5cf6" />
       </div>
 
-      {/* Filters */}
+      {/* Category filter chips */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
-          {([['all', 'All'], ['etf', 'ETFs'], ['mutual', 'Mutual Funds']] as Array<[FundType | 'all', string]>).map(([value, label]) => (
-            <button
-              key={value}
-              onClick={() => setType(value)}
-              className={clsx('px-2.5 py-1 rounded text-xs font-medium transition-colors',
-                type === value ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setCategory('all')}
@@ -274,75 +348,117 @@ export function FundsClient() {
         </div>
       )}
 
-      {/* Screener (reference values) */}
-      <div className="flex flex-wrap items-center gap-3 rounded-card border border-border bg-bg-card px-4 py-3">
-        <span className="text-xs font-medium uppercase tracking-wider text-text-muted">Screener</span>
-        <label className="flex items-center gap-1.5 text-xs text-text-muted">
-          Issuer
-          <select
-            value={issuer}
-            onChange={(e) => setIssuer(e.target.value)}
-            className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
-          >
-            <option value="all">All</option>
-            {issuers.map((i) => <option key={i} value={i}>{i}</option>)}
-          </select>
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-text-muted">
-          Style
-          <select
-            value={style}
-            onChange={(e) => setStyle(e.target.value as FundStyle)}
-            className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
-          >
-            <option value="all">All</option>
-            <option value="index">Index</option>
-            <option value="active">Active</option>
-          </select>
-        </label>
-        {([
-          ['Max expense %', maxExpense, setMaxExpense, 'e.g. 0.2'],
-          ['Min AUM ($B)', minAumB, setMinAumB, 'e.g. 50'],
-          ['Min yield %', minYield, setMinYield, 'e.g. 2'],
-        ] as Array<[string, string, (v: string) => void, string]>).map(([label, value, setter, ph]) => (
-          <label key={label} className="flex items-center gap-1.5 text-xs text-text-muted">
-            {label}
-            <input
-              type="number"
-              value={value}
-              onChange={(e) => setter(e.target.value)}
-              placeholder={ph}
-              className="w-20 rounded border border-border bg-bg-elevated px-2 py-1 text-xs font-mono text-text-primary placeholder:text-text-muted/60 focus:border-accent-blue/50 focus:outline-none"
-            />
-          </label>
-        ))}
-        {(issuer !== 'all' || style !== 'all' || maxExpense || minAumB || minYield) && (
-          <button
-            onClick={() => { setIssuer('all'); setStyle('all'); setMaxExpense(''); setMinAumB(''); setMinYield('') }}
-            className="text-xs text-accent-blue hover:underline"
-          >
-            Clear
-          </button>
-        )}
-        <span className="ml-auto text-[11px] text-text-muted">{filtered.length} match{filtered.length !== 1 ? 'es' : ''} · reference fund facts</span>
-      </div>
+      {/* Screener sidebar + results (ETFdb-style) */}
+      <div className="flex flex-col lg:flex-row gap-6 items-start">
+        <aside className="w-full lg:w-64 flex-shrink-0 rounded-card border border-border bg-bg-card overflow-hidden lg:sticky lg:top-[calc(theme(spacing.topbar)+1rem)]">
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border bg-bg-elevated/40">
+            <SlidersHorizontal size={13} className="text-text-muted" aria-hidden />
+            <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Screener</span>
+            {activeFilterCount > 0 && (
+              <>
+                <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent-blue/20 text-accent-blue text-[10px] font-bold flex items-center justify-center border border-accent-blue/30">
+                  {activeFilterCount}
+                </span>
+                <button onClick={clearFilters} className="ml-auto text-[11px] text-accent-blue hover:underline">
+                  Clear all
+                </button>
+              </>
+            )}
+          </div>
 
-      {/* Column set tabs */}
-      <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5 w-fit">
-        {([['overview', 'Overview'], ['returns', 'Returns']] as Array<[ColumnTab, string]>).map(([value, label]) => (
-          <button
-            key={value}
-            onClick={() => setColumnTab(value)}
-            className={clsx('px-2.5 py-1 rounded text-xs font-medium transition-colors',
-              columnTab === value ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+          <FilterGroup title="Structure" defaultOpen active={(type !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0)}>
+            <div>
+              <p className="text-[11px] text-text-muted mb-1">Fund type</p>
+              <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
+                {([['all', 'All'], ['etf', 'ETFs'], ['mutual', 'Mutual']] as Array<[FundType | 'all', string]>).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setType(value)}
+                    className={clsx('flex-1 px-2 py-1 rounded text-[11px] font-medium transition-colors',
+                      type === value ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-muted mb-1">Management style</p>
+              <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
+                {([['all', 'All'], ['index', 'Index'], ['active', 'Active']] as Array<[FundStyle, string]>).map(([value, label]) => (
+                  <button
+                    key={value}
+                    onClick={() => setStyle(value)}
+                    className={clsx('flex-1 px-2 py-1 rounded text-[11px] font-medium transition-colors',
+                      style === value ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-[11px] text-text-muted mb-1">Issuer</p>
+              <select
+                value={issuer}
+                onChange={(e) => setIssuer(e.target.value)}
+                className="w-full rounded border border-border bg-bg-elevated px-2 py-1.5 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+              >
+                <option value="all">All issuers</option>
+                {issuers.map((i) => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+          </FilterGroup>
 
-      {/* Table */}
-      <div className="rounded-card border border-border bg-bg-card overflow-hidden">
+          <FilterGroup title="Expenses & Size" defaultOpen active={['expense', 'aum', 'age'].filter((k) => rangeActive(ranges[k as RangeKey])).length}>
+            <RangeField label="Expense ratio" unit="%" range={ranges.expense} onChange={setRange('expense')} />
+            <RangeField label="Assets (AUM)" unit="$B" range={ranges.aum} onChange={setRange('aum')} />
+            <RangeField label="Fund age" unit="years" range={ranges.age} onChange={setRange('age')} />
+          </FilterGroup>
+
+          <FilterGroup title="Trading" active={['price', 'change'].filter((k) => rangeActive(ranges[k as RangeKey])).length}>
+            <RangeField label="Price / NAV" unit="$" range={ranges.price} onChange={setRange('price')} />
+            <RangeField label="Day change" unit="%" range={ranges.change} onChange={setRange('change')} />
+          </FilterGroup>
+
+          <FilterGroup title="Dividend" active={rangeActive(ranges.yield) ? 1 : 0}>
+            <RangeField label="Distribution yield" unit="%" range={ranges.yield} onChange={setRange('yield')} />
+          </FilterGroup>
+
+          <FilterGroup title="Returns" active={RETURN_KEYS.filter((k) => rangeActive(ranges[k])).length}>
+            <RangeField label="1 month return" unit="%" range={ranges.m1} onChange={setRange('m1')} />
+            <RangeField label="3 month return" unit="%" range={ranges.m3} onChange={setRange('m3')} />
+            <RangeField label="YTD return" unit="%" range={ranges.ytd} onChange={setRange('ytd')} />
+            <RangeField label="1 year return" unit="%" range={ranges.y1} onChange={setRange('y1')} />
+            <p className="text-[10px] text-text-muted/80 leading-relaxed">
+              Price returns from daily closes, excl. distributions. Funds without enough history are excluded while a bound is set.
+              {returnsFilterActive && returnsData?.source === 'none' && (
+                <span className="text-amber-400/80"> Price-history source unreachable — return screens exclude all funds.</span>
+              )}
+            </p>
+          </FilterGroup>
+        </aside>
+
+        <div className="flex-1 min-w-0 space-y-4 w-full">
+          {/* Column set tabs + match count */}
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5 w-fit">
+              {([['overview', 'Overview'], ['returns', 'Returns']] as Array<[ColumnTab, string]>).map(([value, label]) => (
+                <button
+                  key={value}
+                  onClick={() => setColumnTab(value)}
+                  className={clsx('px-2.5 py-1 rounded text-xs font-medium transition-colors',
+                    columnTab === value ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-text-muted">{filtered.length} match{filtered.length !== 1 ? 'es' : ''} · reference fund facts</span>
+          </div>
+
+          {/* Table */}
+          <div className="rounded-card border border-border bg-bg-card overflow-hidden">
         <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40">
           <div className="col-span-4"><SortHeader label="Fund" colKey="symbol" /></div>
           <div className="col-span-2"><SortHeader label="Category" colKey="category" /></div>
@@ -454,6 +570,8 @@ export function FundsClient() {
             Trailing price returns from daily closes (Yahoo Finance) · YTD measured from last close of the prior year · excludes distributions
           </p>
         )}
+          </div>
+        </div>
       </div>
 
       <p className="text-[11px] text-text-muted text-center">
