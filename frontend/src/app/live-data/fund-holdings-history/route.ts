@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { resolveFundSeries, listNportFilings, fetchNportReport, type NportFilingRef } from '@/lib/server/nport'
 
-// History of changes in a fund's underlying investments, from SEC N-PORT
-// disclosures via FMP. Compares two quarterly disclosure snapshots and returns
-// the diff: new positions, exits, and weight increases/decreases.
+// History of changes in a fund's underlying investments from SEC N-PORT
+// disclosures. Compares two quarterly disclosure snapshots and returns the
+// diff: new positions, exits, and weight increases/decreases.
 //   GET /live-data/fund-holdings-history?symbol=SPY
 //   GET /live-data/fund-holdings-history?symbol=SPY&current=2026-Q1&previous=2025-Q4
 //
-// Requires FMP_API_KEY (like /live-data/market-calendar) — responds with
-// { configured: false } when absent so the UI can explain the requirement.
+// Primary source: SEC EDGAR directly (keyless, authoritative, no rate caps).
+// Fallback: the same N-PORT data via FMP when EDGAR can't resolve the fund
+// and an FMP_API_KEY is configured. { configured: false } only when neither
+// source is available for the ticker.
 
 export const dynamic = 'force-dynamic'
 
@@ -223,6 +226,84 @@ function diffHoldings(
   }
 }
 
+// ─── SEC EDGAR direct (primary) ───────────────────────────────────────────────
+
+/** NPORT-P is due within 60 days of quarter end; walking the filing date back
+ *  ~75 days lands inside the reporting quarter for on-time filings. The
+ *  estimate only labels the period picker — the diff itself uses the real
+ *  repPdDate from inside the two fetched filings. */
+function estimatePeriod(filedAt: string): DisclosurePeriod | null {
+  const filed = new Date(filedAt)
+  if (Number.isNaN(filed.getTime())) return null
+  const inQuarter = new Date(filed.getTime() - 75 * 86_400_000)
+  const year = inQuarter.getUTCFullYear()
+  const quarter = Math.floor(inQuarter.getUTCMonth() / 3) + 1
+  const endMonth = quarter * 3
+  const endDay = [31, 30, 30, 31][quarter - 1]
+  return {
+    label: `${year}-Q${quarter}`, year, quarter,
+    date: `${year}-${String(endMonth).padStart(2, '0')}-${endDay}`,
+  }
+}
+
+async function fetchSecDisclosure(ref: NportFilingRef): Promise<Map<string, DisclosedHolding>> {
+  const report = await fetchNportReport(ref)
+  const rows = report.holdings.filter((h) => h.pctVal != null && h.pctVal > 0)
+  const total = rows.reduce((s, h) => s + (h.pctVal ?? 0), 0)
+  const scale = total > 0 && total < 2 ? 100 : 1
+  const holdings = new Map<string, DisclosedHolding>()
+  for (const h of rows) {
+    const key = h.ticker ?? h.cusip ?? h.isin ?? normalizeName(h.name)
+    const weightPct = (h.pctVal ?? 0) * scale
+    const existing = holdings.get(key)
+    if (existing) {
+      existing.weightPct += weightPct
+      if (existing.shares != null && h.balance != null) existing.shares += h.balance
+    } else {
+      holdings.set(key, { key, symbol: h.ticker, name: h.name, weightPct, shares: h.balance })
+    }
+  }
+  return holdings
+}
+
+/** Full SEC-direct history flow; null = couldn't resolve (caller falls back to FMP). */
+async function secHistory(symbol: string, request: NextRequest, base: { symbol: string; updatedAt: string }) {
+  const series = await resolveFundSeries(symbol)
+  if (!series) return null
+  const filings = await listNportFilings(series.seriesId, 12)
+  if (filings.length < 2) return null
+
+  // Newest-first filings → periods; dedupe amended filings that land on the same quarter.
+  const paired: Array<{ period: DisclosurePeriod; filing: NportFilingRef }> = []
+  for (const filing of filings) {
+    const period = estimatePeriod(filing.filedAt)
+    if (period && !paired.some((p) => p.period.label === period.label)) paired.push({ period, filing })
+  }
+  if (paired.length < 2) return null
+  const periods = paired.map((p) => p.period).slice(0, MAX_PERIODS)
+
+  const current = findPeriod(periods, request.nextUrl.searchParams.get('current')) ?? periods[0]
+  const previous = findPeriod(periods, request.nextUrl.searchParams.get('previous'))
+    ?? periods[periods.indexOf(current) + 1]
+    ?? periods[1]
+  const curFiling = paired.find((p) => p.period.label === current.label)!.filing
+  const prevFiling = paired.find((p) => p.period.label === previous.label)!.filing
+
+  const [curRes, prevRes] = await Promise.allSettled([
+    fetchSecDisclosure(curFiling),
+    fetchSecDisclosure(prevFiling),
+  ])
+  const curHoldings = curRes.status === 'fulfilled' ? curRes.value : new Map<string, DisclosedHolding>()
+  const prevHoldings = prevRes.status === 'fulfilled' ? prevRes.value : new Map<string, DisclosedHolding>()
+  if (curHoldings.size === 0 || prevHoldings.size === 0) return null
+
+  const { summary, changes } = diffHoldings(curHoldings, prevHoldings)
+  return NextResponse.json({
+    ok: true, configured: true, ...base,
+    periods, current, previous, summary, changes,
+  } satisfies FundHoldingsHistoryResponse)
+}
+
 // ─── Route ────────────────────────────────────────────────────────────────────
 
 function findPeriod(periods: DisclosurePeriod[], token: string | null): DisclosurePeriod | undefined {
@@ -237,10 +318,17 @@ export async function GET(request: NextRequest) {
   }
   const base = { symbol, updatedAt: new Date().toISOString() }
 
+  // SEC EDGAR direct — keyless and authoritative. Falls through on any failure.
+  try {
+    const secResponse = await secHistory(symbol, request, base)
+    if (secResponse) return secResponse
+  } catch { /* fall through to FMP */ }
+
   if (!FMP_KEY) {
     return NextResponse.json({
       ok: false, configured: false, ...base,
       periods: [], current: null, previous: null, summary: null, changes: [],
+      error: 'No SEC N-PORT disclosure series found for this ticker, and no FMP_API_KEY is configured as a fallback.',
     } satisfies FundHoldingsHistoryResponse)
   }
 

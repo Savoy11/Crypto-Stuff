@@ -28,6 +28,9 @@ const ALLOCATION_COLORS: Record<string, string> = {
 const SECTOR_BAR_COLOR = '#3b82f6'
 
 function sourceLabel(data: FundHoldingsResponse): string {
+  if (data.source === 'sec') {
+    return `Full portfolio · SEC N-PORT filing${data.asOf ? ` · as of ${data.asOf}` : ''}`
+  }
   if (data.source === 'fmp') {
     return `Full holdings via FMP${data.asOf ? ` · as of ${data.asOf}` : ''}`
   }

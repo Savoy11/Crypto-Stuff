@@ -63,11 +63,11 @@ export function FundHoldingsHistory({ symbol }: { symbol: string }) {
         <div className="flex items-start gap-3 rounded border border-amber-500/20 bg-amber-500/5 px-4 py-3">
           <KeyRound size={14} className="mt-0.5 text-amber-400/70 flex-shrink-0" aria-hidden />
           <p className="text-xs text-text-muted leading-relaxed">
-            Quarter-over-quarter changes in this fund&rsquo;s underlying investments are built from
-            SEC N-PORT disclosures via Financial Modeling Prep. Set{' '}
-            <code className="font-mono text-text-secondary">FMP_API_KEY</code> in{' '}
-            <code className="font-mono text-text-secondary">frontend/.env.local</code> (free tier works)
-            and restart the dev server — the same key powers the Market Calendar.
+            Quarter-over-quarter changes are built from SEC N-PORT disclosures, fetched directly
+            from EDGAR with no API key. EDGAR couldn&rsquo;t match this ticker to a disclosure
+            series — setting <code className="font-mono text-text-secondary">FMP_API_KEY</code> in{' '}
+            <code className="font-mono text-text-secondary">frontend/.env.local</code> enables an
+            aggregator fallback for it.
           </p>
         </div>
       </div>

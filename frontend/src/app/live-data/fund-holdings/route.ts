@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getFund } from '@/lib/data/fundCatalog'
+import { resolveFundSeries, listNportFilings, fetchNportReport } from '@/lib/server/nport'
 
 // Full underlying-investment breakdown for ETFs and mutual funds.
 //   GET /live-data/fund-holdings?symbol=SPY
 //
-// Source ladder (mirrors the quote plumbing):
-//   1. FMP (needs FMP_API_KEY) — complete holdings list + sector weights
-//   2. Yahoo quoteSummary topHoldings (keyless) — top 10 + sector weights + asset allocation
-//   3. Catalog indicative top holdings — always renders, labelled non-live
+// Source ladder — SEC EDGAR is the authoritative core (free, keyless,
+// definitive); aggregators supplement freshness and sector metadata:
+//   1. SEC N-PORT — the fund's own complete quarterly portfolio disclosure
+//   2. FMP (needs FMP_API_KEY) — aggregator holdings + sector weights
+//   3. Yahoo quoteSummary topHoldings (keyless) — top 10 + sector weights + asset allocation
+//   4. Catalog indicative top holdings — always renders, labelled non-live
 //
 // Response: { ok, symbol, source, full, asOf, holdings, sectorWeights, assetAllocation, holdingsCount }
 
@@ -21,7 +24,7 @@ const BROWSER_HEADERS: Record<string, string> = {
   Accept: 'application/json',
 }
 
-export type HoldingsSource = 'fmp' | 'yahoo' | 'catalog'
+export type HoldingsSource = 'sec' | 'fmp' | 'yahoo' | 'catalog'
 
 export interface HoldingRow {
   symbol: string | null
@@ -58,9 +61,39 @@ export interface FundHoldingsResponse {
   error?: string
 }
 
-// ─── FMP (full holdings, ETFs) ────────────────────────────────────────────────
+// ─── SEC N-PORT (authoritative full holdings, keyless) ────────────────────────
 
 interface FmpHoldingsResult { holdings: HoldingRow[]; asOf: string | null }
+
+/** Very large funds disclose thousands of rows; cap the payload while keeping
+ *  the true position count in holdingsCount. */
+const MAX_ROWS = 1500
+
+async function fetchSecHoldings(symbol: string): Promise<FmpHoldingsResult & { totalCount: number }> {
+  const empty = { holdings: [], asOf: null, totalCount: 0 }
+  const series = await resolveFundSeries(symbol)
+  if (!series) return empty
+  const filings = await listNportFilings(series.seriesId, 1)
+  if (filings.length === 0) return empty
+  const report = await fetchNportReport(filings[0])
+
+  const rows = report.holdings.filter((h) => h.pctVal != null && h.pctVal > 0)
+  // pctVal is percent of net assets; normalize defensively if a filer reports fractions.
+  const total = rows.reduce((s, h) => s + (h.pctVal ?? 0), 0)
+  const scale = total > 0 && total < 2 ? 100 : 1
+  const holdings: HoldingRow[] = rows
+    .map((h) => ({
+      symbol: h.ticker,
+      name: h.name,
+      weightPct: (h.pctVal ?? 0) * scale,
+      shares: h.balance,
+      marketValue: h.valueUsd,
+    }))
+    .sort((a, b) => b.weightPct - a.weightPct)
+  return { holdings: holdings.slice(0, MAX_ROWS), asOf: report.asOf, totalCount: holdings.length }
+}
+
+// ─── FMP (aggregator fallback, ETFs) ─────────────────────────────────────────
 
 /** Parse rows from either the stable (`etf/holdings`) or legacy (`etf-holder`) shape. */
 function parseFmpHoldings(rows: Array<Record<string, unknown>>): FmpHoldingsResult {
@@ -232,17 +265,31 @@ export async function GET(request: NextRequest) {
   const entry = getFund(symbol)
   const base = { symbol, updatedAt: new Date().toISOString() }
 
-  // ETFs can get full holdings from FMP; mutual funds only via Yahoo's top-10.
+  // SEC N-PORT covers ETFs and mutual funds alike; FMP's holdings endpoint is
+  // ETF-only. Sector weights / asset mix still come from FMP or Yahoo — the
+  // N-PORT filing has no GICS classification.
   const wantFmp = !!FMP_KEY && entry?.type !== 'mutual'
-  const [fmpHoldingsRes, fmpSectorsRes, yahooRes] = await Promise.allSettled([
+  const [secRes, fmpHoldingsRes, fmpSectorsRes, yahooRes] = await Promise.allSettled([
+    fetchSecHoldings(symbol),
     wantFmp ? fetchFmpHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null } as FmpHoldingsResult),
     wantFmp ? fetchFmpSectorWeights(symbol) : Promise.resolve([] as SectorWeight[]),
     fetchYahooHoldings(symbol),
   ])
 
+  const sec = secRes.status === 'fulfilled' ? secRes.value : { holdings: [], asOf: null, totalCount: 0 }
   const fmp = fmpHoldingsRes.status === 'fulfilled' ? fmpHoldingsRes.value : { holdings: [], asOf: null }
   const fmpSectors = fmpSectorsRes.status === 'fulfilled' ? fmpSectorsRes.value : []
   const yahoo = yahooRes.status === 'fulfilled' ? yahooRes.value : { holdings: [], sectorWeights: [], assetAllocation: [] }
+
+  if (sec.holdings.length > 0) {
+    return NextResponse.json({
+      ok: true, ...base, source: 'sec', full: true, asOf: sec.asOf,
+      holdings: sec.holdings,
+      sectorWeights: fmpSectors.length > 0 ? fmpSectors : yahoo.sectorWeights,
+      assetAllocation: yahoo.assetAllocation,
+      holdingsCount: sec.totalCount,
+    } satisfies FundHoldingsResponse)
+  }
 
   if (fmp.holdings.length > 0) {
     return NextResponse.json({
