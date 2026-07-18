@@ -1,4 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk'
+import { EQUITY_CATALOG, SECTOR_INFO } from '@/lib/data/equityCatalog'
+import { FUND_CATALOG, FUND_CATEGORY_INFO } from '@/lib/data/fundCatalog'
 
 // ─── Agent tool registry ──────────────────────────────────────────────────────
 //
@@ -238,6 +240,47 @@ const TOOL_REGISTRY: RegisteredTool[] = [
       },
     },
   },
+  {
+    market: 'equities',
+    tool: {
+      name: 'search_securities',
+      description: 'Search the equities and funds catalogs (~70 US large-cap stocks, ~55 ETFs/mutual funds) by ticker, name, sector, or category. Use to find the right symbol, discover what stocks/funds the platform tracks, or get reference facts (sector, P/E, expense ratio, top holdings).',
+      input_schema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Ticker or name substring, e.g. "NVDA" or "vanguard"' },
+          type: { type: 'string', enum: ['stock', 'etf', 'mutual'], description: 'Optional: restrict to stocks, ETFs, or mutual funds' },
+          sector: { type: 'string', description: 'Optional stock sector filter, e.g. "technology", "healthcare", "financials"' },
+        },
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_market_news',
+      description: 'Get general stock-market news headlines (no specific ticker) with sentiment and category tags. Use for "what is moving the market today" questions; for per-company news use get_stock_news.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Max articles (default 10, max 25)' },
+        },
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_market_calendar',
+      description: 'Get upcoming earnings dates and US economic events (CPI, Fed, jobs reports) for the next N days. Use for "when does X report earnings" or "what events are coming up" questions.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          days: { type: 'number', description: 'Days ahead to look (default 14, max 30)' },
+        },
+      },
+    },
+  },
 ]
 
 /** All tool definitions (both markets). */
@@ -316,6 +359,44 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
           changePct: Number(changePct.toFixed(2)),
         }
       }
+      case 'search_securities': {
+        const query = String(input.query ?? '').trim().toLowerCase()
+        const type = input.type ? String(input.type) : undefined
+        const sector = input.sector ? String(input.sector).toLowerCase() : undefined
+
+        const stocks = (type && type !== 'stock') ? [] : EQUITY_CATALOG
+          .filter((e) => !sector || e.sector === sector)
+          .filter((e) => !query || e.symbol.toLowerCase().includes(query) || e.name.toLowerCase().includes(query) || e.industry.toLowerCase().includes(query))
+          .slice(0, 15)
+          .map((e) => ({
+            symbol: e.symbol, name: e.name, type: 'stock' as const,
+            sector: SECTOR_INFO[e.sector].label, industry: e.industry,
+            marketCapB: e.marketCapB, peRatio: e.peRatio,
+            dividendYieldPct: e.dividendYieldPct, beta: e.beta,
+          }))
+        const funds = (type === 'stock') ? [] : FUND_CATALOG
+          .filter((f) => !type || f.type === type)
+          .filter((f) => !query ||
+            f.symbol.toLowerCase().includes(query) ||
+            f.name.toLowerCase().includes(query) ||
+            f.issuer.toLowerCase().includes(query) ||
+            (f.focusIndustry != null && (f.focusIndustry.toLowerCase().includes(query) || query.includes(f.focusIndustry.toLowerCase()))) ||
+            (f.focusSector != null && SECTOR_INFO[f.focusSector].label.toLowerCase().includes(query)))
+          .slice(0, 15)
+          .map((f) => ({
+            symbol: f.symbol, name: f.name, type: f.type, issuer: f.issuer,
+            category: f.focusSector
+              ? `${FUND_CATEGORY_INFO[f.category].label} · ${SECTOR_INFO[f.focusSector].label}${f.focusIndustry ? ` (${f.focusIndustry})` : ''}`
+              : FUND_CATEGORY_INFO[f.category].label,
+            expenseRatioPct: f.expenseRatioPct, aumB: f.aumB, yieldPct: f.yieldPct,
+            indexTracked: f.indexTracked,
+            topHoldings: f.topHoldings.slice(0, 5).map((h) => `${h.symbol} ${h.weightPct}%`),
+          }))
+        if (stocks.length === 0 && funds.length === 0) {
+          return { stocks, funds, note: 'No catalog matches — the symbol may still be quotable via get_stock_quote.' }
+        }
+        return { stocks, funds }
+      }
 
       // ── Equity tools ──────────────────────────────────────────────────────────
       case 'get_stock_quote': {
@@ -391,11 +472,40 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
         const high = Math.max(...candles.map((c) => c.high))
         const low = Math.min(...candles.map((c) => c.low))
         const changePct = ((last.close - first.open) / first.open) * 100
+        // Compact summary — never dump hundreds of candles into context.
         return {
           symbol, range, source: data.source, candleCount: candles.length,
           firstClose: first.close, lastClose: last.close,
           periodHigh: high, periodLow: low,
           changePct: Number(changePct.toFixed(2)),
+        }
+      }
+      case 'get_market_news': {
+        const limit = Math.min(Number(input.limit ?? 10) || 10, 25)
+        const data = (await getJson(origin, `/live-data/market-news?limit=${limit}`)) as {
+          ok?: boolean
+          articles?: { title: string; url: string; source: string; publishedAt: string; summary: string; sentiment: string; category: string; relatedSymbols: string[] }[]
+        }
+        const articles = (data.articles ?? []).slice(0, limit).map((a) => ({
+          title: a.title, source: a.source, publishedAt: a.publishedAt,
+          sentiment: a.sentiment, category: a.category, relatedSymbols: a.relatedSymbols,
+          summary: a.summary.length > 200 ? `${a.summary.slice(0, 200)}…` : a.summary,
+          url: a.url,
+        }))
+        return { count: articles.length, articles }
+      }
+      case 'get_market_calendar': {
+        const days = Math.min(Number(input.days ?? 14) || 14, 30)
+        const data = (await getJson(origin, `/live-data/market-calendar?days=${days}`)) as {
+          ok?: boolean; configured?: boolean; earnings?: unknown[]; economic?: unknown[]; from?: string; to?: string
+        }
+        if (data.configured === false) {
+          return { error: 'Market calendar requires an FMP API key (FMP_API_KEY) — not configured on this instance.' }
+        }
+        return {
+          from: data.from, to: data.to,
+          earnings: (data.earnings ?? []).slice(0, 40),
+          economic: (data.economic ?? []).slice(0, 25),
         }
       }
       case 'get_stock_outliers': {

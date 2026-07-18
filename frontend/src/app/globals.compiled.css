@@ -772,6 +772,10 @@ ul, ol {
   top: 50%;
 }
 
+.top-10 {
+  top: 2.5rem;
+}
+
 .top-2 {
   top: 0.5rem;
 }
@@ -1154,6 +1158,10 @@ ul, ol {
   height: 0.875rem;
 }
 
+.h-32 {
+  height: 8rem;
+}
+
 .h-4 {
   height: 1rem;
 }
@@ -1374,6 +1382,10 @@ ul, ol {
   width: 10rem;
 }
 
+.w-44 {
+  width: 11rem;
+}
+
 .w-5 {
   width: 1.25rem;
 }
@@ -1545,6 +1557,10 @@ ul, ol {
 
 .max-w-\[calc\(100vw-2rem\)\] {
   max-width: calc(100vw - 2rem);
+}
+
+.max-w-full {
+  max-width: 100%;
 }
 
 .max-w-md {
@@ -2181,6 +2197,10 @@ ul, ol {
   border-color: rgb(59 130 246 / 0.6);
 }
 
+.border-amber-400\/20 {
+  border-color: rgb(251 191 36 / 0.2);
+}
+
 .border-amber-400\/30 {
   border-color: rgb(251 191 36 / 0.3);
 }
@@ -2261,6 +2281,10 @@ ul, ol {
 
 .border-cyan-500\/30 {
   border-color: rgb(6 182 212 / 0.3);
+}
+
+.border-emerald-400\/20 {
+  border-color: rgb(52 211 153 / 0.2);
 }
 
 .border-emerald-500\/15 {
@@ -3927,6 +3951,10 @@ ul, ol {
 .blur {
   --tw-blur: blur(8px);
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+.\!filter {
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow) !important;
 }
 
 .filter {

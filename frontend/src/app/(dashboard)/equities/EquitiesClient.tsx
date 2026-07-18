@@ -14,7 +14,7 @@ import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { StockUniverseResponse, UniverseEntry } from '@/app/live-data/stock-universe/route'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
 
-type SortKey = 'symbol' | 'price' | 'marketCap' | 'pe' | 'dividend' | 'beta'
+type SortKey = 'symbol' | 'sector' | 'price' | 'marketCap' | 'pe' | 'dividend' | 'beta'
 const PAGE_SIZE = 50
 
 // Shared column template so the header and every row line up. 8 columns:
@@ -73,6 +73,7 @@ export function EquitiesClient() {
     const value = (e: UniverseEntry): number | string => {
       switch (sortKey) {
         case 'symbol':   return e.symbol
+        case 'sector':   return `${SECTOR_INFO[e.sector].label} ${e.industry}`
         case 'price':    return e.referencePrice
         case 'pe':       return e.peRatio ?? -Infinity
         case 'dividend': return e.dividendYieldPct ?? -Infinity
@@ -128,7 +129,7 @@ export function EquitiesClient() {
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((a) => !a)
-    else { setSortKey(key); setSortAsc(key === 'symbol') }
+    else { setSortKey(key); setSortAsc(key === 'symbol' || key === 'sector') }
   }
 
   const SortHeader = ({ label, colKey, align = 'end' }: { label: string; colKey: SortKey; align?: 'start' | 'end' }) => (
@@ -255,7 +256,7 @@ export function EquitiesClient() {
       <div className="rounded-card border border-border bg-bg-card overflow-hidden">
         <div className={clsx(COLS, 'py-2.5 border-b border-border bg-bg-elevated/40')}>
           <SortHeader label="Company" colKey="symbol" align="start" />
-          <span className="text-xs font-medium uppercase tracking-wider text-text-muted">Sector</span>
+          <SortHeader label="Sector" colKey="sector" align="start" />
           <SortHeader label="Price" colKey="price" />
           <span className="text-xs font-medium uppercase tracking-wider text-text-muted text-right">Chg %</span>
           <SortHeader label="Mkt Cap" colKey="marketCap" />
