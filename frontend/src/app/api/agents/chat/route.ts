@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type Anthropic from '@anthropic-ai/sdk'
-import { runAgent, MissingApiKeyError } from '@/lib/agents/runner'
+import { runAgent, MissingApiKeyError, AgentDisabledError } from '@/lib/agents/runner'
+import { guardSensitiveRoute } from '@/lib/server/apiGuard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -12,6 +13,9 @@ export const maxDuration = 60
 // is given the user's current page as context so it can answer "what am I
 // looking at" style questions.
 export async function POST(req: NextRequest) {
+  const denied = guardSensitiveRoute(req, 'agents-chat', 20)
+  if (denied) return denied
+
   let body: {
     messages?: { role: 'user' | 'assistant'; content: string }[]
     pageContext?: { pathname?: string; asset?: string }
@@ -44,11 +48,8 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ ok: true, reply: result.text, toolsUsed: result.toolsUsed })
   } catch (e) {
-    if (e instanceof MissingApiKeyError) {
-      return NextResponse.json(
-        { error: 'The assistant is not configured. Add ANTHROPIC_API_KEY to .env.local and restart the dev server.' },
-        { status: 503 }
-      )
+    if (e instanceof MissingApiKeyError || e instanceof AgentDisabledError) {
+      return NextResponse.json({ error: e.message }, { status: 503 })
     }
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Agent error' }, { status: 500 })
   }

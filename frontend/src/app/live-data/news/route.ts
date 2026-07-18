@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNewsProviders, recordProviderFetch, type AnyActiveProvider, type CustomProviderDef } from '@/lib/api/live/providers'
 import { ASSET_LIST } from '@/lib/data/assetList'
+import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
 
 export const dynamic = 'force-dynamic'
 
@@ -322,6 +323,10 @@ async function fetchCustomProvider(
   assetFilter: string,
   limit: number
 ): Promise<LiveNewsArticle[]> {
+  // Defense in depth: URLs are validated when a custom provider is saved, but
+  // re-check at fetch time so a stale/hand-edited config can't reach internal hosts.
+  if (validatePublicHttpUrl(provider.url)) return []
+
   const url = provider.url.replace('{asset}', assetFilter !== 'all' ? assetFilter : 'bitcoin')
 
   const headers: Record<string, string> = { Accept: 'application/json, application/rss+xml, */*' }

@@ -21,6 +21,7 @@ export type SectorId =
   | 'materials'
   | 'utilities'
   | 'real-estate'
+  | 'other'
 
 export const SECTOR_INFO: Record<SectorId, { label: string; color: string }> = {
   'technology':             { label: 'Technology',            color: '#3b82f6' },
@@ -34,6 +35,25 @@ export const SECTOR_INFO: Record<SectorId, { label: string; color: string }> = {
   'materials':              { label: 'Materials',             color: '#a16207' },
   'utilities':              { label: 'Utilities',             color: '#eab308' },
   'real-estate':            { label: 'Real Estate',           color: '#14b8a6' },
+  'other':                  { label: 'Other',                 color: '#94a3b8' },
+}
+
+/** Map an FMP / free-form sector string onto our SectorId (fallback: 'other'). */
+export function mapSectorName(raw: string | null | undefined): SectorId {
+  switch ((raw ?? '').trim().toLowerCase()) {
+    case 'technology':                                   return 'technology'
+    case 'communication services':                       return 'communication-services'
+    case 'consumer cyclical': case 'consumer discretionary': return 'consumer-discretionary'
+    case 'consumer defensive': case 'consumer staples':  return 'consumer-staples'
+    case 'financial services': case 'financial': case 'financials': return 'financials'
+    case 'healthcare': case 'health care':               return 'healthcare'
+    case 'energy':                                       return 'energy'
+    case 'industrials': case 'industrial goods':         return 'industrials'
+    case 'basic materials': case 'materials':            return 'materials'
+    case 'utilities':                                    return 'utilities'
+    case 'real estate':                                  return 'real-estate'
+    default:                                             return 'other'
+  }
 }
 
 export interface EquityEntry {
@@ -54,6 +74,24 @@ export interface EquityEntry {
   beta: number
   description: string
   website: string
+}
+
+/**
+ * SEC EDGAR filings browser URL for a catalog symbol. EDGAR resolves tickers
+ * directly (including dashed ones like BRK-B), so no CIK table is needed.
+ * Pass a form type ('10-K', '10-Q', 'DEF 14A', …) to pre-filter, or omit for
+ * all filings.
+ */
+export function secFilingsUrl(symbol: string, formType = ''): string {
+  const params = new URLSearchParams({
+    action: 'getcompany',
+    CIK: symbol,
+    type: formType,
+    dateb: '',
+    owner: 'include',
+    count: '40',
+  })
+  return `https://www.sec.gov/cgi-bin/browse-edgar?${params.toString()}`
 }
 
 export const EQUITY_CATALOG: EquityEntry[] = [

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
+import { guardSensitiveRoute } from '@/lib/server/apiGuard'
+import { getExchangeConnection } from '@/lib/server/exchangeCredentials'
 
 export const dynamic = 'force-dynamic'
 
@@ -96,13 +98,20 @@ async function fetchKrakenBalances(apiKey: string, apiSecret: string) {
 // ── Handler ────────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  let body: { exchange?: string; apiKey?: string; apiSecret?: string }
+  const denied = guardSensitiveRoute(req, 'exchange-balances', 30)
+  if (denied) return denied
+
+  let body: { connectionId?: string }
   try { body = await req.json() } catch { return NextResponse.json({ ok: false, error: 'Invalid JSON' }, { status: 400 }) }
 
-  const { exchange, apiKey, apiSecret } = body
-  if (!exchange || !apiKey || !apiSecret) {
-    return NextResponse.json({ ok: false, error: 'exchange, apiKey, apiSecret required' }, { status: 400 })
+  if (!body.connectionId) {
+    return NextResponse.json({ ok: false, error: 'connectionId required' }, { status: 400 })
   }
+  const conn = getExchangeConnection(body.connectionId)
+  if (!conn) {
+    return NextResponse.json({ ok: false, error: 'Unknown connection — re-link this exchange in the Wallets page' }, { status: 404 })
+  }
+  const { exchange, apiKey, apiSecret } = conn
 
   try {
     let balances

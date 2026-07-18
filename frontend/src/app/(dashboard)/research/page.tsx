@@ -1,25 +1,58 @@
 'use client'
 
-import { useState } from 'react'
-import { Microscope, Loader2, Wrench, Sparkles, AlertCircle } from 'lucide-react'
+import { Suspense, useEffect, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { clsx } from 'clsx'
+import { Microscope, Loader2, Wrench, Sparkles, AlertCircle, Bitcoin, LineChart } from 'lucide-react'
 
-const EXAMPLES = [
-  'Compare ETH and SOL staking: APYs, risk profiles, and which suits a risk-averse holder.',
-  'Analyze BTC price action over the last year and summarize the trend with key levels.',
-  'What is the cheapest end-to-end route to move $10,000 USDC from Kraken to a wallet on Arbitrum?',
-  'Summarize the latest news sentiment for the top L1s and flag anything material.',
-]
+type Market = 'crypto' | 'equities'
+
+const RESEARCH_AGENT: Record<Market, string> = {
+  crypto: 'research-analyst',
+  equities: 'equity-research',
+}
+
+const EXAMPLES: Record<Market, string[]> = {
+  crypto: [
+    'Compare ETH and SOL staking: APYs, risk profiles, and which suits a risk-averse holder.',
+    'Analyze BTC price action over the last year and summarize the trend with key levels.',
+    'What is the cheapest end-to-end route to move $10,000 USDC from Kraken to a wallet on Arbitrum?',
+    'Summarize the latest news sentiment for the top L1s and flag anything material.',
+  ],
+  equities: [
+    'Analyze NVDA: financial health, valuation vs history, growth drivers, and key risks.',
+    'Compare AAPL and MSFT on margins, growth, and valuation — which is the better value today?',
+    'Review the latest 8-K filings and news for JPM and flag anything material.',
+    'Is TSLA cheap or expensive right now? Walk through the valuation multiples and what justifies them.',
+  ],
+}
 
 interface ReportResult {
   report: string
   toolsUsed: { name: string; input: unknown }[]
 }
 
-export default function ResearchPage() {
+function ResearchInner() {
+  const params = useSearchParams()
+  const initialMarket: Market = params.get('agent') === 'equity-research' || params.get('market') === 'equities' ? 'equities' : 'crypto'
+
+  const [market, setMarket] = useState<Market>(initialMarket)
   const [task, setTask] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ReportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  // Deep-link prefill: /research?symbol=MSFT (or ?task=...) — from a stock page.
+  useEffect(() => {
+    const symbol = params.get('symbol')
+    const preset = params.get('task')
+    if (preset) { setTask(preset); return }
+    if (symbol) {
+      setMarket('equities')
+      setTask(`Analyze ${symbol.toUpperCase()}: business and industry, financial health, valuation vs history and peers, growth drivers, catalysts, and key risks. End with a risk-adjusted outlook.`)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   async function run(text: string) {
     const trimmed = text.trim()
@@ -31,7 +64,7 @@ export default function ResearchPage() {
       const res = await fetch('/api/agents/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task: trimmed }),
+        body: JSON.stringify({ task: trimmed, agentId: RESEARCH_AGENT[market] }),
       })
       const data = await res.json()
       if (!res.ok || data.error) setError(data.error ?? 'Research failed')
@@ -41,6 +74,11 @@ export default function ResearchPage() {
     }
     setLoading(false)
   }
+
+  const markets: Array<{ id: Market; label: string; icon: React.ElementType }> = [
+    { id: 'crypto', label: 'Crypto', icon: Bitcoin },
+    { id: 'equities', label: 'Equities', icon: LineChart },
+  ]
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -56,17 +94,37 @@ export default function ResearchPage() {
         </div>
       </div>
 
+      {/* Market selector */}
+      <div className="inline-flex rounded-lg border border-slate-700 bg-slate-900/60 p-0.5">
+        {markets.map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            onClick={() => { setMarket(id); setResult(null); setError(null) }}
+            className={clsx(
+              'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              market === id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200',
+            )}
+          >
+            <Icon size={14} /> {label}
+          </button>
+        ))}
+      </div>
+
       {/* Task input */}
       <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 space-y-3">
         <textarea
           value={task}
           onChange={(e) => setTask(e.target.value)}
           rows={4}
-          placeholder="e.g. Compare the risk-adjusted staking yield of ETH vs SOL and recommend which fits a conservative holder."
+          placeholder={market === 'equities'
+            ? 'e.g. Analyze MSFT: financial health, valuation vs history and peers, growth drivers, and key risks.'
+            : 'e.g. Compare the risk-adjusted staking yield of ETH vs SOL and recommend which fits a conservative holder.'}
           className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-violet-500/60 focus:outline-none resize-y leading-relaxed"
         />
         <div className="flex items-center justify-between">
-          <p className="text-[11px] text-slate-600">Reports can take 20–60s while the agent gathers data.</p>
+          <p className="text-[11px] text-slate-600">
+            {market === 'equities' ? 'Equity Research Agent' : 'Crypto Research Agent'} · reports can take 20–60s.
+          </p>
           <button
             onClick={() => run(task)}
             disabled={loading || !task.trim()}
@@ -82,7 +140,7 @@ export default function ResearchPage() {
       {!result && !loading && (
         <div className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Try an example</p>
-          {EXAMPLES.map((e) => (
+          {EXAMPLES[market].map((e) => (
             <button
               key={e}
               onClick={() => { setTask(e); run(e) }}
@@ -140,5 +198,13 @@ export default function ResearchPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function ResearchPage() {
+  return (
+    <Suspense fallback={<div className="max-w-3xl mx-auto text-sm text-slate-500">Loading…</div>}>
+      <ResearchInner />
+    </Suspense>
   )
 }

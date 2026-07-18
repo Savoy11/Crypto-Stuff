@@ -20,6 +20,9 @@ import {
   Pencil,
   X,
   Blocks,
+  TrendingUp,
+  Bot,
+  Cpu,
 } from 'lucide-react'
 import { timeAgo } from '@/lib/utils/format'
 import { OPTIONAL_MODULES } from '@/lib/modules/registry'
@@ -63,6 +66,92 @@ function ModulesPanel() {
             </div>
           )
         })}
+      </div>
+    </section>
+  )
+}
+
+// ─── AI Agents panel (enable/disable + link to full config) ───────────────────
+
+interface AgentToggleInfo {
+  id: string
+  name: string
+  description: string
+  market?: 'crypto' | 'equities'
+  provider: string
+  model: string
+  enabled?: boolean
+}
+
+function AiAgentsPanel() {
+  const [agents, setAgents] = useState<AgentToggleInfo[]>([])
+  const [busy, setBusy] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch('/api/agents/prompts')
+      const data = await res.json()
+      setAgents(data.agents ?? [])
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  async function toggle(id: string, enabled: boolean) {
+    setBusy(id)
+    await fetch('/api/agents/prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, action: 'toggle', enabled }),
+    })
+    await load()
+    setBusy(null)
+  }
+
+  const groups: Array<{ label: string; items: AgentToggleInfo[] }> = [
+    { label: 'Shared', items: agents.filter((a) => !a.market) },
+    { label: 'Crypto', items: agents.filter((a) => a.market === 'crypto') },
+    { label: 'Equities', items: agents.filter((a) => a.market === 'equities') },
+  ]
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <Bot size={15} className="text-accent-blue" />
+        <h2 className="text-sm font-semibold text-slate-300">AI Agents</h2>
+        <span className="text-xs text-slate-500">— disable an agent to block it from running; edit models &amp; prompts on the</span>
+        <a href="/agent-config" className="text-xs text-accent-blue hover:underline">AI Agents tab</a>
+      </div>
+      <div className="space-y-4">
+        {groups.filter((g) => g.items.length > 0).map((g) => (
+          <div key={g.label}>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1.5">{g.label}</p>
+            <div className="space-y-2">
+              {g.items.map((a) => {
+                const enabled = a.enabled !== false
+                return (
+                  <div key={a.id} className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 transition-all ${enabled ? 'border-slate-800 bg-slate-900/40' : 'border-slate-800 bg-slate-900/20 opacity-60'}`}>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-200">{a.name}</p>
+                      <p className="text-[11px] text-slate-500 line-clamp-1">{a.description}</p>
+                      <p className="text-[10px] text-slate-600 mt-0.5 font-mono">{a.provider} · {a.model}</p>
+                    </div>
+                    <button
+                      onClick={() => toggle(a.id, !enabled)}
+                      disabled={busy === a.id}
+                      role="switch"
+                      aria-checked={enabled}
+                      aria-label={`${enabled ? 'Disable' : 'Enable'} ${a.name}`}
+                      className={`relative h-5 w-9 rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-accent-blue' : 'bg-slate-700'}`}
+                    >
+                      <span className={`absolute top-0.5 size-4 rounded-full bg-white transition-all ${enabled ? 'left-[18px]' : 'left-0.5'}`} />
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </div>
     </section>
   )
@@ -160,15 +249,17 @@ function SubredditPanel() {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ProviderCategory = 'price' | 'news' | 'social'
+type ProviderCategory = 'price' | 'news' | 'social' | 'llm'
+type ProviderMarket = 'crypto' | 'equities'
 type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
-type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'graphql' | 'websocket' | 'native'
+type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
 
 interface BuiltinProviderView {
   id: string
   name: string
   category: ProviderCategory
+  market?: ProviderMarket
   description: string
   features: string[]
   requiresKey: boolean
@@ -191,6 +282,7 @@ interface CustomProviderView {
   id: string
   name: string
   category: ProviderCategory
+  market?: ProviderMarket
   description: string
   url: string
   authMethod: AuthMethod
@@ -282,7 +374,7 @@ function UtilizationLine({ config, enabled }: {
   )
 }
 
-function ProviderCard({ provider, onUpdate }: { provider: BuiltinProviderView; onUpdate: () => void }) {
+function ProviderCard({ provider, onUpdate, hideToggle }: { provider: BuiltinProviderView; onUpdate: () => void; hideToggle?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [showKey, setShowKey] = useState(false)
@@ -290,7 +382,9 @@ function ProviderCard({ provider, onUpdate }: { provider: BuiltinProviderView; o
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; detail?: string; error?: string } | null>(null)
 
-  const enabled = provider.config.enabled
+  // LLM providers (hideToggle) are "configured when keyed" — no enable switch;
+  // the agent runner uses the key regardless of any enabled flag.
+  const enabled = hideToggle ? true : provider.config.enabled
   const hasKey = provider.config.hasKey
   const status: ProviderStatus = !enabled
     ? 'disabled'
@@ -336,14 +430,16 @@ function ProviderCard({ provider, onUpdate }: { provider: BuiltinProviderView; o
   return (
     <div className={`rounded-xl border transition-all ${enabled ? 'border-slate-700 bg-slate-900/60' : 'border-slate-800 bg-slate-900/30 opacity-60'}`}>
       <div className="flex items-center gap-4 px-5 py-4">
-        <button
-          onClick={handleToggle}
-          disabled={saving}
-          className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-accent-blue' : 'bg-slate-700'}`}
-          aria-label={`${enabled ? 'Disable' : 'Enable'} ${provider.name}`}
-        >
-          <span className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : ''}`} />
-        </button>
+        {!hideToggle && (
+          <button
+            onClick={handleToggle}
+            disabled={saving}
+            className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${enabled ? 'bg-accent-blue' : 'bg-slate-700'}`}
+            aria-label={`${enabled ? 'Disable' : 'Enable'} ${provider.name}`}
+          >
+            <span className={`absolute top-0.5 left-0.5 size-4 rounded-full bg-white shadow transition-transform ${enabled ? 'translate-x-4' : ''}`} />
+          </button>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="font-semibold text-sm text-slate-100">{provider.name}</span>
@@ -730,6 +826,8 @@ const FORMAT_OPTIONS: { value: FeedFormat; label: string; hint: string }[] = [
   { value: 'json-news',   label: 'JSON — News articles',   hint: 'REST API returning an array of article objects' },
   { value: 'json-social', label: 'JSON — Social posts',    hint: 'REST API returning social posts, comments, or mentions' },
   { value: 'json-price',  label: 'JSON — Price / market',  hint: 'REST API returning price, volume, or OHLCV data' },
+  { value: 'json-quote',  label: 'JSON — Stock quote',     hint: 'REST API returning a stock quote; use {symbol} (per-symbol) or {symbols} (batch) in the URL — price/change fields auto-detected' },
+  { value: 'json-ohlcv',  label: 'JSON — OHLCV history',   hint: 'REST API returning an array of candles for TA/backtests; use {symbol} in the URL — time/open/high/low/close fields auto-detected' },
   { value: 'graphql',     label: 'GraphQL',                hint: 'GraphQL endpoint — e.g. Santiment, The Graph, Messari' },
   { value: 'websocket',   label: 'WebSocket stream',       hint: 'Persistent WS connection — e.g. Binance, Kraken live feeds' },
   { value: 'native',      label: 'Native / built-in',      hint: 'Handled directly by a built-in provider integration' },
@@ -742,10 +840,13 @@ const AUTH_OPTIONS: { value: AuthMethod; label: string }[] = [
   { value: 'bearer', label: 'Bearer token (Authorization header)' },
 ]
 
-function AddCustomSourceForm({ category, onAdd }: { category: ProviderCategory; onAdd: () => void }) {
+function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category: ProviderCategory; market?: ProviderMarket; onAdd: () => void }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const defaultFormat: FeedFormat = market === 'equities'
+    ? (category === 'price' ? 'json-quote' : category === 'news' ? 'rss' : 'json-social')
+    : (category === 'news' || category === 'social' ? 'rss' : 'json-price')
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -754,7 +855,7 @@ function AddCustomSourceForm({ category, onAdd }: { category: ProviderCategory; 
     authHeaderName: '',
     authQueryParam: '',
     apiKey: '',
-    format: (category === 'news' || category === 'social' ? 'rss' : 'json-price') as FeedFormat,
+    format: defaultFormat as FeedFormat,
     jsonArrayPath: '',
   })
 
@@ -776,6 +877,7 @@ function AddCustomSourceForm({ category, onAdd }: { category: ProviderCategory; 
           name: form.name.trim(),
           description: form.description.trim(),
           category,
+          market,
           url: form.url.trim(),
           authMethod: form.authMethod,
           authHeaderName: form.authHeaderName.trim() || undefined,
@@ -802,9 +904,13 @@ function AddCustomSourceForm({ category, onAdd }: { category: ProviderCategory; 
     }
     setSaving(false)
     setOpen(false)
-    setForm({ name: '', description: '', url: '', authMethod: 'none', authHeaderName: '', authQueryParam: '', apiKey: '', format: category === 'news' ? 'rss' : 'json-price', jsonArrayPath: '' })
+    setForm({ name: '', description: '', url: '', authMethod: 'none', authHeaderName: '', authQueryParam: '', apiKey: '', format: defaultFormat, jsonArrayPath: '' })
     onAdd()
   }
+
+  const sourceLabel = category === 'news' ? 'news source'
+    : category === 'social' ? 'social source'
+    : market === 'equities' ? 'quote feed' : 'price feed'
 
   if (!open) {
     return (
@@ -812,7 +918,7 @@ function AddCustomSourceForm({ category, onAdd }: { category: ProviderCategory; 
         onClick={() => setOpen(true)}
         className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-dashed border-slate-700 text-sm text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-colors"
       >
-        <Plus size={14} /> Add custom {category === 'news' ? 'news source' : category === 'social' ? 'social source' : 'price feed'}
+        <Plus size={14} /> Add custom {sourceLabel}
       </button>
     )
   }
@@ -820,7 +926,7 @@ function AddCustomSourceForm({ category, onAdd }: { category: ProviderCategory; 
   return (
     <form onSubmit={handleSubmit} className="rounded-xl border border-violet-700/40 bg-violet-900/10 p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-slate-200">Add custom {category === 'news' ? 'news source' : category === 'social' ? 'social source' : 'price feed'}</p>
+        <p className="text-sm font-semibold text-slate-200">Add custom {sourceLabel}</p>
         <button type="button" onClick={() => setOpen(false)} className="text-slate-500 hover:text-slate-300 text-xs">Cancel</button>
       </div>
 
@@ -838,9 +944,11 @@ function AddCustomSourceForm({ category, onAdd }: { category: ProviderCategory; 
         </div>
         <div className="col-span-2">
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
-            Endpoint URL * <span className="normal-case font-normal text-slate-600">(use {'{asset}'} as placeholder for asset ID)</span>
+            Endpoint URL * <span className="normal-case font-normal text-slate-600">
+              {market === 'equities' ? <>(use {'{symbol}'} per-symbol or {'{symbols}'} for batch)</> : <>(use {'{asset}'} as placeholder for asset ID)</>}
+            </span>
           </label>
-          <input value={form.url} onChange={(e) => set('url', e.target.value)} placeholder="https://example.com/api/news?q={asset}" required className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-accent-blue/60 focus:outline-none font-mono" />
+          <input value={form.url} onChange={(e) => set('url', e.target.value)} placeholder={market === 'equities' ? 'https://example.com/api/quote/{symbol}' : 'https://example.com/api/news?q={asset}'} required className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-accent-blue/60 focus:outline-none font-mono" />
         </div>
         <div className="col-span-2">
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Description</label>
@@ -917,12 +1025,20 @@ export default function SettingsPage() {
   const builtinProviders = providers.filter((p): p is BuiltinProviderView => !p.isCustom)
   const customProviders = providers.filter((p): p is CustomProviderView => !!p.isCustom)
 
-  const priceProviders = builtinProviders.filter((p) => p.category === 'price')
-  const customPriceProviders = customProviders.filter((p) => p.category === 'price')
-  const newsProviders = builtinProviders.filter((p) => p.category === 'news')
-  const customNewsProviders = customProviders.filter((p) => p.category === 'news')
-  const socialProviders = builtinProviders.filter((p) => p.category === 'social')
-  const customSocialProviders = customProviders.filter((p) => p.category === 'social')
+  const marketOf = (p: ProviderView) => p.market ?? 'crypto'
+  const priceProviders = builtinProviders.filter((p) => p.category === 'price' && marketOf(p) === 'crypto')
+  const customPriceProviders = customProviders.filter((p) => p.category === 'price' && marketOf(p) === 'crypto')
+  const equityProviders = builtinProviders.filter((p) => p.category === 'price' && marketOf(p) === 'equities')
+  const customEquityProviders = customProviders.filter((p) => p.category === 'price' && marketOf(p) === 'equities')
+  const newsProviders = builtinProviders.filter((p) => p.category === 'news' && marketOf(p) === 'crypto')
+  const customNewsProviders = customProviders.filter((p) => p.category === 'news' && marketOf(p) === 'crypto')
+  const socialProviders = builtinProviders.filter((p) => p.category === 'social' && marketOf(p) === 'crypto')
+  const customSocialProviders = customProviders.filter((p) => p.category === 'social' && marketOf(p) === 'crypto')
+  const equityNewsProviders = builtinProviders.filter((p) => p.category === 'news' && marketOf(p) === 'equities')
+  const customEquityNewsProviders = customProviders.filter((p) => p.category === 'news' && marketOf(p) === 'equities')
+  const equitySocialProviders = builtinProviders.filter((p) => p.category === 'social' && marketOf(p) === 'equities')
+  const customEquitySocialProviders = customProviders.filter((p) => p.category === 'social' && marketOf(p) === 'equities')
+  const llmProviders = builtinProviders.filter((p) => p.category === 'llm')
 
   const activeCount = providers.filter((p) => {
     if (!p.config.enabled) return false
@@ -958,11 +1074,11 @@ export default function SettingsPage() {
           {/* Suite modules */}
           <ModulesPanel />
 
-          {/* Market data */}
+          {/* Crypto market data */}
           <section>
             <div className="flex items-center gap-2 mb-3">
               <PlugZap size={15} className="text-accent-blue" />
-              <h2 className="text-sm font-semibold text-slate-300">Market Data</h2>
+              <h2 className="text-sm font-semibold text-slate-300">Crypto Market Data</h2>
               <span className="text-xs text-slate-500">— highest-priority active provider is used for prices</span>
             </div>
             <div className="space-y-2">
@@ -973,6 +1089,60 @@ export default function SettingsPage() {
                 <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
               ))}
               <AddCustomSourceForm category="price" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Equity market data */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <TrendingUp size={15} className="text-emerald-400" />
+              <h2 className="text-sm font-semibold text-slate-300">Equity Market Data</h2>
+              <span className="text-xs text-slate-500">— tried in order until one serves quotes; custom feeds run first</span>
+            </div>
+            <div className="space-y-2">
+              {customEquityProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {equityProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="price" market="equities" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Equity news */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Rss size={15} className="text-emerald-400" />
+              <h2 className="text-sm font-semibold text-slate-300">Equity News</h2>
+              <span className="text-xs text-slate-500">— all active feeds run in parallel, articles merged and attributed</span>
+            </div>
+            <div className="space-y-2">
+              {equityNewsProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {customEquityNewsProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="news" market="equities" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Equity social */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <MessageSquare size={15} className="text-emerald-400" />
+              <h2 className="text-sm font-semibold text-slate-300">Equity Social</h2>
+              <span className="text-xs text-slate-500">— all active providers run in parallel, signals merged and attributed</span>
+            </div>
+            <div className="space-y-2">
+              {equitySocialProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {customEquitySocialProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="social" market="equities" onAdd={fetchProviders} />
             </div>
           </section>
 
@@ -1012,11 +1182,28 @@ export default function SettingsPage() {
             </div>
           </section>
 
+          {/* AI providers (LLM keys) */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Cpu size={15} className="text-accent-blue" />
+              <h2 className="text-sm font-semibold text-slate-300">AI Providers</h2>
+              <span className="text-xs text-slate-500">— API keys for the LLMs that power the agents; pick a provider per agent on the AI Agents tab</span>
+            </div>
+            <div className="space-y-2">
+              {llmProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} hideToggle />
+              ))}
+            </div>
+          </section>
+
+          {/* AI agents (enable/disable) */}
+          <AiAgentsPanel />
+
           {/* Notes */}
           <div className="rounded-xl border border-slate-800 bg-slate-900/30 px-5 py-4 text-xs text-slate-500 space-y-1">
             <p>Keys are saved to <span className="font-mono text-slate-400">.provider-config.json</span> in the app root (server-side only). Add this file to <span className="font-mono text-slate-400">.gitignore</span> if you use version control.</p>
-            <p>You can also set built-in keys via environment variables: <span className="font-mono text-slate-400">COINGECKO_API_KEY</span>, <span className="font-mono text-slate-400">COINMARKETCAP_API_KEY</span>, <span className="font-mono text-slate-400">CRYPTOPANIC_API_KEY</span>, etc.</p>
-            <p>Custom sources support RSS/Atom feeds and JSON APIs. Use <span className="font-mono text-slate-400">{'{asset}'}</span> in the URL as a placeholder for the selected asset ID.</p>
+            <p>You can also set built-in keys via environment variables: <span className="font-mono text-slate-400">COINGECKO_API_KEY</span>, <span className="font-mono text-slate-400">FMP_API_KEY</span>, <span className="font-mono text-slate-400">FINNHUB_API_KEY</span>, <span className="font-mono text-slate-400">TIINGO_API_KEY</span>, etc.</p>
+            <p>Custom sources support RSS/Atom feeds and JSON APIs. Use <span className="font-mono text-slate-400">{'{asset}'}</span> for crypto asset IDs, or <span className="font-mono text-slate-400">{'{symbol}'}</span> / <span className="font-mono text-slate-400">{'{symbols}'}</span> for stock tickers in quote feeds.</p>
           </div>
         </>
       )}

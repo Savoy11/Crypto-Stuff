@@ -406,7 +406,12 @@ export default function CoinDiscoveryPage() {
 
   const { data, isLoading, error } = useQuery<CoinDiscoveryResponse>({
     queryKey: ['coin-discovery', limit],
-    queryFn:  () => fetch(`/live-data/coin-discovery?limit=${limit}`).then(r => r.json()),
+    queryFn:  async () => {
+      const r = await fetch(`/live-data/coin-discovery?limit=${limit}`)
+      const j: CoinDiscoveryResponse = await r.json()
+      if (!r.ok || !j.ok) throw new Error(j.error ?? `HTTP ${r.status}`)
+      return j
+    },
     staleTime: 1000 * 60 * 15,
     refetchInterval: 1000 * 60 * 20,
   })

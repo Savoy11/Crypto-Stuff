@@ -43,6 +43,7 @@ export interface CoinDiscoveryResponse {
   alreadyTracked: number
   updatedAt: string
   source: { name: string; limit: number; url: string }
+  error?: string
 }
 
 // ─── Scoring helpers ──────────────────────────────────────────────────────────
@@ -154,20 +155,39 @@ export async function GET(req: Request) {
   const limit = Math.min(750, Math.max(50, parseInt(url.searchParams.get('limit') ?? '250', 10)))
   const pages = Math.ceil(limit / 250)
 
-  let rawCoins: RawCoin[] = []
+  const upstreamErrors: string[] = []
 
-  try {
-    const fetches = Array.from({ length: pages }, (_, i) =>
-      fetch(
-        'https://api.coingecko.com/api/v3/coins/markets' +
-        `?vs_currency=usd&order=market_cap_desc&per_page=250&page=${i + 1}` +
-        '&sparkline=false&price_change_percentage=7d',
-        { headers: { Accept: 'application/json' }, next: { revalidate: 900 } }
-      ).then(r => r.ok ? r.json() as Promise<RawCoin[]> : Promise.resolve([] as RawCoin[]))
+  const fetches = Array.from({ length: pages }, (_, i) =>
+    fetch(
+      'https://api.coingecko.com/api/v3/coins/markets' +
+      `?vs_currency=usd&order=market_cap_desc&per_page=250&page=${i + 1}` +
+      '&sparkline=false&price_change_percentage=7d',
+      { headers: { Accept: 'application/json' }, next: { revalidate: 900 } }
+    ).then(
+      r => {
+        if (!r.ok) { upstreamErrors.push(`page ${i + 1}: HTTP ${r.status}`); return [] as RawCoin[] }
+        return r.json() as Promise<RawCoin[]>
+      },
+      err => { upstreamErrors.push(`page ${i + 1}: ${String(err)}`); return [] as RawCoin[] }
     )
-    const pages_data = await Promise.all(fetches)
-    rawCoins = pages_data.flat().slice(0, limit)
-  } catch { /* return empty candidates gracefully */ }
+  )
+  const pagesData = await Promise.all(fetches)
+  const rawCoins: RawCoin[] = pagesData.flat().slice(0, limit)
+
+  // Upstream failed entirely — say so instead of returning an empty-but-ok payload
+  if (rawCoins.length === 0) {
+    return NextResponse.json(
+      {
+        ok: false,
+        candidates: [],
+        alreadyTracked: 0,
+        updatedAt: new Date().toISOString(),
+        source: { name: 'CoinGecko', limit, url: 'https://api.coingecko.com/api/v3/coins/markets' },
+        error: `CoinGecko markets unavailable (${upstreamErrors.join('; ') || 'empty response'})`,
+      } satisfies CoinDiscoveryResponse,
+      { status: 503 }
+    )
+  }
 
   const alreadyTracked = rawCoins.filter(c => CAEP_TRACKED_IDS.has(c.id)).length
 

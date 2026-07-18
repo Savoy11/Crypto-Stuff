@@ -10,6 +10,8 @@ export type TierMode = 'free' | 'paid' | 'custom'
 export interface TierCategory {
   label: string
   description: string
+  /** Which side of the suite this category belongs to. Default 'crypto'. */
+  market?: 'crypto' | 'equities'
   freeSource: string
   freeSourceLabel: string
   paidSource: string
@@ -18,6 +20,14 @@ export interface TierCategory {
   /** Multi-select category (custom mode lets the user pick several sources). */
   multi?: boolean
   multiOptions?: { id: string; label: string }[]
+  /** Provider category to match against /live-data/config (defaults to the map key). */
+  providerCategory?: 'price' | 'news' | 'social'
+  /**
+   * Informational row: reflects the live registry rather than the free/paid
+   * toggle. Equity sources are controlled on the Integrations page (registry
+   * ladders/merges), not by this switch, so their rows just show what's enabled.
+   */
+  informational?: boolean
 }
 
 export const TIER_CATEGORIES: Record<string, TierCategory> = {
@@ -98,6 +108,46 @@ export const TIER_CATEGORIES: Record<string, TierCategory> = {
     paidSource: 'native',
     paidSourceLabel: 'Lido / Marinade / Jito (same)',
     queryParam: 'source',
+  },
+
+  // ── Equities ── informational: sourcing is controlled per-provider on the
+  // Integrations page (registry ladders/merges), so these rows reflect the
+  // live set of enabled providers rather than a free/paid choice here.
+  equityPrice: {
+    label: 'Stock Quotes & Charts',
+    description: 'Equity / ETF / fund prices, plus OHLCV for TA & backtests',
+    market: 'equities',
+    freeSource: 'yahoo-finance',
+    freeSourceLabel: 'Provider ladder',
+    paidSource: 'yahoo-finance',
+    paidSourceLabel: 'Provider ladder',
+    queryParam: 'source',
+    providerCategory: 'price',
+    informational: true,
+  },
+  equityNews: {
+    label: 'Stock News',
+    description: 'Equity market news feeds',
+    market: 'equities',
+    freeSource: 'rss',
+    freeSourceLabel: 'All enabled feeds (merged)',
+    paidSource: 'rss',
+    paidSourceLabel: 'All enabled feeds (merged)',
+    queryParam: 'providers',
+    providerCategory: 'news',
+    informational: true,
+  },
+  equitySocial: {
+    label: 'Stock Social',
+    description: 'Equity social sentiment providers',
+    market: 'equities',
+    freeSource: 'reddit-stocks',
+    freeSourceLabel: 'All enabled providers (merged)',
+    paidSource: 'reddit-stocks',
+    paidSourceLabel: 'All enabled providers (merged)',
+    queryParam: 'source',
+    providerCategory: 'social',
+    informational: true,
   },
 }
 

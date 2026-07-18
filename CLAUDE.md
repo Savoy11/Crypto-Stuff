@@ -69,7 +69,12 @@ frontend/src/
 │       ├── security-chart/route.ts  # Price history for any Yahoo-quotable symbol
 │       ├── security-ohlcv/route.ts  # Full OHLCV candles for stocks (Yahoo→FMP)
 │       ├── market-news/route.ts     # Stock-market RSS news: sentiment, category, ticker tags
-│       └── stock-social/route.ts    # Reddit finance subs + StockTwits sentiment
+│       ├── stock-social/route.ts    # Reddit finance subs + StockTwits sentiment
+│       ├── sec-filings/route.ts     # SEC EDGAR filings feed (ticker→CIK→submissions; tabbed 10-K/10-Q/8-K on equity detail)
+│       ├── company-facts/route.ts   # SEC EDGAR XBRL fundamentals → financial ratios + annual trend on equity detail
+│       ├── company-profile/route.ts # SEC EDGAR registrant metadata (SIC, HQ, incorporation) + Wikipedia summary
+│       ├── stock-universe/route.ts  # Stock Registry universe — FMP stock-screener (daily-cached) w/ curated fallback; ?symbol= single lookup
+│       └── stock-outliers/route.ts  # Sector-relative z-score outliers over the universe (cheap/expensive/highYield/high-lowBeta) — backs the Equity Screener agent
 │
 ├── components/
 │   ├── layout/
@@ -213,7 +218,16 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 - To add a fund: append to `FUND_CATALOG` following the pattern.
 
 ### Quote plumbing for both modules (`src/lib/api/live/marketData.ts`)
-Source ladder: FMP (needs `FMP_API_KEY`) → Yahoo spark (keyless) → Stooq CSV (keyless) → catalog reference prices. UI labels non-live prices with a small amber `ref` tag; KPIs needing live data show "requires live quotes" instead of fabricated values.
+**All four equity data surfaces are registry-driven** (same provider system as crypto — `src/lib/api/live/providers.ts`, configured on the Integrations page, persisted to `.provider-config.json`; providers carry `market: 'crypto' | 'equities'` so the two sides never cross). Every surface records per-provider utilization, supports toggling/reordering built-ins, and accepts user-added custom feeds (SSRF-validated, auth via header/query/bearer, tolerant JSON field extraction in `src/lib/server/customFeeds.ts`):
+
+- **Quotes** (`fetchSecurityQuotes` → `getEquityQuoteProviders()`): custom `json-quote` feeds first, then FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage (key-gated) → Yahoo spark → Stooq → catalog reference prices. `{symbol}` (per-symbol) or `{symbols}` (batch) placeholders.
+- **News** (`/live-data/market-news` → `getEquityProviders('news')`): built-ins Yahoo Finance News / MarketWatch / CNBC plus custom `rss`/`atom`/`json-news` feeds, all active sources merged in parallel.
+- **Social** (`/live-data/stock-social` → `getEquityProviders('social')`): built-ins Reddit Finance / StockTwits plus custom `json-social` feeds. (Reddit 403s from datacenter IPs without OAuth — expect StockTwits-only in server/CI environments.)
+- **OHLCV / TA / backtests** (`/live-data/security-ohlcv` → `getEquityOhlcvProviders()`): custom `json-ohlcv` feeds first, then Yahoo Finance → Tiingo → FMP.
+
+UI labels non-live prices with a small amber `ref` tag; KPIs needing live data show "requires live quotes" instead of fabricated values.
+
+The **TopBar data-tier dropdown** (`TierSwitch` / `src/lib/tier.ts`) breaks sourcing down per category. Categories carry a `market: 'crypto' | 'equities'` field: crypto rows respond to the free/paid/custom toggle as before; equity rows are `informational: true` — they reflect the live registry (enabled providers per category, scoped by market) rather than the toggle, since equity sourcing is managed entirely on the Integrations page. Multi-select option lists are market-scoped so crypto selectors never pull in equity providers that share a `category` id.
 
 ---
 
@@ -223,8 +237,16 @@ Source ladder: FMP (needs `FMP_API_KEY`) → Yahoo spark (keyless) → Stooq CSV
 NEXT_PUBLIC_API_URL=http://localhost:8000   # Optional legacy backend (auth/agent only)
 NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws   # WebSocket (optional)
 # Paid-tier provider keys (CoinGecko Pro, CryptoPanic, etc.) live in .env.local
-FMP_API_KEY=...                             # Optional — upgrades equities/funds quotes (adds market cap, proper change %)
+FMP_API_KEY=...                             # Optional — settable in the Integrations UI. Uses FMP's /stable API (legacy /api/v3 is retired → 403). FREE tier: single-symbol quote/profile/history + earnings calendar. PAID only: batch quotes, company-screener, constituent lists, economic calendar. So a free key powers per-stock data & detail-page ticker resolution, but the broad Stock Registry universe needs a paid plan.
+# Other equity quote providers (all optional; also settable in the Integrations UI):
+# FINNHUB_API_KEY, TWELVE_DATA_API_KEY, TIINGO_API_KEY, ALPHA_VANTAGE_API_KEY
+CAEP_ADMIN_TOKEN=...                        # Optional — sensitive endpoints (AI agents, provider config, exchange creds) require this token when the app is served from a non-localhost host; without it they are localhost-only (see src/lib/server/apiGuard.ts)
 ```
+
+**Server-side secret stores** (gitignored, written at repo `frontend/` root):
+`.provider-config.json` (provider API keys), `.agent-prompts.json` (agent overrides),
+`.exchange-credentials.json` (exchange API keys — never sent to the browser; the client
+references connections by id via `/live-data/wallet/exchange-connections`).
 
 CAEP runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
 
@@ -284,7 +306,7 @@ Risk/status color convention used across the app:
 | Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
 | Portfolios | `/portfolios` | 🟢 Live | Live prices + portfolio history (`/live-data/portfolio-*`) |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
-| Research / Agent Config | `/research`, `/agent-config` | — | LLM/agent features + configuration UI |
+| Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
 | Backtests | `/backtests` | 🔴 Not available | Requires a backtesting backend; not present |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–4 stocks/funds, normalized growth-of-100 + stats (`security-chart`) |
@@ -294,7 +316,7 @@ Risk/status color convention used across the app:
 ### Equities module (`/equities`)
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
-| Stock Registry | `/equities` | 🟢 Live | `equityCatalog.ts` + live quotes; ~70 stocks, 11 sectors, breadth KPIs |
+| Stock Registry | `/equities` | 🟢 Live | Universe from `/live-data/stock-universe` (FMP stock-screener, daily-cached, all active common stocks + sectors) with `equityCatalog.ts` curated fallback when no FMP key. Paginated (50/page), live quotes for the visible page only, range screener, sortable columns incl. beta. Detail pages resolve non-catalog tickers via FMP profile lookup. |
 | Equity Detail | `/equities/[symbol]` | 🟢 Live | Live chart/news + reference stats, 52-wk range, key stats |
 | Market News | `/equities/news` | 🟢 Live | RSS multi-feed; category/sentiment/ticker filters |
 | Stock Social | `/equities/social` | 🟡 Partial | Reddit + StockTwits (keyless) sentiment |
@@ -309,6 +331,20 @@ Risk/status color convention used across the app:
 | Fund Detail | `/funds/[symbol]` | 🟢 Live | Live chart/news + fund facts; Fee Drag Analyzer, top holdings |
 
 ---
+
+## AI Agents (`src/lib/agents/`)
+
+All agents run through one loop (`runner.ts`, Anthropic + OpenAI-compatible). Defaults live in `prompts.ts` (`AGENT_DEFAULTS`); per-agent overrides (provider/model/temperature/systemPrompt/**enabled**) persist to `.agent-prompts.json`. Each agent has a `market: 'crypto' | 'equities'` (undefined = shared) and a `toolset: 'crypto' | 'equities' | 'all'`.
+
+**Agents (9):** `app-assistant` (shared, toolset `all`), crypto `research-analyst` / `data-scraper` / `pump-report-investigator` / `pump-report-chat`, and equity `equity-research` / `equity-screener` / `equity-data-scraper` / `equity-diligence`.
+
+**Tools (`tools.ts`):** tagged by market; `toolsForAgent(toolset)` gives an agent only its market's tools. Crypto tools hit `/api/v1/*` + `/live-data/ohlcv`; equity tools (`get_stock_quote/financials/profile/filings/news/social/price_history`) hit the equity `/live-data/*` routes. Every tool reads exactly what the UI reads — one source of truth. The Anthropic runner also adds the server-side **`web_search`** tool (max_uses via `opts.webSearchMaxUses`, default 5 / research 8), and handles the `pause_turn` stop reason it produces; web search is **Anthropic-only** (agents switched to another provider keep data tools but lose search).
+
+**Invocation:** `app-assistant` (Assistant chat → `/api/agents/chat`), `research-analyst` / `equity-research` (Research page → `/api/agents/research`), and `equity-screener` (Stock Registry "AI Outlier Scan" panel → `/api/agents/research`, whitelisted; calls `get_stock_outliers` then drills in) have run triggers. `data-scraper` / `equity-data-scraper` / `equity-diligence` are configurable-but-not-yet-invoked placeholders (need a trigger UI). `pump-report-*` run via their own `/live-data/pump-report/*` routes (separate loop, own web_search).
+
+**LLM keys** resolve via `getProviderKey(provider)` — UI-saved key (Integrations → AI Providers, the `llm`-category providers in `providers.ts`) first, then the env var. The pump-report routes resolve the Anthropic key the same way.
+
+**Control surfaces:** the **AI Agents tab** (`/agent-config`) edits model/temperature/prompt per agent (tabs grouped shared/crypto/equity); **Integrations** (`/settings`) holds the AI Providers key section and per-agent enable toggles. The **Research page** (`/research`) has a Crypto/Equities selector and accepts `?symbol=` / `?agent=equity-research` deep links; stock detail pages have an **Analyze with AI** button → `/research?symbol=…`. Disabled agents throw `AgentDisabledError` (503) from the run routes.
 
 ## News Feed Architecture (`src/app/live-data/news/route.ts`)
 

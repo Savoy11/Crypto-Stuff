@@ -4,19 +4,51 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowLeft, ExternalLink, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeft, ExternalLink, FileText, Sparkles, TrendingDown, TrendingUp } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
-import { getEquity, SECTOR_INFO } from '@/lib/data/equityCatalog'
-import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
+import { SecFilingsFeed } from '@/components/markets/SecFilingsFeed'
+import { FinancialRatios } from '@/components/markets/FinancialRatios'
+import { FundamentalsTrend } from '@/components/markets/FundamentalsTrend'
+import { CompanyProfileCard } from '@/components/markets/CompanyProfileCard'
+import { SectorPeers } from '@/components/markets/SectorPeers'
+import { getEquity, secFilingsUrl, SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
+import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
+import type { StockUniverseResponse } from '@/app/live-data/stock-universe/route'
+
+/** Only the fields the detail page needs — works for catalog and dynamic stocks. */
+interface DetailEntry {
+  symbol: string
+  name: string
+  sector: SectorId
+  industry: string
+  website: string
+  referencePrice: number
+}
 
 export default function EquityDetailPage() {
   const params = useParams<{ symbol: string }>()
   const symbol = (params.symbol ?? '').toUpperCase()
-  const entry = getEquity(symbol)
+  const staticEntry = getEquity(symbol)
+
+  // Resolve non-catalog tickers from the live universe (FMP profile lookup).
+  const { data: uniData, isLoading: uniLoading } = useQuery<StockUniverseResponse>({
+    queryKey: ['stock-universe', symbol],
+    queryFn: () => fetch(`/live-data/stock-universe?symbol=${encodeURIComponent(symbol)}`).then((r) => r.json()),
+    enabled: !staticEntry && !!symbol,
+    staleTime: 1000 * 60 * 30,
+    retry: 1,
+  })
+  const dyn = uniData?.entries?.[0]
+
+  const entry: DetailEntry | undefined = staticEntry
+    ? { symbol: staticEntry.symbol, name: staticEntry.name, sector: staticEntry.sector, industry: staticEntry.industry, website: staticEntry.website, referencePrice: staticEntry.referencePrice }
+    : dyn
+      ? { symbol: dyn.symbol, name: dyn.name, sector: dyn.sector, industry: dyn.industry, website: dyn.website ?? '', referencePrice: dyn.referencePrice }
+      : undefined
 
   const { data } = useQuery<SecurityQuotesResponse>({
     queryKey: ['security-quotes', symbol],
@@ -30,11 +62,20 @@ export default function EquityDetailPage() {
     return (
       <ModuleGate module="equities">
         <div className="max-w-md mx-auto mt-24 rounded-card border border-border bg-bg-card p-8 text-center">
-          <p className="text-sm font-medium text-text-primary">Unknown symbol “{symbol}”</p>
-          <p className="mt-1 text-xs text-text-muted">This ticker isn’t in the equity catalog yet.</p>
-          <Link href="/equities" className="inline-block mt-4 text-xs text-accent-blue hover:underline">
-            ← Back to Stock Registry
-          </Link>
+          {uniLoading ? (
+            <>
+              <p className="text-sm font-medium text-text-primary">Loading {symbol}…</p>
+              <p className="mt-1 text-xs text-text-muted">Resolving this ticker from live data.</p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm font-medium text-text-primary">Unknown symbol “{symbol}”</p>
+              <p className="mt-1 text-xs text-text-muted">Couldn’t resolve this ticker from the catalog or live data.</p>
+              <Link href="/equities" className="inline-block mt-4 text-xs text-accent-blue hover:underline">
+                ← Back to Stock Registry
+              </Link>
+            </>
+          )}
         </div>
       </ModuleGate>
     )
@@ -45,13 +86,6 @@ export default function EquityDetailPage() {
   const price = quote?.price ?? entry.referencePrice
   const change = live ? quote?.changePercent ?? null : null
   const sector = SECTOR_INFO[entry.sector]
-
-  const stats: Array<{ label: string; value: string; note?: string }> = [
-    { label: 'Market Cap', value: formatCompact(quote?.marketCap ?? entry.marketCapB * 1e9), note: quote?.marketCap ? undefined : 'reference' },
-    { label: 'P/E (TTM)', value: entry.peRatio != null ? entry.peRatio.toFixed(0) : '—', note: 'reference' },
-    { label: 'Dividend Yield', value: entry.dividendYieldPct != null ? `${entry.dividendYieldPct.toFixed(2)}%` : 'None', note: 'reference' },
-    { label: 'Beta (5Y)', value: entry.beta.toFixed(2), note: 'reference' },
-  ]
 
   return (
     <ModuleGate module="equities">
@@ -73,10 +107,14 @@ export default function EquityDetailPage() {
               </div>
               <p className="mt-1 text-xs text-text-muted">
                 {entry.industry}
-                {' · '}
-                <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-accent-blue/80 hover:text-accent-blue inline-flex items-center gap-0.5">
-                  {entry.website.replace(/^https?:\/\/(www\.)?/, '')} <ExternalLink size={10} aria-hidden />
-                </a>
+                {entry.website && (
+                  <>
+                    {' · '}
+                    <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-accent-blue/80 hover:text-accent-blue inline-flex items-center gap-0.5">
+                      {entry.website.replace(/^https?:\/\/(www\.)?/, '')} <ExternalLink size={10} aria-hidden />
+                    </a>
+                  </>
+                )}
               </p>
             </div>
             <div className="text-right">
@@ -91,6 +129,13 @@ export default function EquityDetailPage() {
                   {formatPercent(change, 2)} today
                 </p>
               )}
+              <Link
+                href={`/research?symbol=${encodeURIComponent(symbol)}`}
+                className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600 text-xs font-medium text-white hover:bg-violet-500 transition-colors"
+                title="Run the Equity Research Agent on this stock"
+              >
+                <Sparkles size={13} aria-hidden /> Analyze with AI
+              </Link>
             </div>
           </div>
         </div>
@@ -100,28 +145,44 @@ export default function EquityDetailPage() {
           <div className="xl:col-span-2 space-y-4">
             <PriceChartCard symbol={symbol} />
             <FiftyTwoWeekBar symbol={symbol} price={price} />
+            <FinancialRatios symbol={symbol} price={price} priceIsLive={live} />
+            <FundamentalsTrend symbol={symbol} />
           </div>
           <div className="space-y-4">
+            <CompanyProfileCard symbol={symbol} name={entry.name} />
             <div className="rounded-card border border-border bg-bg-card p-4">
-              <h2 className="text-sm font-medium text-text-secondary mb-3">Key Statistics</h2>
-              <dl className="space-y-2.5">
-                {stats.map(({ label, value, note }) => (
-                  <div key={label} className="flex items-center justify-between text-sm">
-                    <dt className="text-text-muted">{label}</dt>
-                    <dd className="font-mono tabular-nums text-text-primary">
-                      {value}
-                      {note && <span className="ml-1.5 text-[9px] text-amber-400/70 align-top">{note}</span>}
-                    </dd>
-                  </div>
+              <h2 className="text-sm font-medium text-text-secondary mb-3">Financial Statements</h2>
+              <ul className="space-y-2.5">
+                {[
+                  { label: 'Annual Reports (10-K)',      type: '10-K' },
+                  { label: 'Quarterly Reports (10-Q)',   type: '10-Q' },
+                  { label: 'Proxy Statements (DEF 14A)', type: 'DEF 14A' },
+                  { label: 'All SEC Filings',            type: '' },
+                ].map(({ label, type }) => (
+                  <li key={label}>
+                    <a
+                      href={secFilingsUrl(symbol, type)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between text-sm text-text-secondary hover:text-accent-blue transition-colors group"
+                    >
+                      <span className="flex items-center gap-2">
+                        <FileText size={13} className="text-text-muted group-hover:text-accent-blue transition-colors" aria-hidden />
+                        {label}
+                      </span>
+                      <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue transition-colors" aria-hidden />
+                    </a>
+                  </li>
                 ))}
-              </dl>
+              </ul>
+              <p className="mt-3 text-[11px] text-text-muted">Audited statements filed with the SEC · opens EDGAR</p>
             </div>
-            <div className="rounded-card border border-border bg-bg-card p-4">
-              <h2 className="text-sm font-medium text-text-secondary mb-2">About</h2>
-              <p className="text-sm text-text-secondary leading-relaxed">{entry.description}</p>
-            </div>
+            <SecFilingsFeed symbol={symbol} />
           </div>
         </div>
+
+        {/* Peers */}
+        <SectorPeers symbol={symbol} sector={entry.sector} />
 
         {/* News */}
         <MarketNewsList symbol={symbol} limit={8} />

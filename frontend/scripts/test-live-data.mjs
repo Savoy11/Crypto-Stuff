@@ -128,6 +128,74 @@ const tests = [
     if (!j || typeof j !== 'object') throw new Error('no payload')
     return `keys: ${Object.keys(j).slice(0,5).join(', ')}`
   }},
+  { path: '/live-data/sec-filings?symbol=AAPL&form=8-K&limit=5', name: 'sec 8-K filings', check: (j) => {
+    if (!j.ok || !Array.isArray(j.filings) || j.filings.length === 0) throw new Error(`no filings (${j.error ?? 'empty'})`)
+    const f = j.filings[0]
+    if (!f.form?.startsWith('8-K')) throw new Error(`wrong form: ${f.form}`)
+    if (!f.url?.startsWith('https://www.sec.gov/')) throw new Error(`bad url: ${f.url}`)
+    if (!Array.isArray(f.itemLabels) || f.itemLabels.length === 0) throw new Error('no item labels')
+    return `${j.filings.length} filings, latest ${f.filedAt} (${f.itemLabels[0]})`
+  }},
+  { path: '/live-data/company-facts?symbol=AAPL', name: 'sec company facts (ratios)', check: (j) => {
+    if (!j.ok || !j.fundamentals || !j.ratios) throw new Error(`no fundamentals (${j.error ?? 'empty'})`)
+    const f = j.fundamentals, r = j.ratios
+    if (!(f.revenue > 1e11)) throw new Error(`AAPL revenue implausible: ${f.revenue}`)
+    if (!(f.sharesOutstanding > 1e9)) throw new Error(`shares implausible: ${f.sharesOutstanding}`)
+    if (!(r.netMargin > 0.05 && r.netMargin < 0.6)) throw new Error(`net margin implausible: ${r.netMargin}`)
+    if (!(r.currentRatio > 0.2 && r.currentRatio < 5)) throw new Error(`current ratio implausible: ${r.currentRatio}`)
+    return `rev=$${(f.revenue/1e9).toFixed(0)}B, netMargin=${(r.netMargin*100).toFixed(1)}%, ROE=${(r.roe*100).toFixed(0)}%`
+  }},
+  { path: '/live-data/company-profile?symbol=AAPL&name=Apple', name: 'sec company profile', check: (j) => {
+    if (!j.ok || !j.profile) throw new Error(`no profile (${j.error ?? 'empty'})`)
+    if (!j.profile.sicDescription) throw new Error('no SIC industry classification')
+    if (!Array.isArray(j.profile.exchanges) || j.profile.exchanges.length === 0) throw new Error('no exchange')
+    return `${j.profile.sicDescription} · HQ ${j.profile.headquarters ?? '?'} · wiki=${j.wiki ? 'yes' : 'no'}`
+  }},
+  { path: '/live-data/stock-universe', name: 'stock universe', check: (j) => {
+    if (!j.ok || !Array.isArray(j.entries) || j.entries.length === 0) throw new Error('no universe entries')
+    const e = j.entries[0]
+    if (!e.symbol || !e.sector || !(e.marketCapB > 0)) throw new Error(`bad top entry: ${JSON.stringify(e).slice(0,80)}`)
+    // sorted by market cap descending
+    if (j.entries.length > 1 && j.entries[1].marketCapB > e.marketCapB) throw new Error('not sorted by market cap')
+    return `${j.count} stocks, source=${j.source}, largest ${e.symbol} $${e.marketCapB.toFixed(0)}B`
+  }},
+  { path: '/live-data/stock-universe?symbol=AAPL', name: 'stock universe (single lookup)', check: (j) => {
+    if (!j.ok || j.entries?.[0]?.symbol !== 'AAPL') throw new Error('AAPL lookup failed')
+    return `${j.entries[0].name} · ${j.entries[0].sector}`
+  }},
+  { path: '/live-data/stock-outliers?min_mcap=2', name: 'stock outliers (screener)', check: (j) => {
+    if (!j.ok || !j.categories) throw new Error('no outlier categories')
+    if (!(j.evaluated > 0) || !(j.sectorsEvaluated > 0)) throw new Error(`nothing evaluated (${j.evaluated})`)
+    const cats = ['cheap', 'expensive', 'highYield', 'highBeta', 'lowBeta']
+    for (const c of cats) if (!Array.isArray(j.categories[c])) throw new Error(`missing category ${c}`)
+    const flagged = cats.reduce((n, c) => n + j.categories[c].length, 0)
+    // every flagged item must carry a sector-relative z-score
+    for (const c of cats) for (const it of j.categories[c]) if (typeof it.z !== 'number') throw new Error(`item missing z in ${c}`)
+    return `${j.evaluated} evaluated across ${j.sectorsEvaluated} sectors, ${flagged} outliers flagged`
+  }},
+  { path: '/live-data/security-quotes?symbols=AAPL,MSFT,BRK-B', name: 'security quotes (provider ladder)', check: (j) => {
+    if (!j.ok || !j.quotes) throw new Error('no quotes payload')
+    const live = Object.values(j.quotes).filter((q) => !q.reference)
+    if (j.source === 'reference' || live.length === 0) throw new Error(`no live source served (source=${j.source})`)
+    const aapl = j.quotes.AAPL
+    if (!aapl || aapl.price < 10 || aapl.price > 5000) throw new Error(`AAPL price implausible: ${aapl?.price}`)
+    return `${live.length}/3 live via ${j.source}, AAPL=$${aapl.price.toFixed(2)}`
+  }},
+  { path: '/live-data/market-news?limit=10', name: 'market news (provider feeds)', check: (j) => {
+    if (!j.ok || !Array.isArray(j.articles) || j.articles.length === 0) throw new Error('no articles')
+    const sources = [...new Set(j.articles.map((a) => a.source))]
+    return `${j.articles.length} articles from ${sources.join(', ')}`
+  }},
+  { path: '/live-data/stock-social?limit=20', name: 'stock social (provider feeds)', check: (j) => {
+    if (!j.ok || !Array.isArray(j.signals) || j.signals.length === 0) throw new Error('no signals')
+    return `${j.signals.length} signals via ${(j.providers ?? []).map((p) => p.id).join(', ')}`
+  }},
+  { path: '/live-data/security-ohlcv?symbol=AAPL&range=6M', name: 'security ohlcv (provider ladder)', check: (j) => {
+    if (!j.ok || !Array.isArray(j.candles) || j.candles.length < 80) throw new Error(`sparse candles: ${j.candles?.length} (source=${j.source})`)
+    const c = j.candles.at(-1)
+    if (!(c.high >= c.low && c.high >= c.open && c.high >= c.close)) throw new Error('OHLC invariant broken')
+    return `${j.candles.length} candles via ${j.source}`
+  }},
   { path: '/live-data/config', name: 'config (providers)', check: (j) => {
     if (!Array.isArray(j.providers)) throw new Error('no providers array')
     const leaked = j.providers.find((p) => p.config && p.config.apiKey)
@@ -188,9 +256,23 @@ const tests = [
 
   // ── agent prompts ─────────────────────────────────────────────────────────
   { path: '/api/agents/prompts', name: 'agent prompts list', check: (j, s, h) => {
-    if (!Array.isArray(j.agents) || j.agents.length !== 3) throw new Error(`expected 3 agents, got ${j.agents?.length}`)
+    // Keep in sync with AGENT_DEFAULTS in src/lib/agents/prompts.ts
+    const expected = ['app-assistant', 'research-analyst', 'data-scraper', 'pump-report-investigator', 'pump-report-chat',
+      'equity-research', 'equity-data-scraper', 'equity-diligence', 'equity-screener']
+    if (!Array.isArray(j.agents)) throw new Error('no agents array')
+    const ids = j.agents.map((a) => a.id)
+    const missing = expected.filter((id) => !ids.includes(id))
+    if (missing.length > 0) throw new Error(`missing agents: ${missing.join(', ')}`)
     if (h.get('access-control-allow-origin') !== '*') throw new Error('missing CORS header')
-    return `${j.agents.length} agents, CORS ok`
+    return `${j.agents.length} agents (incl. 4 equity), CORS ok`
+  }},
+  { path: '/live-data/config', name: 'ai providers (llm)', check: (j) => {
+    const llm = (j.providers ?? []).filter((p) => p.category === 'llm')
+    if (llm.length < 5) throw new Error(`only ${llm.length} llm providers`)
+    if (llm.some((p) => p.config?.apiKey)) throw new Error('llm api key leaked to client')
+    const ids = llm.map((p) => p.id)
+    if (!ids.includes('anthropic') || !ids.includes('openai')) throw new Error('missing core llm providers')
+    return `${llm.length} llm providers, no keys leaked`
   }},
 ]
 

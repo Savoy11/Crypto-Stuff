@@ -55,8 +55,10 @@ function CalendarContent() {
           <p className="mt-2 text-sm font-medium text-slate-200">Calendar needs a (free) FMP API key</p>
           <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
             Earnings and economic calendars come from Financial Modeling Prep. Grab a free key at
-            financialmodelingprep.com and set <code className="font-mono text-slate-300">FMP_API_KEY</code> in{' '}
-            <code className="font-mono text-slate-300">frontend/.env.local</code> — it also upgrades stock quotes suite-wide.
+            financialmodelingprep.com, then add it in{' '}
+            <a href="/settings" className="text-accent-blue hover:underline">Settings → Integrations → Equity Market Data</a>{' '}
+            (Financial Modeling Prep) — or set <code className="font-mono text-slate-300">FMP_API_KEY</code> in{' '}
+            <code className="font-mono text-slate-300">frontend/.env.local</code>. The same key upgrades stock quotes suite-wide.
           </p>
         </div>
       ) : (

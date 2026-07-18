@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type Anthropic from '@anthropic-ai/sdk'
-import { runAgent, MissingApiKeyError } from '@/lib/agents/runner'
+import { runAgent, MissingApiKeyError, AgentDisabledError } from '@/lib/agents/runner'
+import { guardSensitiveRoute } from '@/lib/server/apiGuard'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
+
+// Research/scan agents the user may target. Whitelisted so the client can't
+// invoke an arbitrary agent id.
+const RESEARCH_AGENTS = new Set(['research-analyst', 'equity-research', 'equity-screener'])
 
 // POST /api/agents/research
 //   { task: string }
@@ -12,7 +17,10 @@ export const maxDuration = 120
 // research task, the agent gathers data through its tools and returns a
 // structured report. Longer token + iteration budget than the chat assistant.
 export async function POST(req: NextRequest) {
-  let body: { task?: string }
+  const denied = guardSensitiveRoute(req, 'agents-research', 6)
+  if (denied) return denied
+
+  let body: { task?: string; agentId?: string }
   try {
     body = await req.json()
   } catch {
@@ -22,23 +30,23 @@ export async function POST(req: NextRequest) {
   const task = body.task?.trim()
   if (!task) return NextResponse.json({ error: 'task required' }, { status: 400 })
 
+  const agentId = body.agentId && RESEARCH_AGENTS.has(body.agentId) ? body.agentId : 'research-analyst'
+
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: task }]
 
   try {
     const result = await runAgent({
-      agentId: 'research-analyst',
+      agentId,
       messages,
       origin: new URL(req.url).origin,
       maxTokens: 4096,
       maxIterations: 12,
+      webSearchMaxUses: 8, // research does multi-angle web lookups
     })
-    return NextResponse.json({ ok: true, report: result.text, toolsUsed: result.toolsUsed })
+    return NextResponse.json({ ok: true, report: result.text, toolsUsed: result.toolsUsed, agentId })
   } catch (e) {
-    if (e instanceof MissingApiKeyError) {
-      return NextResponse.json(
-        { error: 'The research agent is not configured. Add ANTHROPIC_API_KEY to .env.local and restart the dev server.' },
-        { status: 503 }
-      )
+    if (e instanceof MissingApiKeyError || e instanceof AgentDisabledError) {
+      return NextResponse.json({ error: e.message }, { status: 503 })
     }
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Agent error' }, { status: 500 })
   }
