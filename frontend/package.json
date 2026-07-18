@@ -13,7 +13,8 @@
     "smoke": "node scripts/smoke.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "restart": "npx kill-port 3000 & rmdir /s /q .next & npm run dev"
+    "restart": "npx kill-port 3000 & rmdir /s /q .next & npm run dev",
+    "update": "git pull && npm install --no-audit --no-fund && npm run restart"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
