@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowLeft, Calculator, TrendingDown, TrendingUp } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
+import { FundHoldingsHistory } from './FundHoldingsHistory'
 import { FundHoldingsSection } from './FundHoldingsSection'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
@@ -201,8 +202,9 @@ export default function FundDetailPage() {
           </div>
         </div>
 
-        {/* Full breakdown of underlying investments */}
+        {/* Full breakdown of underlying investments + quarter-over-quarter changes */}
         <FundHoldingsSection symbol={symbol} />
+        <FundHoldingsHistory symbol={symbol} />
 
         {/* News — mutual funds rarely have ticker news, show general market feed */}
         <MarketNewsList symbol={entry.type === 'etf' ? symbol : undefined} limit={8} />
