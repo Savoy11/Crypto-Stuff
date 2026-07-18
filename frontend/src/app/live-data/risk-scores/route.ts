@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
+import { ASSET_LIST } from '@/lib/data/assetList'
 import { recordProviderFetch } from '@/lib/api/live/providers'
 import {
   ATTESTATION_META, COMPOSITION_MAP, META_AS_OF, MONITORED_STABLECOINS, STRUCTURE_META,
@@ -56,11 +57,12 @@ export interface RiskScoresResponse {
 
 const STABLE_IDS = MONITORED_STABLECOINS.map((s) => s.toLowerCase())
 
-// Non-pegged majors to score — must exist in COINGECKO_IDS to get quote data.
-const MAJOR_IDS = [
-  'btc', 'eth', 'sol', 'bnb', 'xrp', 'ada', 'avax', 'dot', 'trx', 'pol',
-  'ltc', 'link', 'uni', 'atom', 'near', 'doge',
-].filter((id) => COINGECKO_IDS[id])
+// Every tracked non-pegged asset with a verified CoinGecko id gets the
+// major-asset profile — one batched markets call covers them all, so asset
+// detail pages across the platform share this scoring surface.
+const MAJOR_IDS = ASSET_LIST
+  .filter((a) => a.category !== 'stablecoin' && COINGECKO_IDS[a.id])
+  .map((a) => a.id)
 
 // Peg mechanism fallback when DefiLlama is unreachable (its pegMechanism field
 // is the live source; this mirrors current public issuer designs).
