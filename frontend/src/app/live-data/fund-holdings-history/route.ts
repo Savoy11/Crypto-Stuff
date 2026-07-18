@@ -317,12 +317,25 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'Pass ?symbol=SPY' }, { status: 400 })
   }
   const base = { symbol, updatedAt: new Date().toISOString() }
+  // Optional explicit source (?source=sec|fmp); default tries SEC then FMP.
+  const forcedParam = request.nextUrl.searchParams.get('source')
+  const forced = forcedParam === 'sec' || forcedParam === 'fmp' ? forcedParam : null
 
-  // SEC EDGAR direct — keyless and authoritative. Falls through on any failure.
-  try {
-    const secResponse = await secHistory(symbol, request, base)
-    if (secResponse) return secResponse
-  } catch { /* fall through to FMP */ }
+  // SEC EDGAR direct — keyless and authoritative. Falls through on any failure
+  // unless the user explicitly picked a source.
+  if (forced !== 'fmp') {
+    try {
+      const secResponse = await secHistory(symbol, request, base)
+      if (secResponse) return secResponse
+    } catch { /* fall through */ }
+    if (forced === 'sec') {
+      return NextResponse.json({
+        ok: true, configured: true, ...base,
+        periods: [], current: null, previous: null, summary: null, changes: [],
+        error: `SEC EDGAR could not provide a disclosure history for ${symbol}. Switch back to Auto to allow fallbacks.`,
+      } satisfies FundHoldingsHistoryResponse)
+    }
+  }
 
   if (!FMP_KEY) {
     return NextResponse.json({

@@ -26,17 +26,27 @@ function weightLabel(pct: number | null): string {
   return pct >= 0.01 ? `${pct.toFixed(2)}%` : '<0.01%'
 }
 
+type HistorySourceChoice = 'auto' | 'sec' | 'fmp'
+
+const HISTORY_SOURCES: Array<[HistorySourceChoice, string, string]> = [
+  ['auto', 'Auto', 'SEC EDGAR directly, falling back to FMP'],
+  ['sec', 'SEC', 'N-PORT filings straight from EDGAR (keyless)'],
+  ['fmp', 'FMP', 'The same disclosures via FMP (requires API key)'],
+]
+
 export function FundHoldingsHistory({ symbol }: { symbol: string }) {
   const [currentPeriod, setCurrentPeriod] = useState<string | null>(null)
   const [previousPeriod, setPreviousPeriod] = useState<string | null>(null)
   const [expanded, setExpanded] = useState(false)
+  const [sourceChoice, setSourceChoice] = useState<HistorySourceChoice>('auto')
 
   const { data, isLoading, isFetching } = useQuery<FundHoldingsHistoryResponse>({
-    queryKey: ['fund-holdings-history', symbol, currentPeriod, previousPeriod],
+    queryKey: ['fund-holdings-history', symbol, currentPeriod, previousPeriod, sourceChoice],
     queryFn: () => {
       const p = new URLSearchParams({ symbol })
       if (currentPeriod) p.set('current', currentPeriod)
       if (previousPeriod) p.set('previous', previousPeriod)
+      if (sourceChoice !== 'auto') p.set('source', sourceChoice)
       return fetch(`/live-data/fund-holdings-history?${p.toString()}`).then((r) => r.json())
     },
     staleTime: STALE_TIME_LONG,
@@ -53,12 +63,29 @@ export function FundHoldingsHistory({ symbol }: { symbol: string }) {
 
   if (!data) return null
 
+  const sourcePills = (
+    <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5" role="group" aria-label="History data source">
+      {HISTORY_SOURCES.map(([value, label, hint]) => (
+        <button
+          key={value}
+          onClick={() => setSourceChoice(value)}
+          title={hint}
+          className={clsx('px-2 py-0.5 rounded text-[11px] font-medium transition-colors',
+            sourceChoice === value ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
   if (!data.configured) {
     return (
       <div className="rounded-card border border-border bg-bg-card p-4">
-        <div className="flex items-center gap-2 mb-2">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
           <History size={14} className="text-text-muted" aria-hidden />
           <h2 className="text-sm font-medium text-text-secondary">Holdings Change History</h2>
+          {sourcePills}
         </div>
         <div className="flex items-start gap-3 rounded border border-amber-500/20 bg-amber-500/5 px-4 py-3">
           <KeyRound size={14} className="mt-0.5 text-amber-400/70 flex-shrink-0" aria-hidden />
@@ -86,6 +113,7 @@ export function FundHoldingsHistory({ symbol }: { symbol: string }) {
           <span className="px-1.5 py-0.5 rounded text-[10px] font-medium border border-border bg-bg-elevated text-text-muted">
             SEC N-PORT disclosures
           </span>
+          {sourcePills}
         </div>
 
         {data.periods.length >= 2 && (

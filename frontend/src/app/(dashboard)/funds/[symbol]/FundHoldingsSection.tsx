@@ -38,13 +38,27 @@ function sourceLabel(data: FundHoldingsResponse): string {
   return 'Indicative holdings — live sources unreachable'
 }
 
+type HoldingsSourceChoice = 'auto' | 'sec' | 'fmp' | 'yahoo'
+
+const SOURCE_OPTIONS: Array<[HoldingsSourceChoice, string, string]> = [
+  ['auto', 'Auto', 'Best available: SEC N-PORT, then FMP, then Yahoo'],
+  ['sec', 'SEC', 'The fund’s own N-PORT filing — complete, authoritative, quarterly'],
+  ['fmp', 'FMP', 'Aggregator holdings (requires FMP API key; ETFs only)'],
+  ['yahoo', 'Yahoo', 'Top-10 holdings + sector weights, keyless'],
+]
+
 export function FundHoldingsSection({ symbol }: { symbol: string }) {
   const [expanded, setExpanded] = useState(false)
   const [filter, setFilter] = useState('')
+  const [sourceChoice, setSourceChoice] = useState<HoldingsSourceChoice>('auto')
 
-  const { data, isLoading } = useQuery<FundHoldingsResponse>({
-    queryKey: ['fund-holdings', symbol],
-    queryFn: () => fetch(`/live-data/fund-holdings?symbol=${encodeURIComponent(symbol)}`).then((r) => r.json()),
+  const { data, isLoading, isFetching } = useQuery<FundHoldingsResponse>({
+    queryKey: ['fund-holdings', symbol, sourceChoice],
+    queryFn: () => {
+      const p = new URLSearchParams({ symbol })
+      if (sourceChoice !== 'auto') p.set('source', sourceChoice)
+      return fetch(`/live-data/fund-holdings?${p.toString()}`).then((r) => r.json())
+    },
     staleTime: STALE_TIME_LONG,
   })
 
@@ -73,20 +87,38 @@ export function FundHoldingsSection({ symbol }: { symbol: string }) {
     )
   }
 
+  const sourcePills = (
+    <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5" role="group" aria-label="Holdings data source">
+      {SOURCE_OPTIONS.map(([value, label, hint]) => (
+        <button
+          key={value}
+          onClick={() => setSourceChoice(value)}
+          title={hint}
+          className={clsx('px-2 py-0.5 rounded text-[11px] font-medium transition-colors',
+            sourceChoice === value ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+
   if (!data || (holdings.length === 0 && data.sectorWeights.length === 0 && data.assetAllocation.length === 0)) {
     return (
       <div className="rounded-card border border-border bg-bg-card p-4">
-        <h2 className="text-sm font-medium text-text-secondary mb-2">Underlying Investments</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <h2 className="text-sm font-medium text-text-secondary">Underlying Investments</h2>
+          {sourcePills}
+        </div>
         <p className="text-xs text-text-muted">
-          No holdings disclosure available for this fund — bond, commodity, and some active funds
-          don&rsquo;t publish a per-security breakdown through our data sources.
+          {data?.error ?? 'No holdings disclosure available for this fund — bond, commodity, and some active funds don’t publish a per-security breakdown through our data sources.'}
         </p>
       </div>
     )
   }
 
   return (
-    <div className="rounded-card border border-border bg-bg-card p-4">
+    <div className={clsx('rounded-card border border-border bg-bg-card p-4', isFetching && 'opacity-70 transition-opacity')}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
           <Layers size={14} className="text-text-muted" aria-hidden />
@@ -101,6 +133,7 @@ export function FundHoldingsSection({ symbol }: { symbol: string }) {
           >
             {sourceLabel(data)}
           </span>
+          {sourcePills}
         </div>
         {holdings.length > 8 && (
           <div className="flex items-center rounded border border-border bg-bg-elevated px-2">
@@ -114,6 +147,10 @@ export function FundHoldingsSection({ symbol }: { symbol: string }) {
           </div>
         )}
       </div>
+
+      {data.error && (
+        <p className="mb-3 rounded border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400/90">{data.error}</p>
+      )}
 
       {/* KPI strip */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
