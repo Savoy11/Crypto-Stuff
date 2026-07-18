@@ -74,7 +74,10 @@ frontend/src/
 │       ├── company-facts/route.ts   # SEC EDGAR XBRL fundamentals → financial ratios + annual trend on equity detail
 │       ├── company-profile/route.ts # SEC EDGAR registrant metadata (SIC, HQ, incorporation) + Wikipedia summary
 │       ├── stock-universe/route.ts  # Stock Registry universe — FMP stock-screener (daily-cached) w/ curated fallback; ?symbol= single lookup
-│       └── stock-outliers/route.ts  # Sector-relative z-score outliers over the universe (cheap/expensive/highYield/high-lowBeta) — backs the Equity Screener agent
+│       ├── stock-outliers/route.ts  # Sector-relative z-score outliers over the universe (cheap/expensive/highYield/high-lowBeta) — backs the Equity Screener agent
+│       ├── fund-holdings/route.ts   # Full ETF/fund portfolio: SEC N-PORT direct (keyless, authoritative) → FMP → Yahoo top-10 → catalog
+│       ├── fund-holdings-history/route.ts # Quarter-over-quarter holdings diff from N-PORT filings (EDGAR direct; FMP fallback)
+│       └── security-returns/route.ts # Batched trailing 1M/3M/YTD/1Y returns (Yahoo spark) — backs the fund screener Returns tab/filters
 │
 ├── components/
 │   ├── layout/
