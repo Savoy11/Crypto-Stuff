@@ -15,8 +15,9 @@ import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import { computeFeeDrag, FUND_CATEGORY_INFO, getFund } from '@/lib/data/fundCatalog'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
-import { STALE_TIME_SHORT } from '@/lib/constants'
+import { STALE_TIME_LONG, STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
+import type { FundUniverseResponse } from '@/app/live-data/fund-universe/route'
 
 // ─── Fee drag analyzer ────────────────────────────────────────────────────────
 // Projects what this fund's expense ratio costs versus a 0.03% benchmark fund
@@ -101,20 +102,43 @@ export default function FundDetailPage() {
   const symbol = (params.symbol ?? '').toUpperCase()
   const entry = getFund(symbol)
 
+  // Non-catalog tickers (the discovered universe) resolve name/type via the
+  // fund-universe directory lookup — their detail data comes live by symbol.
+  const { data: uniData, isLoading: uniLoading } = useQuery<FundUniverseResponse>({
+    queryKey: ['fund-universe-lookup', symbol],
+    queryFn: () => fetch(`/live-data/fund-universe?symbol=${encodeURIComponent(symbol)}`).then((r) => r.json()),
+    staleTime: STALE_TIME_LONG,
+    enabled: !entry && symbol.length > 0,
+  })
+  const uniEntry = !entry ? uniData?.entries?.find((e) => e.symbol === symbol) ?? null : null
+
   const { data } = useQuery<SecurityQuotesResponse>({
     queryKey: ['security-quotes', symbol],
     queryFn: () => fetch(`/live-data/security-quotes?symbols=${encodeURIComponent(symbol)}`).then((r) => r.json()),
     staleTime: STALE_TIME_SHORT,
     refetchInterval: 60_000,
-    enabled: !!entry,
+    enabled: !!entry || !!uniEntry,
   })
 
-  if (!entry) {
+  if (!entry && uniLoading) {
+    return (
+      <ModuleGate module="funds">
+        <div className="space-y-4 max-w-screen-xl mx-auto">
+          <div className="h-16 animate-pulse rounded-card bg-bg-elevated/60" />
+          <div className="h-80 animate-pulse rounded-card bg-bg-elevated/60" />
+        </div>
+      </ModuleGate>
+    )
+  }
+
+  if (!entry && !uniEntry) {
     return (
       <ModuleGate module="funds">
         <div className="max-w-md mx-auto mt-24 rounded-card border border-border bg-bg-card p-8 text-center">
           <p className="text-sm font-medium text-text-primary">Unknown fund “{symbol}”</p>
-          <p className="mt-1 text-xs text-text-muted">This ticker isn’t in the fund catalog yet.</p>
+          <p className="mt-1 text-xs text-text-muted">
+            This ticker isn’t in the curated catalog or the live ETF / mutual fund directories.
+          </p>
           <Link href="/funds" className="inline-block mt-4 text-xs text-accent-blue hover:underline">
             ← Back to Fund Registry
           </Link>
@@ -123,13 +147,15 @@ export default function FundDetailPage() {
     )
   }
 
+  const name = entry?.name ?? uniEntry?.name ?? symbol
+  const type = entry?.type ?? uniEntry?.type ?? 'etf'
   const quote = data?.quotes?.[symbol]
   const live = !!quote && data?.source !== 'reference' && !quote.reference
-  const price = quote?.price ?? entry.referencePrice
+  const price = quote?.price ?? entry?.referencePrice ?? null
   const change = live ? quote?.changePercent ?? null : null
-  const category = FUND_CATEGORY_INFO[entry.category]
+  const category = entry ? FUND_CATEGORY_INFO[entry.category] : null
 
-  const facts: Array<{ label: string; value: string; explain: string }> = [
+  const facts: Array<{ label: string; value: string; explain: string }> = entry ? [
     { label: 'Issuer', value: entry.issuer,
       explain: 'The fund company managing the assets. Scale matters: large issuers tend to mean tighter trading spreads, lower fees, and less risk the fund gets closed.' },
     { label: 'Type', value: entry.type === 'etf' ? 'Exchange-Traded Fund' : 'Mutual Fund',
@@ -148,7 +174,7 @@ export default function FundDetailPage() {
       explain: 'Launch year. A longer track record shows how the fund behaved across full market cycles, not just the recent regime.' },
     { label: 'Index', value: entry.indexTracked ?? 'Actively managed',
       explain: 'The benchmark the fund replicates — cheap and predictable — versus active management, where returns depend on manager skill and fees are typically higher.' },
-  ]
+  ] : []
 
   return (
     <ModuleGate module="funds">
@@ -160,32 +186,41 @@ export default function FundDetailPage() {
           </Link>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-semibold text-text-primary">{entry.name}</h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-2xl font-semibold text-text-primary">{name}</h1>
                 <span className="font-mono text-sm text-text-muted">{symbol}</span>
                 <span className={clsx('px-1.5 py-0.5 rounded text-[10px] font-bold border',
-                  entry.type === 'etf'
+                  type === 'etf'
                     ? 'text-accent-blue bg-accent-blue/10 border-accent-blue/20'
                     : 'text-violet-400 bg-violet-400/10 border-violet-500/20')}>
-                  {entry.type === 'etf' ? 'ETF' : 'MUTUAL FUND'}
+                  {type === 'etf' ? 'ETF' : 'MUTUAL FUND'}
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary">
-                  <span className="size-1.5 rounded-full" style={{ backgroundColor: category.color }} aria-hidden />
-                  {category.label}
-                </span>
+                {category && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary">
+                    <span className="size-1.5 rounded-full" style={{ backgroundColor: category.color }} aria-hidden />
+                    {category.label}
+                  </span>
+                )}
               </div>
-              <p className="mt-1 text-xs text-text-muted">
-                {entry.description}
-                {' · '}
-                <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-accent-blue/80 hover:text-accent-blue inline-flex items-center gap-0.5">
-                  {entry.website.replace(/^https?:\/\/(www\.)?/, '').split(/[/?]/)[0]} <ExternalLink size={10} aria-hidden />
-                </a>
-              </p>
+              {entry ? (
+                <p className="mt-1 text-xs text-text-muted">
+                  {entry.description}
+                  {' · '}
+                  <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-accent-blue/80 hover:text-accent-blue inline-flex items-center gap-0.5">
+                    {entry.website.replace(/^https?:\/\/(www\.)?/, '').split(/[/?]/)[0]} <ExternalLink size={10} aria-hidden />
+                  </a>
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-text-muted">
+                  Discovered via the {type === 'etf' ? 'NASDAQ symbol directory' : 'SEC fund registry'} —
+                  quotes, chart, and holdings load live by ticker.
+                </p>
+              )}
             </div>
             <div className="text-right">
               <p className="font-mono text-3xl font-bold text-text-primary tabular-nums">
-                {formatCurrency(price)}
-                {!live && <span className="ml-2 text-xs text-amber-400/80 align-middle font-sans" title="Reference price — live source unreachable">ref</span>}
+                {price != null ? formatCurrency(price) : '—'}
+                {!live && price != null && <span className="ml-2 text-xs text-amber-400/80 align-middle font-sans" title="Reference price — live source unreachable">ref</span>}
               </p>
               {change != null && (
                 <p className={clsx('mt-0.5 flex items-center justify-end gap-1 font-mono text-sm tabular-nums',
@@ -206,20 +241,34 @@ export default function FundDetailPage() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-card border border-border bg-bg-card p-4">
-              <h2 className="text-sm font-medium text-text-secondary mb-3">Fund Facts</h2>
-              <dl className="space-y-2.5">
-                {facts.map(({ label, value, explain }) => (
-                  <div key={label} className="flex items-center justify-between gap-3 text-sm">
-                    <dt className="text-text-muted flex-shrink-0">
-                      <ExplainedLabel label={label} explain={explain} />
-                    </dt>
-                    <dd className="font-mono tabular-nums text-text-primary text-right text-xs">{value}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-            <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
+            {entry ? (
+              <>
+                <div className="rounded-card border border-border bg-bg-card p-4">
+                  <h2 className="text-sm font-medium text-text-secondary mb-3">Fund Facts</h2>
+                  <dl className="space-y-2.5">
+                    {facts.map(({ label, value, explain }) => (
+                      <div key={label} className="flex items-center justify-between gap-3 text-sm">
+                        <dt className="text-text-muted flex-shrink-0">
+                          <ExplainedLabel label={label} explain={explain} />
+                        </dt>
+                        <dd className="font-mono tabular-nums text-text-primary text-right text-xs">{value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                </div>
+                <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
+              </>
+            ) : (
+              <div className="rounded-card border border-border bg-bg-card p-4">
+                <h2 className="text-sm font-medium text-text-secondary mb-2">Fund Facts</h2>
+                <p className="text-xs text-text-muted leading-relaxed">
+                  This fund isn&rsquo;t in the curated catalog, so reference facts (expense ratio,
+                  AUM, yield, tracked index) aren&rsquo;t available yet. The quote, chart, holdings
+                  breakdown, and change history below are fetched live by ticker — holdings come
+                  straight from the fund&rsquo;s SEC N-PORT disclosures.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -228,10 +277,10 @@ export default function FundDetailPage() {
         <FundHoldingsHistory symbol={symbol} />
 
         {/* News — mutual funds rarely have ticker news, show general market feed */}
-        <MarketNewsList symbol={entry.type === 'etf' ? symbol : undefined} limit={8} />
+        <MarketNewsList symbol={type === 'etf' ? symbol : undefined} limit={8} />
 
         <p className="text-[11px] text-text-muted text-center">
-          Fund facts are reference snapshots from issuer disclosures ·
+          {entry ? 'Fund facts are reference snapshots from issuer disclosures · ' : 'Fund name from live listing directories · '}
           Quotes: {data?.source === 'reference' || !data ? 'reference prices' : `live via ${data.source}`}
         </p>
       </div>

@@ -1,0 +1,233 @@
+import { NextResponse } from 'next/server'
+import { FUND_CATALOG, type FundCategoryId, type FundType } from '@/lib/data/fundCatalog'
+import type { SectorId } from '@/lib/data/equityCatalog'
+
+// Full ETF universe for the Fund Registry — every US-listed ETF, not just the
+// curated catalog. Mirrors /live-data/stock-universe.
+//   GET /live-data/fund-universe
+//   GET /live-data/fund-universe?symbol=QQQM   — single-fund lookup (detail pages)
+//
+// Sources (both keyless):
+//   ETFs — NASDAQ Trader's official symbol directory (refreshed daily): every
+//   US-listed security with an ETF flag and security name.
+//   Mutual funds — the SEC's Investment Company Series & Class dataset: every
+//   registered fund share class with entity/series/class names and tickers.
+// Curated catalog entries are merged in with their rich reference facts;
+// non-catalog funds carry symbol/name only — quotes come live per page, and
+// their detail pages resolve holdings via SEC N-PORT.
+
+export const dynamic = 'force-dynamic'
+
+export interface FundUniverseEntry {
+  symbol: string
+  name: string
+  type: FundType
+  /** True when the fund has curated reference facts in fundCatalog.ts. */
+  inCatalog: boolean
+  category: FundCategoryId | null
+  issuer: string | null
+  expenseRatioPct: number | null
+  aumB: number | null
+  referencePrice: number | null
+  yieldPct: number | null
+  inceptionYear: number | null
+  indexTracked: string | null
+  focusSector: SectorId | null
+  focusIndustry: string | null
+}
+
+export interface FundUniverseResponse {
+  ok: boolean
+  updatedAt: string
+  source: 'live' | 'catalog'
+  /** Non-catalog funds discovered from the live directories. */
+  discovered: number
+  discoveredEtfs: number
+  discoveredMutual: number
+  entries: FundUniverseEntry[]
+}
+
+const DIRECTORY_URL = 'https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt'
+
+function catalogEntry(f: (typeof FUND_CATALOG)[number]): FundUniverseEntry {
+  return {
+    symbol: f.symbol, name: f.name, type: f.type, inCatalog: true,
+    category: f.category, issuer: f.issuer, expenseRatioPct: f.expenseRatioPct,
+    aumB: f.aumB, referencePrice: f.referencePrice, yieldPct: f.yieldPct,
+    inceptionYear: f.inceptionYear, indexTracked: f.indexTracked,
+    focusSector: f.focusSector ?? null, focusIndustry: f.focusIndustry ?? null,
+  }
+}
+
+/** Strip listing-suffix noise NASDAQ appends to fund names. */
+function cleanName(raw: string): string {
+  return raw
+    .replace(/\s*(- )?(Exchange[- ]Traded Fund|ETF Shares?|Common Shares?|Shares of Beneficial Interest)\s*$/i, '')
+    .trim()
+}
+
+async function fetchNasdaqEtfs(): Promise<Array<{ symbol: string; name: string }>> {
+  const res = await fetch(DIRECTORY_URL, {
+    headers: { Accept: 'text/plain', 'User-Agent': 'CAEP research dashboard (marcusowens94@gmail.com)' },
+    next: { revalidate: 86_400 },
+  })
+  if (!res.ok) throw new Error(`NASDAQ directory: HTTP ${res.status}`)
+  const text = await res.text()
+  const lines = text.split('\n')
+  const header = lines[0]?.split('|') ?? []
+  const iSymbol = header.indexOf('Symbol')
+  const iName = header.indexOf('Security Name')
+  const iEtf = header.indexOf('ETF')
+  const iTest = header.indexOf('Test Issue')
+  if (iSymbol < 0 || iName < 0 || iEtf < 0) throw new Error('NASDAQ directory: unexpected header')
+
+  const out: Array<{ symbol: string; name: string }> = []
+  for (const line of lines.slice(1)) {
+    if (line.startsWith('File Creation Time')) break
+    const cols = line.split('|')
+    if (cols[iEtf] !== 'Y') continue
+    if (iTest >= 0 && cols[iTest] === 'Y') continue
+    const symbol = cols[iSymbol]?.trim().toUpperCase()
+    // Plain tickers only — skip units/warrants/preferred notation ($, =, +, etc.)
+    if (!symbol || !/^[A-Z]{1,6}(\.[A-Z])?$/.test(symbol)) continue
+    const name = cleanName(cols[iName] ?? '')
+    if (!name) continue
+    out.push({ symbol, name })
+  }
+  return out
+}
+
+// ─── SEC series/class dataset (mutual funds) ─────────────────────────────────
+
+/** Minimal CSV row parser that honors double-quoted fields with commas. */
+function parseCsvLine(line: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++ } else inQuotes = false
+      } else cur += ch
+    } else if (ch === '"') inQuotes = true
+    else if (ch === ',') { out.push(cur); cur = '' }
+    else cur += ch
+  }
+  out.push(cur)
+  return out
+}
+
+async function fetchSecMutualFunds(): Promise<Array<{ symbol: string; name: string }>> {
+  // The dataset is published annually; try the current year back two years.
+  const year = new Date().getFullYear()
+  let text: string | null = null
+  for (const y of [year, year - 1, year - 2]) {
+    const url = `https://www.sec.gov/files/investment/data/other/investment-company-series-class-information/investment-company-series-class-${y}.csv`
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'text/csv', 'User-Agent': 'CAEP research dashboard (marcusowens94@gmail.com)' },
+        next: { revalidate: 86_400 },
+      })
+      if (res.ok) { text = await res.text(); break }
+    } catch { /* try previous year */ }
+  }
+  if (!text) throw new Error('SEC series/class dataset unreachable')
+
+  const lines = text.split('\n')
+  const header = parseCsvLine(lines[0] ?? '').map((h) => h.trim().toLowerCase())
+  const col = (needle: string) => header.findIndex((h) => h.includes(needle))
+  const iTicker = col('class ticker')
+  const iSeries = col('series name')
+  const iClass = col('class name')
+  const iEntity = col('entity name')
+  if (iTicker < 0 || iSeries < 0) throw new Error('SEC series/class dataset: unexpected header')
+
+  const out: Array<{ symbol: string; name: string }> = []
+  const seen = new Set<string>()
+  for (const line of lines.slice(1)) {
+    if (!line.trim()) continue
+    const cols = parseCsvLine(line)
+    const symbol = cols[iTicker]?.trim().toUpperCase()
+    if (!symbol || !/^[A-Z]{4,6}X$/.test(symbol) || seen.has(symbol)) continue // US mutual fund tickers end in X
+    const series = cols[iSeries]?.trim()
+    const cls = iClass >= 0 ? cols[iClass]?.trim() : ''
+    const entity = iEntity >= 0 ? cols[iEntity]?.trim() : ''
+    const name = series || entity
+    if (!name) continue
+    seen.add(symbol)
+    out.push({ symbol, name: cls && !/^(class\s)?[a-z0-9]{0,4}$/i.test(cls) ? `${name} — ${cls}` : name })
+  }
+  return out
+}
+
+function skeleton(e: { symbol: string; name: string }, type: FundType): FundUniverseEntry {
+  return {
+    symbol: e.symbol, name: e.name, type, inCatalog: false,
+    category: null, issuer: null, expenseRatioPct: null, aumB: null,
+    referencePrice: null, yieldPct: null, inceptionYear: null,
+    indexTracked: null, focusSector: null, focusIndustry: null,
+  }
+}
+
+export async function GET(request: Request) {
+  const base = { updatedAt: new Date().toISOString() }
+  const catalog = FUND_CATALOG.map(catalogEntry)
+  const known = new Set(catalog.map((c) => c.symbol))
+  const symbolParam = new URL(request.url).searchParams.get('symbol')?.trim().toUpperCase() || null
+
+  if (symbolParam) {
+    const single = (entry: FundUniverseEntry | null, source: 'live' | 'catalog'): NextResponse =>
+      NextResponse.json({
+        ok: true, ...base, source, discovered: entry && !entry.inCatalog ? 1 : 0,
+        discoveredEtfs: entry && !entry.inCatalog && entry.type === 'etf' ? 1 : 0,
+        discoveredMutual: entry && !entry.inCatalog && entry.type === 'mutual' ? 1 : 0,
+        entries: entry ? [entry] : [],
+      } satisfies FundUniverseResponse)
+
+    const cat = catalog.find((c) => c.symbol === symbolParam)
+    if (cat) return single(cat, 'catalog')
+
+    // Mutual fund tickers end in X — check the matching directory first, then the other.
+    const looksMutual = /^[A-Z]{4,6}X$/.test(symbolParam)
+    const lookups: Array<() => Promise<FundUniverseEntry | null>> = [
+      async () => {
+        const hit = (await fetchNasdaqEtfs()).find((e) => e.symbol === symbolParam)
+        return hit ? skeleton(hit, 'etf') : null
+      },
+      async () => {
+        const hit = (await fetchSecMutualFunds()).find((e) => e.symbol === symbolParam)
+        return hit ? skeleton(hit, 'mutual') : null
+      },
+    ]
+    if (looksMutual) lookups.reverse()
+    for (const lookup of lookups) {
+      try {
+        const hit = await lookup()
+        if (hit) return single(hit, 'live')
+      } catch { /* directory unreachable — try the other */ }
+    }
+    return single(null, 'live')
+  }
+
+  const [etfRes, mfRes] = await Promise.allSettled([fetchNasdaqEtfs(), fetchSecMutualFunds()])
+  const etfs = etfRes.status === 'fulfilled'
+    ? etfRes.value.filter((e) => !known.has(e.symbol)).map((e) => skeleton(e, 'etf'))
+    : []
+  const etfSymbols = new Set(etfs.map((e) => e.symbol))
+  const mutuals = mfRes.status === 'fulfilled'
+    ? mfRes.value.filter((e) => !known.has(e.symbol) && !etfSymbols.has(e.symbol)).map((e) => skeleton(e, 'mutual'))
+    : []
+
+  if (etfs.length === 0 && mutuals.length === 0) {
+    return NextResponse.json({
+      ok: true, ...base, source: 'catalog', discovered: 0, discoveredEtfs: 0, discoveredMutual: 0, entries: catalog,
+    } satisfies FundUniverseResponse)
+  }
+  return NextResponse.json({
+    ok: true, ...base, source: 'live',
+    discovered: etfs.length + mutuals.length,
+    discoveredEtfs: etfs.length, discoveredMutual: mutuals.length,
+    entries: [...catalog, ...etfs, ...mutuals],
+  } satisfies FundUniverseResponse)
+}
