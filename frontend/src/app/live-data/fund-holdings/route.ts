@@ -254,7 +254,8 @@ export async function GET(request: NextRequest) {
     } satisfies FundHoldingsResponse)
   }
 
-  if (yahoo.holdings.length > 0 || yahoo.sectorWeights.length > 0) {
+  // Bond/commodity funds often disclose only an asset mix — still worth showing.
+  if (yahoo.holdings.length > 0 || yahoo.sectorWeights.length > 0 || yahoo.assetAllocation.length > 0) {
     return NextResponse.json({
       ok: true, ...base, source: 'yahoo', full: false, asOf: null,
       holdings: yahoo.holdings,

@@ -70,7 +70,7 @@ export function FundHoldingsSection({ symbol }: { symbol: string }) {
     )
   }
 
-  if (!data || (holdings.length === 0 && data.sectorWeights.length === 0)) {
+  if (!data || (holdings.length === 0 && data.sectorWeights.length === 0 && data.assetAllocation.length === 0)) {
     return (
       <div className="rounded-card border border-border bg-bg-card p-4">
         <h2 className="text-sm font-medium text-text-secondary mb-2">Underlying Investments</h2>
