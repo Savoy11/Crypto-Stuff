@@ -3,16 +3,19 @@ import path from 'path'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ProviderCategory = 'price' | 'news' | 'social'
+export type ProviderCategory = 'price' | 'news' | 'social' | 'llm'
+/** Which side of the suite a provider feeds. Absent = 'crypto' (back-compat with stored configs). */
+export type ProviderMarket = 'crypto' | 'equities'
 export type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 export type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
-export type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'graphql' | 'websocket' | 'native'
+export type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
 
 export interface CustomProviderDef {
   /** Unique id — generated on creation, e.g. "custom-1718000000000" */
   id: string
   name: string
   category: ProviderCategory
+  market?: ProviderMarket
   description: string
   isCustom: true
   /** Base URL or full endpoint URL. May contain {asset} placeholder. */
@@ -34,6 +37,7 @@ export interface BuiltinProviderDef {
   id: string
   name: string
   category: ProviderCategory
+  market?: ProviderMarket
   description: string
   features: string[]
   requiresKey: boolean
@@ -176,6 +180,253 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     freeTierLabel: 'Free tier: 100 requests/day',
     keyUrl: 'https://gnews.io/pricing',
   },
+
+  // ── Equity quotes (market: 'equities') ──
+  // Providers are tried in priority order; the first that returns quotes wins.
+  // Keyed providers only enter the ladder once a key is saved (or env var set).
+  {
+    id: 'fmp',
+    name: 'Financial Modeling Prep',
+    category: 'price',
+    market: 'equities',
+    description: 'Richest equity source: batched quotes with market cap and true previous-close change, plus price history and the earnings/economic calendar.',
+    features: ['Batch quotes', 'Market cap', 'Change vs prev close', 'Price history', 'Earnings calendar'],
+    requiresKey: true,
+    freeTierLabel: 'Free tier: 250 requests/day',
+    keyUrl: 'https://site.financialmodelingprep.com/developer/docs/pricing',
+    priority: 1,
+  },
+  {
+    id: 'finnhub',
+    name: 'Finnhub',
+    category: 'price',
+    market: 'equities',
+    description: 'Real-time quotes fetched per symbol. Free tier allows 60 requests/minute — used for batches up to 60 symbols.',
+    features: ['Real-time quotes', 'Change vs prev close', 'Per-symbol precision'],
+    requiresKey: true,
+    freeTierLabel: 'Free tier: 60 requests/min',
+    keyUrl: 'https://finnhub.io/register',
+    priority: 2,
+  },
+  {
+    id: 'twelve-data',
+    name: 'Twelve Data',
+    category: 'price',
+    market: 'equities',
+    description: 'Quotes and time series. Free tier allows 8 requests/minute, so it serves small batches (detail pages, compare) and defers large ones.',
+    features: ['Quotes', 'Change vs prev close', 'Volume'],
+    requiresKey: true,
+    freeTierLabel: 'Free tier: 8 requests/min',
+    keyUrl: 'https://twelvedata.com/pricing',
+    priority: 3,
+  },
+  {
+    id: 'tiingo',
+    name: 'Tiingo',
+    category: 'price',
+    market: 'equities',
+    description: 'IEX-sourced batch quotes with previous close. Generous free tier for personal use.',
+    features: ['Batch quotes', 'IEX prices', 'Change vs prev close'],
+    requiresKey: true,
+    freeTierLabel: 'Free tier: 1,000 requests/day',
+    keyUrl: 'https://www.tiingo.com/about/pricing',
+    priority: 4,
+  },
+  {
+    id: 'alpha-vantage',
+    name: 'Alpha Vantage',
+    category: 'price',
+    market: 'equities',
+    description: 'Global quotes fetched per symbol. Free tier is only 25 requests/day, so it serves small batches only — best as a spot-check source.',
+    features: ['Global quotes', 'Change vs prev close'],
+    requiresKey: true,
+    freeTierLabel: 'Free tier: 25 requests/day',
+    keyUrl: 'https://www.alphavantage.co/support/#api-key',
+    priority: 5,
+  },
+  {
+    id: 'yahoo-finance',
+    name: 'Yahoo Finance',
+    category: 'price',
+    market: 'equities',
+    description: 'Batched spark quotes covering stocks, ETFs, and mutual funds. The keyless workhorse — on by default.',
+    features: ['Batch quotes', 'Stocks + ETFs + mutual funds', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://finance.yahoo.com',
+    priority: 6,
+  },
+  {
+    id: 'stooq',
+    name: 'Stooq',
+    category: 'price',
+    market: 'equities',
+    description: 'CSV quotes, keyless. Last-resort fallback — day change is measured vs today’s open rather than previous close.',
+    features: ['Batch CSV quotes', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless fallback',
+    keyUrl: 'https://stooq.com',
+    priority: 7,
+  },
+
+  // ── Equity news (market: 'equities') ── all active feeds run in parallel
+  {
+    id: 'yahoo-news',
+    name: 'Yahoo Finance News',
+    category: 'news',
+    market: 'equities',
+    description: 'Yahoo Finance headlines, including the only free per-ticker RSS feed — powers symbol-specific news on detail pages.',
+    features: ['Market headlines', 'Per-ticker feeds', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://finance.yahoo.com/news',
+    priority: 1,
+  },
+  {
+    id: 'marketwatch',
+    name: 'MarketWatch',
+    category: 'news',
+    market: 'equities',
+    description: 'Dow Jones-owned market coverage — top stories RSS feed.',
+    features: ['Top stories', 'Macro coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.marketwatch.com',
+    priority: 2,
+  },
+  {
+    id: 'cnbc',
+    name: 'CNBC',
+    category: 'news',
+    market: 'equities',
+    description: 'CNBC markets desk — breaking business news RSS feed.',
+    features: ['Breaking news', 'Markets desk', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.cnbc.com/markets/',
+    priority: 3,
+  },
+
+  // ── Equity social (market: 'equities') ── all active providers run in parallel
+  {
+    id: 'reddit-stocks',
+    name: 'Reddit Finance',
+    category: 'social',
+    market: 'equities',
+    description: 'Public posts from r/stocks, r/investing, r/StockMarket, and r/wallstreetbets with cashtag detection and keyword sentiment.',
+    features: ['Post sentiment', 'Cashtag detection', 'Four finance subreddits'],
+    requiresKey: false,
+    freeTierLabel: 'Public API — no key needed',
+    keyUrl: 'https://www.reddit.com/wiki/api',
+    priority: 1,
+  },
+  {
+    id: 'stocktwits',
+    name: 'StockTwits',
+    category: 'social',
+    market: 'equities',
+    description: 'Symbol streams with trader-declared Bullish/Bearish sentiment — the equity-native social feed.',
+    features: ['Declared sentiment', 'Per-symbol streams', 'Trending symbols'],
+    requiresKey: false,
+    freeTierLabel: 'Public API — no key needed',
+    keyUrl: 'https://stocktwits.com',
+    priority: 2,
+  },
+
+  // ── AI / LLM providers (category 'llm') ──
+  // Keys entered here (or via env var) power the AI Agents. Provider ids match
+  // the agent ProviderId union so the runner resolves keys with getProviderKey().
+  {
+    id: 'anthropic',
+    name: 'Anthropic (Claude)',
+    category: 'llm',
+    description: 'Claude models — the default for every CAEP agent (App Assistant, Research, Data Scraper, Pump Report, and the equity agents).',
+    features: ['Tool use', 'Long context', 'Strong reasoning'],
+    requiresKey: true,
+    keyUrl: 'https://console.anthropic.com/settings/keys',
+    freeTierLabel: 'Powers the default agents',
+  },
+  {
+    id: 'openai',
+    name: 'OpenAI (GPT)',
+    category: 'llm',
+    description: 'GPT-4o / o-series models. Select per agent in the AI Agents tab once a key is set.',
+    features: ['Tool use', 'Vision', 'Reasoning models'],
+    requiresKey: true,
+    keyUrl: 'https://platform.openai.com/api-keys',
+  },
+  {
+    id: 'google',
+    name: 'Google (Gemini)',
+    category: 'llm',
+    description: 'Gemini models via the OpenAI-compatible endpoint.',
+    features: ['Long context', 'Multimodal'],
+    requiresKey: true,
+    keyUrl: 'https://aistudio.google.com/app/apikey',
+  },
+  {
+    id: 'groq',
+    name: 'Groq',
+    category: 'llm',
+    description: 'Ultra-fast inference for open models (LLaMA, Mixtral).',
+    features: ['Very low latency', 'Open models'],
+    requiresKey: true,
+    keyUrl: 'https://console.groq.com/keys',
+  },
+  {
+    id: 'xai',
+    name: 'xAI (Grok)',
+    category: 'llm',
+    description: 'Grok models via the OpenAI-compatible endpoint.',
+    features: ['Tool use', 'Reasoning'],
+    requiresKey: true,
+    keyUrl: 'https://console.x.ai',
+  },
+  {
+    id: 'deepseek',
+    name: 'DeepSeek',
+    category: 'llm',
+    description: 'DeepSeek chat and reasoner models at low cost.',
+    features: ['Low cost', 'Reasoning model'],
+    requiresKey: true,
+    keyUrl: 'https://platform.deepseek.com/api_keys',
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    category: 'llm',
+    description: 'Sonar models with built-in web search.',
+    features: ['Built-in web search', 'Citations'],
+    requiresKey: true,
+    keyUrl: 'https://www.perplexity.ai/settings/api',
+  },
+  {
+    id: 'mistral',
+    name: 'Mistral',
+    category: 'llm',
+    description: 'Mistral Large / Small and Codestral models.',
+    features: ['Tool use', 'Code'],
+    requiresKey: true,
+    keyUrl: 'https://console.mistral.ai/api-keys',
+  },
+  {
+    id: 'together',
+    name: 'Together AI',
+    category: 'llm',
+    description: 'Hosted open models (LLaMA, Qwen, Mixtral) via the OpenAI-compatible endpoint.',
+    features: ['Open models', 'Large catalog'],
+    requiresKey: true,
+    keyUrl: 'https://api.together.xyz/settings/api-keys',
+  },
+  {
+    id: 'cohere',
+    name: 'Cohere',
+    category: 'llm',
+    description: 'Command models via the compatibility endpoint.',
+    features: ['Tool use', 'RAG-tuned'],
+    requiresKey: true,
+    keyUrl: 'https://dashboard.cohere.com/api-keys',
+  },
 ]
 
 // ─── Persistent config file ───────────────────────────────────────────────────
@@ -223,6 +474,22 @@ function envKey(providerId: string): string | undefined {
     gnews: 'GNEWS_API_KEY',
     lunarcrush: 'LUNARCRUSH_API_KEY',
     santiment: 'SANTIMENT_API_KEY',
+    fmp: 'FMP_API_KEY',
+    finnhub: 'FINNHUB_API_KEY',
+    'twelve-data': 'TWELVE_DATA_API_KEY',
+    tiingo: 'TIINGO_API_KEY',
+    'alpha-vantage': 'ALPHA_VANTAGE_API_KEY',
+    // LLM providers (agent keys)
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+    google: 'GOOGLE_API_KEY',
+    groq: 'GROQ_API_KEY',
+    xai: 'XAI_API_KEY',
+    deepseek: 'DEEPSEEK_API_KEY',
+    perplexity: 'PERPLEXITY_API_KEY',
+    mistral: 'MISTRAL_API_KEY',
+    together: 'TOGETHER_API_KEY',
+    cohere: 'COHERE_API_KEY',
   }
   const k = map[providerId]
   if (!k) return undefined
@@ -241,7 +508,9 @@ export function getAllProviders(): AnyActiveProvider[] {
   for (const def of BUILTIN_PROVIDERS) {
     const cfg = file.configs[def.id] ?? {}
     const apiKey = cfg.apiKey ?? envKey(def.id)
-    const enabled = cfg.enabled ?? !def.requiresKey
+    // Keyed providers default to enabled once a key exists (UI or env var);
+    // an explicit toggle-off in config always wins.
+    const enabled = cfg.enabled ?? (!def.requiresKey || apiKey != null)
     let status: ProviderStatus = 'unconfigured'
     if (!enabled) status = 'disabled'
     else if (cfg.lastStatus === 'error') status = 'error'
@@ -310,21 +579,56 @@ export function updateCustomProvider(providerId: string, patch: Omit<CustomProvi
   writeConfigFile(file)
 }
 
-/** Enabled price providers ordered by priority. */
+const marketOf = (p: { market?: ProviderMarket }): ProviderMarket => p.market ?? 'crypto'
+
+/** Enabled crypto price providers ordered by priority. */
 export function getPriceProviders(): AnyActiveProvider[] {
   return getAllProviders()
-    .filter((p) => p.category === 'price' && p.status === 'active')
+    .filter((p) => p.category === 'price' && marketOf(p) === 'crypto' && p.status === 'active')
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
-/** Enabled news providers. */
+/** Enabled crypto news providers. */
 export function getNewsProviders(): AnyActiveProvider[] {
-  return getAllProviders().filter((p) => p.category === 'news' && p.status === 'active')
+  return getAllProviders().filter((p) => p.category === 'news' && marketOf(p) === 'crypto' && p.status === 'active')
 }
 
-/** Enabled social providers. */
+/** Enabled crypto social providers. */
 export function getSocialProviders(): AnyActiveProvider[] {
-  return getAllProviders().filter((p) => p.category === 'social' && p.status === 'active')
+  return getAllProviders().filter((p) => p.category === 'social' && marketOf(p) === 'crypto' && p.status === 'active')
+}
+
+/**
+ * Equity quote ladder: enabled equity price providers in try-order.
+ * User-added custom quote feeds run FIRST (adding one is an explicit request
+ * to use it), then built-ins by priority. fetchSecurityQuotes walks this list
+ * and the first provider that returns quotes serves the request.
+ */
+export function getEquityQuoteProviders(): AnyActiveProvider[] {
+  const equity = getEquityProviders('price')
+  const customs = equity.filter((p) => p.isCustom && p.format === 'json-quote')
+  const builtins = equity
+    .filter((p) => !p.isCustom)
+    .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
+  return [...customs, ...builtins]
+}
+
+/** All active equity providers for a category, built-ins sorted by priority, customs appended. */
+export function getEquityProviders(category: ProviderCategory): AnyActiveProvider[] {
+  return getAllProviders()
+    .filter((p) => p.category === category && marketOf(p) === 'equities' && p.status === 'active')
+    .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
+}
+
+/** OHLCV history ladder for TA/backtests: custom json-ohlcv feeds first, then Yahoo → Tiingo → FMP (when active). */
+export function getEquityOhlcvProviders(): AnyActiveProvider[] {
+  const price = getEquityProviders('price')
+  const customs = price.filter((p) => p.isCustom && p.format === 'json-ohlcv')
+  const order = ['yahoo-finance', 'tiingo', 'fmp']
+  const builtins = order
+    .map((id) => price.find((p) => !p.isCustom && p.id === id))
+    .filter((p): p is AnyActiveProvider => !!p)
+  return [...customs, ...builtins]
 }
 
 /** Save runtime config update for any provider (built-in or custom). */

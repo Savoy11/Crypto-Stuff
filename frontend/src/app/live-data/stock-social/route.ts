@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
+import { getEquityProviders, recordProviderFetch } from '@/lib/api/live/providers'
+import { fetchCustomUrl, findArray, pickDate, pickNumber, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
 
-// Social signals for the equities module — Reddit finance subreddits plus
-// StockTwits symbol streams, both keyless. Mirrors /live-data/social (crypto).
+// Social signals for the equities module. REGISTRY-DRIVEN: Reddit Finance and
+// StockTwits are toggleable built-ins on the Integrations page, and user-added
+// custom sources (format json-social, market 'equities') run alongside them.
+// Mirrors /live-data/social (crypto).
 //   GET /live-data/stock-social                 → general finance chatter
 //   GET /live-data/stock-social?symbol=AAPL     → per-ticker posts
 //   GET /live-data/stock-social?limit=40
@@ -15,7 +19,7 @@ export type StockSentiment = 'positive' | 'negative' | 'neutral'
 
 export interface StockSocialSignal {
   id: string
-  platform: 'reddit' | 'stocktwits'
+  platform: 'reddit' | 'stocktwits' | 'custom'
   providerLabel: string
   title: string
   body: string
@@ -196,27 +200,82 @@ function computeSummaries(signals: StockSocialSignal[], focus?: string): StockSe
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
+// ─── Custom social feeds ──────────────────────────────────────────────────────
+
+async function fetchCustomSocial(provider: ActiveCustom, symbol?: string): Promise<StockSocialSignal[]> {
+  const url = provider.url.replace('{symbol}', symbol ?? 'SPY')
+  const res = await fetchCustomUrl(provider, url)
+  const map = provider.jsonFieldMap ?? {}
+  const out: StockSocialSignal[] = []
+  for (const entry of findArray(await res.json(), provider.jsonArrayPath)) {
+    const title = pickString(entry, map.title, ['title', 'body', 'text', 'message', 'content'])
+    if (!title) continue
+    const body = pickString(entry, map.body, ['body', 'text', 'content', 'selftext']) ?? ''
+    const text = `${title} ${body}`
+    out.push({
+      id: `${provider.id}:${pickString(entry, map.id, ['id', 'url', 'link']) ?? title.slice(0, 60)}`.slice(0, 200),
+      platform: 'custom',
+      providerLabel: provider.name,
+      title: title.replace(/\s+/g, ' ').slice(0, 160),
+      body: body === title ? '' : body.replace(/\s+/g, ' ').slice(0, 220),
+      url: pickString(entry, map.url, ['url', 'link', 'permalink']) ?? provider.url.replace('{symbol}', symbol ?? ''),
+      author: pickString(entry, map.author, ['author', 'username', 'user.username', 'user.name']) ?? 'unknown',
+      score: pickNumber(entry, map.score, ['score', 'likes', 'likes.total', 'upvotes', 'points']) ?? 0,
+      sentiment: scoreSentiment(text),
+      symbols: symbol ? Array.from(new Set([symbol, ...detectSymbols(text)])) : detectSymbols(text),
+      publishedAt: pickDate(entry, map.publishedAt, ['publishedAt', 'created_at', 'created_utc', 'date', 'timestamp']) ?? new Date().toISOString(),
+    })
+  }
+  return out
+}
+
+// ─── Route ────────────────────────────────────────────────────────────────────
+
 export async function GET(request: NextRequest) {
   const symbol = request.nextUrl.searchParams.get('symbol')?.trim().toUpperCase() || undefined
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '40', 10) || 40, 80)
 
-  const subs = symbol ? SUBREDDITS.slice(0, 3) : SUBREDDITS
-  const tasks: Array<Promise<StockSocialSignal[]>> = [
-    ...subs.map((sub) => fetchSubreddit(sub, symbol)),
-    fetchStocktwits(symbol),
+  const active = getEquityProviders('social')
+  const redditEnabled = active.some((p) => !p.isCustom && p.id === 'reddit-stocks')
+  const stocktwitsEnabled = active.some((p) => !p.isCustom && p.id === 'stocktwits')
+  const customs = active.filter((p): p is typeof p & ActiveCustom => !!p.isCustom && p.format === 'json-social')
+
+  const subs = redditEnabled ? (symbol ? SUBREDDITS.slice(0, 3) : SUBREDDITS) : []
+  type Task = { providerId: string; run: Promise<StockSocialSignal[]> }
+  const tasks: Task[] = [
+    ...subs.map((sub) => ({ providerId: 'reddit-stocks', run: fetchSubreddit(sub, symbol) })),
+    ...(stocktwitsEnabled ? [{ providerId: 'stocktwits', run: fetchStocktwits(symbol) }] : []),
+    ...customs.map((p) => ({ providerId: p.id, run: fetchCustomSocial(p, symbol) })),
   ]
 
-  const results = await Promise.allSettled(tasks)
+  const results = await Promise.allSettled(tasks.map((t) => t.run))
+
+  // Utilization: aggregate per provider id (reddit spans several subreddit fetches)
+  const perProvider = new Map<string, { count: number; error?: string }>()
+  results.forEach((result, i) => {
+    const id = tasks[i].providerId
+    const agg = perProvider.get(id) ?? { count: 0 }
+    if (result.status === 'fulfilled') agg.count += result.value.length
+    else agg.error ??= result.reason instanceof Error ? result.reason.message : String(result.reason)
+    perProvider.set(id, agg)
+  })
+  for (const [id, agg] of perProvider) {
+    recordProviderFetch(id, agg.count > 0 ? { count: agg.count } : { error: agg.error ?? 'no posts returned' })
+  }
+
   const providers: Array<{ id: string; name: string }> = []
   const signals: StockSocialSignal[] = []
-  let redditOk = false
   results.forEach((result, i) => {
     if (result.status !== 'fulfilled') return
-    if (i < subs.length) redditOk = true
-    else providers.push({ id: 'stocktwits', name: 'StockTwits' })
     signals.push(...result.value)
+    const id = tasks[i].providerId
+    if (!providers.some((p) => p.id === id)) {
+      const name = id === 'reddit-stocks' ? `Reddit (${subs.map((s) => `r/${s}`).join(', ')})`
+        : id === 'stocktwits' ? 'StockTwits'
+        : customs.find((c) => c.id === id)?.name ?? id
+      providers.push({ id, name })
+    }
   })
-  if (redditOk) providers.unshift({ id: 'reddit', name: `Reddit (${subs.map((s) => `r/${s}`).join(', ')})` })
 
   const seen = new Set<string>()
   const deduped = signals

@@ -43,9 +43,37 @@ export interface StakingDiscoveryResponse {
   total:     number
   sources:   Record<DiscoverySource, number>
   updatedAt: string
+  /** True when upstreams failed and this is the last-known-good payload (updatedAt reflects when it was actually fetched). */
+  stale?:    boolean
 }
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
+
+// Upstreams (DefiLlama yields especially) throw transient failures that recover
+// on immediate retry. Every fetcher goes through this: one retry after a short
+// backoff, and a persistent failure THROWS so the handler can tell "upstream
+// down" apart from "legitimately no matching pools".
+const RETRY_DELAY_MS = 400
+
+async function getJson<T>(url: string, revalidate: number): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url, { headers: { Accept: 'application/json' }, next: { revalidate } })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return await res.json() as T
+    } catch (err) {
+      if (attempt >= 1) throw err
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS))
+    }
+  }
+}
+
+// Last-known-good payloads per filter combination, served (marked stale) when
+// an upstream is down and the live result came back empty. In-memory is fine:
+// single-instance app, and the cache repopulates on the first healthy fetch.
+const lastGood = new Map<string, { response: StakingDiscoveryResponse; cachedAt: number }>()
+const LAST_GOOD_TTL_MS = 6 * 3_600_000
+const LAST_GOOD_MAX_ENTRIES = 20
 
 function symbolToCoinId(symbol: string): string | null {
   const base = symbol.split('-')[0].split('/')[0].toUpperCase()
@@ -114,12 +142,7 @@ interface DLPool {
 }
 
 async function fetchDefiLlama(minTvl: number, minApy: number, maxRisk: number, coinFilter: string | null): Promise<DiscoveredPool[]> {
-  const res = await fetch('https://yields.llama.fi/pools', {
-    headers: { Accept: 'application/json' },
-    next: { revalidate: 1800 },
-  })
-  if (!res.ok) return []
-  const json = await res.json() as { data?: DLPool[] }
+  const json = await getJson<{ data?: DLPool[] }>('https://yields.llama.fi/pools', 1800)
   const raw  = json.data ?? []
   const pools: DiscoveredPool[] = []
 
@@ -165,12 +188,7 @@ interface YearnVault {
 }
 
 async function fetchYearn(minTvl: number, minApy: number, maxRisk: number, coinFilter: string | null): Promise<DiscoveredPool[]> {
-  const res = await fetch('https://api.yearn.finance/v1/chains/1/vaults/all', {
-    headers: { Accept: 'application/json' },
-    next: { revalidate: 1800 },
-  })
-  if (!res.ok) return []
-  const vaults = await res.json() as YearnVault[]
+  const vaults = await getJson<YearnVault[]>('https://api.yearn.finance/v1/chains/1/vaults/all', 1800)
   const pools: DiscoveredPool[] = []
 
   for (const v of vaults) {
@@ -224,12 +242,7 @@ interface PendleResponse {
 }
 
 async function fetchPendle(minTvl: number, minApy: number, maxRisk: number, coinFilter: string | null): Promise<DiscoveredPool[]> {
-  const res = await fetch('https://api-v2.pendle.finance/core/v1/sdk/1/markets?limit=100&order_by=liquidity:desc', {
-    headers: { Accept: 'application/json' },
-    next: { revalidate: 1800 },
-  })
-  if (!res.ok) return []
-  const json = await res.json() as PendleResponse
+  const json = await getJson<PendleResponse>('https://api-v2.pendle.finance/core/v1/sdk/1/markets?limit=100&order_by=liquidity:desc', 1800)
   const markets = json.results ?? []
   const pools: DiscoveredPool[] = []
 
@@ -297,29 +310,21 @@ const BEEFY_CHAIN_MAP: Record<string, string> = {
 }
 
 async function fetchBeefy(minTvl: number, minApy: number, maxRisk: number, coinFilter: string | null): Promise<DiscoveredPool[]> {
-  const [vaultRes, tvlRes, apyRes] = await Promise.allSettled([
-    fetch('https://api.beefy.finance/vaults',         { next: { revalidate: 1800 } }),
-    fetch('https://api.beefy.finance/tvl',            { next: { revalidate: 1800 } }),
-    fetch('https://api.beefy.finance/apy/breakdown',  { next: { revalidate: 1800 } }),
+  // Vault list is required (throws through the retry helper); TVL and APY
+  // enrichments stay best-effort.
+  const [vaults, tvlResult, apyResult] = await Promise.all([
+    getJson<BeefyVault[]>('https://api.beefy.finance/vaults', 1800),
+    getJson<Record<string, Record<string, number>>>('https://api.beefy.finance/tvl', 1800).catch(() => null),
+    getJson<BeefyApy>('https://api.beefy.finance/apy/breakdown', 1800).catch(() => null),
   ])
 
-  if (vaultRes.status !== 'fulfilled' || !vaultRes.value.ok) return []
-  const vaults: BeefyVault[] = await vaultRes.value.json()
-
   // TVL: { [chainId]: { [vaultId]: number } }
-  let tvlMap: Record<string, number> = {}
-  if (tvlRes.status === 'fulfilled' && tvlRes.value.ok) {
-    const tvlData: Record<string, Record<string, number>> = await tvlRes.value.json()
-    for (const chainTvls of Object.values(tvlData)) {
-      Object.assign(tvlMap, chainTvls)
-    }
+  const tvlMap: Record<string, number> = {}
+  for (const chainTvls of Object.values(tvlResult ?? {})) {
+    Object.assign(tvlMap, chainTvls)
   }
 
-  // APY breakdown
-  let apyData: BeefyApy = {}
-  if (apyRes.status === 'fulfilled' && apyRes.value.ok) {
-    apyData = await apyRes.value.json()
-  }
+  const apyData: BeefyApy = apyResult ?? {}
 
   const pools: DiscoveredPool[] = []
 
@@ -371,12 +376,14 @@ export async function GET(req: NextRequest) {
   const minApy       = parseFloat(req.nextUrl.searchParams.get('min_apy') ?? '0.1')
   const sourceFilter = req.nextUrl.searchParams.get('source') ?? 'all'
 
-  const [dlResult, yearnResult, pendleResult, beefyResult] = await Promise.allSettled([
+  const results = await Promise.allSettled([
     fetchDefiLlama(minTvl, minApy, maxRisk, coinFilter),
     fetchYearn(minTvl, minApy, maxRisk, coinFilter),
     fetchPendle(minTvl, minApy, maxRisk, coinFilter),
     fetchBeefy(minTvl, minApy, maxRisk, coinFilter),
   ])
+  const [dlResult, yearnResult, pendleResult, beefyResult] = results
+  const anyUpstreamFailed = results.some(r => r.status === 'rejected')
 
   const dlPools     = dlResult.status     === 'fulfilled' ? dlResult.value     : []
   const yearnPools  = yearnResult.status  === 'fulfilled' ? yearnResult.value  : []
@@ -413,11 +420,33 @@ export async function GET(req: NextRequest) {
     beefy:     beefyPools.length,
   }
 
-  return NextResponse.json({
+  const cacheKey = [coinFilter, maxRisk, minTvl, minApy, sourceFilter].join('|')
+
+  // Upstream outage emptied the result → serve the last healthy payload for
+  // this exact filter combination, marked stale. A legitimately empty result
+  // (strict filters, all upstreams healthy) is returned as-is.
+  if (pools.length === 0 && anyUpstreamFailed) {
+    const cached = lastGood.get(cacheKey)
+    if (cached && Date.now() - cached.cachedAt < LAST_GOOD_TTL_MS) {
+      return NextResponse.json({ ...cached.response, stale: true } satisfies StakingDiscoveryResponse)
+    }
+  }
+
+  const response: StakingDiscoveryResponse = {
     ok: true,
     pools,
     total: pools.length,
     sources,
     updatedAt: new Date().toISOString(),
-  } satisfies StakingDiscoveryResponse)
+  }
+
+  if (pools.length > 0) {
+    lastGood.set(cacheKey, { response, cachedAt: Date.now() })
+    if (lastGood.size > LAST_GOOD_MAX_ENTRIES) {
+      const oldest = lastGood.keys().next().value
+      if (oldest !== undefined) lastGood.delete(oldest)
+    }
+  }
+
+  return NextResponse.json(response)
 }

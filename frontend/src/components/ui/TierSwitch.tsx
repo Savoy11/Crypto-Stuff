@@ -5,12 +5,13 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ChevronDown, Zap, Crown, Sliders, Check } from 'lucide-react'
 import { useTierStore } from '@/store/useTierStore'
-import { TIER_CATEGORIES, TIER_LABELS, TIER_COLORS, type TierMode } from '@/lib/tier'
+import { TIER_CATEGORIES, TIER_LABELS, TIER_COLORS, type TierMode, type TierCategory } from '@/lib/tier'
 
 interface LiveProviderInfo {
   id: string
   name: string
   category: string
+  market?: 'crypto' | 'equities'
   config: { enabled: boolean }
 }
 
@@ -56,6 +57,134 @@ export function TierSwitch() {
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
+
+  // Enabled providers for a category, scoped to its market (so crypto selectors
+  // never pull in equity providers, which share category ids like 'news').
+  const enabledProvidersFor = (cat: TierCategory, key: string) =>
+    (liveProviders ?? []).filter((p) =>
+      p.category === (cat.providerCategory ?? key) &&
+      (p.market ?? 'crypto') === (cat.market ?? 'crypto') &&
+      p.config.enabled,
+    )
+
+  const cryptoCats = Object.entries(TIER_CATEGORIES).filter(([, c]) => (c.market ?? 'crypto') === 'crypto')
+  const equityCats = Object.entries(TIER_CATEGORIES).filter(([, c]) => c.market === 'equities')
+
+  function renderRow(key: string, cat: TierCategory) {
+    // Equity rows are informational — they reflect the live registry rather
+    // than the free/paid toggle (equity sourcing is managed on Integrations).
+    if (cat.informational) {
+      const enabled = enabledProvidersFor(cat, key)
+      return (
+        <div key={key} className="px-4 py-2.5 border-b border-border/50 last:border-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-text-primary">{cat.label}</p>
+              <p className="text-[10px] text-text-muted">{cat.description}</p>
+            </div>
+            <span className="flex-shrink-0 text-[10px] font-mono text-text-muted">{enabled.length} active</span>
+          </div>
+          {enabled.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {enabled.map((p) => (
+                <span key={p.id} className="text-[10px] px-1.5 py-0.5 rounded bg-bg-elevated text-text-secondary border border-border/60">
+                  {p.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] text-text-muted/70 italic">
+              No sources enabled — turn one on in Settings → Integrations.
+            </p>
+          )}
+        </div>
+      )
+    }
+
+    const activeLabel = mode === 'custom' && customSources[key]
+      ? customSources[key]
+      : mode === 'paid' ? cat.paidSourceLabel : cat.freeSourceLabel
+    const isSame = cat.freeSource === cat.paidSource
+
+    const selected = (customSources[key] ?? '')
+      .split(',').map((s) => s.trim()).filter(Boolean)
+    const toggleOption = (id: string) => {
+      const next = selected.includes(id) ? selected.filter((s) => s !== id) : [...selected, id]
+      setCustomSource(key, next.join(','))
+    }
+    const liveOptions = cat.multi
+      ? enabledProvidersFor(cat, key).map((p) => ({ id: p.id, label: p.name }))
+      : []
+
+    return (
+      <div key={key} className="px-4 py-2.5 border-b border-border/50 last:border-0">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-text-primary">{cat.label}</p>
+            <p className="text-[10px] text-text-muted">{cat.description}</p>
+          </div>
+          <div className="flex-shrink-0 text-right">
+            {mode === 'custom' && !cat.multi ? (
+              <select
+                value={customSources[key] ?? cat.freeSource}
+                onChange={(e) => setCustomSource(key, e.target.value)}
+                className="text-[10px] bg-bg-secondary border border-border rounded px-1.5 py-0.5 text-text-secondary focus:outline-none focus:border-accent-blue/60"
+              >
+                <option value={cat.freeSource}>{cat.freeSourceLabel}</option>
+                {cat.paidSource !== cat.freeSource && (
+                  <option value={cat.paidSource}>{cat.paidSourceLabel}</option>
+                )}
+              </select>
+            ) : mode === 'custom' && cat.multi ? (
+              <span className="text-[10px] text-text-muted">
+                {selected.length > 0 ? `${selected.length} selected` : 'all sources'}
+              </span>
+            ) : (
+              <span className={clsx(
+                'inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded',
+                isSame ? 'text-text-muted bg-bg-elevated' : mode === 'paid' ? 'text-amber-400 bg-amber-400/10' : 'text-emerald-400 bg-emerald-400/10',
+              )}>
+                {activeLabel}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {mode === 'custom' && cat.multi && (
+          liveOptions.length > 0 ? (
+            <div className="mt-2 grid grid-cols-1 gap-1">
+              {liveOptions.map((opt) => {
+                const checked = selected.length === 0 || selected.includes(opt.id)
+                return (
+                  <label key={opt.id} className="flex items-center gap-2 cursor-pointer text-[11px] text-text-secondary hover:text-text-primary">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        // From the implicit "all" state, unchecking one
+                        // materialises the explicit remaining set.
+                        if (selected.length === 0) {
+                          setCustomSource(key, liveOptions.map((o) => o.id).filter((id) => id !== opt.id).join(','))
+                        } else {
+                          toggleOption(opt.id)
+                        }
+                      }}
+                      className="accent-blue-500 size-3"
+                    />
+                    {opt.label}
+                  </label>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] text-text-muted/70 italic">
+              No {cat.label.toLowerCase()} sources enabled — enable one in Settings → Integrations.
+            </p>
+          )
+        )}
+      </div>
+    )
+  }
 
   return (
     <div ref={ref} className="relative">
@@ -108,106 +237,16 @@ export function TierSwitch() {
           </div>
 
           {/* Per-category breakdown */}
-          <div className="max-h-72 overflow-y-auto">
-            {Object.entries(TIER_CATEGORIES).map(([key, cat]) => {
-              const activeSource = mode === 'custom' && customSources[key]
-                ? customSources[key]
-                : mode === 'paid' ? cat.paidSource : cat.freeSource
-              const activeLabel = mode === 'custom' && customSources[key]
-                ? customSources[key]
-                : mode === 'paid' ? cat.paidSourceLabel : cat.freeSourceLabel
-              const isSame = cat.freeSource === cat.paidSource
+          <div className="max-h-80 overflow-y-auto">
+            {cryptoCats.map(([key, cat]) => renderRow(key, cat))}
 
-              // Multi-select categories (news): custom mode shows checkboxes so
-              // several sources can be combined. Empty selection = all sources.
-              const selected = (customSources[key] ?? '')
-                .split(',').map((s) => s.trim()).filter(Boolean)
-              const toggleOption = (id: string) => {
-                const next = selected.includes(id)
-                  ? selected.filter((s) => s !== id)
-                  : [...selected, id]
-                setCustomSource(key, next.join(','))
-              }
-              // Options for a multi-select category = every provider currently
-              // ENABLED on the Integrations page for that category — disabled
-              // providers never appear here, and each custom feed is its own row.
-              const liveOptions = cat.multi
-                ? (liveProviders ?? [])
-                    .filter((p) => p.category === key && p.config.enabled)
-                    .map((p) => ({ id: p.id, label: p.name }))
-                : []
-
-              return (
-                <div key={key} className="px-4 py-2.5 border-b border-border/50 last:border-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-medium text-text-primary">{cat.label}</p>
-                      <p className="text-[10px] text-text-muted">{cat.description}</p>
-                    </div>
-                    <div className="flex-shrink-0 text-right">
-                      {mode === 'custom' && !cat.multi ? (
-                        <select
-                          value={customSources[key] ?? cat.freeSource}
-                          onChange={(e) => setCustomSource(key, e.target.value)}
-                          className="text-[10px] bg-bg-secondary border border-border rounded px-1.5 py-0.5 text-text-secondary focus:outline-none focus:border-accent-blue/60"
-                        >
-                          <option value={cat.freeSource}>{cat.freeSourceLabel}</option>
-                          {cat.paidSource !== cat.freeSource && (
-                            <option value={cat.paidSource}>{cat.paidSourceLabel}</option>
-                          )}
-                        </select>
-                      ) : mode === 'custom' && cat.multi ? (
-                        <span className="text-[10px] text-text-muted">
-                          {selected.length > 0 ? `${selected.length} selected` : 'all sources'}
-                        </span>
-                      ) : (
-                        <span className={clsx(
-                          'inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded',
-                          isSame ? 'text-text-muted bg-bg-elevated' : mode === 'paid' ? 'text-amber-400 bg-amber-400/10' : 'text-emerald-400 bg-emerald-400/10',
-                        )}>
-                          {activeLabel}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Checkbox list for multi-select categories in custom mode */}
-                  {mode === 'custom' && cat.multi && (
-                    liveOptions.length > 0 ? (
-                      <div className="mt-2 grid grid-cols-1 gap-1">
-                        {liveOptions.map((opt) => {
-                          const checked = selected.length === 0 || selected.includes(opt.id)
-                          return (
-                            <label key={opt.id} className="flex items-center gap-2 cursor-pointer text-[11px] text-text-secondary hover:text-text-primary">
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => {
-                                  // From the implicit "all" state, unchecking one
-                                  // materialises the explicit remaining set.
-                                  if (selected.length === 0) {
-                                    setCustomSource(key, liveOptions
-                                      .map((o) => o.id).filter((id) => id !== opt.id).join(','))
-                                  } else {
-                                    toggleOption(opt.id)
-                                  }
-                                }}
-                                className="accent-blue-500 size-3"
-                              />
-                              {opt.label}
-                            </label>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <p className="mt-2 text-[11px] text-text-muted/70 italic">
-                        No {cat.label.toLowerCase()} sources enabled — enable one in Settings → Integrations.
-                      </p>
-                    )
-                  )}
-                </div>
-              )
-            })}
+            {equityCats.length > 0 && (
+              <div className="px-4 py-1.5 bg-bg-elevated/60 border-y border-border/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Equities</p>
+                <p className="text-[10px] text-text-muted/70">Sourced from the registry — manage on Settings → Integrations</p>
+              </div>
+            )}
+            {equityCats.map(([key, cat]) => renderRow(key, cat))}
           </div>
 
           {/* Footer */}

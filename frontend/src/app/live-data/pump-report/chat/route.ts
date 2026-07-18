@@ -1,17 +1,23 @@
 import { NextRequest } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { loadAgentConfig } from '@/lib/agents/config'
+import { guardSensitiveRoute } from '@/lib/server/apiGuard'
+import { getProviderKey } from '@/lib/api/live/providers'
 
 export const dynamic = 'force-dynamic'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
 export async function POST(req: NextRequest) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), {
+  const denied = guardSensitiveRoute(req, 'pump-report-chat', 20)
+  if (denied) return denied
+
+  // UI-saved key (Integrations → AI Providers) or ANTHROPIC_API_KEY env var
+  const apiKey = getProviderKey('anthropic') ?? process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'No Anthropic API key. Set it in Settings → Integrations → AI Providers.' }), {
       status: 500, headers: { 'Content-Type': 'application/json' },
     })
   }
+  const client = new Anthropic({ apiKey })
 
   let messages: Anthropic.MessageParam[] = []
   let context = ''

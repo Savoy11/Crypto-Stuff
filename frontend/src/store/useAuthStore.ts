@@ -1,8 +1,15 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import type { UserProfile, LoginRequest } from '@/types/api'
 import { authApi } from '@/lib/api/auth'
 import { configureApiClient } from '@/lib/api/client'
+
+// Tokens are held in memory only — persisting access/refresh tokens to
+// localStorage exposes them to any XSS payload. Sessions end on page reload;
+// users re-authenticate against the (optional) legacy backend.
+// Purge the blob older builds persisted:
+if (typeof window !== 'undefined') {
+  try { window.localStorage.removeItem('caep-auth') } catch {}
+}
 
 interface AuthState {
   user: UserProfile | null
@@ -23,8 +30,7 @@ interface AuthActions {
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()(
-  persist(
-    (set, get) => ({
+  (set, get) => ({
       user: null,
       accessToken: null,
       refreshToken: null,
@@ -83,23 +89,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       clearError: () => set({ error: null }),
 
-      _initApiClient: () => {
-        configureApiClient({
-          getAccessToken: () => get().accessToken,
-          getRefreshToken: () => get().refreshToken,
-          onRefreshSuccess: (token) => get().setTokens(token),
-          onLogout: () => get().logout(),
-        })
-      },
-    }),
-    {
-      name: 'caep-auth',
-      // Only persist tokens, not user object (refetch on load)
-      partialize: (state) => ({
-        accessToken: state.accessToken,
-        refreshToken: state.refreshToken,
-        isAuthenticated: state.isAuthenticated,
-      }),
-    }
-  )
+    _initApiClient: () => {
+      configureApiClient({
+        getAccessToken: () => get().accessToken,
+        getRefreshToken: () => get().refreshToken,
+        onRefreshSuccess: (token) => get().setTokens(token),
+        onLogout: () => get().logout(),
+      })
+    },
+  })
 )

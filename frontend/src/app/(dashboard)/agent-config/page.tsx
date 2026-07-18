@@ -18,6 +18,7 @@ import {
   FlaskConical,
   DatabaseZap,
   TrendingDown,
+  LineChart,
   ExternalLink,
 } from 'lucide-react'
 
@@ -53,13 +54,19 @@ interface ProviderOption { id: ProviderId; label: string; hint: string; envVar: 
 
 // ─── Tab definitions ──────────────────────────────────────────────────────────
 
-type TabId = 'app-assistant' | 'research-analyst' | 'data-scraper' | 'pump-report'
+type TabId =
+  | 'app-assistant' | 'research-analyst' | 'data-scraper' | 'pump-report'
+  | 'equity-research' | 'equity-scraper' | 'equity-diligence' | 'equity-screener'
 
-const TABS: Array<{ id: TabId; label: string; icon: React.ElementType; agentIds: string[] }> = [
-  { id: 'app-assistant',   label: 'App Assistant',        icon: AppWindow,    agentIds: ['app-assistant']                              },
-  { id: 'research-analyst', label: 'Research & Analysis', icon: FlaskConical, agentIds: ['research-analyst']                           },
-  { id: 'data-scraper',    label: 'Data Scraper',         icon: DatabaseZap,  agentIds: ['data-scraper']                               },
-  { id: 'pump-report',     label: 'Pump Report',          icon: TrendingDown, agentIds: ['pump-report-investigator', 'pump-report-chat'] },
+const TABS: Array<{ id: TabId; label: string; icon: React.ElementType; agentIds: string[]; group: 'shared' | 'crypto' | 'equities' }> = [
+  { id: 'app-assistant',    label: 'App Assistant',       icon: AppWindow,    group: 'shared',   agentIds: ['app-assistant']                              },
+  { id: 'research-analyst', label: 'Research & Analysis', icon: FlaskConical, group: 'crypto',   agentIds: ['research-analyst']                           },
+  { id: 'data-scraper',     label: 'Data Scraper',        icon: DatabaseZap,  group: 'crypto',   agentIds: ['data-scraper']                               },
+  { id: 'pump-report',      label: 'Pump Report',         icon: TrendingDown, group: 'crypto',   agentIds: ['pump-report-investigator', 'pump-report-chat'] },
+  { id: 'equity-research',  label: 'Equity Research',     icon: FlaskConical, group: 'equities', agentIds: ['equity-research']                            },
+  { id: 'equity-screener',  label: 'Equity Screener',     icon: LineChart,    group: 'equities', agentIds: ['equity-screener']                            },
+  { id: 'equity-scraper',   label: 'Equity Scraper',      icon: DatabaseZap,  group: 'equities', agentIds: ['equity-data-scraper']                        },
+  { id: 'equity-diligence', label: 'Equity Diligence',    icon: TrendingDown, group: 'equities', agentIds: ['equity-diligence']                           },
 ]
 
 // ─── Agent card ───────────────────────────────────────────────────────────────
@@ -323,7 +330,7 @@ export default function AgentConfigPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-800 pb-0">
+      <div className="flex flex-wrap gap-1 border-b border-slate-800 pb-0">
         {TABS.map(({ id, label, icon: Icon, agentIds }) => {
           const tabCustomized = agents.filter((a) => agentIds.includes(a.id) && a.isCustomized).length
           return (
@@ -357,10 +364,14 @@ export default function AgentConfigPage() {
         <div className="space-y-3">
           {/* Tab description */}
           <p className="text-xs text-slate-500">
-            {activeTab === 'app-assistant'    && 'The App Assistant is available throughout the platform to help users navigate and interpret data.'}
-            {activeTab === 'research-analyst' && 'The Research Agent performs deep fundamental analysis — triggered from any asset page or on demand.'}
+            {activeTab === 'app-assistant'    && 'The App Assistant is available throughout the platform to help users navigate and interpret data across both crypto and equities.'}
+            {activeTab === 'research-analyst' && 'The crypto Research Agent performs deep fundamental analysis — triggered from any coin page or the Research page.'}
             {activeTab === 'data-scraper'     && 'The Data Scraper runs autonomously to find new staking opportunities and coin listings not yet in the platform.'}
             {activeTab === 'pump-report'      && 'Two agents power the Pump Report tab: the Investigator runs the 8-angle autonomous sweep, the Chat Agent handles follow-up questions.'}
+            {activeTab === 'equity-research'  && 'The Equity Research Agent analyzes stocks using live quotes, SEC-filed financials, filings, news, and social sentiment. Launch it from any stock page or the Research page.'}
+            {activeTab === 'equity-screener'  && 'The Equity Screener scans the whole universe for sector-relative statistical outliers (cheap/expensive, high-yield, high/low-beta) and explains opportunities vs traps. Run it from the “AI Outlier Scan” panel on the Stock Registry.'}
+            {activeTab === 'equity-scraper'   && 'The Equity Data Scraper runs autonomously to find upcoming earnings, analyst rating changes, IPOs, and index changes.'}
+            {activeTab === 'equity-diligence' && 'The Equity Due Diligence agent investigates a stock for red flags — accounting quality, litigation, SEC actions, short-seller reports, and governance.'}
           </p>
 
           {tabAgents.length === 0 ? (
@@ -383,7 +394,9 @@ export default function AgentConfigPage() {
 
       {/* API key reminder */}
       <div className="rounded-xl border border-slate-800 bg-slate-900/30 px-5 py-4 text-xs text-slate-500 space-y-1">
-        <p className="text-slate-400 font-medium mb-2">API Keys — add to <span className="font-mono">frontend/.env.local</span></p>
+        <p className="text-slate-400 font-medium mb-2">
+          API Keys — set in <a href="/settings" className="text-violet-400 hover:underline">Settings → Integrations → AI Providers</a>, or via <span className="font-mono">frontend/.env.local</span>
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
           {providers.map((p) => (
             <div key={p.id} className="flex items-center gap-1.5">

@@ -321,7 +321,7 @@ function ExchangeCard({ conn }: { conn: ExchangeConnection }) {
       const res  = await fetch('/live-data/wallet/exchange', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:   JSON.stringify({ exchange: conn.exchange, apiKey: conn.apiKey, apiSecret: conn.apiSecret }),
+        body:   JSON.stringify({ connectionId: conn.id }),
       })
       const d = await res.json()
       if (!d.ok) throw new Error(d.error)
@@ -341,7 +341,7 @@ function ExchangeCard({ conn }: { conn: ExchangeConnection }) {
         </div>
         <div className="flex-1">
           <span className="text-sm font-medium text-text-primary">{conn.label || meta.label}</span>
-          <span className="ml-2 text-[10px] font-mono text-text-muted bg-bg-elevated px-1.5 py-0.5 rounded">{conn.apiKey.slice(0, 8)}…</span>
+          <span className="ml-2 text-[10px] font-mono text-text-muted bg-bg-elevated px-1.5 py-0.5 rounded">{conn.keyPreview}…</span>
         </div>
         <button onClick={load} title="Refresh"
           className="p-1 rounded hover:bg-bg-elevated text-text-muted hover:text-text-primary">
@@ -378,11 +378,20 @@ function AddExchangeForm() {
   const [apiKey,    setApiKey]    = useState('')
   const [apiSecret, setApiSecret] = useState('')
   const [label,     setLabel]     = useState('')
+  const [saving,    setSaving]    = useState(false)
+  const [saveError, setSaveError] = useState<string | undefined>()
 
-  function submit() {
-    if (!apiKey.trim() || !apiSecret.trim()) return
-    addExchange({ exchange, apiKey: apiKey.trim(), apiSecret: apiSecret.trim(), label: label.trim() || EXCHANGE_META[exchange].label })
-    setApiKey(''); setApiSecret(''); setLabel(''); setOpen(false)
+  async function submit() {
+    if (!apiKey.trim() || !apiSecret.trim() || saving) return
+    setSaving(true); setSaveError(undefined)
+    try {
+      await addExchange({ exchange, apiKey: apiKey.trim(), apiSecret: apiSecret.trim(), label: label.trim() || EXCHANGE_META[exchange].label })
+      setApiKey(''); setApiSecret(''); setLabel(''); setOpen(false)
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : 'Failed to save connection')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (!open) return (
@@ -397,7 +406,7 @@ function AddExchangeForm() {
       <h3 className="text-sm font-semibold text-text-primary">Add Exchange API</h3>
       <p className="text-xs text-text-muted bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2 flex gap-2">
         <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-        Use read-only API keys with no withdrawal permissions. Keys are stored in your browser and sent only to this app&apos;s signing proxy.
+        Use read-only API keys with no withdrawal permissions. Keys are stored server-side by this app — they never persist in your browser or reach third parties.
       </p>
       <div className="grid grid-cols-2 gap-2">
         <div className="col-span-2">
@@ -424,11 +433,14 @@ function AddExchangeForm() {
             placeholder="API secret" value={apiSecret} onChange={e => setApiSecret(e.target.value)} />
         </div>
       </div>
+      {saveError && (
+        <p className="text-xs text-red-400 flex items-center gap-1.5"><XCircle size={13} /> {saveError}</p>
+      )}
       <div className="flex gap-2 justify-end pt-1">
         <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-sm text-text-muted hover:text-text-primary transition-colors">Cancel</button>
-        <button onClick={submit} disabled={!apiKey.trim() || !apiSecret.trim()}
+        <button onClick={submit} disabled={!apiKey.trim() || !apiSecret.trim() || saving}
           className="px-4 py-1.5 text-sm bg-accent-blue text-white rounded-lg hover:bg-accent-blue/90 transition-colors disabled:opacity-40">
-          Connect Exchange
+          {saving ? 'Connecting…' : 'Connect Exchange'}
         </button>
       </div>
     </div>

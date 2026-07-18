@@ -42,13 +42,19 @@ export function loadAllAgentConfigs() {
   })
 }
 
-/** Save an override for one agent. */
+/** Save an override for one agent (merged with any existing override). */
 export function saveAgentOverride(id: string, patch: Partial<AgentDefault>) {
   const def = AGENT_DEFAULTS.find(a => a.id === id)
   if (!def) throw new Error(`Unknown agent: ${id}`)
   const overrides = readOverrides()
-  overrides[id] = { ...patch, updatedAt: new Date().toISOString() }
+  // Merge so a partial patch (e.g. an enable toggle) preserves existing edits.
+  overrides[id] = { ...overrides[id], ...patch, updatedAt: new Date().toISOString() }
   writeOverrides(overrides)
+}
+
+/** Toggle an agent's enabled flag without disturbing its other overrides. */
+export function setAgentEnabled(id: string, enabled: boolean) {
+  saveAgentOverride(id, { enabled })
 }
 
 /** Remove any override for one agent (resets to default). */

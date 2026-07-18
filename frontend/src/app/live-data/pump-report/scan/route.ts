@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { guardSensitiveRoute } from '@/lib/server/apiGuard'
+import { getProviderKey } from '@/lib/api/live/providers'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,9 +27,7 @@ export interface ScanResponse {
   completedAt: string
 }
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-async function scanTarget(target: ScanTarget): Promise<ScanFinding> {
+async function scanTarget(target: ScanTarget, client: Anthropic): Promise<ScanFinding> {
   const query =
     target.type === 'coin'
       ? `pump and dump scheme "${target.label}" cryptocurrency fraud scam allegations 2023 2024 2025`
@@ -99,9 +99,14 @@ Risk level guide:
 }
 
 export async function POST(req: NextRequest) {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ ok: false, error: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
+  const denied = guardSensitiveRoute(req, 'pump-report-scan', 6)
+  if (denied) return denied
+
+  const apiKey = getProviderKey('anthropic') ?? process.env.ANTHROPIC_API_KEY
+  if (!apiKey) {
+    return NextResponse.json({ ok: false, error: 'No Anthropic API key. Set it in Settings → Integrations → AI Providers.' }, { status: 500 })
   }
+  const client = new Anthropic({ apiKey })
 
   let targets: ScanTarget[] = []
   try {
@@ -118,7 +123,7 @@ export async function POST(req: NextRequest) {
   // Cap to 5 targets per scan to keep latency reasonable
   const capped = targets.slice(0, 5)
 
-  const findings = await Promise.allSettled(capped.map(scanTarget))
+  const findings = await Promise.allSettled(capped.map((t) => scanTarget(t, client)))
 
   const results: ScanFinding[] = findings.map((r, i) =>
     r.status === 'fulfilled'

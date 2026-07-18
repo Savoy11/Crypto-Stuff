@@ -10,171 +10,287 @@ import { FUND_CATALOG, FUND_CATEGORY_INFO } from '@/lib/data/fundCatalog'
 // truth. The executor fetches against the app's own origin (passed in from the
 // route handler), avoiding any external hop or duplicated data logic.
 
-export type ToolName =
-  | 'get_prices'
-  | 'get_market_overview'
-  | 'list_exchanges'
-  | 'get_network_fees'
-  | 'find_transfer_routes'
-  | 'get_staking_opportunities'
-  | 'get_news'
-  | 'get_price_history'
-  | 'search_securities'
-  | 'get_security_quotes'
-  | 'get_security_history'
-  | 'get_market_news'
-  | 'get_stock_social'
-  | 'get_market_calendar'
+export type ToolMarket = 'crypto' | 'equities'
+/** Which tool set an agent may call. 'all' exposes both markets (App Assistant). */
+export type ToolSet = 'crypto' | 'equities' | 'all'
 
-export const AGENT_TOOLS: Anthropic.Tool[] = [
+interface RegisteredTool {
+  market: ToolMarket
+  tool: Anthropic.Tool
+}
+
+const TOOL_REGISTRY: RegisteredTool[] = [
+  // ── Crypto ──────────────────────────────────────────────────────────────────
   {
-    name: 'get_prices',
-    description: 'Get current USD prices for one or more coins. Use whenever the user asks about the price of a specific coin.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        coins: { type: 'array', items: { type: 'string' }, description: 'Coin symbols, e.g. ["btc","eth","sol"]' },
-      },
-      required: ['coins'],
-    },
-  },
-  {
-    name: 'get_market_overview',
-    description: 'Get a broad market snapshot: price, market cap, 24h volume, and 24h change for the tracked assets. Use for "how is the market doing" or ranking questions.',
-    input_schema: { type: 'object', properties: {} },
-  },
-  {
-    name: 'list_exchanges',
-    description: 'List supported exchanges with the coins and networks each supports. Use for questions about which exchanges support a coin/network.',
-    input_schema: {
-      type: 'object',
-      properties: { tier: { type: 'number', description: 'Optional: 1 for major/regulated, 2 for smaller exchanges' } },
-    },
-  },
-  {
-    name: 'get_network_fees',
-    description: 'Get current gas/network fees for all supported blockchains (e.g. Ethereum, Bitcoin, Solana, Polygon).',
-    input_schema: { type: 'object', properties: {} },
-  },
-  {
-    name: 'find_transfer_routes',
-    description: 'Find the cheapest way to move a coin between two exchanges (or a wallet), including multi-hop routes. Use for "cheapest way to send X from A to B" questions.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        from: { type: 'string', description: 'Source exchange id (e.g. "binance") or "wallet"' },
-        to: { type: 'string', description: 'Destination exchange id or "wallet"' },
-        coin: { type: 'string', description: 'Coin symbol, e.g. "usdt"' },
-        amount: { type: 'number', description: 'Amount to transfer in coin units' },
-      },
-      required: ['from', 'to', 'coin'],
-    },
-  },
-  {
-    name: 'get_staking_opportunities',
-    description: 'Get staking options for a coin with APY, lock-up terms, and risk scores. Filter by category or maximum risk.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        coin: { type: 'string', description: 'Coin symbol, e.g. "eth"' },
-        category: { type: 'string', enum: ['cefi', 'wallet', 'liquid'], description: 'Optional provider category' },
-        max_risk: { type: 'number', description: 'Optional: only return options with overall risk <= this (1-10)' },
-      },
-      required: ['coin'],
-    },
-  },
-  {
-    name: 'get_news',
-    description: 'Get recent news articles for a coin, with sentiment and source. Use for "what is the latest news on X" questions.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        coin: { type: 'string', description: 'Coin symbol, e.g. "btc"' },
-        limit: { type: 'number', description: 'Max articles (default 10)' },
-        sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Optional sentiment filter' },
-      },
-      required: ['coin'],
-    },
-  },
-  {
-    name: 'get_price_history',
-    description: 'Get OHLC candle history for a coin over a range. Use for trend/technical questions. Returns a compact summary (first, last, high, low, change).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        coin: { type: 'string', description: 'Coin symbol, e.g. "btc"' },
-        range: { type: 'string', enum: ['1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', 'MAX'], description: 'Time range (default 1Y)' },
-      },
-      required: ['coin'],
-    },
-  },
-  {
-    name: 'search_securities',
-    description: 'Search the equities and funds catalogs (~70 US large-cap stocks, ~55 ETFs/mutual funds) by ticker, name, sector, or category. Use to find the right symbol, discover what stocks/funds the platform tracks, or get reference facts (sector, P/E, expense ratio, top holdings).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        query: { type: 'string', description: 'Ticker or name substring, e.g. "NVDA" or "vanguard"' },
-        type: { type: 'string', enum: ['stock', 'etf', 'mutual'], description: 'Optional: restrict to stocks, ETFs, or mutual funds' },
-        sector: { type: 'string', description: 'Optional stock sector filter, e.g. "technology", "healthcare", "financials"' },
+    market: 'crypto',
+    tool: {
+      name: 'get_prices',
+      description: 'Get current USD prices for one or more coins. Use whenever the user asks about the price of a specific coin.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          coins: { type: 'array', items: { type: 'string' }, description: 'Coin symbols, e.g. ["btc","eth","sol"]' },
+        },
+        required: ['coins'],
       },
     },
   },
   {
-    name: 'get_security_quotes',
-    description: 'Get current price quotes for stocks, ETFs, or mutual funds by ticker symbol. Use whenever the user asks about a stock or fund price. Quotes flagged "reference: true" are static fallback values, not live.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        symbols: { type: 'array', items: { type: 'string' }, description: 'Ticker symbols, e.g. ["AAPL","SPY","VTSAX"]' },
-      },
-      required: ['symbols'],
+    market: 'crypto',
+    tool: {
+      name: 'get_market_overview',
+      description: 'Get a broad crypto market snapshot: price, market cap, 24h volume, and 24h change for tracked coins. Use for "how is the crypto market doing" or ranking questions.',
+      input_schema: { type: 'object', properties: {} },
     },
   },
   {
-    name: 'get_security_history',
-    description: 'Get OHLC price history for a stock, ETF, or mutual fund over a range. Use for trend/performance questions. Returns a compact summary (first, last, high, low, change).',
-    input_schema: {
-      type: 'object',
-      properties: {
-        symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' },
-        range: { type: 'string', enum: ['1M', '3M', '6M', '1Y', '5Y', 'MAX'], description: 'Time range (default 1Y)' },
-      },
-      required: ['symbol'],
-    },
-  },
-  {
-    name: 'get_market_news',
-    description: 'Get recent stock-market news headlines with sentiment and category tags. Pass a ticker for per-company news, or omit it for general market headlines. Use for "what is the news on <stock>" or "what is moving the market" questions.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        symbol: { type: 'string', description: 'Optional ticker, e.g. "AAPL" — omit for general market news' },
-        limit: { type: 'number', description: 'Max articles (default 10, max 25)' },
+    market: 'crypto',
+    tool: {
+      name: 'list_exchanges',
+      description: 'List supported crypto exchanges with the coins and networks each supports.',
+      input_schema: {
+        type: 'object',
+        properties: { tier: { type: 'number', description: 'Optional: 1 for major/regulated, 2 for smaller exchanges' } },
       },
     },
   },
   {
-    name: 'get_stock_social',
-    description: 'Get social sentiment for stocks from Reddit finance subs and StockTwits: per-symbol sentiment scores plus top posts. Pass a ticker for one symbol, or omit for general finance chatter.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        symbol: { type: 'string', description: 'Optional ticker, e.g. "TSLA" — omit for general chatter' },
+    market: 'crypto',
+    tool: {
+      name: 'get_network_fees',
+      description: 'Get current gas/network fees for all supported blockchains (e.g. Ethereum, Bitcoin, Solana, Polygon).',
+      input_schema: { type: 'object', properties: {} },
+    },
+  },
+  {
+    market: 'crypto',
+    tool: {
+      name: 'find_transfer_routes',
+      description: 'Find the cheapest way to move a coin between two exchanges (or a wallet), including multi-hop routes.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'Source exchange id (e.g. "binance") or "wallet"' },
+          to: { type: 'string', description: 'Destination exchange id or "wallet"' },
+          coin: { type: 'string', description: 'Coin symbol, e.g. "usdt"' },
+          amount: { type: 'number', description: 'Amount to transfer in coin units' },
+        },
+        required: ['from', 'to', 'coin'],
       },
     },
   },
   {
-    name: 'get_market_calendar',
-    description: 'Get upcoming earnings dates and US economic events (CPI, Fed, jobs reports) for the next N days. Use for "when does X report earnings" or "what events are coming up" questions.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        days: { type: 'number', description: 'Days ahead to look (default 14, max 30)' },
+    market: 'crypto',
+    tool: {
+      name: 'get_staking_opportunities',
+      description: 'Get staking options for a coin with APY, lock-up terms, and risk scores. Filter by category or maximum risk.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          coin: { type: 'string', description: 'Coin symbol, e.g. "eth"' },
+          category: { type: 'string', enum: ['cefi', 'wallet', 'liquid'], description: 'Optional provider category' },
+          max_risk: { type: 'number', description: 'Optional: only return options with overall risk <= this (1-10)' },
+        },
+        required: ['coin'],
+      },
+    },
+  },
+  {
+    market: 'crypto',
+    tool: {
+      name: 'get_news',
+      description: 'Get recent crypto news articles for a coin, with sentiment and source.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          coin: { type: 'string', description: 'Coin symbol, e.g. "btc"' },
+          limit: { type: 'number', description: 'Max articles (default 10)' },
+          sentiment: { type: 'string', enum: ['positive', 'negative', 'neutral'], description: 'Optional sentiment filter' },
+        },
+        required: ['coin'],
+      },
+    },
+  },
+  {
+    market: 'crypto',
+    tool: {
+      name: 'get_price_history',
+      description: 'Get OHLC candle history for a coin over a range. Returns a compact summary (first, last, high, low, change).',
+      input_schema: {
+        type: 'object',
+        properties: {
+          coin: { type: 'string', description: 'Coin symbol, e.g. "btc"' },
+          range: { type: 'string', enum: ['1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', 'MAX'], description: 'Time range (default 1Y)' },
+        },
+        required: ['coin'],
+      },
+    },
+  },
+
+  // ── Equities ────────────────────────────────────────────────────────────────
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_quote',
+      description: 'Get current price, day change, market cap, and volume for one or more stock/ETF/fund symbols. Use for any equity price question.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          symbols: { type: 'array', items: { type: 'string' }, description: 'Ticker symbols, e.g. ["AAPL","MSFT","BRK-B"]' },
+        },
+        required: ['symbols'],
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_financials',
+      description: 'Get audited fundamentals and computed financial ratios for a stock from SEC filings: revenue, net income, margins, ROE/ROA, P/E, current ratio, debt, cash flow, and YoY growth. The primary tool for fundamental analysis.',
+      input_schema: {
+        type: 'object',
+        properties: { symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' } },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_profile',
+      description: "Get a company's registrant profile from SEC EDGAR: official SIC industry classification, headquarters, state of incorporation, fiscal year end, exchange, and a background summary.",
+      input_schema: {
+        type: 'object',
+        properties: { symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' } },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_filings',
+      description: "Get a company's recent SEC filings (10-K annual, 10-Q quarterly, 8-K material events) with dates, decoded event items, and document links.",
+      input_schema: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' },
+          form: { type: 'string', description: 'Form filter: "8-K", "10-K", "10-Q", or "10-K,10-Q" (default "8-K")' },
+          limit: { type: 'number', description: 'Max filings (default 8)' },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_news',
+      description: 'Get recent market news headlines for a stock, with sentiment, category, and source.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' },
+          limit: { type: 'number', description: 'Max articles (default 10)' },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_social',
+      description: 'Get recent social sentiment for a stock from Reddit finance subreddits and StockTwits, with a bullish/bearish summary.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' },
+          limit: { type: 'number', description: 'Max posts (default 20)' },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_price_history',
+      description: 'Get OHLC candle history for a stock over a range. Returns a compact summary (first, last, high, low, change).',
+      input_schema: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Ticker symbol, e.g. "AAPL"' },
+          range: { type: 'string', enum: ['1M', '3M', '6M', '1Y', '5Y', 'MAX'], description: 'Time range (default 1Y)' },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_stock_outliers',
+      description: 'Scan the WHOLE stock universe and return the statistical outliers, computed sector-relative (z-scores vs each stock\'s sector). Returns categories: cheap (low P/E vs sector), expensive (high P/E), highYield, highBeta, lowBeta. Use this FIRST for any "find outliers / screen the market / what stands out" request, then drill into flagged names with the other tools.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          min_mcap: { type: 'number', description: 'Minimum market cap in $B to include (default 2 — filters out micro-caps)' },
+        },
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'search_securities',
+      description: 'Search the equities and funds catalogs (~70 US large-cap stocks, ~55 ETFs/mutual funds) by ticker, name, sector, or category. Use to find the right symbol, discover what stocks/funds the platform tracks, or get reference facts (sector, P/E, expense ratio, top holdings).',
+      input_schema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Ticker or name substring, e.g. "NVDA" or "vanguard"' },
+          type: { type: 'string', enum: ['stock', 'etf', 'mutual'], description: 'Optional: restrict to stocks, ETFs, or mutual funds' },
+          sector: { type: 'string', description: 'Optional stock sector filter, e.g. "technology", "healthcare", "financials"' },
+        },
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_market_news',
+      description: 'Get general stock-market news headlines (no specific ticker) with sentiment and category tags. Use for "what is moving the market today" questions; for per-company news use get_stock_news.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          limit: { type: 'number', description: 'Max articles (default 10, max 25)' },
+        },
+      },
+    },
+  },
+  {
+    market: 'equities',
+    tool: {
+      name: 'get_market_calendar',
+      description: 'Get upcoming earnings dates and US economic events (CPI, Fed, jobs reports) for the next N days. Use for "when does X report earnings" or "what events are coming up" questions.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          days: { type: 'number', description: 'Days ahead to look (default 14, max 30)' },
+        },
       },
     },
   },
 ]
+
+/** All tool definitions (both markets). */
+export const AGENT_TOOLS: Anthropic.Tool[] = TOOL_REGISTRY.map((r) => r.tool)
+
+/** Tool definitions exposed to an agent, filtered by its toolset. */
+export function toolsForAgent(toolset: ToolSet = 'crypto'): Anthropic.Tool[] {
+  if (toolset === 'all') return AGENT_TOOLS
+  return TOOL_REGISTRY.filter((r) => r.market === toolset).map((r) => r.tool)
+}
 
 // ─── Executor ───────────────────────────────────────────────────────────────
 
@@ -260,7 +376,12 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
           }))
         const funds = (type === 'stock') ? [] : FUND_CATALOG
           .filter((f) => !type || f.type === type)
-          .filter((f) => !query || f.symbol.toLowerCase().includes(query) || f.name.toLowerCase().includes(query) || f.issuer.toLowerCase().includes(query))
+          .filter((f) => !query ||
+            f.symbol.toLowerCase().includes(query) ||
+            f.name.toLowerCase().includes(query) ||
+            f.issuer.toLowerCase().includes(query) ||
+            (f.focusIndustry != null && (f.focusIndustry.toLowerCase().includes(query) || query.includes(f.focusIndustry.toLowerCase()))) ||
+            (f.focusSector != null && SECTOR_INFO[f.focusSector].label.toLowerCase().includes(query)))
           .slice(0, 15)
           .map((f) => ({
             symbol: f.symbol, name: f.name, type: f.type, issuer: f.issuer,
@@ -272,18 +393,74 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
             topHoldings: f.topHoldings.slice(0, 5).map((h) => `${h.symbol} ${h.weightPct}%`),
           }))
         if (stocks.length === 0 && funds.length === 0) {
-          return { stocks, funds, note: 'No catalog matches — the symbol may still be quotable via get_security_quotes.' }
+          return { stocks, funds, note: 'No catalog matches — the symbol may still be quotable via get_stock_quote.' }
         }
         return { stocks, funds }
       }
-      case 'get_security_quotes': {
-        const symbols = (input.symbols as string[] | undefined)?.join(',') ?? ''
+
+      // ── Equity tools ──────────────────────────────────────────────────────────
+      case 'get_stock_quote': {
+        const symbols = (input.symbols as string[] | undefined)?.map((s) => s.toUpperCase()).join(',') ?? ''
         const data = (await getJson(origin, `/live-data/security-quotes?symbols=${encodeURIComponent(symbols)}`)) as {
-          ok?: boolean; source?: string; quotes?: Record<string, unknown>
+          source?: string; quotes?: Record<string, { price: number; changePercent: number | null; marketCap: number | null; volume: number | null; reference?: boolean }>
         }
         return { source: data.source, quotes: data.quotes ?? {} }
       }
-      case 'get_security_history': {
+      case 'get_stock_financials': {
+        const symbol = String(input.symbol ?? '').toUpperCase()
+        const data = (await getJson(origin, `/live-data/company-facts?symbol=${encodeURIComponent(symbol)}`)) as {
+          ok?: boolean; error?: string; company?: string; fiscalYearEnd?: string; fundamentals?: unknown; ratios?: unknown
+        }
+        if (!data.ok) return { error: data.error ?? 'no fundamentals available', symbol }
+        // Trim to the analytically useful fields — omit the annual history series.
+        return { symbol, company: data.company, fiscalYearEnd: data.fiscalYearEnd, fundamentals: data.fundamentals, ratios: data.ratios }
+      }
+      case 'get_stock_profile': {
+        const symbol = String(input.symbol ?? '').toUpperCase()
+        const data = (await getJson(origin, `/live-data/company-profile?symbol=${encodeURIComponent(symbol)}`)) as {
+          ok?: boolean; error?: string; profile?: unknown; wiki?: { extract?: string } | null
+        }
+        if (!data.ok) return { error: data.error ?? 'no profile available', symbol }
+        return { symbol, profile: data.profile, background: data.wiki?.extract ?? null }
+      }
+      case 'get_stock_filings': {
+        const symbol = String(input.symbol ?? '').toUpperCase()
+        const form = String(input.form ?? '8-K')
+        const limit = Number(input.limit ?? 8)
+        const data = (await getJson(origin, `/live-data/sec-filings?symbol=${encodeURIComponent(symbol)}&form=${encodeURIComponent(form)}&limit=${limit}`)) as {
+          ok?: boolean; error?: string; company?: string; filings?: Array<{ form: string; filedAt: string; reportDate: string | null; itemLabels: string[]; url: string }>
+        }
+        if (!data.ok) return { error: data.error ?? 'no filings available', symbol }
+        return {
+          symbol, company: data.company,
+          filings: (data.filings ?? []).map((f) => ({ form: f.form, filedAt: f.filedAt, reportDate: f.reportDate, events: f.itemLabels, url: f.url })),
+        }
+      }
+      case 'get_stock_news': {
+        const symbol = String(input.symbol ?? '').toUpperCase()
+        const limit = Number(input.limit ?? 10)
+        const data = (await getJson(origin, `/live-data/market-news?symbol=${encodeURIComponent(symbol)}&limit=${limit}`)) as {
+          ok?: boolean; articles?: Array<{ title: string; source: string; publishedAt: string; sentiment: string; category: string; url: string }>
+        }
+        const articles = (data.articles ?? []).map((a) => ({ title: a.title, source: a.source, publishedAt: a.publishedAt, sentiment: a.sentiment, category: a.category, url: a.url }))
+        if (articles.length === 0) return { symbol, articles: [], note: 'no recent articles found' }
+        return { symbol, articles }
+      }
+      case 'get_stock_social': {
+        const symbol = String(input.symbol ?? '').toUpperCase()
+        const limit = Number(input.limit ?? 20)
+        const data = (await getJson(origin, `/live-data/stock-social?symbol=${encodeURIComponent(symbol)}&limit=${limit}`)) as {
+          ok?: boolean; summaries?: unknown; providers?: Array<{ name: string }>
+          signals?: Array<{ platform: string; title: string; sentiment: string; score: number; url: string }>
+        }
+        return {
+          symbol,
+          providers: (data.providers ?? []).map((p) => p.name),
+          summary: data.summaries ?? [],
+          topPosts: (data.signals ?? []).slice(0, 10).map((s) => ({ platform: s.platform, text: s.title, sentiment: s.sentiment, score: s.score, url: s.url })),
+        }
+      }
+      case 'get_stock_price_history': {
         const symbol = String(input.symbol ?? '').toUpperCase()
         const range = String(input.range ?? '1Y')
         const data = (await getJson(origin, `/live-data/security-ohlcv?symbol=${encodeURIComponent(symbol)}&range=${range}`)) as {
@@ -305,10 +482,7 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
       }
       case 'get_market_news': {
         const limit = Math.min(Number(input.limit ?? 10) || 10, 25)
-        const symbol = input.symbol ? String(input.symbol).toUpperCase() : undefined
-        const p = new URLSearchParams({ limit: String(limit) })
-        if (symbol) p.set('symbol', symbol)
-        const data = (await getJson(origin, `/live-data/market-news?${p.toString()}`)) as {
+        const data = (await getJson(origin, `/live-data/market-news?limit=${limit}`)) as {
           ok?: boolean
           articles?: { title: string; url: string; source: string; publishedAt: string; summary: string; sentiment: string; category: string; relatedSymbols: string[] }[]
         }
@@ -318,23 +492,7 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
           summary: a.summary.length > 200 ? `${a.summary.slice(0, 200)}…` : a.summary,
           url: a.url,
         }))
-        return { symbol: symbol ?? 'general', count: articles.length, articles }
-      }
-      case 'get_stock_social': {
-        const symbol = input.symbol ? String(input.symbol).toUpperCase() : undefined
-        const p = new URLSearchParams({ limit: '20' })
-        if (symbol) p.set('symbol', symbol)
-        const data = (await getJson(origin, `/live-data/stock-social?${p.toString()}`)) as {
-          ok?: boolean
-          summaries?: unknown[]
-          signals?: { platform: string; title: string; sentiment: string; score: number; symbols: string[]; subreddit?: string; publishedAt: string }[]
-        }
-        const posts = (data.signals ?? []).slice(0, 12).map((s) => ({
-          platform: s.platform, subreddit: s.subreddit,
-          title: s.title.length > 140 ? `${s.title.slice(0, 140)}…` : s.title,
-          sentiment: s.sentiment, score: s.score, symbols: s.symbols, publishedAt: s.publishedAt,
-        }))
-        return { symbol: symbol ?? 'general', summaries: data.summaries ?? [], posts }
+        return { count: articles.length, articles }
       }
       case 'get_market_calendar': {
         const days = Math.min(Number(input.days ?? 14) || 14, 30)
@@ -348,6 +506,19 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
           from: data.from, to: data.to,
           earnings: (data.earnings ?? []).slice(0, 40),
           economic: (data.economic ?? []).slice(0, 25),
+        }
+      }
+      case 'get_stock_outliers': {
+        const minMcap = input.min_mcap != null ? Number(input.min_mcap) : 2
+        const data = (await getJson(origin, `/live-data/stock-outliers?min_mcap=${minMcap}`)) as {
+          ok?: boolean; configured?: boolean; universeSize?: number; evaluated?: number
+          sectorsEvaluated?: number; peCoverage?: number; note?: string; categories?: unknown
+        }
+        if (!data.ok) return { error: 'outlier scan failed' }
+        return {
+          universeSize: data.universeSize, evaluated: data.evaluated,
+          sectorsEvaluated: data.sectorsEvaluated, peCoverage: data.peCoverage,
+          coverageNote: data.note, categories: data.categories,
         }
       }
       default:

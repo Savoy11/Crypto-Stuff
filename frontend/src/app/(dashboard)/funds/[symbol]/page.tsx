@@ -9,6 +9,7 @@ import { ArrowLeft, Calculator, ExternalLink, TrendingDown, TrendingUp } from 'l
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { FundHoldingsHistory } from './FundHoldingsHistory'
 import { FundHoldingsSection } from './FundHoldingsSection'
+import { ExplainedLabel } from '@/components/ui/ExplainedLabel'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import { computeFeeDrag, FUND_CATEGORY_INFO, getFund } from '@/lib/data/fundCatalog'
@@ -128,16 +129,25 @@ export default function FundDetailPage() {
   const change = live ? quote?.changePercent ?? null : null
   const category = FUND_CATEGORY_INFO[entry.category]
 
-  const facts: Array<{ label: string; value: string }> = [
-    { label: 'Issuer', value: entry.issuer },
-    { label: 'Type', value: entry.type === 'etf' ? 'Exchange-Traded Fund' : 'Mutual Fund' },
-    ...(entry.focusSector ? [{ label: 'Target Sector', value: SECTOR_INFO[entry.focusSector].label }] : []),
-    ...(entry.focusIndustry ? [{ label: 'Industry Focus', value: entry.focusIndustry }] : []),
-    { label: 'Expense Ratio', value: `${entry.expenseRatioPct}%` },
-    { label: 'AUM', value: formatCompact(entry.aumB * 1e9) },
-    { label: 'Distribution Yield', value: entry.yieldPct != null ? `${entry.yieldPct.toFixed(2)}%` : '—' },
-    { label: 'Inception', value: String(entry.inceptionYear) },
-    { label: 'Index', value: entry.indexTracked ?? 'Actively managed' },
+  const facts: Array<{ label: string; value: string; explain: string }> = [
+    { label: 'Issuer', value: entry.issuer,
+      explain: 'The fund company managing the assets. Scale matters: large issuers tend to mean tighter trading spreads, lower fees, and less risk the fund gets closed.' },
+    { label: 'Type', value: entry.type === 'etf' ? 'Exchange-Traded Fund' : 'Mutual Fund',
+      explain: 'ETFs trade all day on an exchange at market prices and are generally more tax-efficient; mutual funds price once daily at NAV and may carry investment minimums.' },
+    ...(entry.focusSector ? [{ label: 'Target Sector', value: SECTOR_INFO[entry.focusSector].label,
+      explain: 'The single sector this fund concentrates in. Sector funds trade diversification for focused exposure — expect bigger swings than broad-market funds.' }] : []),
+    ...(entry.focusIndustry ? [{ label: 'Industry Focus', value: entry.focusIndustry,
+      explain: 'The industries within that sector where the fund’s holdings actually sit — narrower focus means the fund lives and dies with this slice of the market.' }] : []),
+    { label: 'Expense Ratio', value: `${entry.expenseRatioPct}%`,
+      explain: 'The annual fee skimmed from returns, visible or not. The single most reliable predictor of long-run relative performance — compounding works against you here. The Fee Drag Analyzer below shows the dollar cost.' },
+    { label: 'AUM', value: formatCompact(entry.aumB * 1e9),
+      explain: 'Total assets under management. Very small funds risk closure and wide spreads; very large active funds can struggle to trade without moving prices.' },
+    { label: 'Distribution Yield', value: entry.yieldPct != null ? `${entry.yieldPct.toFixed(2)}%` : '—',
+      explain: 'Income (dividends and interest) paid out over the past year as a percent of the fund’s price — the cash-flow component of your return.' },
+    { label: 'Inception', value: String(entry.inceptionYear),
+      explain: 'Launch year. A longer track record shows how the fund behaved across full market cycles, not just the recent regime.' },
+    { label: 'Index', value: entry.indexTracked ?? 'Actively managed',
+      explain: 'The benchmark the fund replicates — cheap and predictable — versus active management, where returns depend on manager skill and fees are typically higher.' },
   ]
 
   return (
@@ -199,9 +209,11 @@ export default function FundDetailPage() {
             <div className="rounded-card border border-border bg-bg-card p-4">
               <h2 className="text-sm font-medium text-text-secondary mb-3">Fund Facts</h2>
               <dl className="space-y-2.5">
-                {facts.map(({ label, value }) => (
+                {facts.map(({ label, value, explain }) => (
                   <div key={label} className="flex items-center justify-between gap-3 text-sm">
-                    <dt className="text-text-muted flex-shrink-0">{label}</dt>
+                    <dt className="text-text-muted flex-shrink-0">
+                      <ExplainedLabel label={label} explain={explain} />
+                    </dt>
                     <dd className="font-mono tabular-nums text-text-primary text-right text-xs">{value}</dd>
                   </div>
                 ))}

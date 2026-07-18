@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { EQUITY_BY_SYMBOL } from '@/lib/data/equityCatalog'
+import { getProviderKey } from '@/lib/api/live/providers'
 
 // Earnings + economic calendar for the equities module. Requires FMP_API_KEY
 // (free tier covers both endpoints); returns ok:false without a key so the UI
 // shows an honest setup notice instead of fabricated dates.
 
 export const dynamic = 'force-dynamic'
-
-const FMP_KEY = process.env.FMP_API_KEY && process.env.FMP_API_KEY !== 'your-fmp-api-key'
-  ? process.env.FMP_API_KEY : undefined
 
 export interface EarningsEvent {
   symbol: string
@@ -42,18 +40,23 @@ export async function GET(req: NextRequest) {
   const to = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
   const base = { from, to, updatedAt: new Date().toISOString() }
 
+  // UI-saved key (Integrations page) or FMP_API_KEY env var
+  const FMP_KEY = getProviderKey('fmp')
   if (!FMP_KEY) {
     return NextResponse.json({ ok: false, configured: false, earnings: [], economic: [], ...base } satisfies MarketCalendarResponse)
   }
 
+  // FMP /stable API. Earnings works on the free tier; the economic calendar is
+  // a paid endpoint (402 on free) — Promise.allSettled lets it fail silently.
+  const stable = 'https://financialmodelingprep.com/stable'
   const [earningsRes, econRes] = await Promise.allSettled([
-    fetch(`https://financialmodelingprep.com/api/v3/earning_calendar?from=${from}&to=${to}&apikey=${FMP_KEY}`, { next: { revalidate: 3600 } }),
-    fetch(`https://financialmodelingprep.com/api/v3/economic_calendar?from=${from}&to=${to}&apikey=${FMP_KEY}`, { next: { revalidate: 3600 } }),
+    fetch(`${stable}/earnings-calendar?from=${from}&to=${to}&apikey=${FMP_KEY}`, { next: { revalidate: 3600 } }),
+    fetch(`${stable}/economic-calendar?from=${from}&to=${to}&apikey=${FMP_KEY}`, { next: { revalidate: 3600 } }),
   ])
 
   const earnings: EarningsEvent[] = []
   if (earningsRes.status === 'fulfilled' && earningsRes.value.ok) {
-    const rows = await earningsRes.value.json() as Array<{ symbol: string; date: string; epsEstimated: number | null; time: string | null }>
+    const rows = await earningsRes.value.json() as Array<{ symbol: string; date: string; epsEstimated: number | null }>
     for (const row of rows) {
       const entry = EQUITY_BY_SYMBOL[row.symbol?.toUpperCase() ?? '']
       // Catalog names first; cap the long tail of non-catalog names
@@ -63,7 +66,7 @@ export async function GET(req: NextRequest) {
         name: entry?.name ?? row.symbol,
         date: row.date,
         epsEstimate: row.epsEstimated ?? null,
-        time: row.time ?? null,
+        time: null, // /stable earnings-calendar has no BMO/AMC session field
         inCatalog: !!entry,
       })
     }

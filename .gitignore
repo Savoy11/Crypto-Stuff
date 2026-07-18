@@ -17,8 +17,10 @@ frontend/tsconfig.tsbuildinfo
 # Runtime config / secrets written by the app (defaults live in source)
 frontend/.provider-config.json
 frontend/.agent-prompts.json
+frontend/.exchange-credentials.json
 .provider-config.json
 .agent-prompts.json
+.exchange-credentials.json
 
 # Environment files (keep .env.example, ignore secrets)
 .env

@@ -51,13 +51,22 @@ export const EXCHANGE_META: Record<ExchangeId, { label: string; color: string; w
   bybit:    { label: 'Bybit',    color: '#F7A600', website: 'https://bybit.com'    },
 }
 
+// Credentials live server-side only (.exchange-credentials.json via
+// /live-data/wallet/exchange-connections). The browser keeps metadata and a
+// short key preview — never the API secret.
 export interface ExchangeConnection {
-  id:        string
+  id:         string
+  label:      string
+  exchange:   ExchangeId
+  keyPreview: string
+  addedAt:    string
+}
+
+export interface NewExchangeConnection {
   label:     string
   exchange:  ExchangeId
   apiKey:    string
   apiSecret: string
-  addedAt:   string
 }
 
 // ─── Store ─────────────────────────────────────────────────────────────────────
@@ -74,8 +83,8 @@ interface WalletState {
   addConnected:    (w: Omit<ConnectedWallet, 'id' | 'connectedAt'>) => void
   removeConnected: (id: string) => void
 
-  addExchange:    (e: Omit<ExchangeConnection, 'id' | 'addedAt'>) => void
-  removeExchange: (id: string) => void
+  addExchange:    (e: NewExchangeConnection) => Promise<void>
+  removeExchange: (id: string) => Promise<void>
 }
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
@@ -100,11 +109,37 @@ export const useWalletStore = create<WalletState>()(
       })),
       removeConnected: (id) => set((s) => ({ connected: s.connected.filter(w => w.id !== id) })),
 
-      addExchange: (e) => set((s) => ({
-        exchanges: [...s.exchanges, { ...e, id: uid(), addedAt: new Date().toISOString() }],
-      })),
-      removeExchange: (id) => set((s) => ({ exchanges: s.exchanges.filter(e => e.id !== id) })),
+      addExchange: async (e) => {
+        const res = await fetch('/live-data/wallet/exchange-connections', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(e),
+        })
+        const d = await res.json().catch(() => ({}))
+        if (!res.ok || !d.ok) throw new Error(d.error ?? `Failed to save connection (HTTP ${res.status})`)
+        set((s) => ({ exchanges: [...s.exchanges, d.connection as ExchangeConnection] }))
+      },
+      removeExchange: async (id) => {
+        await fetch(`/live-data/wallet/exchange-connections?id=${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {})
+        set((s) => ({ exchanges: s.exchanges.filter(e => e.id !== id) }))
+      },
     }),
-    { name: 'caep:wallets' },
+    {
+      name: 'caep:wallets',
+      // v1: exchange API secrets no longer live in browser storage. Migrating
+      // strips any previously persisted credentials; those connections must be
+      // re-linked so the secret lands in the server-side store.
+      version: 1,
+      migrate: (persisted) => {
+        const s = persisted as { exchanges?: Array<Record<string, unknown>> } | undefined
+        if (s?.exchanges) {
+          s.exchanges = s.exchanges.map(({ apiKey, apiSecret: _dropped, ...rest }) => ({
+            ...rest,
+            keyPreview: typeof apiKey === 'string' ? apiKey.slice(0, 8) : '',
+          }))
+        }
+        return s
+      },
+    },
   ),
 )
