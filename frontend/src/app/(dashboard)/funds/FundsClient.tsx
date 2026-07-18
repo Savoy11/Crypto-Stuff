@@ -1,36 +1,56 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronRight, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MetricCard } from '@/components/ui/MetricCard'
-import {
-  FUND_CATALOG, FUND_CATEGORY_INFO,
-  type FundCategoryId, type FundEntry, type FundType,
-} from '@/lib/data/fundCatalog'
+import { FUND_CATALOG, FUND_CATEGORY_INFO, type FundCategoryId, type FundType } from '@/lib/data/fundCatalog'
 import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
 import type { SecurityReturnsResponse } from '@/app/live-data/security-returns/route'
+import type { FundUniverseEntry, FundUniverseResponse } from '@/app/live-data/fund-universe/route'
 
-type SortKey = 'symbol' | 'category' | 'price' | 'change' | 'expense' | 'aum' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
+type SortKey = 'symbol' | 'category' | 'price' | 'expense' | 'aum' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
 type ColumnTab = 'overview' | 'returns'
 type FundStyle = 'all' | 'index' | 'active'
+
+const PAGE_SIZE = 50
+
+/** Sort/display label for the category column — sector funds carry their specific sector. */
+function categoryLabel(row: FundUniverseEntry): string {
+  if (!row.category) return '—'
+  const base = FUND_CATEGORY_INFO[row.category].label
+  return row.focusSector ? `${base} · ${SECTOR_INFO[row.focusSector].label}` : base
+}
+
+const SOURCE_LABELS: Record<string, string> = {
+  fmp: 'Live via Financial Modeling Prep',
+  yahoo: 'Live via Yahoo Finance',
+  stooq: 'Live via Stooq (intraday change)',
+  reference: 'Reference prices — no live source reachable',
+}
+
+function expenseColor(pct: number): string {
+  if (pct <= 0.1) return 'text-emerald-400'
+  if (pct <= 0.35) return 'text-amber-400'
+  return 'text-orange-400'
+}
 
 // ─── ETFdb-style range screener ───────────────────────────────────────────────
 
 /** Every numeric dimension the screener can bound with a min/max pair. */
-type RangeKey = 'expense' | 'aum' | 'age' | 'price' | 'change' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
+type RangeKey = 'expense' | 'aum' | 'age' | 'price' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
 type Ranges = Record<RangeKey, { min: string; max: string }>
 const RETURN_KEYS: RangeKey[] = ['m1', 'm3', 'ytd', 'y1']
 
 const EMPTY_RANGES: Ranges = {
   expense: { min: '', max: '' }, aum: { min: '', max: '' }, age: { min: '', max: '' },
-  price: { min: '', max: '' }, change: { min: '', max: '' }, yield: { min: '', max: '' },
+  price: { min: '', max: '' }, yield: { min: '', max: '' },
   m1: { min: '', max: '' }, m3: { min: '', max: '' }, ytd: { min: '', max: '' }, y1: { min: '', max: '' },
 }
 
@@ -95,96 +115,65 @@ function RangeField({ label, unit, range, onChange }: {
   )
 }
 
-/** Sort/display label for the category column — sector funds carry their specific sector. */
-function categoryLabel(row: FundEntry): string {
-  const base = FUND_CATEGORY_INFO[row.category].label
-  return row.focusSector ? `${base} · ${SECTOR_INFO[row.focusSector].label}` : base
-}
-
-interface Row extends FundEntry {
-  price: number
-  changePercent: number | null
-  live: boolean
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  fmp: 'Live via Financial Modeling Prep',
-  yahoo: 'Live via Yahoo Finance',
-  stooq: 'Live via Stooq (intraday change)',
-  reference: 'Reference prices — no live source reachable',
-}
-
-function expenseColor(pct: number): string {
-  if (pct <= 0.1) return 'text-emerald-400'
-  if (pct <= 0.35) return 'text-amber-400'
-  return 'text-orange-400'
-}
+// ─── Client ───────────────────────────────────────────────────────────────────
 
 export function FundsClient() {
   const [type, setType] = useState<FundType | 'all'>('all')
   const [category, setCategory] = useState<FundCategoryId | 'all'>('all')
   const [sectorFocus, setSectorFocus] = useState<SectorId | 'all'>('all')
+  const [industryFocus, setIndustryFocus] = useState<string | 'all'>('all')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('aum')
   const [sortAsc, setSortAsc] = useState(false)
   const [columnTab, setColumnTab] = useState<ColumnTab>('overview')
+  const [page, setPage] = useState(0)
   // Screener filters (reference values; blank = no filter)
   const [issuer, setIssuer] = useState('all')
   const [style, setStyle] = useState<FundStyle>('all')
+  const [curatedOnly, setCuratedOnly] = useState(false)
   const [ranges, setRanges] = useState<Ranges>(EMPTY_RANGES)
   const setRange = (key: RangeKey) => (next: { min: string; max: string }) =>
     setRanges((prev) => ({ ...prev, [key]: next }))
 
   const returnsFilterActive = RETURN_KEYS.some((k) => rangeActive(ranges[k]))
   const activeFilterCount =
-    (type !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) +
+    (type !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) + (curatedOnly ? 1 : 0) +
     (Object.keys(ranges) as RangeKey[]).filter((k) => rangeActive(ranges[k])).length
-  const clearFilters = () => { setType('all'); setIssuer('all'); setStyle('all'); setRanges(EMPTY_RANGES) }
+  const clearFilters = () => { setType('all'); setIssuer('all'); setStyle('all'); setCuratedOnly(false); setRanges(EMPTY_RANGES) }
 
-  const { data, isLoading, refetch, isFetching } = useQuery<SecurityQuotesResponse>({
-    queryKey: ['security-quotes', 'funds'],
-    queryFn: () => fetch('/live-data/security-quotes?universe=funds').then((r) => r.json()),
-    staleTime: STALE_TIME_SHORT,
-    refetchInterval: 60_000,
+  // ── Universe: every US-listed ETF (NASDAQ directory) + curated catalog ──
+  const { data: universeData, isLoading, refetch, isFetching } = useQuery<FundUniverseResponse>({
+    queryKey: ['fund-universe'],
+    queryFn: () => fetch('/live-data/fund-universe').then((r) => r.json()),
+    staleTime: 1000 * 60 * 30,
   })
+  const universe = useMemo(() => universeData?.entries ?? [], [universeData])
 
-  // Trailing returns are fetched lazily — once the Returns tab is opened OR a
-  // return-based screen is set.
-  const { data: returnsData } = useQuery<SecurityReturnsResponse>({
+  // Trailing returns for the curated catalog — powers the return-range screens.
+  const { data: returnsFilterData } = useQuery<SecurityReturnsResponse>({
     queryKey: ['security-returns', 'funds'],
     queryFn: () => fetch('/live-data/security-returns?universe=funds').then((r) => r.json()),
     staleTime: 1000 * 60 * 15,
-    enabled: columnTab === 'returns' || returnsFilterActive,
+    enabled: returnsFilterActive || columnTab === 'returns',
   })
 
-  const rows: Row[] = useMemo(() => {
-    return FUND_CATALOG.map((entry) => {
-      const quote = data?.quotes?.[entry.symbol.toUpperCase()]
-      const live = !!quote && data?.source !== 'reference' && !quote.reference
-      return {
-        ...entry,
-        price: quote?.price ?? entry.referencePrice,
-        changePercent: live ? quote?.changePercent ?? null : null,
-        live,
-      }
-    })
-  }, [data])
-
+  // ── Filter + sort the whole universe (facts-based; quotes are page-scoped) ──
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
     const nowYear = new Date().getFullYear()
-    const ret = (row: Row) => returnsData?.returns?.[row.symbol]
-    const subset = rows.filter((row) =>
+    const ret = (row: FundUniverseEntry) => returnsFilterData?.returns?.[row.symbol]
+    const subset = universe.filter((row) =>
+      (!curatedOnly || row.inCatalog) &&
       (type === 'all' || row.type === type) &&
       (category === 'all' || row.category === category) &&
       (category !== 'sector' || sectorFocus === 'all' || row.focusSector === sectorFocus) &&
+      (category !== 'sector' || industryFocus === 'all' || row.focusIndustry === industryFocus) &&
       (issuer === 'all' || row.issuer === issuer) &&
-      (style === 'all' || (style === 'active' ? row.indexTracked == null : row.indexTracked != null)) &&
+      (style === 'all' || (row.inCatalog && (style === 'active' ? row.indexTracked == null : row.indexTracked != null))) &&
       inRange(row.expenseRatioPct, ranges.expense) &&
       inRange(row.aumB, ranges.aum) &&
-      inRange(nowYear - row.inceptionYear, ranges.age) &&
-      inRange(row.price, ranges.price) &&
-      inRange(row.changePercent, ranges.change) &&
+      inRange(row.inceptionYear != null ? nowYear - row.inceptionYear : null, ranges.age) &&
+      inRange(row.referencePrice, ranges.price) &&
       inRange(row.yieldPct, ranges.yield) &&
       inRange(ret(row)?.m1, ranges.m1) &&
       inRange(ret(row)?.m3, ranges.m3) &&
@@ -193,24 +182,23 @@ export function FundsClient() {
       (!query ||
         row.symbol.toLowerCase().includes(query) ||
         row.name.toLowerCase().includes(query) ||
-        row.issuer.toLowerCase().includes(query) ||
+        (row.issuer?.toLowerCase().includes(query) ?? false) ||
         categoryLabel(row).toLowerCase().includes(query) ||
         (row.focusIndustry?.toLowerCase().includes(query) ?? false))
     )
     const dir = sortAsc ? 1 : -1
-    const value = (row: Row): number | string => {
+    const value = (row: FundUniverseEntry): number | string => {
       switch (sortKey) {
         case 'symbol':   return row.symbol
         case 'category': return categoryLabel(row)
-        case 'price':    return row.price
-        case 'change':   return row.changePercent ?? -Infinity
-        case 'expense':  return row.expenseRatioPct
+        case 'price':    return row.referencePrice ?? -Infinity
+        case 'expense':  return row.expenseRatioPct ?? (sortAsc ? Infinity : -Infinity)
         case 'yield':    return row.yieldPct ?? -Infinity
         case 'm1':       return ret(row)?.m1 ?? -Infinity
         case 'm3':       return ret(row)?.m3 ?? -Infinity
         case 'ytd':      return ret(row)?.ytd ?? -Infinity
         case 'y1':       return ret(row)?.y1 ?? -Infinity
-        default:         return row.aumB
+        default:         return row.aumB ?? -Infinity
       }
     }
     return [...subset].sort((a, b) => {
@@ -218,17 +206,55 @@ export function FundsClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [rows, type, category, sectorFocus, issuer, style, ranges, search, sortKey, sortAsc, returnsData])
+  }, [universe, type, category, sectorFocus, industryFocus, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc, returnsFilterData])
 
-  const etfCount = FUND_CATALOG.filter((f) => f.type === 'etf').length
-  const mutualCount = FUND_CATALOG.length - etfCount
-  const avgExpense = filtered.length
-    ? filtered.reduce((s, f) => s + f.expenseRatioPct, 0) / filtered.length
+  // Reset to first page whenever the result set changes
+  useEffect(() => { setPage(0) }, [type, category, sectorFocus, industryFocus, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, totalPages - 1)
+  const pageEntries = filtered.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
+  const pageSymbols = pageEntries.map((e) => e.symbol)
+
+  // ── Live quotes for the visible page only ──
+  const { data: quoteData } = useQuery<SecurityQuotesResponse>({
+    queryKey: ['security-quotes', 'funds-page', pageSymbols.join(',')],
+    queryFn: () => fetch(`/live-data/security-quotes?symbols=${encodeURIComponent(pageSymbols.join(','))}`).then((r) => r.json()),
+    enabled: pageSymbols.length > 0,
+    staleTime: STALE_TIME_SHORT,
+    refetchInterval: 60_000,
+    placeholderData: keepPreviousData,
+  })
+
+  // Returns for the visible page (display); merged with the catalog-wide set.
+  const { data: pageReturnsData } = useQuery<SecurityReturnsResponse>({
+    queryKey: ['security-returns', 'funds-page', pageSymbols.join(',')],
+    queryFn: () => fetch(`/live-data/security-returns?symbols=${encodeURIComponent(pageSymbols.join(','))}`).then((r) => r.json()),
+    enabled: columnTab === 'returns' && pageSymbols.length > 0,
+    staleTime: 1000 * 60 * 15,
+    placeholderData: keepPreviousData,
+  })
+  const displayReturns = (symbol: string) =>
+    pageReturnsData?.returns?.[symbol] ?? returnsFilterData?.returns?.[symbol]
+
+  const rows = pageEntries.map((e) => {
+    const quote = quoteData?.quotes?.[e.symbol.toUpperCase()]
+    const live = !!quote && quoteData?.source !== 'reference' && !quote.reference
+    return {
+      ...e,
+      price: quote?.price ?? e.referencePrice,
+      changePercent: live ? quote?.changePercent ?? null : null,
+      live,
+    }
+  })
+
+  const curated = filtered.filter((f) => f.inCatalog)
+  const avgExpense = curated.length
+    ? curated.reduce((s, f) => s + (f.expenseRatioPct ?? 0), 0) / curated.length
     : 0
-  const cheapest = filtered.length
-    ? filtered.reduce((best, f) => (f.expenseRatioPct < best.expenseRatioPct ? f : best))
+  const cheapest = curated.length
+    ? curated.reduce((best, f) => ((f.expenseRatioPct ?? Infinity) < (best.expenseRatioPct ?? Infinity) ? f : best))
     : null
-  const totalAum = filtered.reduce((s, f) => s + f.aumB, 0)
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((a) => !a)
@@ -236,7 +262,7 @@ export function FundsClient() {
   }
 
   const issuers = useMemo(() => Array.from(new Set(FUND_CATALOG.map((f) => f.issuer))).sort(), [])
-  const returnsMissing = columnTab === 'returns' && returnsData != null && returnsData.source === 'none'
+  const returnsMissing = columnTab === 'returns' && pageReturnsData != null && pageReturnsData.source === 'none'
 
   const SortHeader = ({ label, colKey }: { label: string; colKey: SortKey }) => (
     <button
@@ -251,17 +277,21 @@ export function FundsClient() {
     </button>
   )
 
+  const discovered = universeData?.discovered ?? 0
+
   return (
     <div className="space-y-6 max-w-screen-2xl mx-auto">
       <div className="flex items-center justify-between gap-4">
         <PageHeader
           title="Fund Registry"
-          subtitle={`${etfCount} ETFs and ${mutualCount} mutual funds`}
+          subtitle={discovered > 0
+            ? `${universe.length.toLocaleString()} funds — US-listed ETFs + SEC-registered mutual funds, ${FUND_CATALOG.length} curated with reference facts`
+            : `${FUND_CATALOG.length} curated ETFs and mutual funds`}
           icon={<Landmark size={20} aria-hidden />}
-          description="Tracks major ETFs and mutual funds with live NAV/price, expense ratios, and category context. Costs compound — the expense ratio column is color-coded and every fund page includes a fee-drag projection."
+          description="Every US-listed ETF (NASDAQ symbol directory) and SEC-registered mutual fund share class (SEC series/class dataset), plus a curated set carrying expense ratios, AUM, categories, and yields. Live quotes load for the visible page; any fund's detail page pulls its full portfolio from SEC N-PORT filings."
           details={[
-            { label: 'Data source', text: data ? SOURCE_LABELS[data.source] ?? data.source : 'Loading…' },
-            { label: 'Fund facts', text: 'Expense ratio, AUM, yield, and holdings are reference snapshots from issuer disclosures, not a live feed.' },
+            { label: 'Universe', text: universeData ? (discovered > 0 ? `${universeData.discoveredEtfs.toLocaleString()} listed ETFs (NASDAQ) + ${universeData.discoveredMutual.toLocaleString()} mutual fund classes (SEC) discovered beyond the catalog.` : 'Live directories unreachable — curated catalog only.') : 'Loading…' },
+            { label: 'Fund facts', text: 'Expense ratio, AUM, yield, and category exist for curated funds; facts-based screens exclude funds without data.' },
           ]}
         />
         <div className="flex items-center gap-3">
@@ -285,10 +315,10 @@ export function FundsClient() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <MetricCard title="Funds Shown" loading={isLoading} value={String(filtered.length)} subtitle={`of ${FUND_CATALOG.length} tracked`} accentColor="#3b82f6" />
-        <MetricCard title="Avg Expense Ratio" loading={isLoading} value={`${avgExpense.toFixed(2)}%`} subtitle="of funds shown" accentColor="#f59e0b" />
-        <MetricCard title="Cheapest Fund" loading={isLoading} value={cheapest?.symbol ?? '—'} subtitle={cheapest ? `${cheapest.expenseRatioPct}% expense ratio` : undefined} accentColor="#10b981" />
-        <MetricCard title="Combined AUM" loading={isLoading} value={formatCompact(totalAum * 1e9)} subtitle="reference values" accentColor="#8b5cf6" />
+        <MetricCard title="Funds Shown" loading={isLoading} value={filtered.length.toLocaleString()} subtitle={`of ${universe.length.toLocaleString()} in universe`} accentColor="#3b82f6" />
+        <MetricCard title="Curated Matches" loading={isLoading} value={String(curated.length)} subtitle="with full reference facts" accentColor="#14b8a6" />
+        <MetricCard title="Avg Expense Ratio" loading={isLoading} value={curated.length ? `${avgExpense.toFixed(2)}%` : '—'} subtitle="curated matches" accentColor="#f59e0b" />
+        <MetricCard title="Cheapest Curated" loading={isLoading} value={cheapest?.symbol ?? '—'} subtitle={cheapest?.expenseRatioPct != null ? `${cheapest.expenseRatioPct}% expense ratio` : undefined} accentColor="#10b981" />
       </div>
 
       {/* Category filter chips */}
@@ -306,7 +336,7 @@ export function FundsClient() {
           {(Object.entries(FUND_CATEGORY_INFO) as Array<[FundCategoryId, { label: string; color: string }]>).map(([id, info]) => (
             <button
               key={id}
-              onClick={() => { setCategory(category === id ? 'all' : id); setSectorFocus('all') }}
+              onClick={() => { setCategory(category === id ? 'all' : id); setSectorFocus('all'); setIndustryFocus('all') }}
               className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
                 category === id
                   ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
@@ -324,7 +354,7 @@ export function FundsClient() {
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs font-medium uppercase tracking-wider text-text-muted mr-1">Target sector</span>
           <button
-            onClick={() => setSectorFocus('all')}
+            onClick={() => { setSectorFocus('all'); setIndustryFocus('all') }}
             className={clsx('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
               sectorFocus === 'all'
                 ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
@@ -335,7 +365,7 @@ export function FundsClient() {
           {Array.from(new Set(FUND_CATALOG.filter((f) => f.category === 'sector' && f.focusSector).map((f) => f.focusSector as SectorId))).map((id) => (
             <button
               key={id}
-              onClick={() => setSectorFocus(sectorFocus === id ? 'all' : id)}
+              onClick={() => { setSectorFocus(sectorFocus === id ? 'all' : id); setIndustryFocus('all') }}
               className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
                 sectorFocus === id
                   ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
@@ -343,6 +373,36 @@ export function FundsClient() {
             >
               <span className="size-1.5 rounded-full" style={{ backgroundColor: SECTOR_INFO[id].color }} aria-hidden />
               {SECTOR_INFO[id].label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Industry drill-down — a second level within the selected target sector */}
+      {category === 'sector' && sectorFocus !== 'all' && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium uppercase tracking-wider text-text-muted mr-1">Industry</span>
+          <button
+            onClick={() => setIndustryFocus('all')}
+            className={clsx('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+              industryFocus === 'all'
+                ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+          >
+            All
+          </button>
+          {Array.from(new Set(FUND_CATALOG
+            .filter((f) => f.category === 'sector' && f.focusSector === sectorFocus && f.focusIndustry)
+            .map((f) => f.focusIndustry as string))).sort().map((industry) => (
+            <button
+              key={industry}
+              onClick={() => setIndustryFocus(industryFocus === industry ? 'all' : industry)}
+              className={clsx('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                industryFocus === industry
+                  ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                  : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+            >
+              {industry}
             </button>
           ))}
         </div>
@@ -366,7 +426,7 @@ export function FundsClient() {
             )}
           </div>
 
-          <FilterGroup title="Structure" defaultOpen active={(type !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0)}>
+          <FilterGroup title="Structure" defaultOpen active={(type !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0) + (curatedOnly ? 1 : 0)}>
             <div>
               <p className="text-[11px] text-text-muted mb-1">Fund type</p>
               <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
@@ -408,6 +468,15 @@ export function FundsClient() {
                 {issuers.map((i) => <option key={i} value={i}>{i}</option>)}
               </select>
             </div>
+            <label className="flex items-center gap-2 text-[11px] text-text-muted cursor-pointer">
+              <input
+                type="checkbox"
+                checked={curatedOnly}
+                onChange={(e) => setCuratedOnly(e.target.checked)}
+                className="accent-blue-500"
+              />
+              Curated funds only (full reference facts)
+            </label>
           </FilterGroup>
 
           <FilterGroup title="Expenses & Size" defaultOpen active={['expense', 'aum', 'age'].filter((k) => rangeActive(ranges[k as RangeKey])).length}>
@@ -416,9 +485,8 @@ export function FundsClient() {
             <RangeField label="Fund age" unit="years" range={ranges.age} onChange={setRange('age')} />
           </FilterGroup>
 
-          <FilterGroup title="Trading" active={['price', 'change'].filter((k) => rangeActive(ranges[k as RangeKey])).length}>
+          <FilterGroup title="Trading" active={rangeActive(ranges.price) ? 1 : 0}>
             <RangeField label="Price / NAV" unit="$" range={ranges.price} onChange={setRange('price')} />
-            <RangeField label="Day change" unit="%" range={ranges.change} onChange={setRange('change')} />
           </FilterGroup>
 
           <FilterGroup title="Dividend" active={rangeActive(ranges.yield) ? 1 : 0}>
@@ -431,8 +499,8 @@ export function FundsClient() {
             <RangeField label="YTD return" unit="%" range={ranges.ytd} onChange={setRange('ytd')} />
             <RangeField label="1 year return" unit="%" range={ranges.y1} onChange={setRange('y1')} />
             <p className="text-[10px] text-text-muted/80 leading-relaxed">
-              Price returns from daily closes, excl. distributions. Funds without enough history are excluded while a bound is set.
-              {returnsFilterActive && returnsData?.source === 'none' && (
+              Price returns from daily closes, excl. distributions. Return screens cover the curated set; other funds are excluded while a bound is set.
+              {returnsFilterActive && returnsFilterData?.source === 'none' && (
                 <span className="text-amber-400/80"> Price-history source unreachable — return screens exclude all funds.</span>
               )}
             </p>
@@ -454,130 +522,163 @@ export function FundsClient() {
                 </button>
               ))}
             </div>
-            <span className="text-[11px] text-text-muted">{filtered.length} match{filtered.length !== 1 ? 'es' : ''} · reference fund facts</span>
+            <span className="text-[11px] text-text-muted">{filtered.length.toLocaleString()} match{filtered.length !== 1 ? 'es' : ''}</span>
           </div>
 
           {/* Table */}
           <div className="rounded-card border border-border bg-bg-card overflow-hidden">
-        <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40">
-          <div className="col-span-4"><SortHeader label="Fund" colKey="symbol" /></div>
-          <div className="col-span-2"><SortHeader label="Category" colKey="category" /></div>
-          <div className="col-span-2 flex justify-end"><SortHeader label="Price / NAV" colKey="price" /></div>
-          {columnTab === 'overview' ? (
-            <>
-              <div className="col-span-1 flex justify-end"><SortHeader label="Chg %" colKey="change" /></div>
-              <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
-              <div className="col-span-1 flex justify-end"><SortHeader label="AUM" colKey="aum" /></div>
-              <div className="col-span-1 flex justify-end"><SortHeader label="Yield" colKey="yield" /></div>
-            </>
-          ) : (
-            <>
-              <div className="col-span-1 flex justify-end"><SortHeader label="1M" colKey="m1" /></div>
-              <div className="col-span-1 flex justify-end"><SortHeader label="3M" colKey="m3" /></div>
-              <div className="col-span-1 flex justify-end"><SortHeader label="YTD" colKey="ytd" /></div>
-              <div className="col-span-1 flex justify-end"><SortHeader label="1Y" colKey="y1" /></div>
-            </>
-          )}
-        </div>
+            <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40">
+              <div className="col-span-4"><SortHeader label="Fund" colKey="symbol" /></div>
+              <div className="col-span-2"><SortHeader label="Category" colKey="category" /></div>
+              <div className="col-span-2 flex justify-end"><SortHeader label="Price / NAV" colKey="price" /></div>
+              {columnTab === 'overview' ? (
+                <>
+                  <div className="col-span-1 flex justify-end"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">Chg %</span></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="AUM" colKey="aum" /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="Yield" colKey="yield" /></div>
+                </>
+              ) : (
+                <>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="1M" colKey="m1" /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="3M" colKey="m3" /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="YTD" colKey="ytd" /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="1Y" colKey="y1" /></div>
+                </>
+              )}
+            </div>
 
-        <div className="divide-y divide-border/60">
-          {isLoading && rows.length === 0
-            ? Array.from({ length: 10 }, (_, i) => (
-                <div key={i} className="h-12 animate-shimmer bg-shimmer-gradient bg-[length:200%_100%]" />
-              ))
-            : filtered.map((row) => {
-                const catInfo = FUND_CATEGORY_INFO[row.category]
-                const change = row.changePercent
-                return (
-                  <Link
-                    key={row.symbol}
-                    href={`/funds/${row.symbol.toLowerCase()}`}
-                    className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-bg-elevated/40 transition-colors"
-                  >
-                    <div className="col-span-4 min-w-0 flex items-center gap-2">
-                      <span className={clsx('px-1.5 py-0.5 rounded text-[9px] font-bold border flex-shrink-0',
-                        row.type === 'etf'
-                          ? 'text-accent-blue bg-accent-blue/10 border-accent-blue/20'
-                          : 'text-violet-400 bg-violet-400/10 border-violet-500/20')}>
-                        {row.type === 'etf' ? 'ETF' : 'MF'}
-                      </span>
-                      <span className="font-mono font-semibold text-text-primary flex-shrink-0">{row.symbol}</span>
-                      <span className="text-xs text-text-muted truncate">{row.name}</span>
-                    </div>
-                    <div className="col-span-2 min-w-0">
-                      <span
-                        className="inline-flex max-w-full items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary"
-                        title={row.focusIndustry ? `${categoryLabel(row)} — ${row.focusIndustry}` : undefined}
+            <div className="divide-y divide-border/60">
+              {isLoading && rows.length === 0
+                ? Array.from({ length: 10 }, (_, i) => (
+                    <div key={i} className="h-12 animate-shimmer bg-shimmer-gradient bg-[length:200%_100%]" />
+                  ))
+                : rows.map((row) => {
+                    const change = row.changePercent
+                    return (
+                      <Link
+                        key={row.symbol}
+                        href={`/funds/${row.symbol.toLowerCase()}`}
+                        className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-bg-elevated/40 transition-colors"
                       >
-                        <span
-                          className="size-1.5 rounded-full flex-shrink-0"
-                          style={{ backgroundColor: row.focusSector ? SECTOR_INFO[row.focusSector].color : catInfo.color }}
-                          aria-hidden
-                        />
-                        {row.focusSector ? (
-                          <span className="truncate">
-                            {SECTOR_INFO[row.focusSector].label}
-                            {row.focusIndustry && <span className="text-text-muted"> · {row.focusIndustry}</span>}
+                        <div className="col-span-4 min-w-0 flex items-center gap-2">
+                          <span className={clsx('px-1.5 py-0.5 rounded text-[9px] font-bold border flex-shrink-0',
+                            row.type === 'etf'
+                              ? 'text-accent-blue bg-accent-blue/10 border-accent-blue/20'
+                              : 'text-violet-400 bg-violet-400/10 border-violet-500/20')}>
+                            {row.type === 'etf' ? 'ETF' : 'MF'}
                           </span>
+                          <span className="font-mono font-semibold text-text-primary flex-shrink-0">{row.symbol}</span>
+                          <span className="text-xs text-text-muted truncate">{row.name}</span>
+                        </div>
+                        <div className="col-span-2 min-w-0">
+                          {row.category ? (
+                            <span
+                              className="inline-flex max-w-full items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary"
+                              title={row.focusIndustry ? `${categoryLabel(row)} — ${row.focusIndustry}` : undefined}
+                            >
+                              <span
+                                className="size-1.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: row.focusSector ? SECTOR_INFO[row.focusSector].color : FUND_CATEGORY_INFO[row.category].color }}
+                                aria-hidden
+                              />
+                              {row.focusSector ? (
+                                <span className="truncate">
+                                  {SECTOR_INFO[row.focusSector].label}
+                                  {row.focusIndustry && <span className="text-text-muted"> · {row.focusIndustry}</span>}
+                                </span>
+                              ) : (
+                                FUND_CATEGORY_INFO[row.category].label
+                              )}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-text-muted/60">—</span>
+                          )}
+                        </div>
+                        <div className="col-span-2 text-right font-mono tabular-nums text-text-primary">
+                          {row.price != null ? formatCurrency(row.price) : <span className="text-text-muted">—</span>}
+                          {row.price != null && !row.live && <span className="ml-1 text-[9px] text-amber-400/80 align-top" title="Reference price — live source unreachable">ref</span>}
+                        </div>
+                        {columnTab === 'overview' ? (
+                          <>
+                            <div className={clsx('col-span-1 text-right font-mono tabular-nums text-xs',
+                              change == null ? 'text-text-muted' : change >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                              {change == null ? '—' : formatPercent(change, 2)}
+                            </div>
+                            <div className={clsx('col-span-1 text-right font-mono tabular-nums text-xs',
+                              row.expenseRatioPct != null ? expenseColor(row.expenseRatioPct) : 'text-text-muted')}>
+                              {row.expenseRatioPct != null ? `${row.expenseRatioPct.toFixed(row.expenseRatioPct < 0.1 ? 3 : 2)}%` : '—'}
+                            </div>
+                            <div className="col-span-1 text-right font-mono tabular-nums text-xs text-text-secondary">
+                              {row.aumB != null ? formatCompact(row.aumB * 1e9) : '—'}
+                            </div>
+                            <div className="col-span-1 text-right font-mono tabular-nums text-xs text-text-secondary">
+                              {row.yieldPct != null ? `${row.yieldPct.toFixed(1)}%` : '—'}
+                            </div>
+                          </>
                         ) : (
-                          catInfo.label
+                          [displayReturns(row.symbol)?.m1, displayReturns(row.symbol)?.m3,
+                           displayReturns(row.symbol)?.ytd, displayReturns(row.symbol)?.y1].map((r, i) => (
+                            <div key={i} className={clsx('col-span-1 text-right font-mono tabular-nums text-xs',
+                              r == null ? 'text-text-muted' : r >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                              {r == null ? '—' : formatPercent(r, 1)}
+                            </div>
+                          ))
                         )}
-                      </span>
-                    </div>
-                    <div className="col-span-2 text-right font-mono tabular-nums text-text-primary">
-                      {formatCurrency(row.price)}
-                      {!row.live && <span className="ml-1 text-[9px] text-amber-400/80 align-top" title="Reference price — live source unreachable">ref</span>}
-                    </div>
-                    {columnTab === 'overview' ? (
-                      <>
-                        <div className={clsx('col-span-1 text-right font-mono tabular-nums text-xs',
-                          change == null ? 'text-text-muted' : change >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                          {change == null ? '—' : formatPercent(change, 2)}
-                        </div>
-                        <div className={clsx('col-span-1 text-right font-mono tabular-nums text-xs', expenseColor(row.expenseRatioPct))}>
-                          {row.expenseRatioPct.toFixed(row.expenseRatioPct < 0.1 ? 3 : 2)}%
-                        </div>
-                        <div className="col-span-1 text-right font-mono tabular-nums text-xs text-text-secondary">
-                          {formatCompact(row.aumB * 1e9)}
-                        </div>
-                        <div className="col-span-1 text-right font-mono tabular-nums text-xs text-text-secondary">
-                          {row.yieldPct != null ? `${row.yieldPct.toFixed(1)}%` : '—'}
-                        </div>
-                      </>
-                    ) : (
-                      [returnsData?.returns?.[row.symbol]?.m1, returnsData?.returns?.[row.symbol]?.m3,
-                       returnsData?.returns?.[row.symbol]?.ytd, returnsData?.returns?.[row.symbol]?.y1].map((r, i) => (
-                        <div key={i} className={clsx('col-span-1 text-right font-mono tabular-nums text-xs',
-                          r == null ? 'text-text-muted' : r >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                          {r == null ? '—' : formatPercent(r, 1)}
-                        </div>
-                      ))
-                    )}
-                  </Link>
-                )
-              })}
-          {!isLoading && filtered.length === 0 && (
-            <p className="px-4 py-8 text-center text-sm text-text-muted">No funds match the current filters.</p>
-          )}
-        </div>
-        {returnsMissing && (
-          <p className="px-4 py-2 border-t border-border text-[11px] text-amber-400/80">
-            Trailing returns unavailable — price-history source unreachable. Columns show — instead of stale values.
-          </p>
-        )}
-        {columnTab === 'returns' && !returnsMissing && (
-          <p className="px-4 py-2 border-t border-border text-[11px] text-text-muted">
-            Trailing price returns from daily closes (Yahoo Finance) · YTD measured from last close of the prior year · excludes distributions
-          </p>
-        )}
+                      </Link>
+                    )
+                  })}
+              {!isLoading && filtered.length === 0 && (
+                <p className="px-4 py-8 text-center text-sm text-text-muted">No funds match the current filters.</p>
+              )}
+            </div>
+
+            {/* Pagination */}
+            {filtered.length > PAGE_SIZE && (
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-border">
+                <span className="text-[11px] text-text-muted font-mono">
+                  {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, filtered.length)} of {filtered.length.toLocaleString()}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setPage(Math.max(0, safePage - 1))}
+                    disabled={safePage === 0}
+                    className="flex items-center gap-1 px-2 py-1 rounded border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <ChevronLeft size={12} aria-hidden /> Prev
+                  </button>
+                  <span className="text-[11px] text-text-muted font-mono px-1">
+                    {safePage + 1} / {totalPages.toLocaleString()}
+                  </span>
+                  <button
+                    onClick={() => setPage(Math.min(totalPages - 1, safePage + 1))}
+                    disabled={safePage >= totalPages - 1}
+                    className="flex items-center gap-1 px-2 py-1 rounded border border-border text-xs text-text-secondary hover:text-text-primary hover:bg-bg-elevated disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next <ChevronRight size={12} aria-hidden />
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {returnsMissing && (
+              <p className="px-4 py-2 border-t border-border text-[11px] text-amber-400/80">
+                Trailing returns unavailable — price-history source unreachable. Columns show — instead of stale values.
+              </p>
+            )}
+            {columnTab === 'returns' && !returnsMissing && (
+              <p className="px-4 py-2 border-t border-border text-[11px] text-text-muted">
+                Trailing price returns from daily closes (Yahoo Finance) · YTD measured from last close of the prior year · excludes distributions
+              </p>
+            )}
           </div>
         </div>
       </div>
 
       <p className="text-[11px] text-text-muted text-center">
-        {data ? SOURCE_LABELS[data.source] ?? data.source : 'Loading…'}
-        {data?.updatedAt && ` · updated ${new Date(data.updatedAt).toLocaleTimeString()}`}
-        {' · '}Expense ratios, AUM, and yields are reference snapshots from issuer disclosures
+        {quoteData ? SOURCE_LABELS[quoteData.source] ?? quoteData.source : 'Loading…'}
+        {quoteData?.updatedAt && ` · quotes updated ${new Date(quoteData.updatedAt).toLocaleTimeString()} (visible page)`}
+        {' · '}Expense ratios, AUM, and yields are reference snapshots for curated funds
       </p>
     </div>
   )
