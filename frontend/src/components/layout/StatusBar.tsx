@@ -5,6 +5,7 @@ import { useStreamStore } from '@/store/useStreamStore'
 import { useAlertStore } from '@/store/useAlertStore'
 import { clsx } from 'clsx'
 import { formatDate } from '@/lib/utils/format'
+import { APP_VERSION } from '@/lib/constants'
 
 export function StatusBar() {
   const { connectionStatus } = useStreamStore()
@@ -69,7 +70,7 @@ export function StatusBar() {
           </span>
         )}
         <span className="hidden lg:inline text-border">|</span>
-        <span className="hidden lg:inline">CAEP v1.0</span>
+        <span className="hidden lg:inline">CAEP v{APP_VERSION}</span>
       </div>
     </div>
   )
