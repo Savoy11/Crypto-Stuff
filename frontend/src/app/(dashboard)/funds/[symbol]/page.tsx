@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowLeft, Calculator, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowLeft, Calculator, ExternalLink, TrendingDown, TrendingUp } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { FundHoldingsHistory } from './FundHoldingsHistory'
 import { FundHoldingsSection } from './FundHoldingsSection'
@@ -161,7 +161,13 @@ export default function FundDetailPage() {
                   {category.label}
                 </span>
               </div>
-              <p className="mt-1 text-xs text-text-muted">{entry.description}</p>
+              <p className="mt-1 text-xs text-text-muted">
+                {entry.description}
+                {' · '}
+                <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-accent-blue/80 hover:text-accent-blue inline-flex items-center gap-0.5">
+                  {entry.website.replace(/^https?:\/\/(www\.)?/, '').split(/[/?]/)[0]} <ExternalLink size={10} aria-hidden />
+                </a>
+              </p>
             </div>
             <div className="text-right">
               <p className="font-mono text-3xl font-bold text-text-primary tabular-nums">
