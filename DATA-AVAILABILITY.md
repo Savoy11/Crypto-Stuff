@@ -37,7 +37,7 @@ backed by real data, with no fabricated ("mock") figures presented as real._
 | DeFi TVL | 🟢 Live | DefiLlama | |
 | BTC network stats | 🟢 Live | mempool.space / blockchain APIs | |
 | Social sentiment | 🟡 Partial | `/live-data/social` | Verify which signals are live vs derived; label accordingly (Phase 2). |
-| **Risk scores** | 🔴 Not available | — | Composite risk scoring is a derived analytic with no free real-time source. Returns empty; UI shows "not available". |
+| **Risk scores** | 🟢 Derived | DefiLlama + CoinGecko + curated disclosures + news pipeline | Live-computed composites via `/live-data/risk-scores` and the `src/lib/risk` engine. Stablecoins: Reserve/Peg/Structure/Adoption/News with fatal-flaw slashing. Majors: Volatility/Liquidity/Scale/Trend/News. Pillars without data show N/A and drop coverage/confidence — decentralization metrics (paid indexers) are intentionally absent, not approximated. |
 | **Peg deviation history** | 🔴 Not available | — | No free historical peg series. Returns empty. |
 | **Per-row price sparklines** | 🔴 Not available | — | No free per-asset trend source at list scale; shows "n/a". |
 | **Reports (AUM, risk tables)** | 🔴 Not available | — | Shows an explicit "not available" notice (no live-mode mock leak). Would derive from live market data if/when a backend is added. |

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { ATTESTATION_META, COMPOSITION_MAP, META_AS_OF, MONITORED_STABLECOINS } from '@/lib/data/stablecoinMeta'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,96 +22,8 @@ export interface LiveReserveAsset {
   collateralizationRatio: number | null  // null = not publicly disclosed
 }
 
-// Snapshot date of the curated ATTESTATION_META below. These attester names,
-// URLs, and dates are issuer-disclosure snapshots, NOT a live feed — update
-// META_AS_OF whenever the table is refreshed.
-const META_AS_OF = '2024-12-01'
-
-// Known attestation metadata — keyed by uppercase symbol for reliable matching
-// (DefiLlama coin IDs like 'usd-coin' are not stable across API responses)
-const ATTESTATION_META: Record<string, {
-  attester: string; attestationUrl: string; lastAttestedDate: string | null; collateralizationRatio: number
-}> = {
-  'USDC': {
-    attester: 'Deloitte (via Grant Thornton)',
-    attestationUrl: 'https://www.circle.com/en/transparency',
-    lastAttestedDate: '2024-11-30',
-    collateralizationRatio: 1.0,
-  },
-  'USDT': {
-    attester: 'BDO Italia',
-    attestationUrl: 'https://tether.to/en/transparency/',
-    lastAttestedDate: '2024-09-30',
-    collateralizationRatio: 1.0,
-  },
-  'DAI': {
-    attester: 'On-chain (MakerDAO oracles)',
-    attestationUrl: 'https://daistats.com',
-    lastAttestedDate: null,
-    collateralizationRatio: 1.5,
-  },
-  'FRAX': {
-    attester: 'Frax Protocol (algorithmic)',
-    attestationUrl: 'https://app.frax.finance/fraxstats',
-    lastAttestedDate: null,
-    collateralizationRatio: 1.0,
-  },
-  'TUSD': {
-    attester: 'Moore Hong Kong',
-    attestationUrl: 'https://real-time-attest.trustexplorer.io/truecurrencies',
-    lastAttestedDate: '2024-10-01',
-    collateralizationRatio: 1.0,
-  },
-  'PYUSD': {
-    attester: 'Ernst & Young',
-    attestationUrl: 'https://newsroom.paypal-corp.com/PYUSD-Transparency',
-    lastAttestedDate: '2024-11-01',
-    collateralizationRatio: 1.0,
-  },
-  'USDP': {
-    attester: 'Withum',
-    attestationUrl: 'https://www.paxos.com/attestations/',
-    lastAttestedDate: '2024-10-31',
-    collateralizationRatio: 1.0,
-  },
-  'GUSD': {
-    attester: 'BPM',
-    attestationUrl: 'https://gemini.com/dollar',
-    lastAttestedDate: '2024-11-15',
-    collateralizationRatio: 1.0,
-  },
-  'LUSD': {
-    attester: 'On-chain (Liquity Protocol)',
-    attestationUrl: 'https://www.liquity.org/',
-    lastAttestedDate: null,
-    collateralizationRatio: 1.1,
-  },
-}
-
-// Peg composition breakdowns (from public disclosures — approximate), keyed by uppercase symbol
-const COMPOSITION_MAP: Record<string, { category: string; percentage: number }[]> = {
-  'USDC': [
-    { category: 'Cash', percentage: 15 },
-    { category: 'US Treasuries', percentage: 85 },
-  ],
-  'USDT': [
-    { category: 'US Treasuries', percentage: 66 },
-    { category: 'Cash & Bank Deposits', percentage: 15 },
-    { category: 'Other Investments', percentage: 10 },
-    { category: 'Secured Loans', percentage: 5 },
-    { category: 'Corporate Bonds', percentage: 4 },
-  ],
-  'DAI': [
-    { category: 'USDC Collateral', percentage: 32 },
-    { category: 'ETH Collateral', percentage: 28 },
-    { category: 'RWA (Treasuries)', percentage: 27 },
-    { category: 'Other Crypto', percentage: 13 },
-  ],
-  'PYUSD': [
-    { category: 'US Treasuries', percentage: 80 },
-    { category: 'USD Deposits', percentage: 20 },
-  ],
-}
+// Attestation metadata, reserve composition, and META_AS_OF now live in
+// src/lib/data/stablecoinMeta.ts — shared with the risk-scores engine.
 
 interface DefiLlamaStablecoin {
   id: string
@@ -124,7 +37,7 @@ interface DefiLlamaStablecoin {
   chains?: string[]
 }
 
-const TARGET_SYMBOLS = new Set(['USDC', 'USDT', 'DAI', 'FRAX', 'TUSD', 'PYUSD', 'USDP', 'GUSD', 'LUSD'])
+const TARGET_SYMBOLS = new Set<string>(MONITORED_STABLECOINS)
 
 export async function GET() {
   try {

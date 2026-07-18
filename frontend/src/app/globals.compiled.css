@@ -2244,6 +2244,10 @@ ul, ol {
   border-color: rgb(26 29 38 / var(--tw-border-opacity, 1));
 }
 
+.border-blue-400\/20 {
+  border-color: rgb(96 165 250 / 0.2);
+}
+
 .border-blue-400\/30 {
   border-color: rgb(96 165 250 / 0.3);
 }
@@ -2315,6 +2319,10 @@ ul, ol {
 
 .border-green-500\/30 {
   border-color: rgb(34 197 94 / 0.3);
+}
+
+.border-orange-400\/20 {
+  border-color: rgb(251 146 60 / 0.2);
 }
 
 .border-orange-500\/20 {
