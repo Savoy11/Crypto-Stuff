@@ -264,7 +264,9 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
           .slice(0, 15)
           .map((f) => ({
             symbol: f.symbol, name: f.name, type: f.type, issuer: f.issuer,
-            category: FUND_CATEGORY_INFO[f.category].label,
+            category: f.focusSector
+              ? `${FUND_CATEGORY_INFO[f.category].label} · ${SECTOR_INFO[f.focusSector].label}${f.focusIndustry ? ` (${f.focusIndustry})` : ''}`
+              : FUND_CATEGORY_INFO[f.category].label,
             expenseRatioPct: f.expenseRatioPct, aumB: f.aumB, yieldPct: f.yieldPct,
             indexTracked: f.indexTracked,
             topHoldings: f.topHoldings.slice(0, 5).map((h) => `${h.symbol} ${h.weightPct}%`),

@@ -11,11 +11,18 @@ import {
   FUND_CATALOG, FUND_CATEGORY_INFO,
   type FundCategoryId, type FundEntry, type FundType,
 } from '@/lib/data/fundCatalog'
+import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
 
-type SortKey = 'symbol' | 'price' | 'change' | 'expense' | 'aum' | 'yield'
+type SortKey = 'symbol' | 'category' | 'price' | 'change' | 'expense' | 'aum' | 'yield'
+
+/** Sort/display label for the category column — sector funds carry their specific sector. */
+function categoryLabel(row: FundEntry): string {
+  const base = FUND_CATEGORY_INFO[row.category].label
+  return row.focusSector ? `${base} · ${SECTOR_INFO[row.focusSector].label}` : base
+}
 
 interface Row extends FundEntry {
   price: number
@@ -39,6 +46,7 @@ function expenseColor(pct: number): string {
 export function FundsClient() {
   const [type, setType] = useState<FundType | 'all'>('all')
   const [category, setCategory] = useState<FundCategoryId | 'all'>('all')
+  const [sectorFocus, setSectorFocus] = useState<SectorId | 'all'>('all')
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<SortKey>('aum')
   const [sortAsc, setSortAsc] = useState(false)
@@ -68,17 +76,24 @@ export function FundsClient() {
     const subset = rows.filter((row) =>
       (type === 'all' || row.type === type) &&
       (category === 'all' || row.category === category) &&
-      (!query || row.symbol.toLowerCase().includes(query) || row.name.toLowerCase().includes(query) || row.issuer.toLowerCase().includes(query))
+      (category !== 'sector' || sectorFocus === 'all' || row.focusSector === sectorFocus) &&
+      (!query ||
+        row.symbol.toLowerCase().includes(query) ||
+        row.name.toLowerCase().includes(query) ||
+        row.issuer.toLowerCase().includes(query) ||
+        categoryLabel(row).toLowerCase().includes(query) ||
+        (row.focusIndustry?.toLowerCase().includes(query) ?? false))
     )
     const dir = sortAsc ? 1 : -1
     const value = (row: Row): number | string => {
       switch (sortKey) {
-        case 'symbol':  return row.symbol
-        case 'price':   return row.price
-        case 'change':  return row.changePercent ?? -Infinity
-        case 'expense': return row.expenseRatioPct
-        case 'yield':   return row.yieldPct ?? -Infinity
-        default:        return row.aumB
+        case 'symbol':   return row.symbol
+        case 'category': return categoryLabel(row)
+        case 'price':    return row.price
+        case 'change':   return row.changePercent ?? -Infinity
+        case 'expense':  return row.expenseRatioPct
+        case 'yield':    return row.yieldPct ?? -Infinity
+        default:         return row.aumB
       }
     }
     return [...subset].sort((a, b) => {
@@ -86,7 +101,7 @@ export function FundsClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [rows, type, category, search, sortKey, sortAsc])
+  }, [rows, type, category, sectorFocus, search, sortKey, sortAsc])
 
   const etfCount = FUND_CATALOG.filter((f) => f.type === 'etf').length
   const mutualCount = FUND_CATALOG.length - etfCount
@@ -100,7 +115,7 @@ export function FundsClient() {
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((a) => !a)
-    else { setSortKey(key); setSortAsc(key === 'symbol' || key === 'expense') }
+    else { setSortKey(key); setSortAsc(key === 'symbol' || key === 'category' || key === 'expense') }
   }
 
   const SortHeader = ({ label, colKey }: { label: string; colKey: SortKey }) => (
@@ -183,7 +198,7 @@ export function FundsClient() {
           {(Object.entries(FUND_CATEGORY_INFO) as Array<[FundCategoryId, { label: string; color: string }]>).map(([id, info]) => (
             <button
               key={id}
-              onClick={() => setCategory(category === id ? 'all' : id)}
+              onClick={() => { setCategory(category === id ? 'all' : id); setSectorFocus('all') }}
               className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
                 category === id
                   ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
@@ -196,11 +211,40 @@ export function FundsClient() {
         </div>
       </div>
 
+      {/* Sector drill-down — which sector/industry a sector fund actually targets */}
+      {category === 'sector' && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs font-medium uppercase tracking-wider text-text-muted mr-1">Target sector</span>
+          <button
+            onClick={() => setSectorFocus('all')}
+            className={clsx('px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+              sectorFocus === 'all'
+                ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+          >
+            All
+          </button>
+          {Array.from(new Set(FUND_CATALOG.filter((f) => f.category === 'sector' && f.focusSector).map((f) => f.focusSector as SectorId))).map((id) => (
+            <button
+              key={id}
+              onClick={() => setSectorFocus(sectorFocus === id ? 'all' : id)}
+              className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                sectorFocus === id
+                  ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                  : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+            >
+              <span className="size-1.5 rounded-full" style={{ backgroundColor: SECTOR_INFO[id].color }} aria-hidden />
+              {SECTOR_INFO[id].label}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Table */}
       <div className="rounded-card border border-border bg-bg-card overflow-hidden">
         <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40">
           <div className="col-span-4"><SortHeader label="Fund" colKey="symbol" /></div>
-          <div className="col-span-2"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">Category</span></div>
+          <div className="col-span-2"><SortHeader label="Category" colKey="category" /></div>
           <div className="col-span-2 flex justify-end"><SortHeader label="Price / NAV" colKey="price" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="Chg %" colKey="change" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
@@ -232,10 +276,24 @@ export function FundsClient() {
                       <span className="font-mono font-semibold text-text-primary flex-shrink-0">{row.symbol}</span>
                       <span className="text-xs text-text-muted truncate">{row.name}</span>
                     </div>
-                    <div className="col-span-2">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary">
-                        <span className="size-1.5 rounded-full" style={{ backgroundColor: catInfo.color }} aria-hidden />
-                        {catInfo.label}
+                    <div className="col-span-2 min-w-0">
+                      <span
+                        className="inline-flex max-w-full items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary"
+                        title={row.focusIndustry ? `${categoryLabel(row)} — ${row.focusIndustry}` : undefined}
+                      >
+                        <span
+                          className="size-1.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: row.focusSector ? SECTOR_INFO[row.focusSector].color : catInfo.color }}
+                          aria-hidden
+                        />
+                        {row.focusSector ? (
+                          <span className="truncate">
+                            {SECTOR_INFO[row.focusSector].label}
+                            {row.focusIndustry && <span className="text-text-muted"> · {row.focusIndustry}</span>}
+                          </span>
+                        ) : (
+                          catInfo.label
+                        )}
                       </span>
                     </div>
                     <div className="col-span-2 text-right font-mono tabular-nums text-text-primary">

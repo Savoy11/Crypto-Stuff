@@ -12,7 +12,7 @@ import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
 
-type SortKey = 'symbol' | 'price' | 'change' | 'marketCap' | 'pe' | 'dividend' | 'beta'
+type SortKey = 'symbol' | 'sector' | 'price' | 'change' | 'marketCap' | 'pe' | 'dividend' | 'beta'
 
 interface Row extends EquityEntry {
   price: number
@@ -76,6 +76,7 @@ export function EquitiesClient() {
     const value = (row: Row): number | string => {
       switch (sortKey) {
         case 'symbol':   return row.symbol
+        case 'sector':   return `${SECTOR_INFO[row.sector].label} ${row.industry}`
         case 'price':    return row.price
         case 'change':   return row.changePercent ?? -Infinity
         case 'pe':       return row.peRatio ?? -Infinity
@@ -106,7 +107,7 @@ export function EquitiesClient() {
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((a) => !a)
-    else { setSortKey(key); setSortAsc(key === 'symbol') }
+    else { setSortKey(key); setSortAsc(key === 'symbol' || key === 'sector') }
   }
 
   const SortHeader = ({ label, colKey, className }: { label: string; colKey: SortKey; className?: string }) => (
@@ -252,7 +253,7 @@ export function EquitiesClient() {
       <div className="rounded-card border border-border bg-bg-card overflow-hidden">
         <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40">
           <div className="col-span-3"><SortHeader label="Company" colKey="symbol" /></div>
-          <div className="col-span-2"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">Sector</span></div>
+          <div className="col-span-2"><SortHeader label="Sector" colKey="sector" /></div>
           <div className="col-span-2 flex justify-end"><SortHeader label="Price" colKey="price" /></div>
           <div className="col-span-1 flex justify-end"><SortHeader label="Chg %" colKey="change" /></div>
           <div className="col-span-2 flex justify-end"><SortHeader label="Mkt Cap" colKey="marketCap" /></div>

@@ -12,6 +12,7 @@ import { FundHoldingsSection } from './FundHoldingsSection'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import { computeFeeDrag, FUND_CATEGORY_INFO, getFund } from '@/lib/data/fundCatalog'
+import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
@@ -130,6 +131,8 @@ export default function FundDetailPage() {
   const facts: Array<{ label: string; value: string }> = [
     { label: 'Issuer', value: entry.issuer },
     { label: 'Type', value: entry.type === 'etf' ? 'Exchange-Traded Fund' : 'Mutual Fund' },
+    ...(entry.focusSector ? [{ label: 'Target Sector', value: SECTOR_INFO[entry.focusSector].label }] : []),
+    ...(entry.focusIndustry ? [{ label: 'Industry Focus', value: entry.focusIndustry }] : []),
     { label: 'Expense Ratio', value: `${entry.expenseRatioPct}%` },
     { label: 'AUM', value: formatCompact(entry.aumB * 1e9) },
     { label: 'Distribution Yield', value: entry.yieldPct != null ? `${entry.yieldPct.toFixed(2)}%` : '—' },
