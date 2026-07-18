@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import {
   Copy, CheckCircle, ExternalLink, ChevronLeft, TrendingUp, TrendingDown,
@@ -53,6 +54,7 @@ import { formatCompact, formatAddress, formatBps, formatDate, formatScore, forma
 import { getPegDeviationColorClass, getScoreColor } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS, LIVE_DATA } from '@/lib/constants'
 import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
+import type { RiskScoresResponse } from '@/app/live-data/risk-scores/route'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import { useQuery } from '@tanstack/react-query'
 import { NEWS_CATEGORIES } from '@/lib/data/newsCategories'
@@ -606,86 +608,129 @@ function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
         </div>
       )}
 
-      {/* Risk components */}
-      {rs === null ? (
+      {/* Risk components — live composite from /live-data/risk-scores */}
+      <LiveRiskPanel assetId={asset.id} />
+    </div>
+  )
+}
+
+// ─── Live composite risk panel ────────────────────────────────────────────────
+// Wired to the same engine as the Risk Scores leaderboard: stablecoins get the
+// 5-pillar Reserve/Peg/Structure/Adoption/News profile (with fatal-flaw
+// slashing); every other asset gets Volatility/Liquidity/Scale/Trend/News.
+
+const RISK_BAND_UI: Record<string, { label: string; text: string; chip: string; bar: string }> = {
+  low:      { label: 'Low Risk',  text: 'text-emerald-400', chip: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20', bar: 'bg-emerald-500' },
+  moderate: { label: 'Moderate',  text: 'text-blue-400',    chip: 'text-blue-400 bg-blue-400/10 border-blue-400/20',          bar: 'bg-blue-500' },
+  elevated: { label: 'Elevated',  text: 'text-amber-400',   chip: 'text-amber-400 bg-amber-400/10 border-amber-400/20',       bar: 'bg-amber-500' },
+  high:     { label: 'High Risk', text: 'text-orange-400',  chip: 'text-orange-400 bg-orange-400/10 border-orange-400/20',    bar: 'bg-orange-500' },
+  critical: { label: 'Critical',  text: 'text-red-400',     chip: 'text-red-400 bg-red-400/10 border-red-500/20',             bar: 'bg-red-500' },
+}
+
+function LiveRiskPanel({ assetId }: { assetId: string }) {
+  const { data, isLoading } = useQuery<RiskScoresResponse>({
+    queryKey: ['risk-scores'],
+    queryFn: () => fetch('/live-data/risk-scores').then((r) => r.json()),
+    staleTime: 1000 * 60 * 5,
+  })
+
+  if (isLoading) {
+    return <div className="h-40 animate-pulse rounded-card bg-bg-elevated/60" />
+  }
+
+  const entry = [...(data?.stablecoins ?? []), ...(data?.majors ?? [])].find((a) => a.assetId === assetId)
+
+  if (!entry) {
+    return (
+      <div>
+        <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Composite Risk</h3>
         <div className="rounded-card border border-border bg-bg-card p-8 text-center">
           <Shield size={24} className="mx-auto text-text-muted" aria-hidden />
-          <p className="mt-3 text-sm font-medium text-text-secondary">Risk scoring not available</p>
+          <p className="mt-3 text-sm font-medium text-text-secondary">Risk score not available for this asset</p>
           <p className="mt-1 text-xs text-text-muted max-w-md mx-auto">
-            Composite risk scores and component breakdowns are derived metrics with no
-            free real-time source, so they are not shown in live mode.
+            {data && !data.ok
+              ? 'Market data sources (DefiLlama / CoinGecko) are unreachable right now — no scores were computed rather than showing stale or fabricated values.'
+              : 'This asset has no verified market-data mapping yet, so no composite is computed rather than fabricating one.'}
           </p>
         </div>
-      ) : (
+      </div>
+    )
+  }
+
+  const ui = RISK_BAND_UI[entry.risk.band]
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Composite Risk</h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="rounded-card border border-border bg-bg-card p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-4">Score Breakdown</h3>
-          <ErrorBoundary>
-            <ScoreBreakdown breakdown={rs.scoreBreakdown} />
-          </ErrorBoundary>
-        </div>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-baseline gap-3">
+              <span className={clsx('font-mono text-4xl font-bold tabular-nums', ui.text)}>{entry.risk.score.toFixed(0)}</span>
+              {entry.risk.slashed.length > 0 && (
+                <span className="font-mono text-sm text-text-muted line-through">{entry.risk.baseScore.toFixed(0)}</span>
+              )}
+              <span className="text-xs text-text-muted">/ 100 — higher is safer</span>
+            </div>
+            <span className={clsx('px-2 py-0.5 rounded text-[10px] font-bold border', ui.chip)}>{ui.label}</span>
+          </div>
 
-        <div className="rounded-card border border-border bg-bg-card p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-4">Confidence &amp; Percentile</h3>
-          <div className="space-y-4">
+          {entry.risk.slashed.map((s, i) => (
+            <p key={i} className="mt-2 text-[11px] text-red-400">⚠ {s.reason} — composite slashed ×{s.multiplier}</p>
+          ))}
+
+          <div className="mt-4 space-y-3">
             <div>
               <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-text-secondary">Model Confidence</span>
-                <span className="font-mono text-text-primary">{(rs.confidence * 100).toFixed(1)}%</span>
+                <span className="text-text-secondary">Confidence</span>
+                <span className="font-mono text-text-primary">{(entry.risk.confidence * 100).toFixed(0)}%</span>
               </div>
               <div className="h-2 bg-bg-elevated rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-accent-blue"
-                  style={{ width: `${rs.confidence * 100}%` }}
-                  role="progressbar"
-                  aria-valuenow={Math.round(rs.confidence * 100)}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                />
+                <div className="h-full rounded-full bg-accent-blue" style={{ width: `${entry.risk.confidence * 100}%` }} />
               </div>
             </div>
             <div>
               <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-text-secondary">Percentile Rank</span>
-                <span className="font-mono text-text-primary">{rs.percentileRank}th</span>
+                <span className="text-text-secondary">Data Coverage</span>
+                <span className="font-mono text-text-primary">{(entry.risk.coverage * 100).toFixed(0)}%</span>
               </div>
               <div className="h-2 bg-bg-elevated rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-emerald-500"
-                  style={{ width: `${rs.percentileRank}%` }}
-                  role="progressbar"
-                  aria-valuenow={rs.percentileRank}
-                  aria-valuemin={0}
-                  aria-valuemax={100}
-                />
-              </div>
-            </div>
-
-            <div className="pt-3 border-t border-border space-y-2">
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Previous Score</span>
-                <span className="font-mono text-text-secondary">
-                  {rs.previousScore != null ? formatScore(rs.previousScore) : 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Score Delta</span>
-                <span className={clsx(
-                  'font-mono',
-                  rs.scoreDelta != null && rs.scoreDelta > 0 ? 'text-emerald-400' : 'text-red-400'
-                )}>
-                  {rs.scoreDelta != null ? `${rs.scoreDelta > 0 ? '+' : ''}${rs.scoreDelta.toFixed(2)}` : 'N/A'}
-                </span>
-              </div>
-              <div className="flex justify-between text-xs">
-                <span className="text-text-muted">Score Date</span>
-                <span className="font-mono text-text-secondary">{formatDate(rs.scoreDate, 'MMM dd, HH:mm')}</span>
+                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${entry.risk.coverage * 100}%` }} />
               </div>
             </div>
           </div>
+
+          <p className="mt-4 pt-3 border-t border-border text-[11px] text-text-muted">
+            Profile v{entry.risk.profileVersion} ·{' '}
+            <Link href="/risk-scores" className="text-accent-blue hover:underline">full leaderboard &amp; methodology →</Link>
+          </p>
+        </div>
+
+        <div className="rounded-card border border-border bg-bg-card p-5">
+          <h4 className="text-sm font-semibold text-text-primary mb-4">Pillar Breakdown</h4>
+          <div className="space-y-3">
+            {entry.risk.dimensions.map((dim) => {
+              const dimUi = dim.band ? RISK_BAND_UI[dim.band] : null
+              const tooltip = dim.evidence.map((ev) => `${ev.metric}: ${ev.value ?? '—'}${ev.note ? ` (${ev.note})` : ''}`).join('\n')
+              return (
+                <div key={dim.key} title={tooltip || undefined}>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-text-secondary">{dim.label} <span className="text-text-muted/70">· w {(dim.weight * 100).toFixed(0)}%</span></span>
+                    <span className={clsx('font-mono tabular-nums', dimUi?.text ?? 'text-text-muted')}>
+                      {dim.score == null ? 'N/A' : dim.score.toFixed(0)}
+                    </span>
+                  </div>
+                  <div className="h-1.5 bg-bg-elevated rounded-full overflow-hidden">
+                    <div className={clsx('h-full rounded-full', dimUi?.bar ?? 'bg-bg-elevated')} style={{ width: `${dim.score ?? 0}%` }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <p className="mt-4 text-[10px] text-text-muted/80 leading-relaxed">
+            Pillars without data show N/A and are excluded — the composite reweights and coverage drops. Hover a pillar for its evidence.
+          </p>
         </div>
       </div>
-      )}
     </div>
   )
 }
