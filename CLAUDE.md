@@ -300,7 +300,7 @@ Risk/status color convention used across the app:
 | Dashboard | `/dashboard` | 🟢 Live | Overview metrics from CoinGecko (`/live-data/markets`) |
 | Asset Registry | `/assets` | 🟢 Live | Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
 | Asset Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-asset news |
-| Risk Scores | `/risk-scores` | 🔴 Not available | No free real-time source; shows N/A |
+| Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk` |
 | Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`) |
 | Alerts | TopBar bell | 🟢 Live | `/live-data/alerts` — stablecoin depegs + major-asset 24h moves; surfaced in the TopBar bell (no standalone page) |
 | Watchlist | `/watchlist` | 🟢 Live | Cross-module: coins, stocks, ETFs & funds in named lists with live prices |
