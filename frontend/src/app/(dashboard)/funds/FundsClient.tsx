@@ -285,7 +285,7 @@ export function FundsClient() {
         <PageHeader
           title="Fund Registry"
           subtitle={discovered > 0
-            ? `${universe.length.toLocaleString()} funds — US-listed ETFs + SEC-registered mutual funds, ${FUND_CATALOG.length} curated with reference facts`
+            ? `${universe.length.toLocaleString()} funds — ${(universeData?.discoveredEtfs ?? 0).toLocaleString()} listed ETFs + ${(universeData?.discoveredMutual ?? 0).toLocaleString()} mutual fund classes + ${FUND_CATALOG.length} curated`
             : `${FUND_CATALOG.length} curated ETFs and mutual funds`}
           icon={<Landmark size={20} aria-hidden />}
           description="Every US-listed ETF (NASDAQ symbol directory) and SEC-registered mutual fund share class (SEC series/class dataset), plus a curated set carrying expense ratios, AUM, categories, and yields. Live quotes load for the visible page; any fund's detail page pulls its full portfolio from SEC N-PORT filings."
@@ -312,6 +312,26 @@ export function FundsClient() {
           </button>
         </div>
       </div>
+
+      {/* Per-directory outage notices — a silent half-universe looks like a bug */}
+      {universeData?.etfError && (
+        <div className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/5 px-4 py-2.5">
+          <p className="text-xs text-text-muted leading-relaxed">
+            <span className="font-medium text-amber-400">ETF directory unreachable</span> — only curated ETFs
+            are searchable right now. <span className="text-text-muted/80">{universeData.etfError}</span>{' '}
+            Hit Refresh to retry.
+          </p>
+        </div>
+      )}
+      {universeData?.mutualError && (
+        <div className="flex items-start gap-2 rounded border border-amber-500/20 bg-amber-500/5 px-4 py-2.5">
+          <p className="text-xs text-text-muted leading-relaxed">
+            <span className="font-medium text-amber-400">SEC mutual fund dataset unreachable</span> — only curated
+            mutual funds are searchable right now. <span className="text-text-muted/80">{universeData.mutualError}</span>{' '}
+            Hit Refresh to retry.
+          </p>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">

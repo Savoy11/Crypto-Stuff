@@ -44,10 +44,18 @@ export interface FundUniverseResponse {
   discovered: number
   discoveredEtfs: number
   discoveredMutual: number
+  /** Why a directory contributed nothing (null = fetched fine). */
+  etfError: string | null
+  mutualError: string | null
   entries: FundUniverseEntry[]
 }
 
-const DIRECTORY_URL = 'https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt'
+// NASDAQ serves the same daily file from two hosts — try both before giving up.
+const DIRECTORY_URLS = [
+  'https://ftp.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt',
+  'https://www.nasdaqtrader.com/dynamic/SymDir/nasdaqtraded.txt',
+]
+const FETCH_TIMEOUT_MS = 20_000
 
 function catalogEntry(f: (typeof FUND_CATALOG)[number]): FundUniverseEntry {
   return {
@@ -66,20 +74,14 @@ function cleanName(raw: string): string {
     .trim()
 }
 
-async function fetchNasdaqEtfs(): Promise<Array<{ symbol: string; name: string }>> {
-  const res = await fetch(DIRECTORY_URL, {
-    headers: { Accept: 'text/plain', 'User-Agent': 'CAEP research dashboard (marcusowens94@gmail.com)' },
-    next: { revalidate: 86_400 },
-  })
-  if (!res.ok) throw new Error(`NASDAQ directory: HTTP ${res.status}`)
-  const text = await res.text()
-  const lines = text.split('\n')
+function parseNasdaqFile(text: string): Array<{ symbol: string; name: string }> {
+  const lines = text.split(/\r?\n/)
   const header = lines[0]?.split('|') ?? []
   const iSymbol = header.indexOf('Symbol')
   const iName = header.indexOf('Security Name')
   const iEtf = header.indexOf('ETF')
   const iTest = header.indexOf('Test Issue')
-  if (iSymbol < 0 || iName < 0 || iEtf < 0) throw new Error('NASDAQ directory: unexpected header')
+  if (iSymbol < 0 || iName < 0 || iEtf < 0) throw new Error('unexpected header format')
 
   const out: Array<{ symbol: string; name: string }> = []
   for (const line of lines.slice(1)) {
@@ -94,7 +96,27 @@ async function fetchNasdaqEtfs(): Promise<Array<{ symbol: string; name: string }
     if (!name) continue
     out.push({ symbol, name })
   }
+  if (out.length === 0) throw new Error('no ETF rows parsed')
   return out
+}
+
+async function fetchNasdaqEtfs(): Promise<Array<{ symbol: string; name: string }>> {
+  let lastError = 'no mirror attempted'
+  for (const url of DIRECTORY_URLS) {
+    const host = new URL(url).host
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: 'text/plain', 'User-Agent': 'CAEP research dashboard (marcusowens94@gmail.com)' },
+        next: { revalidate: 86_400 },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      })
+      if (!res.ok) { lastError = `HTTP ${res.status} from ${host}`; continue }
+      return parseNasdaqFile(await res.text())
+    } catch (e) {
+      lastError = `${host}: ${e instanceof Error ? e.message : String(e)}`
+    }
+  }
+  throw new Error(`NASDAQ symbol directory unreachable (${lastError})`)
 }
 
 // ─── SEC series/class dataset (mutual funds) ─────────────────────────────────
@@ -122,19 +144,24 @@ async function fetchSecMutualFunds(): Promise<Array<{ symbol: string; name: stri
   // The dataset is published annually; try the current year back two years.
   const year = new Date().getFullYear()
   let text: string | null = null
+  let lastError = 'no year attempted'
   for (const y of [year, year - 1, year - 2]) {
     const url = `https://www.sec.gov/files/investment/data/other/investment-company-series-class-information/investment-company-series-class-${y}.csv`
     try {
       const res = await fetch(url, {
         headers: { Accept: 'text/csv', 'User-Agent': 'CAEP research dashboard (marcusowens94@gmail.com)' },
         next: { revalidate: 86_400 },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       })
       if (res.ok) { text = await res.text(); break }
-    } catch { /* try previous year */ }
+      lastError = `HTTP ${res.status} for ${y} dataset`
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e)
+    }
   }
-  if (!text) throw new Error('SEC series/class dataset unreachable')
+  if (!text) throw new Error(`SEC series/class dataset unreachable (${lastError})`)
 
-  const lines = text.split('\n')
+  const lines = text.split(/\r?\n/)
   const header = parseCsvLine(lines[0] ?? '').map((h) => h.trim().toLowerCase())
   const col = (needle: string) => header.findIndex((h) => h.includes(needle))
   const iTicker = col('class ticker')
@@ -182,6 +209,7 @@ export async function GET(request: Request) {
         ok: true, ...base, source, discovered: entry && !entry.inCatalog ? 1 : 0,
         discoveredEtfs: entry && !entry.inCatalog && entry.type === 'etf' ? 1 : 0,
         discoveredMutual: entry && !entry.inCatalog && entry.type === 'mutual' ? 1 : 0,
+        etfError: null, mutualError: null,
         entries: entry ? [entry] : [],
       } satisfies FundUniverseResponse)
 
@@ -211,6 +239,10 @@ export async function GET(request: Request) {
   }
 
   const [etfRes, mfRes] = await Promise.allSettled([fetchNasdaqEtfs(), fetchSecMutualFunds()])
+  const reason = (r: PromiseSettledResult<unknown>): string | null =>
+    r.status === 'rejected' ? (r.reason instanceof Error ? r.reason.message : String(r.reason)) : null
+  const etfError = reason(etfRes)
+  const mutualError = reason(mfRes)
   const etfs = etfRes.status === 'fulfilled'
     ? etfRes.value.filter((e) => !known.has(e.symbol)).map((e) => skeleton(e, 'etf'))
     : []
@@ -221,13 +253,15 @@ export async function GET(request: Request) {
 
   if (etfs.length === 0 && mutuals.length === 0) {
     return NextResponse.json({
-      ok: true, ...base, source: 'catalog', discovered: 0, discoveredEtfs: 0, discoveredMutual: 0, entries: catalog,
+      ok: true, ...base, source: 'catalog', discovered: 0, discoveredEtfs: 0, discoveredMutual: 0,
+      etfError, mutualError, entries: catalog,
     } satisfies FundUniverseResponse)
   }
   return NextResponse.json({
     ok: true, ...base, source: 'live',
     discovered: etfs.length + mutuals.length,
     discoveredEtfs: etfs.length, discoveredMutual: mutuals.length,
+    etfError, mutualError,
     entries: [...catalog, ...etfs, ...mutuals],
   } satisfies FundUniverseResponse)
 }
