@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getNewsProviders, recordProviderFetch, type AnyActiveProvider, type CustomProviderDef } from '@/lib/api/live/providers'
 import { ASSET_LIST } from '@/lib/data/assetList'
 import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { decodeEntities, stripCdata, stripTags } from '@/lib/utils/html'
 
 export const dynamic = 'force-dynamic'
 
@@ -392,7 +393,7 @@ function parseRssFeed(xml: string, provider: CustomProviderDef, limit: number): 
 
   return items.map((m, i): LiveNewsArticle => {
     const inner = m[1]
-    const title = stripCdata(inner.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '')
+    const title = decodeEntities(stripCdata(inner.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ''))
     // Atom uses <link href="..."/> while RSS uses <link>url</link>
     const link = isAtom
       ? (inner.match(/<link[^>]*href="([^"]+)"/i)?.[1] ?? '#')
@@ -409,9 +410,11 @@ function parseRssFeed(xml: string, provider: CustomProviderDef, limit: number): 
       ?? inner.match(/<description[^>]*>([\s\S]*?)<\/description>/i)?.[1]
       ?? ''
     )
-    const sourceName = stripCdata(inner.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] ?? provider.name)
+    const sourceName = decodeEntities(stripCdata(inner.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] ?? provider.name))
 
-    const cleanDesc = desc.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    // Decode after stripping tags so an escaped &lt;b&gt; survives as literal
+    // text rather than becoming a tag that the strip pass then eats.
+    const cleanDesc = decodeEntities(stripTags(desc))
     const text = title + ' ' + cleanDesc
 
     return {
@@ -490,10 +493,6 @@ function parseJsonNewsFeed(data: unknown, provider: CustomProviderDef, limit: nu
   })
 }
 
-function stripCdata(s: string): string {
-  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/gi, '$1').trim()
-}
-
 // ─── CryptoPanic ──────────────────────────────────────────────────────────────
 
 const CP_CATEGORY_MAP: Record<string, LiveNewsArticle['category']> = {
@@ -524,7 +523,7 @@ async function fetchCryptoPanic(apiKey: string | undefined, assetFilter: string,
     const sentiment: LiveNewsArticle['sentiment'] =
       positive > negative * 1.5 ? 'positive' : negative > positive * 1.5 ? 'negative' : 'neutral'
 
-    const title = (item.title as string) ?? ''
+    const title = decodeEntities((item.title as string) ?? '')
     // Augment CryptoPanic's asset tagging with our detector in case currencies array is sparse
     const detected = detectRelatedAssets(title)
     const merged = [...new Set([...relatedAssets, ...detected])]

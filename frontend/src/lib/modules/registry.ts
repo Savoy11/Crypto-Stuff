@@ -1,6 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import {
-  LayoutDashboard,
+  Flame,
   Database,
   Star,
   Newspaper,
@@ -65,7 +65,7 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: [],
     optional: false,
     navItems: [
-      { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { href: '/headlines', label: 'Headlines', icon: Flame },
       { href: '/brief', label: 'Daily Brief', icon: Sunrise },
       { href: '/watchlist', label: 'Watchlist', icon: Star },
       { href: '/portfolios', label: 'Portfolios', icon: Briefcase },

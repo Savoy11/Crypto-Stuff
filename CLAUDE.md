@@ -39,7 +39,7 @@ frontend/src/
 │   ├── (auth)/                     # Login page
 │   ├── (dashboard)/                # All main pages (use Sidebar layout)
 │   │   ├── layout.tsx              # Dashboard shell with Sidebar
-│   │   ├── dashboard/page.tsx
+│   │   ├── headlines/page.tsx      # Landing page — cross-module aggregate news feed
 │   │   ├── assets/page.tsx         # Asset registry with live prices
 │   │   ├── risk-scores/page.tsx
 │   │   ├── reserves/page.tsx
@@ -297,7 +297,7 @@ Risk/status color convention used across the app:
 
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
-| Dashboard | `/dashboard` | 🟢 Live | Overview metrics from CoinGecko (`/live-data/markets`) |
+| Headlines | `/headlines` | 🟢 Live | **Landing page** (`/` and post-login redirect here). Client-side merge of `/live-data/news` (crypto) + `/live-data/market-news` (equities) into a cross-module "Top Stories" strip plus a section per enabled module. Sections follow the entitlement store, so the feed reflects the user's bundle. Funds has no general feed of its own and shares the Markets section. Replaced the old `/dashboard` page; its `components/dashboard/*` widgets are retained but no longer routed (except `RiskHeatmap`, still used by `PopoutContent`). |
 | Asset Registry | `/assets` | 🟢 Live | Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
 | Asset Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-asset news |
 | Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk` |
@@ -324,7 +324,17 @@ Risk/status color convention used across the app:
 ### Equities module (`/equities`)
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
-| Stock Registry | `/equities` | 🟢 Live | Universe from `/live-data/stock-universe` (FMP stock-screener, daily-cached, all active common stocks + sectors) with `equityCatalog.ts` curated fallback when no FMP key. Paginated (50/page), live quotes for the visible page only, range screener, sortable columns incl. beta. Detail pages resolve non-catalog tickers via FMP profile lookup. |
+| Stock Registry | `/equities` | 🟢 Live | Universe from `/live-data/stock-universe` (FMP stock-screener, daily-cached, all active common stocks + sectors) with `equityCatalog.ts` curated fallback when no FMP key. Paginated (50/page), live quotes for the visible page only, range screener, sortable columns incl. beta. Detail pages resolve non-catalog tickers via FMP profile lookup. **P/E is backfilled from SEC XBRL** — see below. |
+
+#### P/E enrichment (`src/lib/server/secFundamentals.ts`)
+FMP's `company-screener` returns **no P/E at all**, so on a paid plan every non-curated name would have a blank P/E column and be invisible to the registry's min/max P/E filter. `enrichPeRatios()` in the stock-universe route backfills it from the SEC's XBRL **frames** API (`data.sec.gov/api/xbrl/frames/...`) — bulk diluted EPS across all filers, with basic EPS as a gap-filler, keyed ticker→CIK via `edgar.ts`'s `fetchTickerCikMap()`. Free and keyless. Measured coverage: **~6,100 symbols**.
+
+Caveats, all deliberate:
+- It is a **trailing** P/E (last complete fiscal year's EPS ÷ reference price), so it won't match a broker's forward/TTM figure exactly.
+- Loss-making companies return `null`, not a negative multiple — a negative P/E would corrupt the range filter (INTC is a live example).
+- Coverage gaps: foreign private issuers (20-F), off-calendar fiscal years, and **recently reorganized registrants whose ticker now maps to a new holding-co CIK with no XBRL history** (XOM is a live example).
+- Runs only on the FMP path — the 79-entry curated catalog already carries hand-written P/E, so enriching it would gain one row for three multi-MB fetches.
+- Frame years derive from the clock (`recentAnnualFrames()`), so this does not go stale each January.
 | Equity Detail | `/equities/[symbol]` | 🟢 Live | Live chart/news + reference stats, 52-wk range, key stats |
 | Market News | `/equities/news` | 🟢 Live | RSS multi-feed; category/sentiment/ticker filters |
 | Stock Social | `/equities/social` | 🟡 Partial | Reddit + StockTwits (keyless) sentiment |

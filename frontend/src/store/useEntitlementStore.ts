@@ -27,6 +27,18 @@ export const useEntitlementStore = create<EntitlementState & EntitlementActions>
         set((state) => ({ disabled: { ...state.disabled, [id]: !enabled } }))
       },
     }),
-    { name: 'caep:entitlements' }
+    {
+      name: 'caep:entitlements',
+      // Rehydrated explicitly from <Providers> rather than during store
+      // creation. Zustand's default is a synchronous read of localStorage as
+      // soon as this module is imported, which means the client's very first
+      // render already reflects the saved bundle while the server rendered the
+      // all-enabled default. Any disabled module then changed the sidebar's
+      // section list mid-hydration, React saw mismatched text ("Crypto" vs
+      // "Equities"), and threw away the entire server tree to re-render on the
+      // client. Deferring the read keeps the first client render identical to
+      // the server's; the real state lands an effect later.
+      skipHydration: true,
+    }
   )
 )
