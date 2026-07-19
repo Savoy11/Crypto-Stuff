@@ -20,7 +20,7 @@ export default function LoginPage() {
       clearError()
       try {
         await login({ email, password })
-        router.push('/dashboard')
+        router.push('/headlines')
       } catch {
         // error already set in store
       }
@@ -33,7 +33,7 @@ export default function LoginPage() {
   // To RE-ENABLE later: remove this block and the `LOGIN_DISABLED` gate on the return.
   const LOGIN_DISABLED = true
   useEffect(() => {
-    if (LOGIN_DISABLED) router.replace('/dashboard')
+    if (LOGIN_DISABLED) router.replace('/headlines')
   }, [router])
 
   return LOGIN_DISABLED ? null : (

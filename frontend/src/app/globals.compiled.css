@@ -821,11 +821,6 @@ ul, ol {
   margin-right: -0.5rem;
 }
 
-.mx-0\.5 {
-  margin-left: 0.125rem;
-  margin-right: 0.125rem;
-}
-
 .mx-5 {
   margin-left: 1.25rem;
   margin-right: 1.25rem;
@@ -1636,16 +1631,6 @@ ul, ol {
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
 }
 
-.translate-x-\[18px\] {
-  --tw-translate-x: 18px;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-
-.translate-x-\[3px\] {
-  --tw-translate-x: 3px;
-  transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
-}
-
 .rotate-180 {
   --tw-rotate: 180deg;
   transform: translate(var(--tw-translate-x), var(--tw-translate-y)) rotate(var(--tw-rotate)) skewX(var(--tw-skew-x)) skewY(var(--tw-skew-y)) scaleX(var(--tw-scale-x)) scaleY(var(--tw-scale-y));
@@ -1706,10 +1691,6 @@ ul, ol {
 
 .cursor-se-resize {
   cursor: se-resize;
-}
-
-.touch-none {
-  touch-action: none;
 }
 
 .select-none {
@@ -2096,11 +2077,6 @@ ul, ol {
   border-top-right-radius: 0.5rem;
 }
 
-.rounded-t-xl {
-  border-top-left-radius: 0.75rem;
-  border-top-right-radius: 0.75rem;
-}
-
 .rounded-bl-sm {
   border-bottom-left-radius: 0.125rem;
 }
@@ -2279,10 +2255,6 @@ ul, ol {
 
 .border-border\/60 {
   border-color: rgb(30 36 51 / 0.6);
-}
-
-.border-border\/80 {
-  border-color: rgb(30 36 51 / 0.8);
 }
 
 .border-cyan-500\/15 {
@@ -2644,11 +2616,6 @@ ul, ol {
 
 .bg-blue-500\/70 {
   background-color: rgb(59 130 246 / 0.7);
-}
-
-.bg-border {
-  --tw-bg-opacity: 1;
-  background-color: rgb(30 36 51 / var(--tw-bg-opacity, 1));
 }
 
 .bg-cyan-400\/10 {
@@ -3895,10 +3862,6 @@ ul, ol {
   opacity: 0.8;
 }
 
-.opacity-90 {
-  opacity: 0.9;
-}
-
 .shadow {
   --tw-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --tw-shadow-colored: 0 1px 3px 0 var(--tw-shadow-color), 0 1px 2px -1px var(--tw-shadow-color);
@@ -4537,18 +4500,6 @@ ul, ol {
     top: calc(56px + 1rem);
   }
 
-  .lg\:col-span-1 {
-    grid-column: span 1 / span 1;
-  }
-
-  .lg\:col-span-2 {
-    grid-column: span 2 / span 2;
-  }
-
-  .lg\:col-span-3 {
-    grid-column: span 3 / span 3;
-  }
-
   .lg\:ml-sidebar {
     margin-left: 240px;
   }
@@ -4631,18 +4582,4 @@ ul, ol {
   .xl\:grid-cols-\[1fr_320px\] {
     grid-template-columns: 1fr 320px;
   }
-}
-
-.\[\&\>div\]\:rounded-none>div {
-  border-radius: 0px;
-}
-
-.\[\&\>div\]\:border-0>div {
-  border-width: 0px;
-}
-
-.\[\&\>div\]\:shadow-none>div {
-  --tw-shadow: 0 0 #0000;
-  --tw-shadow-colored: 0 0 #0000;
-  box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow);
 }
