@@ -69,7 +69,9 @@ export function AssistantWidget() {
       setMessages((m) => [...m, { role: 'assistant', content: e instanceof Error ? e.message : 'Network error', error: true }])
     }
     setLoading(false)
-  }, [messages, loading, pathname])
+    // `watchlist` must be a dependency: useWatchlistBias starts empty and fills
+    // in after mount, so a stale closure would send an empty watchlist forever.
+  }, [messages, loading, pathname, watchlist])
 
   return (
     <>
