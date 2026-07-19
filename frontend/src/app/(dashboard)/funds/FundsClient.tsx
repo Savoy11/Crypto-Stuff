@@ -34,7 +34,6 @@ function categoryLabel(row: FundUniverseEntry): string {
 const SOURCE_LABELS: Record<string, string> = {
   fmp: 'Live via Financial Modeling Prep',
   yahoo: 'Live via Yahoo Finance',
-  stooq: 'Live via Stooq (intraday change)',
   reference: 'Reference prices — no live source reachable',
 }
 

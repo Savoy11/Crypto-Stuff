@@ -256,18 +256,6 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     keyUrl: 'https://finance.yahoo.com',
     priority: 6,
   },
-  {
-    id: 'stooq',
-    name: 'Stooq',
-    category: 'price',
-    market: 'equities',
-    description: 'CSV quotes, keyless. Last-resort fallback — day change is measured vs today’s open rather than previous close.',
-    features: ['Batch CSV quotes', 'No key needed'],
-    requiresKey: false,
-    freeTierLabel: 'Keyless fallback',
-    keyUrl: 'https://stooq.com',
-    priority: 7,
-  },
 
   // ── Equity news (market: 'equities') ── all active feeds run in parallel
   {

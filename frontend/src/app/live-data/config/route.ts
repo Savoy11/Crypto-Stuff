@@ -145,7 +145,6 @@ async function testProvider(provider: { id: string; isCustom?: boolean; url?: st
     case 'tiingo':        return testTiingo(key)
     case 'alpha-vantage': return testAlphaVantage(key)
     case 'yahoo-finance': return testYahooFinance()
-    case 'stooq':         return testStooq()
     case 'yahoo-news':    return testRssFeed('https://finance.yahoo.com/news/rssindex', 'Yahoo Finance News')
     case 'marketwatch':   return testRssFeed('https://feeds.content.dowjones.io/public/rss/mw_topstories', 'MarketWatch')
     case 'cnbc':          return testRssFeed('https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', 'CNBC')
@@ -279,12 +278,6 @@ async function testYahooFinance(): Promise<TestResult> {
   })
   if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
   return { ok: true, detail: 'Yahoo Finance spark API reachable' }
-}
-
-async function testStooq(): Promise<TestResult> {
-  const res = await fetch('https://stooq.com/q/l/?s=aapl.us&f=sd2t2ohlcv&h&e=csv')
-  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-  return { ok: true, detail: 'Stooq CSV endpoint reachable' }
 }
 
 // Verify an LLM key by listing models on the provider's (OpenAI-compatible) endpoint.
