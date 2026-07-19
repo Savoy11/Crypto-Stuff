@@ -7,6 +7,9 @@ import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineC
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
+import { useFeedBiasStore } from '@/store/useFeedBiasStore'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { applyBias } from '@/lib/watchlist/bias'
 import type { VideoItem, VideosResponse } from '@/app/live-data/videos/route'
 import type { VideoSearchResponse, SearchScope, SearchOrder, SearchDuration } from '@/app/live-data/video-search/route'
 import type { ProviderMarket } from '@/lib/api/live/providers'
@@ -153,6 +156,11 @@ export default function VideosPage() {
   const fundsOn = useEntitlementStore((s) => s.isEnabled('funds'))
   const marketsOn = equitiesOn || fundsOn
 
+  const watchlist = useWatchlistBias()
+  const biasStrength = useFeedBiasStore((s) => s.getStrength('videos'))
+  // Videos carry no asset tags, so matching falls back to title + description.
+  const toBiasable = (v: VideoItem) => ({ text: `${v.title} ${v.searchText || v.summary}` })
+
   // Multi-select: empty set means "all channels".
   const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
@@ -228,9 +236,9 @@ export default function VideosPage() {
     if (sort === 'newest') sorted.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
     else if (sort === 'oldest') sorted.sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime())
     else sorted.sort((a, b) => a.channel.localeCompare(b.channel) || new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
-    return sorted
+    return applyBias(sorted, watchlist, biasStrength, toBiasable)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, searchResults, isSearchMode, selectedChannels, terms, sort, recency, marketFilter, cryptoOn, marketsOn])
+  }, [data, searchResults, isSearchMode, selectedChannels, terms, sort, recency, marketFilter, cryptoOn, marketsOn, watchlist, biasStrength])
 
   // Counts are derived from the videos actually loaded, not from the route's
   // per-channel totals. The route fetches every channel in full then truncates

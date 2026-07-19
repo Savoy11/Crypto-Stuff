@@ -6,6 +6,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Loader2, RefreshCw, Search, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
+import { useFeedBiasStore } from '@/store/useFeedBiasStore'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { applyBias, } from '@/lib/watchlist/bias'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import type { MarketArticle, MarketNewsCategory, MarketNewsResponse } from '@/app/live-data/market-news/route'
@@ -144,8 +147,16 @@ function EquityNewsContent() {
     refetchInterval: 5 * 60 * 1000,
   })
 
+  const watchlist = useWatchlistBias()
+  const biasStrength = useFeedBiasStore((s) => s.getStrength('market-news'))
+  /** Market articles carry ticker tags; text is the fallback. */
+  const toBiasable = (a: MarketArticle) => ({
+    symbols: a.relatedSymbols,
+    text: `${a.title} ${a.summary}`,
+  })
+
   const articles = useMemo(() => {
-    return (data?.articles ?? []).filter((a) => {
+    const filtered = (data?.articles ?? []).filter((a) => {
       if (categoryFilter !== 'all' && a.category !== categoryFilter) return false
       if (sentimentFilter !== 'all' && a.sentiment !== sentimentFilter) return false
       if (symbolFilter !== 'all' && !a.relatedSymbols.includes(symbolFilter)) return false
@@ -156,7 +167,9 @@ function EquityNewsContent() {
       }
       return true
     })
-  }, [data, categoryFilter, sentimentFilter, symbolFilter, keywords])
+    return applyBias(filtered, watchlist, biasStrength, toBiasable)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, categoryFilter, sentimentFilter, symbolFilter, keywords, watchlist, biasStrength])
 
   const breaking = articles.filter((a) => a.isBreaking)
   const rest = articles.filter((a) => !a.isBreaking)

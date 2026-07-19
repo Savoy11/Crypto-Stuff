@@ -2199,6 +2199,10 @@ ul, ol {
   border-color: rgb(251 191 36 / 0.2);
 }
 
+.border-amber-400\/25 {
+  border-color: rgb(251 191 36 / 0.25);
+}
+
 .border-amber-400\/30 {
   border-color: rgb(251 191 36 / 0.3);
 }

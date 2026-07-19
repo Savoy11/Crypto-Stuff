@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import {
   Settings,
   ExternalLink,
@@ -14,6 +15,7 @@ import {
   Rss,
   MessageSquare,
   Video,
+  Star,
   ChevronRight,
   Plus,
   Trash2,
@@ -28,6 +30,9 @@ import {
 import { timeAgo } from '@/lib/utils/format'
 import { OPTIONAL_MODULES } from '@/lib/modules/registry'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
+import { useFeedBiasStore, BIAS_FEEDS } from '@/store/useFeedBiasStore'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { BIAS_STRENGTHS } from '@/lib/watchlist/bias'
 
 // ─── Suite modules panel ──────────────────────────────────────────────────────
 // Toggles which suite modules (Crypto, Equities, ETFs & Funds) appear in the
@@ -68,6 +73,72 @@ function ModulesPanel() {
           )
         })}
       </div>
+    </section>
+  )
+}
+
+// ─── Watchlist bias panel ─────────────────────────────────────────────────────
+
+function WatchlistBiasPanel() {
+  const { getStrength, setStrength } = useFeedBiasStore()
+  const bias = useWatchlistBias()
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <Star size={15} className="text-amber-400" />
+        <h2 className="text-sm font-semibold text-slate-300">Watchlist Bias</h2>
+        <span className="text-xs text-slate-500">— how much your watchlist steers each feed</span>
+      </div>
+
+      {bias.isEmpty ? (
+        <p className="text-xs text-slate-500 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+          Your watchlist is empty, so these settings have no effect yet.{' '}
+          <Link href="/watchlist" className="text-accent-blue hover:underline">Add assets</Link> to steer your feeds.
+        </p>
+      ) : (
+        <p className="text-xs text-slate-500 mb-3">
+          Biasing on {bias.assetIds.length + bias.symbols.length} watchlist asset
+          {bias.assetIds.length + bias.symbols.length !== 1 ? 's' : ''}.
+        </p>
+      )}
+
+      <div className="space-y-2 mt-2">
+        {BIAS_FEEDS.map((feed) => {
+          const current = getStrength(feed.id)
+          return (
+            <div key={feed.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-200">{feed.label}</p>
+                <p className="text-[11px] text-slate-500">{feed.description}</p>
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                {BIAS_STRENGTHS.map((s) => (
+                  <button
+                    key={s.value}
+                    onClick={() => setStrength(feed.id, s.value)}
+                    title={s.hint}
+                    className={`px-2 py-1 rounded text-xs font-medium border transition-all ${
+                      current === s.value
+                        ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                        : 'text-slate-500 border-slate-700 hover:text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+        <span className="text-slate-400">Light</span> sorts watchlist matches to the top.{' '}
+        <span className="text-slate-400">Strong</span> also asks providers for extra articles about those assets.{' '}
+        <span className="text-slate-400">Only</span> hides everything else — market-wide news included.
+        An empty watchlist is always treated as no bias, so no setting can leave a feed blank.
+      </p>
     </section>
   )
 }
@@ -1081,6 +1152,7 @@ export default function SettingsPage() {
         <>
           {/* Suite modules */}
           <ModulesPanel />
+          <WatchlistBiasPanel />
 
           {/* Crypto market data */}
           <section>

@@ -12,6 +12,9 @@ import { LIVE_DATA } from '@/lib/constants'
 import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import { useAssetList } from '@/lib/hooks/useAssetList'
 import { useTierStore } from '@/store/useTierStore'
+import { useFeedBiasStore } from '@/store/useFeedBiasStore'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { applyBias, shouldAugmentFetch, fetchTerms } from '@/lib/watchlist/bias'
 import { resolveNewsProviders } from '@/lib/tier'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
@@ -183,9 +186,12 @@ async function fetchLiveNews(
   asset: string,
   keywords: string[],
   providersFilter: string | null,
+  /** Watchlist terms — OR-matched via `any`, unlike the AND-matched `q`. */
+  anyTerms: string[] = [],
 ): Promise<{ articles: LiveNewsArticle[]; providers: { id: string; name: string }[] }> {
   const params = new URLSearchParams({ asset, limit: '60' })
   if (keywords.length > 0) params.set('q', keywords.join(','))
+  if (anyTerms.length > 0) params.set('any', anyTerms.join(','))
   if (providersFilter) params.set('providers', providersFilter)
   const res = await fetch(`/live-data/news?${params}`)
   if (!res.ok) return { articles: [], providers: [] }
@@ -221,9 +227,23 @@ export default function NewsPage() {
   const customSources = useTierStore((s) => s.customSources)
   const providersFilter = resolveNewsProviders(tierMode, customSources)
 
+  const watchlist = useWatchlistBias()
+  const biasStrength = useFeedBiasStore((s) => s.getStrength('crypto-news'))
+  /** Crypto articles carry asset-id tags; text is the fallback. */
+  const toBiasable = (a: AnyArticle) => ({
+    assetIds: a.relatedAssets,
+    text: `${a.headline} ${a.summary}`,
+  })
+
+  // At 'strong'/'only', watchlist terms widen the fetch via `any` (OR), not `q`
+  // (AND). Sending them through `q` demanded every term appear in one article
+  // and emptied the feed entirely.
+  const biasTerms = shouldAugmentFetch(biasStrength) ? fetchTerms(watchlist) : []
+  const biasKey = biasTerms.join(',')
+
   const { data: liveData, isLoading, isFetching, isError, refetch } = useQuery({
-    queryKey: ['live-news', assetFilter, keywords, providersFilter],
-    queryFn: () => fetchLiveNews(assetFilter, keywords, providersFilter),
+    queryKey: ['live-news', assetFilter, keywords, providersFilter, biasKey],
+    queryFn: () => fetchLiveNews(assetFilter, keywords, providersFilter, biasTerms),
     enabled: LIVE_DATA,
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
@@ -232,7 +252,11 @@ export default function NewsPage() {
     placeholderData: keepPreviousData,
   })
 
-  const liveArticles = useMemo<AnyArticle[]>(() => liveData?.articles ?? [], [liveData])
+  const liveArticles = useMemo<AnyArticle[]>(
+    () => applyBias(liveData?.articles ?? [], watchlist, biasStrength, toBiasable),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [liveData, watchlist, biasStrength]
+  )
   const activeProviders = liveData?.providers ?? []
   const noProviders = LIVE_DATA && !isLoading && activeProviders.length === 0
 
