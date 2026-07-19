@@ -1,9 +1,10 @@
 'use client'
 
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { GC_TIME, STALE_TIME_SHORT } from '@/lib/constants'
+import { useEntitlementStore } from '@/store/useEntitlementStore'
 
 function makeQueryClient() {
   return new QueryClient({
@@ -34,6 +35,15 @@ function getQueryClient() {
 
 export function Providers({ children }: { children: ReactNode }) {
   const queryClient = getQueryClient()
+
+  // The entitlement store is created with `skipHydration` so the first client
+  // render matches the server's. Pull the saved bundle in once hydration has
+  // committed — effects run after that, so this can't reintroduce a mismatch.
+  // Consumers (Sidebar, ModuleGate) re-render with the real state immediately
+  // after.
+  useEffect(() => {
+    void useEntitlementStore.persist.rehydrate()
+  }, [])
 
   return (
     <QueryClientProvider client={queryClient}>
