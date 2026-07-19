@@ -303,7 +303,21 @@ async function getJson(origin: string, path: string): Promise<unknown> {
 type ToolInput = Record<string, unknown>
 
 /** Execute a tool by name and return a JSON-serializable result for the model. */
-export async function runTool(name: string, input: ToolInput, origin: string): Promise<unknown> {
+/**
+ * Watchlist terms forwarded from the client, OR-matched by the news routes.
+ *
+ * Agents run server-side and the watchlist lives in localStorage, so the server
+ * cannot discover it — it has to be passed in. Without this, an agent asked
+ * "what's in the news" would answer from a different, unbiased feed than the one
+ * the user is looking at, which is more confusing than no biasing at all.
+ */
+export async function runTool(
+  name: string,
+  input: ToolInput,
+  origin: string,
+  watchlistTerms?: string[]
+): Promise<unknown> {
+  const watchlistParam = watchlistTerms?.length ? watchlistTerms.join(',') : null
   try {
     switch (name) {
       case 'get_prices': {
@@ -337,6 +351,9 @@ export async function runTool(name: string, input: ToolInput, origin: string): P
         const p = new URLSearchParams({ coin: String(input.coin ?? '') })
         p.set('limit', String(input.limit ?? 10))
         if (input.sentiment) p.set('sentiment', String(input.sentiment))
+        // Only when the agent hasn't asked for a specific coin — an explicit
+        // "news about SOL" must not be silently narrowed to the watchlist.
+        if (watchlistParam && !input.coin) p.set('watchlist', watchlistParam)
         return await getJson(origin, `/api/v1/news?${p.toString()}`)
       }
       case 'get_price_history': {

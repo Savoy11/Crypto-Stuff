@@ -103,12 +103,16 @@ export async function GET(req: NextRequest) {
   // `any` is OR where `q` is AND, and exists for watchlist bias: a watchlist of
   // BTC + ETH + AAPL wants articles about ANY of them. Sent through `q` it
   // demanded all three in one article and returned nothing.
-  const anyFiltered = anyTerms.length > 0
+  const anyMatchers = anyTerms.map(
+    // Word boundaries, matching the client-side matcher in lib/watchlist/bias.
+    // A substring test matches "eth" inside "Tether" — which it did, pulling
+    // USDT/GENIUS-Act stories into an ETH-biased feed.
+    (t) => new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+  )
+  const anyFiltered = anyMatchers.length > 0
     ? keywordFiltered.filter((a) => {
-        const topic = [a.headline, a.summary, a.category, a.source, ...a.relatedAssets]
-          .join(' ')
-          .toLowerCase()
-        return anyTerms.some((t) => topic.includes(t.toLowerCase()))
+        const topic = [a.headline, a.summary, a.category, a.source, ...a.relatedAssets].join(' ')
+        return anyMatchers.some((re) => re.test(topic))
       })
     : keywordFiltered
 

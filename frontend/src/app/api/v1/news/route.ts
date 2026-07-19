@@ -10,10 +10,16 @@ export async function GET(req: NextRequest) {
   const coin      = searchParams.get('coin')?.toLowerCase()
   const limit     = Math.min(parseInt(searchParams.get('limit') ?? '20'), 50)
   const sentiment = searchParams.get('sentiment') // positive | negative | neutral
+  // Watchlist bias, forwarded from the caller. OR-matched: an article is kept
+  // if it mentions ANY of these. Without this an agent answering "what's in the
+  // news" would return a different, unbiased feed from the one the UI shows the
+  // user, which is worse than no biasing at all.
+  const watchlist = searchParams.get('watchlist')
 
   // Build internal URL — news route handles asset filtering
   const internalUrl = new URL('/live-data/news', req.nextUrl.origin)
   if (coin) internalUrl.searchParams.set('asset', coin)
+  if (watchlist) internalUrl.searchParams.set('any', watchlist)
 
   let articles: object[] = []
   try {

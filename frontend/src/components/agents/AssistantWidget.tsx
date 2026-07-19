@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { usePathname } from 'next/navigation'
 import { Bot, X, Send, Loader2, Sparkles, Wrench } from 'lucide-react'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { agentWatchlistPayload } from '@/lib/watchlist/bias'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -26,6 +28,7 @@ export function AssistantWidget() {
   const [loading, setLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const watchlist = useWatchlistBias()
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -51,6 +54,9 @@ export function AssistantWidget() {
         body: JSON.stringify({
           messages: nextMessages.map((m) => ({ role: m.role, content: m.content })),
           pageContext: { pathname },
+          // Server can't read localStorage, so the watchlist rides along —
+          // otherwise the assistant answers from a different feed than the UI.
+          watchlist: agentWatchlistPayload(watchlist) ?? undefined,
         }),
       })
       const data = await res.json()

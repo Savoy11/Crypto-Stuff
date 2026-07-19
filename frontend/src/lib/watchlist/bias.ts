@@ -161,3 +161,22 @@ export function applyBias<T>(
 export function fetchTerms(bias: WatchlistBias, max = 6): string[] {
   return bias.terms.slice(0, max)
 }
+
+/**
+ * Watchlist payload for agent requests.
+ *
+ * Agents run server-side and cannot read localStorage, so every client that
+ * invokes one sends this. `terms` are for tool-level filtering; `labels` are the
+ * human-readable tickers the system prompt names, so the model can talk about
+ * them ("BTC, ETH, AAPL") rather than echo internal ids.
+ *
+ * Returns null for an empty watchlist so callers can omit the field entirely.
+ */
+export function agentWatchlistPayload(
+  bias: WatchlistBias
+): { terms: string[]; labels: string[] } | null {
+  if (bias.isEmpty) return null
+  const labels = [...bias.assetIds.map((a) => a.toUpperCase()), ...bias.symbols]
+  if (labels.length === 0) return null
+  return { terms: fetchTerms(bias, 12), labels: labels.slice(0, 20) }
+}
