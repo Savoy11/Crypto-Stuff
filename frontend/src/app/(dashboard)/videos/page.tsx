@@ -8,7 +8,7 @@ import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import type { VideoItem, VideosResponse } from '@/app/live-data/videos/route'
-import type { VideoSearchResponse, SearchScope } from '@/app/live-data/video-search/route'
+import type { VideoSearchResponse, SearchScope, SearchOrder, SearchDuration } from '@/app/live-data/video-search/route'
 import type { ProviderMarket } from '@/lib/api/live/providers'
 
 // Video feed — keyless YouTube channel Atom feeds, merged and ranked by recency.
@@ -166,6 +166,8 @@ export default function VideosPage() {
   // Finance-scoped by default: unscoped YouTube search for an ambiguous term
   // returns sport and local news rather than market coverage.
   const [scope, setScope] = useState<SearchScope>('finance')
+  const [ytOrder, setYtOrder] = useState<SearchOrder>('relevance')
+  const [ytDuration, setYtDuration] = useState<SearchDuration>('any')
 
   const { data, isLoading, isFetching, refetch } = useQuery<VideosResponse>({
     queryKey: ['videos'],
@@ -176,8 +178,14 @@ export default function VideosPage() {
   })
 
   const searchQuery = useQuery<VideoSearchResponse>({
-    queryKey: ['video-search', ytQuery, scope],
-    queryFn: () => fetch(`/live-data/video-search?q=${encodeURIComponent(ytQuery)}&scope=${scope}`).then((r) => r.json()),
+    // `recency` is part of the key: it's applied as publishedAfter on the API
+    // call, so changing it is a different search, not a local re-filter.
+    queryKey: ['video-search', ytQuery, scope, ytOrder, ytDuration, recency],
+    queryFn: () => {
+      const p = new URLSearchParams({ q: ytQuery, scope, order: ytOrder, duration: ytDuration })
+      if (recency !== 'all') p.set('window', recency)
+      return fetch(`/live-data/video-search?${p}`).then((r) => r.json())
+    },
     enabled: ytQuery.length > 0,
     staleTime: 60 * 60 * 1000, // quota is scarce — one call per query per hour
     refetchOnWindowFocus: false,
@@ -420,7 +428,57 @@ export default function VideosPage() {
             </div>
           )}
 
-          {/* Facets — hidden in search mode, where they don't apply */}
+          {/* Search-mode controls — these map to API parameters, so they
+              re-run the search rather than re-filtering locally. */}
+          {isSearchMode && (
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div className="flex items-center gap-1.5">
+                <Clock size={11} className="text-text-muted" aria-hidden />
+                {RECENCIES.map((r) => (
+                  <button
+                    key={r.value}
+                    onClick={() => setRecency(r.value)}
+                    className={clsx(
+                      'px-2 py-1 rounded text-xs font-medium border transition-all',
+                      recency === r.value
+                        ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                        : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-1.5">
+                <ArrowUpDown size={11} className="text-text-muted" aria-hidden />
+                <select
+                  value={ytOrder}
+                  onChange={(e) => setYtOrder(e.target.value as SearchOrder)}
+                  className="bg-bg-secondary border border-border rounded px-2 py-1 text-xs text-text-secondary focus:outline-none focus:border-accent-blue/60"
+                >
+                  <option value="relevance">Most relevant</option>
+                  <option value="date">Newest</option>
+                  <option value="viewCount">Most viewed</option>
+                  <option value="rating">Highest rated</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] text-text-muted">Length:</span>
+                <select
+                  value={ytDuration}
+                  onChange={(e) => setYtDuration(e.target.value as SearchDuration)}
+                  className="bg-bg-secondary border border-border rounded px-2 py-1 text-xs text-text-secondary focus:outline-none focus:border-accent-blue/60"
+                >
+                  <option value="any">Any length</option>
+                  <option value="short">Under 4 min</option>
+                  <option value="medium">4–20 min</option>
+                  <option value="long">Over 20 min</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Feed facets — local filters, meaningless against search results */}
           {!isSearchMode && (
             <>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
