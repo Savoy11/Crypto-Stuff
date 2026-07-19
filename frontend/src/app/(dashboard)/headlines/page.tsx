@@ -3,10 +3,13 @@
 import { useMemo } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { Newspaper, ExternalLink, Clock, Tag, Zap, Loader2, RefreshCw, Coins, LineChart } from 'lucide-react'
+import { Newspaper, ExternalLink, Clock, Tag, Zap, Loader2, RefreshCw, Coins, LineChart, Star } from 'lucide-react'
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
+import { useFeedBiasStore } from '@/store/useFeedBiasStore'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { applyBias, matchesWatchlist } from '@/lib/watchlist/bias'
 import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import type { MarketNewsResponse } from '@/app/live-data/market-news/route'
 
@@ -84,7 +87,7 @@ function rank(a: Story, b: Story): number {
   return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
 }
 
-function StoryCard({ story, showModule = false }: { story: Story; showModule?: boolean }) {
+function StoryCard({ story, showModule = false, onWatchlist = false }: { story: Story; showModule?: boolean; onWatchlist?: boolean }) {
   const meta = MODULE_META[story.module]
 
   return (
@@ -100,6 +103,15 @@ function StoryCard({ story, showModule = false }: { story: Story; showModule?: b
             <span className={clsx('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border uppercase tracking-wider', meta.badge)}>
               <meta.icon size={9} aria-hidden />
               {meta.label}
+            </span>
+          )}
+          {/* Makes the bias visible — otherwise reordering looks like chance. */}
+          {onWatchlist && (
+            <span
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-400/10 text-amber-300 border border-amber-400/25 uppercase tracking-wider"
+              title="Mentions an asset on your watchlist"
+            >
+              <Star size={9} aria-hidden /> Watchlist
             </span>
           )}
           {story.isBreaking && (
@@ -172,6 +184,16 @@ export default function HeadlinesPage() {
   const equitiesOn = useEntitlementStore((s) => s.isEnabled('equities'))
   const fundsOn = useEntitlementStore((s) => s.isEnabled('funds'))
   const marketsOn = equitiesOn || fundsOn
+
+  const watchlist = useWatchlistBias()
+  const biasStrength = useFeedBiasStore((s) => s.getStrength('headlines'))
+
+  /** Story → matchable shape. Crypto tags are asset ids, market tags are tickers. */
+  const toBiasable = (s: Story) => ({
+    assetIds: s.module === 'crypto' ? s.tags : undefined,
+    symbols: s.module === 'markets' ? s.tags : undefined,
+    text: `${s.title} ${s.summary}`,
+  })
 
   const cryptoQuery = useQuery<CryptoNewsResponse>({
     queryKey: ['headlines', 'crypto'],
@@ -249,8 +271,12 @@ export default function HeadlinesPage() {
       }
       if (picked.length === before) break // every pool exhausted
     }
-    return picked.sort(rank)
-  }, [cryptoStories, marketStories])
+    // Bias applies after the round-robin so module balance is preserved first —
+    // watchlist matches rise within the strip rather than letting one module
+    // take it over.
+    return applyBias(picked.sort(rank), watchlist, biasStrength, toBiasable)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cryptoStories, marketStories, watchlist, biasStrength])
 
   // Sections exclude whatever was promoted to the top strip, so nothing repeats.
   const promoted = useMemo(() => new Set(topStories.map((s) => s.id)), [topStories])
@@ -261,18 +287,21 @@ export default function HeadlinesPage() {
       out.push({
         module: 'crypto',
         href: '/news',
-        stories: cryptoStories.filter((s) => !promoted.has(s.id)).sort(rank).slice(0, SECTION_STORY_COUNT),
+        // Bias before slicing, so a watchlist match outside the top N is
+        // pulled into view rather than trimmed away first.
+        stories: applyBias(cryptoStories.filter((s) => !promoted.has(s.id)).sort(rank), watchlist, biasStrength, toBiasable).slice(0, SECTION_STORY_COUNT),
       })
     }
     if (marketsOn) {
       out.push({
         module: 'markets',
         href: '/equities/news',
-        stories: marketStories.filter((s) => !promoted.has(s.id)).sort(rank).slice(0, SECTION_STORY_COUNT),
+        stories: applyBias(marketStories.filter((s) => !promoted.has(s.id)).sort(rank), watchlist, biasStrength, toBiasable).slice(0, SECTION_STORY_COUNT),
       })
     }
     return out
-  }, [cryptoOn, marketsOn, cryptoStories, marketStories, promoted])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cryptoOn, marketsOn, cryptoStories, marketStories, promoted, watchlist, biasStrength])
 
   const isLoading = (cryptoOn && cryptoQuery.isLoading) || (marketsOn && marketsQuery.isLoading)
   const isFetching = cryptoQuery.isFetching || marketsQuery.isFetching
@@ -343,7 +372,7 @@ export default function HeadlinesPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {topStories.map((story) => (
-              <StoryCard key={story.id} story={story} showModule />
+              <StoryCard key={story.id} story={story} showModule onWatchlist={matchesWatchlist(toBiasable(story), watchlist)} />
             ))}
           </div>
         </section>
@@ -365,7 +394,7 @@ export default function HeadlinesPage() {
             </div>
             {stories.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                {stories.map((story) => <StoryCard key={story.id} story={story} />)}
+                {stories.map((story) => <StoryCard key={story.id} story={story} onWatchlist={matchesWatchlist(toBiasable(story), watchlist)} />)}
               </div>
             ) : (
               <p className="text-xs text-text-muted py-4">No additional {meta.label.toLowerCase()} stories — feeds may be unreachable.</p>

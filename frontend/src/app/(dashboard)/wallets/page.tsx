@@ -59,9 +59,11 @@ function useBalance(wallet: WatchedWallet) {
   const load = useCallback(async () => {
     setBusy(true); setErr(undefined)
     const t = CHAIN_META[wallet.chain].type
-    const url = t === 'evm' ? `/live-data/wallet/eth?address=${wallet.address}&chain=${wallet.chain}`
-              : t === 'sol' ? `/live-data/wallet/sol?address=${wallet.address}`
-              :               `/live-data/wallet/btc?address=${wallet.address}`
+    const url = t === 'evm'  ? `/live-data/wallet/eth?address=${wallet.address}&chain=${wallet.chain}`
+              : t === 'sol'  ? `/live-data/wallet/sol?address=${wallet.address}`
+              : t === 'xrp'  ? `/live-data/wallet/xrp?address=${wallet.address}`
+              : t === 'tron' ? `/live-data/wallet/tron?address=${wallet.address}`
+              :                `/live-data/wallet/btc?address=${wallet.address}`
     try {
       const r = await fetch(url); const d = await r.json()
       if (!d.ok) throw new Error(d.error)

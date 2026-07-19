@@ -5,9 +5,9 @@ import { persist } from 'zustand/middleware'
 
 export type ChainId =
   | 'ethereum' | 'polygon' | 'arbitrum' | 'base' | 'optimism' | 'bsc' | 'avalanche'
-  | 'solana' | 'bitcoin'
+  | 'solana' | 'bitcoin' | 'xrp' | 'tron'
 
-export const CHAIN_META: Record<ChainId, { label: string; symbol: string; color: string; type: 'evm' | 'sol' | 'btc' }> = {
+export const CHAIN_META: Record<ChainId, { label: string; symbol: string; color: string; type: 'evm' | 'sol' | 'btc' | 'xrp' | 'tron' }> = {
   ethereum:  { label: 'Ethereum',       symbol: 'ETH',  color: '#627EEA', type: 'evm' },
   polygon:   { label: 'Polygon',        symbol: 'POL',  color: '#8247E5', type: 'evm' },
   arbitrum:  { label: 'Arbitrum One',   symbol: 'ETH',  color: '#28A0F0', type: 'evm' },
@@ -17,6 +17,8 @@ export const CHAIN_META: Record<ChainId, { label: string; symbol: string; color:
   avalanche: { label: 'Avalanche',      symbol: 'AVAX', color: '#E84142', type: 'evm' },
   solana:    { label: 'Solana',         symbol: 'SOL',  color: '#9945FF', type: 'sol' },
   bitcoin:   { label: 'Bitcoin',        symbol: 'BTC',  color: '#F7931A', type: 'btc' },
+  xrp:       { label: 'XRP Ledger',     symbol: 'XRP',  color: '#23292F', type: 'xrp' },
+  tron:      { label: 'TRON',           symbol: 'TRX',  color: '#EC0928', type: 'tron' },
 }
 
 export const EVM_CHAINS: ChainId[] = ['ethereum', 'polygon', 'arbitrum', 'base', 'optimism', 'bsc', 'avalanche']

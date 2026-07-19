@@ -69,6 +69,15 @@ export interface RunAgentOptions {
   maxIterations?: number
   /** Max Anthropic web searches per run (default 5). Web search is Anthropic-only. */
   webSearchMaxUses?: number
+  /**
+   * The user's watchlist, forwarded from the client.
+   *
+   * Applied two ways, because neither alone is sufficient: passed to the news
+   * tools so results are filtered deterministically, and stated in the system
+   * prompt so the agent knows to weight these assets even when it reaches for a
+   * tool that has no watchlist parameter (market news, web search).
+   */
+  watchlist?: { terms: string[]; labels: string[] }
 }
 
 // Anthropic server-side web search tool. Executed by Anthropic (not our runTool),
@@ -134,7 +143,7 @@ async function runAgentAnthropic(
     const toolResults = await Promise.all(
       toolUses.map(async (tu) => {
         toolsUsed.push({ name: tu.name, input: tu.input })
-        const result = await runTool(tu.name, tu.input as Record<string, unknown>, opts.origin)
+        const result = await runTool(tu.name, tu.input as Record<string, unknown>, opts.origin, opts.watchlist?.terms)
         return { type: 'tool_result' as const, tool_use_id: tu.id, content: JSON.stringify(result) }
       })
     )
@@ -228,7 +237,7 @@ async function runAgentOpenAI(
         const fn = (tc as any).function as { name: string; arguments: string }
         const input = JSON.parse(fn.arguments || '{}')
         toolsUsed.push({ name: fn.name, input })
-        const result = await runTool(fn.name, input, opts.origin)
+        const result = await runTool(fn.name, input, opts.origin, opts.watchlist?.terms)
         return {
           role: 'tool' as const,
           tool_call_id: tc.id,
@@ -244,11 +253,33 @@ async function runAgentOpenAI(
 
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
+/**
+ * Describe the watchlist to the model.
+ *
+ * Deliberately framed as a weighting instruction, not a filter: the user asking
+ * about an asset they don't hold must still get an answer. The tools apply hard
+ * filtering where they can; this covers the tools that can't.
+ */
+function watchlistSuffix(watchlist: RunAgentOptions['watchlist']): string | null {
+  if (!watchlist?.labels.length) return null
+  return [
+    `The user's watchlist contains: ${watchlist.labels.join(', ')}.`,
+    'Weight news, analysis and examples toward these assets, and mention them first when relevant.',
+    'Do not refuse or omit information about other assets — the watchlist is a preference, not a restriction.',
+  ].join(' ')
+}
+
 export async function runAgent(opts: RunAgentOptions): Promise<AgentRunResult> {
   const cfg = getAgentConfig(opts.agentId)
   if (!cfg) throw new Error(`Unknown agent: ${opts.agentId}`)
   if (cfg.enabled === false) throw new AgentDisabledError(opts.agentId)
 
-  if (cfg.provider === 'anthropic') return runAgentAnthropic(cfg, opts)
-  return runAgentOpenAI(cfg, opts, cfg.provider)
+  // Fold the watchlist into the system suffix so it reaches both runners.
+  const wl = watchlistSuffix(opts.watchlist)
+  const effective: RunAgentOptions = wl
+    ? { ...opts, systemSuffix: opts.systemSuffix ? `${opts.systemSuffix}\n\n${wl}` : wl }
+    : opts
+
+  if (cfg.provider === 'anthropic') return runAgentAnthropic(cfg, effective)
+  return runAgentOpenAI(cfg, effective, cfg.provider)
 }

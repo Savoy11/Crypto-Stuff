@@ -19,6 +19,8 @@ export async function POST(req: NextRequest) {
   let body: {
     messages?: { role: 'user' | 'assistant'; content: string }[]
     pageContext?: { pathname?: string; asset?: string }
+    /** Watchlist forwarded from the client; the server cannot read localStorage. */
+    watchlist?: { terms: string[]; labels: string[] }
   }
   try {
     body = await req.json()
@@ -39,7 +41,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Forwarded from the client — the server can't read localStorage.
     const result = await runAgent({
+      watchlist: body.watchlist,
       agentId: 'app-assistant',
       messages,
       origin: new URL(req.url).origin,

@@ -33,6 +33,11 @@ export async function GET(req: NextRequest) {
     .map((s) => s.trim())
     .filter(Boolean)
   const searchQuery = keywords.join(' ')
+  // OR-semantics terms for watchlist bias (see the anyFiltered pass below).
+  const anyTerms = (searchParams.get('any') ?? '')
+    .split(',')
+    .map((t) => t.trim())
+    .filter(Boolean)
 
   // Optional provider filter (?providers=rss,newsapi,…) — set by the Custom
   // tier's multi-select. "rss" selects all custom feed providers. Absent or
@@ -95,11 +100,27 @@ export async function GET(req: NextRequest) {
       })
     : allArticles
 
+  // `any` is OR where `q` is AND, and exists for watchlist bias: a watchlist of
+  // BTC + ETH + AAPL wants articles about ANY of them. Sent through `q` it
+  // demanded all three in one article and returned nothing.
+  const anyMatchers = anyTerms.map(
+    // Word boundaries, matching the client-side matcher in lib/watchlist/bias.
+    // A substring test matches "eth" inside "Tether" — which it did, pulling
+    // USDT/GENIUS-Act stories into an ETH-biased feed.
+    (t) => new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i')
+  )
+  const anyFiltered = anyMatchers.length > 0
+    ? keywordFiltered.filter((a) => {
+        const topic = [a.headline, a.summary, a.category, a.source, ...a.relatedAssets].join(' ')
+        return anyMatchers.some((re) => re.test(topic))
+      })
+    : keywordFiltered
+
   // Server-side asset filter — keep articles that mention the selected asset
   // or are broadly relevant (relatedAssets empty = truly general crypto news)
   const filtered = assetFilter === 'all'
-    ? keywordFiltered
-    : keywordFiltered.filter((a) =>
+    ? anyFiltered
+    : anyFiltered.filter((a) =>
         a.relatedAssets.includes(assetFilter) ||
         a.relatedAssets.includes('general')
       )

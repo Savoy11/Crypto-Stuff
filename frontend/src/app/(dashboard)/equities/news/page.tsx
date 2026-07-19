@@ -6,6 +6,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Loader2, RefreshCw, Search, X } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
+import { useFeedBiasStore } from '@/store/useFeedBiasStore'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { applyBias, shouldAugmentFetch } from '@/lib/watchlist/bias'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import type { MarketArticle, MarketNewsCategory, MarketNewsResponse } from '@/app/live-data/market-news/route'
@@ -133,19 +136,38 @@ function EquityNewsContent() {
   const [keywordInput, setKeywordInput] = useState('')
   const [keywords, setKeywords] = useState<string[]>([])
 
+  const watchlist = useWatchlistBias()
+  const biasStrength = useFeedBiasStore((s) => s.getStrength('market-news'))
+  // Only widen the fetch at Strong/Only — Light is a pure reorder of what
+  // already arrived, and shouldn't cost extra upstream requests.
+  const biasSymbols = shouldAugmentFetch(biasStrength) ? watchlist.symbols.slice(0, 6) : []
+  const biasSymbolsKey = biasSymbols.join(',')
+
   const { data, isLoading, isFetching, refetch } = useQuery<MarketNewsResponse>({
-    queryKey: ['equity-news', symbolFilter],
+    queryKey: ['equity-news', symbolFilter, biasSymbolsKey],
     queryFn: () => {
       const params = new URLSearchParams({ limit: '50' })
       if (symbolFilter !== 'all') params.set('symbol', symbolFilter)
+      // At Strong/Only the route fetches each watchlist ticker's own Yahoo feed,
+      // which widens coverage rather than just reordering. Skipped when the user
+      // has picked a specific symbol — that's a more explicit intent.
+      if (biasSymbols.length > 0 && symbolFilter === 'all') {
+        params.set('watchlist', biasSymbols.join(','))
+      }
       return fetch(`/live-data/market-news?${params}`).then((r) => r.json())
     },
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })
 
+  /** Market articles carry ticker tags; text is the fallback. */
+  const toBiasable = (a: MarketArticle) => ({
+    symbols: a.relatedSymbols,
+    text: `${a.title} ${a.summary}`,
+  })
+
   const articles = useMemo(() => {
-    return (data?.articles ?? []).filter((a) => {
+    const filtered = (data?.articles ?? []).filter((a) => {
       if (categoryFilter !== 'all' && a.category !== categoryFilter) return false
       if (sentimentFilter !== 'all' && a.sentiment !== sentimentFilter) return false
       if (symbolFilter !== 'all' && !a.relatedSymbols.includes(symbolFilter)) return false
@@ -156,7 +178,9 @@ function EquityNewsContent() {
       }
       return true
     })
-  }, [data, categoryFilter, sentimentFilter, symbolFilter, keywords])
+    return applyBias(filtered, watchlist, biasStrength, toBiasable)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, categoryFilter, sentimentFilter, symbolFilter, keywords, watchlist, biasStrength])
 
   const breaking = articles.filter((a) => a.isBreaking)
   const rest = articles.filter((a) => !a.isBreaking)

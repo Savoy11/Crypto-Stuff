@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { Microscope, Loader2, Wrench, Sparkles, AlertCircle, Bitcoin, LineChart } from 'lucide-react'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { agentWatchlistPayload } from '@/lib/watchlist/bias'
 
 type Market = 'crypto' | 'equities'
 
@@ -41,6 +43,7 @@ function ResearchInner() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ReportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const watchlist = useWatchlistBias()
 
   // Deep-link prefill: /research?symbol=MSFT (or ?task=...) — from a stock page.
   useEffect(() => {
@@ -64,7 +67,12 @@ function ResearchInner() {
       const res = await fetch('/api/agents/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task: trimmed, agentId: RESEARCH_AGENT[market] }),
+        body: JSON.stringify({
+          task: trimmed,
+          agentId: RESEARCH_AGENT[market],
+          // See AssistantWidget — the server cannot read the watchlist itself.
+          watchlist: agentWatchlistPayload(watchlist) ?? undefined,
+        }),
       })
       const data = await res.json()
       if (!res.ok || data.error) setError(data.error ?? 'Research failed')

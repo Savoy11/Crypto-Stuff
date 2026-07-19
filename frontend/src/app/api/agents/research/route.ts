@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   const denied = guardSensitiveRoute(req, 'agents-research', 6)
   if (denied) return denied
 
-  let body: { task?: string; agentId?: string }
+  let body: { task?: string; agentId?: string; watchlist?: { terms: string[]; labels: string[] } }
   try {
     body = await req.json()
   } catch {
@@ -35,7 +35,9 @@ export async function POST(req: NextRequest) {
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: task }]
 
   try {
+    // Forwarded from the client — the server can't read localStorage.
     const result = await runAgent({
+      watchlist: body.watchlist,
       agentId,
       messages,
       origin: new URL(req.url).origin,

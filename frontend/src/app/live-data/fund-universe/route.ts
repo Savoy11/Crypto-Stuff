@@ -37,6 +37,8 @@ export interface FundUniverseEntry {
   indexTracked: string | null
   focusSector: SectorId | null
   focusIndustry: string | null
+  /** Official issuer product page. Catalog funds only — the listing directories carry no URL. */
+  website: string | null
   /** Portfolio-construction strategy (catalog funds only). */
   strategy: FundStrategy | null
   /** Coarse suitability band derived from category + strategy (catalog funds only). */
@@ -73,6 +75,7 @@ function catalogEntry(f: (typeof FUND_CATALOG)[number]): FundUniverseEntry {
     aumB: f.aumB, referencePrice: f.referencePrice, yieldPct: f.yieldPct,
     inceptionYear: f.inceptionYear, indexTracked: f.indexTracked,
     focusSector: f.focusSector ?? null, focusIndustry: f.focusIndustry ?? null,
+    website: f.website ?? null,
     strategy: fundStrategy(f), riskLevel: fundRiskLevel(f),
     tradingRestriction: fundTradingRestriction(f),
   }
@@ -205,6 +208,10 @@ function skeleton(e: { symbol: string; name: string }, type: FundType): FundUniv
     category: null, issuer: null, expenseRatioPct: null, aumB: null,
     referencePrice: null, yieldPct: null, inceptionYear: null,
     indexTracked: null, focusSector: null, focusIndustry: null,
+    // Nasdaq's traded-symbol file and the SEC series/class CSV carry no issuer
+    // URL, so uncurated funds genuinely have none. Better null than a guessed
+    // link that 404s.
+    website: null,
     strategy: null, riskLevel: null,
     // Mutual funds get the honest generic policy note even without curation.
     tradingRestriction: type === 'mutual' ? fundTradingRestriction({ tradingRestriction: undefined, type, issuer: '' }) : null,

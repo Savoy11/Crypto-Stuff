@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import {
   Settings,
   ExternalLink,
@@ -13,6 +14,8 @@ import {
   PlugZap,
   Rss,
   MessageSquare,
+  Video,
+  Star,
   ChevronRight,
   Plus,
   Trash2,
@@ -27,6 +30,9 @@ import {
 import { timeAgo } from '@/lib/utils/format'
 import { OPTIONAL_MODULES } from '@/lib/modules/registry'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
+import { useFeedBiasStore, BIAS_FEEDS } from '@/store/useFeedBiasStore'
+import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
+import { BIAS_STRENGTHS } from '@/lib/watchlist/bias'
 
 // ─── Suite modules panel ──────────────────────────────────────────────────────
 // Toggles which suite modules (Crypto, Equities, ETFs & Funds) appear in the
@@ -67,6 +73,72 @@ function ModulesPanel() {
           )
         })}
       </div>
+    </section>
+  )
+}
+
+// ─── Watchlist bias panel ─────────────────────────────────────────────────────
+
+function WatchlistBiasPanel() {
+  const { getStrength, setStrength } = useFeedBiasStore()
+  const bias = useWatchlistBias()
+
+  return (
+    <section>
+      <div className="flex items-center gap-2 mb-3">
+        <Star size={15} className="text-amber-400" />
+        <h2 className="text-sm font-semibold text-slate-300">Watchlist Bias</h2>
+        <span className="text-xs text-slate-500">— how much your watchlist steers each feed</span>
+      </div>
+
+      {bias.isEmpty ? (
+        <p className="text-xs text-slate-500 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+          Your watchlist is empty, so these settings have no effect yet.{' '}
+          <Link href="/watchlist" className="text-accent-blue hover:underline">Add assets</Link> to steer your feeds.
+        </p>
+      ) : (
+        <p className="text-xs text-slate-500 mb-3">
+          Biasing on {bias.assetIds.length + bias.symbols.length} watchlist asset
+          {bias.assetIds.length + bias.symbols.length !== 1 ? 's' : ''}.
+        </p>
+      )}
+
+      <div className="space-y-2 mt-2">
+        {BIAS_FEEDS.map((feed) => {
+          const current = getStrength(feed.id)
+          return (
+            <div key={feed.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-slate-200">{feed.label}</p>
+                <p className="text-[11px] text-slate-500">{feed.description}</p>
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                {BIAS_STRENGTHS.map((s) => (
+                  <button
+                    key={s.value}
+                    onClick={() => setStrength(feed.id, s.value)}
+                    title={s.hint}
+                    className={`px-2 py-1 rounded text-xs font-medium border transition-all ${
+                      current === s.value
+                        ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                        : 'text-slate-500 border-slate-700 hover:text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
+        <span className="text-slate-400">Light</span> sorts watchlist matches to the top.{' '}
+        <span className="text-slate-400">Strong</span> also asks providers for extra articles about those assets.{' '}
+        <span className="text-slate-400">Only</span> hides everything else — market-wide news included.
+        An empty watchlist is always treated as no bias, so no setting can leave a feed blank.
+      </p>
     </section>
   )
 }
@@ -249,11 +321,11 @@ function SubredditPanel() {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ProviderCategory = 'price' | 'news' | 'social' | 'llm'
+type ProviderCategory = 'price' | 'news' | 'social' | 'video' | 'llm'
 type ProviderMarket = 'crypto' | 'equities'
 type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
-type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
+type FeedFormat = 'rss' | 'atom' | 'youtube' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
 
 interface BuiltinProviderView {
   id: string
@@ -844,9 +916,11 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const defaultFormat: FeedFormat = market === 'equities'
-    ? (category === 'price' ? 'json-quote' : category === 'news' ? 'rss' : 'json-social')
-    : (category === 'news' || category === 'social' ? 'rss' : 'json-price')
+  const defaultFormat: FeedFormat = category === 'video'
+    ? 'youtube' // channel id or full /feeds/videos.xml URL
+    : market === 'equities'
+      ? (category === 'price' ? 'json-quote' : category === 'news' ? 'rss' : 'json-social')
+      : (category === 'news' || category === 'social' ? 'rss' : 'json-price')
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -910,6 +984,7 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
 
   const sourceLabel = category === 'news' ? 'news source'
     : category === 'social' ? 'social source'
+    : category === 'video' ? 'video channel'
     : market === 'equities' ? 'quote feed' : 'price feed'
 
   if (!open) {
@@ -1038,6 +1113,10 @@ export default function SettingsPage() {
   const customEquityNewsProviders = customProviders.filter((p) => p.category === 'news' && marketOf(p) === 'equities')
   const equitySocialProviders = builtinProviders.filter((p) => p.category === 'social' && marketOf(p) === 'equities')
   const customEquitySocialProviders = customProviders.filter((p) => p.category === 'social' && marketOf(p) === 'equities')
+  const cryptoVideoProviders = builtinProviders.filter((p) => p.category === 'video' && marketOf(p) === 'crypto')
+  const customCryptoVideoProviders = customProviders.filter((p) => p.category === 'video' && marketOf(p) === 'crypto')
+  const equityVideoProviders = builtinProviders.filter((p) => p.category === 'video' && marketOf(p) === 'equities')
+  const customEquityVideoProviders = customProviders.filter((p) => p.category === 'video' && marketOf(p) === 'equities')
   const llmProviders = builtinProviders.filter((p) => p.category === 'llm')
 
   const activeCount = providers.filter((p) => {
@@ -1073,6 +1152,7 @@ export default function SettingsPage() {
         <>
           {/* Suite modules */}
           <ModulesPanel />
+          <WatchlistBiasPanel />
 
           {/* Crypto market data */}
           <section>
@@ -1143,6 +1223,42 @@ export default function SettingsPage() {
                 <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
               ))}
               <AddCustomSourceForm category="social" market="equities" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Equity video */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Video size={15} className="text-violet-400" />
+              <h2 className="text-sm font-semibold text-slate-300">Market Video Sources</h2>
+              <span className="text-xs text-slate-500">— keyless YouTube channel feeds, merged on the Videos page</span>
+            </div>
+            <div className="space-y-2">
+              {equityVideoProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {customEquityVideoProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="video" market="equities" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Crypto video */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Video size={15} className="text-accent-blue" />
+              <h2 className="text-sm font-semibold text-slate-300">Crypto Video Sources</h2>
+              <span className="text-xs text-slate-500">— keyless YouTube channel feeds, merged on the Videos page</span>
+            </div>
+            <div className="space-y-2">
+              {cryptoVideoProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {customCryptoVideoProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="video" market="crypto" onAdd={fetchProviders} />
             </div>
           </section>
 

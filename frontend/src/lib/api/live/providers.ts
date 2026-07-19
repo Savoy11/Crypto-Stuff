@@ -3,12 +3,12 @@ import path from 'path'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ProviderCategory = 'price' | 'news' | 'social' | 'llm'
+export type ProviderCategory = 'price' | 'news' | 'social' | 'video' | 'llm'
 /** Which side of the suite a provider feeds. Absent = 'crypto' (back-compat with stored configs). */
 export type ProviderMarket = 'crypto' | 'equities'
 export type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 export type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
-export type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
+export type FeedFormat = 'rss' | 'atom' | 'youtube' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
 
 export interface CustomProviderDef {
   /** Unique id — generated on creation, e.g. "custom-1718000000000" */
@@ -293,6 +293,211 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     freeTierLabel: 'Keyless — already active',
     keyUrl: 'https://www.cnbc.com/markets/',
     priority: 3,
+  },
+
+  // ── Video (category: 'video') ── keyless YouTube channel feeds
+  // YouTube publishes per-channel Atom at /feeds/videos.xml?channel_id=…, no key
+  // and no quota. Channel ids live in /live-data/videos/route.ts, mirroring how
+  // market-news keeps its feed URLs route-side. Every id below was verified to
+  // resolve before being added — do the same for any new entry.
+  {
+    id: 'yt-bloomberg',
+    name: 'Bloomberg Television',
+    category: 'video',
+    market: 'equities',
+    description: 'Bloomberg TV segments — markets, macro, and company coverage.',
+    features: ['Market coverage', 'Macro interviews', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@markets',
+    priority: 1,
+  },
+  {
+    id: 'yt-cnbc',
+    name: 'CNBC Television',
+    category: 'video',
+    market: 'equities',
+    description: 'CNBC broadcast clips — earnings reaction, interviews, market open/close.',
+    features: ['Earnings reaction', 'Interviews', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@CNBCtelevision',
+    priority: 2,
+  },
+  {
+    id: 'yt-yahoo-finance',
+    name: 'Yahoo Finance',
+    category: 'video',
+    market: 'equities',
+    description: 'Yahoo Finance video desk — market recaps and company analysis.',
+    features: ['Market recaps', 'Company analysis', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@YahooFinance',
+    priority: 3,
+  },
+  {
+    id: 'yt-ft',
+    name: 'Financial Times',
+    category: 'video',
+    market: 'equities',
+    description: 'FT video explainers on markets, economics, and business.',
+    features: ['Explainers', 'Global markets', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@FinancialTimes',
+    priority: 4,
+  },
+  {
+    id: 'yt-wsj',
+    name: 'The Wall Street Journal',
+    category: 'video',
+    market: 'equities',
+    description: 'WSJ video coverage of markets, business, and economics.',
+    features: ['Business coverage', 'Explainers', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@WSJ',
+    priority: 5,
+  },
+  {
+    id: 'yt-coin-bureau',
+    name: 'Coin Bureau',
+    category: 'video',
+    market: 'crypto',
+    description: 'Long-form crypto research and protocol breakdowns.',
+    features: ['Protocol research', 'Market outlook', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@CoinBureau',
+    priority: 1,
+  },
+  {
+    id: 'yt-bankless',
+    name: 'Bankless',
+    category: 'video',
+    market: 'crypto',
+    description: 'DeFi and Ethereum ecosystem interviews and analysis.',
+    features: ['DeFi coverage', 'Founder interviews', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@Bankless',
+    priority: 2,
+  },
+  {
+    id: 'yt-benjamin-cowen',
+    name: 'Benjamin Cowen',
+    category: 'video',
+    market: 'crypto',
+    description: 'Quantitative crypto market analysis and cycle work.',
+    features: ['Quant analysis', 'Cycle models', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@intothecryptoverse',
+    priority: 3,
+  },
+  {
+    id: 'yt-altcoin-daily',
+    name: 'Altcoin Daily',
+    category: 'video',
+    market: 'crypto',
+    description: 'Daily crypto news roundups and altcoin commentary.',
+    features: ['Daily roundups', 'Altcoin coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@AltcoinDaily',
+    priority: 4,
+  },
+
+  {
+    id: 'yt-cnbc-intl',
+    name: 'CNBC International',
+    category: 'video',
+    market: 'equities',
+    description: 'CNBC’s international desk — Europe and Asia market coverage.',
+    features: ['Global markets', 'Europe/Asia desks', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@CNBCi',
+    priority: 6,
+  },
+  {
+    id: 'yt-reuters',
+    name: 'Reuters',
+    category: 'video',
+    market: 'equities',
+    description: 'Reuters video desk — breaking business and world coverage.',
+    features: ['Breaking news', 'Global wire', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@Reuters',
+    priority: 7,
+  },
+  {
+    id: 'yt-economist',
+    name: 'The Economist',
+    category: 'video',
+    market: 'equities',
+    description: 'Economist explainers on economics, policy, and global business.',
+    features: ['Explainers', 'Policy analysis', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@TheEconomist',
+    priority: 8,
+  },
+  {
+    id: 'yt-unchained',
+    name: 'Unchained',
+    category: 'video',
+    market: 'crypto',
+    description: 'Laura Shin’s crypto interviews and industry reporting.',
+    features: ['Long-form interviews', 'Industry reporting', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@UnchainedCrypto',
+    priority: 5,
+  },
+  {
+    id: 'yt-the-defiant',
+    name: 'The Defiant',
+    category: 'video',
+    market: 'crypto',
+    description: 'DeFi-focused news, protocol coverage, and interviews.',
+    features: ['DeFi news', 'Protocol coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@TheDefiant',
+    priority: 6,
+  },
+  {
+    id: 'yt-crypto-banter',
+    name: 'Crypto Banter',
+    category: 'video',
+    market: 'crypto',
+    description: 'Daily live crypto market commentary and trading discussion.',
+    features: ['Daily live shows', 'Market commentary', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@CryptoBanterGroup',
+    priority: 7,
+  },
+
+  // Keyed, and deliberately not part of the channel merge: this one powers
+  // on-demand YouTube-wide keyword search rather than a standing feed. The
+  // Data API v3 charges 100 quota units per search against a 10,000/day free
+  // allowance (~100 searches/day), so the Videos page only calls it on an
+  // explicit user action, never per keystroke.
+  {
+    id: 'youtube-search',
+    name: 'YouTube Search',
+    category: 'video',
+    market: 'equities',
+    description: 'Search all of YouTube by keyword, beyond the standing channel feeds. Data API v3 — 100 quota units per search against a 10,000/day free allowance.',
+    features: ['Whole-of-YouTube search', 'Relevance or date ordering', 'Quota-limited'],
+    requiresKey: true,
+    freeTierLabel: 'Free tier: ~100 searches/day',
+    keyUrl: 'https://console.cloud.google.com/apis/library/youtube.googleapis.com',
+    priority: 10,
   },
 
   // ── Equity social (market: 'equities') ── all active providers run in parallel
@@ -599,6 +804,19 @@ export function getEquityQuoteProviders(): AnyActiveProvider[] {
     .filter((p) => !p.isCustom)
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
   return [...customs, ...builtins]
+}
+
+/**
+ * Enabled video providers for one market, built-ins by priority then customs.
+ *
+ * Market-scoped like the news/social getters so the Videos page can honour the
+ * user's bundle — crypto channels only when the Crypto module is on, finance
+ * channels when Equities or Funds is.
+ */
+export function getVideoProviders(market: ProviderMarket): AnyActiveProvider[] {
+  return getAllProviders()
+    .filter((p) => p.category === 'video' && marketOf(p) === market && p.status === 'active')
+    .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
 /** All active equity providers for a category, built-ins sorted by priority, customs appended. */

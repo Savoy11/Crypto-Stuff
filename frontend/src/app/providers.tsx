@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { GC_TIME, STALE_TIME_SHORT } from '@/lib/constants'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
+import { useFeedBiasStore } from '@/store/useFeedBiasStore'
 
 function makeQueryClient() {
   return new QueryClient({
@@ -43,6 +44,7 @@ export function Providers({ children }: { children: ReactNode }) {
   // after.
   useEffect(() => {
     void useEntitlementStore.persist.rehydrate()
+    void useFeedBiasStore.persist.rehydrate()
   }, [])
 
   return (

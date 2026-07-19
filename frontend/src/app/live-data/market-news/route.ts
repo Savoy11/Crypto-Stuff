@@ -51,6 +51,15 @@ const BUILTIN_FEEDS: Record<string, { url: string; source: string }> = {
   'cnbc':        { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', source: 'CNBC' },
 }
 
+/**
+ * Cap on per-ticker watchlist feeds fetched in one request.
+ *
+ * Each symbol is another upstream round-trip, so a 30-name watchlist would turn
+ * one request into 30. Six covers a typical focus list while keeping the fan-out
+ * comparable to the general-feed path.
+ */
+const MAX_WATCHLIST_FEEDS = 6
+
 function yahooTickerFeedUrl(symbol: string): string {
   const params = new URLSearchParams({ s: symbol, region: 'US', lang: 'en-US' })
   return `https://feeds.finance.yahoo.com/rss/2.0/headline?${params}`
@@ -176,6 +185,19 @@ export async function GET(request: NextRequest) {
   const symbol = request.nextUrl.searchParams.get('symbol')?.trim().toUpperCase()
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '20', 10) || 20, 50)
 
+  // Watchlist tickers. Unlike the crypto route — which has text-search providers
+  // and so takes free-text `any` terms — the equity feeds are per-ticker RSS, so
+  // the way to "pull more" here is to fetch each watchlist symbol's own Yahoo
+  // feed and merge. Capped: each symbol is another upstream request.
+  const watchlist = (request.nextUrl.searchParams.get('watchlist') ?? '')
+    .split(',')
+    .map((s) => s.trim().toUpperCase())
+    .filter(Boolean)
+    .slice(0, MAX_WATCHLIST_FEEDS)
+  // Filter to watchlist matches only. Separate from fetching, so a caller can
+  // widen coverage without narrowing results.
+  const watchlistOnly = request.nextUrl.searchParams.get('watchlistOnly') === '1'
+
   const active = getEquityProviders('news')
   const builtins = active.filter((p): p is AnyActiveProvider & { isCustom?: false } => !p.isCustom && p.id in BUILTIN_FEEDS)
   const customs = active.filter((p): p is AnyActiveProvider & ActiveCustom =>
@@ -201,6 +223,14 @@ export async function GET(request: NextRequest) {
     if (general && general.id !== 'yahoo-news') tasks.push({ providerId: general.id, run: fetchBuiltin(BUILTIN_FEEDS[general.id].url, BUILTIN_FEEDS[general.id].source) })
   } else {
     for (const p of builtins) tasks.push({ providerId: p.id, run: fetchBuiltin(BUILTIN_FEEDS[p.id].url, BUILTIN_FEEDS[p.id].source) })
+    // Watchlist mode: add each symbol's own Yahoo feed alongside the general
+    // ones. This is the equity analogue of the crypto route's `any` search —
+    // it genuinely widens coverage rather than just reordering what arrived.
+    if (watchlist.length > 0 && builtins.some((p) => p.id === 'yahoo-news')) {
+      for (const wl of watchlist) {
+        tasks.push({ providerId: 'yahoo-news', run: fetchBuiltin(yahooTickerFeedUrl(wl), 'Yahoo Finance') })
+      }
+    }
   }
   for (const p of customs) {
     if (symbol && !p.url.includes('{symbol}') && tasks.length > 0) continue // general-only custom feeds skip symbol mode
@@ -237,9 +267,24 @@ export async function GET(request: NextRequest) {
 
   articles.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
+  // Word-boundary matching, same rule as the crypto route: a substring test
+  // matches "ETH" inside "Tether" and "F" inside almost anything, which matters
+  // more here since tickers are short.
+  const matchesWatchlist = (a: MarketArticle) => {
+    if (a.relatedSymbols.some((s) => watchlist.includes(s.toUpperCase()))) return true
+    const text = `${a.title} ${a.summary}`
+    return watchlist.some((w) => new RegExp(`\\b${w}\\b`, 'i').test(text))
+  }
+
+  // Never let filtering empty the feed — mirrors applyBias, where an empty
+  // watchlist is always a no-op.
+  const shown = watchlistOnly && watchlist.length > 0
+    ? articles.filter(matchesWatchlist)
+    : articles
+
   return NextResponse.json({
-    ok: articles.length > 0,
+    ok: shown.length > 0,
     updatedAt: new Date().toISOString(),
-    articles: articles.slice(0, limit),
+    articles: shown.slice(0, limit),
   } satisfies MarketNewsResponse)
 }
