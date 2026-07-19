@@ -164,7 +164,8 @@ export default function VideosPage() {
 
   const { data, isLoading, isFetching, refetch } = useQuery<VideosResponse>({
     queryKey: ['videos'],
-    queryFn: () => fetch('/live-data/videos?limit=120').then((r) => r.json()),
+    // Headroom for added channels — 10 channels x 15 already exceeds 120.
+    queryFn: () => fetch('/live-data/videos?limit=240').then((r) => r.json()),
     staleTime: 10 * 60 * 1000,
     refetchInterval: 30 * 60 * 1000,
   })
@@ -218,11 +219,21 @@ export default function VideosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, searchResults, isSearchMode, selectedChannels, terms, sort, recency, marketFilter, cryptoOn, marketsOn])
 
-  const channels = useMemo(
-    () => (data?.channels ?? []).filter((c) => marketEnabled(c.market)),
+  // Counts are derived from the videos actually loaded, not from the route's
+  // per-channel totals. The route fetches every channel in full then truncates
+  // to the page limit by recency, so a channel's older items can be cut — and a
+  // chip that promises 15 but delivers 3 on click is worse than no count.
+  const channels = useMemo(() => {
+    const loaded = new Map<string, number>()
+    for (const v of data?.videos ?? []) {
+      loaded.set(v.provider, (loaded.get(v.provider) ?? 0) + 1)
+    }
+    return (data?.channels ?? [])
+      .filter((c) => marketEnabled(c.market))
+      .map((c) => ({ ...c, count: loaded.get(c.provider) ?? 0 }))
+      .filter((c) => c.count > 0)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, cryptoOn, marketsOn]
-  )
+  }, [data, cryptoOn, marketsOn])
 
   const toggleChannel = (provider: string) => {
     setSelectedChannels((prev) => {

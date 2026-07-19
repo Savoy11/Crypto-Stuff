@@ -66,7 +66,9 @@ function feedUrl(provider: AnyActiveProvider): string | null {
     if (/^UC[\w-]{20,}$/.test(raw)) {
       return `https://www.youtube.com/feeds/videos.xml?channel_id=${raw}`
     }
-    return validatePublicHttpUrl(raw)
+    // validatePublicHttpUrl returns an ERROR MESSAGE for a bad URL and null for
+    // a good one — not the validated URL. Treat null as "safe to fetch".
+    return validatePublicHttpUrl(raw) === null ? raw : null
   }
   const channelId = BUILTIN_CHANNELS[provider.id]
   return channelId ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}` : null
@@ -138,7 +140,10 @@ async function fetchProvider(provider: AnyActiveProvider, market: ProviderMarket
 
 export async function GET(request: NextRequest) {
   const marketParam = request.nextUrl.searchParams.get('market')
-  const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '60', 10) || 60, 200)
+  // Cap is headroom for added channels (each contributes ~15), not a target —
+  // the page asks for 240. Kept finite so a runaway channel list can't return
+  // an unbounded payload.
+  const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '60', 10) || 60, 400)
 
   const markets: ProviderMarket[] =
     marketParam === 'crypto' || marketParam === 'equities' ? [marketParam] : ['crypto', 'equities']
