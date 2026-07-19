@@ -71,7 +71,9 @@ const RECENCIES: Array<{ value: RecencyKey; label: string }> = [
  */
 function matchesTerms(video: VideoItem, terms: string[]): boolean {
   if (terms.length === 0) return true
-  const haystack = `${video.title} ${video.summary} ${video.channel}`.toLowerCase()
+  // searchText, not summary — summary is truncated for display and matching
+  // against it loses most of the description.
+  const haystack = `${video.title} ${video.searchText || video.summary} ${video.channel}`.toLowerCase()
   return terms.every((t) => haystack.includes(t))
 }
 

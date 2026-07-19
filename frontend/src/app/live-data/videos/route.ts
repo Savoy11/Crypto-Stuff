@@ -21,6 +21,15 @@ import { decodeEntities, stripTags } from '@/lib/utils/html'
 
 export const dynamic = 'force-dynamic'
 
+/**
+ * Cap on the searchable description text.
+ *
+ * Measured across the built-in channels: median ~670 chars, p90 ~1,300, max
+ * ~3,900. 1,500 covers well past the 90th percentile while bounding the payload
+ * at roughly 225KB for a 150-video feed.
+ */
+const SEARCH_TEXT_LIMIT = 1500
+
 /** Provider id → YouTube channel id. Every id here was verified to resolve. */
 const BUILTIN_CHANNELS: Record<string, string> = {
   'yt-bloomberg':      'UCIALMKvObZNtJ6AmdCLP7Lg',
@@ -37,8 +46,17 @@ const BUILTIN_CHANNELS: Record<string, string> = {
 export interface VideoItem {
   id: string
   title: string
-  /** Trimmed channel description — YouTube descriptions are mostly promo links. */
+  /** Short form for display on the card — two lines is all it renders. */
   summary: string
+  /**
+   * Fuller description, for search only.
+   *
+   * Descriptions run ~670 chars at the median and over 3,900 at the extreme,
+   * so matching against the 240-char display summary silently loses most of the
+   * text: "federal" appears in real descriptions that the truncated form drops
+   * entirely. Capped so a long-winded channel can't bloat the payload.
+   */
+  searchText: string
   url: string
   thumbnail: string | null
   channel: string
@@ -92,20 +110,20 @@ function parseChannelFeed(xml: string, provider: AnyActiveProvider, market: Prov
 
     const published = tag(entry, 'published') || new Date().toISOString()
     const thumbnail = (entry.match(/<media:thumbnail[^>]*url="([^"]+)"/i) || [])[1] ?? null
-    // Descriptions are dominated by sponsor/affiliate links — strip markup,
-    // drop URL lines, and keep only the opening prose.
-    const rawSummary = tag(entry, 'media:description')
-    const summary = stripTags(rawSummary)
+    // Descriptions are dominated by sponsor/affiliate links — strip markup and
+    // drop URL tokens, then keep the prose. Two forms: a short one for the
+    // card, and a fuller one for search (see searchText on VideoItem).
+    const description = stripTags(tag(entry, 'media:description'))
       .split(/\s+/)
       .filter((w) => !/^https?:\/\//i.test(w))
       .join(' ')
-      .slice(0, 240)
       .trim()
 
     return {
       id: `${provider.id}:${videoId}`,
       title,
-      summary,
+      summary: description.slice(0, 240),
+      searchText: description.slice(0, SEARCH_TEXT_LIMIT),
       url: `https://www.youtube.com/watch?v=${videoId}`,
       thumbnail,
       channel: decodeEntities(tag(entry, 'name') || channel),

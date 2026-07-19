@@ -97,7 +97,11 @@ export async function GET(request: NextRequest) {
         // from a channel feed, and so the page can tell them apart.
         id: `search:${videoId}`,
         title: decodeEntities(snippet.title),
+        // search.list truncates descriptions to ~160 chars, so both forms come
+        // from the same short snippet here — unlike the RSS feeds, there is no
+        // fuller text to preserve.
         summary: decodeEntities(snippet.description ?? '').slice(0, 240),
+        searchText: decodeEntities(snippet.description ?? ''),
         url: `https://www.youtube.com/watch?v=${videoId}`,
         thumbnail,
         channel: decodeEntities(snippet.channelTitle ?? 'YouTube'),
