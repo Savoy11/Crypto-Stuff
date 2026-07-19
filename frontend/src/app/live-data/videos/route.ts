@@ -30,6 +30,41 @@ export const dynamic = 'force-dynamic'
  */
 const SEARCH_TEXT_LIMIT = 1500
 
+/**
+ * Lines that are sponsor/affiliate boilerplate rather than description.
+ *
+ * Creator descriptions routinely open with several of these before any actual
+ * prose, which meant 20% of cards displayed "Join … 👉 Get The Hottest Deals"
+ * instead of what the video was about — all 15 Coin Bureau cards among them.
+ */
+const PROMO_LINE = /👉|►|▶|\bjoin\b|\bsubscribe\b|sign up|use code|promo|\bdeals?\b|discount|affiliate|sponsor|follow us|telegram|discord|% off|\bmerch\b/i
+
+/**
+ * Turn a raw feed description into readable prose.
+ *
+ * Works line-by-line rather than on the whole blob: URLs are dropped, then
+ * promo lines and one-word fragments are discarded, and what remains is joined.
+ * Falls back to the unfiltered lines when filtering would leave nothing, so a
+ * video whose description is *entirely* promotional still shows something
+ * rather than an empty card.
+ */
+function cleanDescription(raw: string): string {
+  const lines = raw
+    .replace(/<[^>]+>/g, ' ')
+    .split(/\r?\n/)
+    .map((line) =>
+      line
+        .split(/\s+/)
+        .filter((w) => !/^https?:\/\//i.test(w))
+        .join(' ')
+        .trim()
+    )
+    .filter(Boolean)
+
+  const prose = lines.filter((line) => line.length >= 40 && !PROMO_LINE.test(line))
+  return (prose.length > 0 ? prose : lines).join(' ').replace(/\s+/g, ' ').trim()
+}
+
 /** Provider id → YouTube channel id. Every id here was verified to resolve. */
 const BUILTIN_CHANNELS: Record<string, string> = {
   'yt-bloomberg':      'UCIALMKvObZNtJ6AmdCLP7Lg',
@@ -41,6 +76,12 @@ const BUILTIN_CHANNELS: Record<string, string> = {
   'yt-bankless':       'UCAl9Ld79qaZxp9JzEOwd3aA',
   'yt-benjamin-cowen': 'UCRvqjQPSeaWn-uEx-w0XOIg',
   'yt-altcoin-daily':  'UCbLhGKVY-bJPcawebgtNfbw',
+  'yt-cnbc-intl':      'UCo7a6riBFJ3tkeHjvkXPn1g',
+  'yt-reuters':        'UChqUTb7kYRX8-EiaN3XFrSQ',
+  'yt-economist':      'UC0p5jTq6Xx_DosDFxVXnWaQ',
+  'yt-unchained':      'UCWiiMnsnw5Isc2PP1to9nNw',
+  'yt-the-defiant':    'UCL0J4MLEdLP0-UyLu0hCktg',
+  'yt-crypto-banter':  'UCN9Nj4tjXbVTLYWN0EKly_Q',
 }
 
 export interface VideoItem {
@@ -110,14 +151,9 @@ function parseChannelFeed(xml: string, provider: AnyActiveProvider, market: Prov
 
     const published = tag(entry, 'published') || new Date().toISOString()
     const thumbnail = (entry.match(/<media:thumbnail[^>]*url="([^"]+)"/i) || [])[1] ?? null
-    // Descriptions are dominated by sponsor/affiliate links — strip markup and
-    // drop URL tokens, then keep the prose. Two forms: a short one for the
-    // card, and a fuller one for search (see searchText on VideoItem).
-    const description = stripTags(tag(entry, 'media:description'))
-      .split(/\s+/)
-      .filter((w) => !/^https?:\/\//i.test(w))
-      .join(' ')
-      .trim()
+    // Two forms: a short one for the card, and a fuller one for search
+    // (see searchText on VideoItem).
+    const description = cleanDescription(tag(entry, 'media:description'))
 
     return {
       id: `${provider.id}:${videoId}`,
