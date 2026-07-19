@@ -8,7 +8,7 @@ import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import type { VideoItem, VideosResponse } from '@/app/live-data/videos/route'
-import type { VideoSearchResponse } from '@/app/live-data/video-search/route'
+import type { VideoSearchResponse, SearchScope } from '@/app/live-data/video-search/route'
 import type { ProviderMarket } from '@/lib/api/live/providers'
 
 // Video feed — keyless YouTube channel Atom feeds, merged and ranked by recency.
@@ -163,6 +163,9 @@ export default function VideosPage() {
   // filters locally as you type. Search costs 100 quota units, so it only runs
   // when explicitly submitted.
   const [ytQuery, setYtQuery] = useState('')
+  // Finance-scoped by default: unscoped YouTube search for an ambiguous term
+  // returns sport and local news rather than market coverage.
+  const [scope, setScope] = useState<SearchScope>('finance')
 
   const { data, isLoading, isFetching, refetch } = useQuery<VideosResponse>({
     queryKey: ['videos'],
@@ -173,8 +176,8 @@ export default function VideosPage() {
   })
 
   const searchQuery = useQuery<VideoSearchResponse>({
-    queryKey: ['video-search', ytQuery],
-    queryFn: () => fetch(`/live-data/video-search?q=${encodeURIComponent(ytQuery)}`).then((r) => r.json()),
+    queryKey: ['video-search', ytQuery, scope],
+    queryFn: () => fetch(`/live-data/video-search?q=${encodeURIComponent(ytQuery)}&scope=${scope}`).then((r) => r.json()),
     enabled: ytQuery.length > 0,
     staleTime: 60 * 60 * 1000, // quota is scarce — one call per query per hour
     refetchOnWindowFocus: false,
@@ -337,6 +340,30 @@ export default function VideosPage() {
                 : <Youtube size={12} aria-hidden />}
               Search YouTube
             </button>
+            {/* Scope — finance-scoped by default; 'All' drops the category and
+                context terms for a raw YouTube search. */}
+            <div className="flex items-center gap-1" role="group" aria-label="Search scope">
+              {(['finance', 'all'] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setScope(s)}
+                  title={s === 'finance'
+                    ? 'Restrict to news & politics with market context — filters out sport and local news'
+                    : 'Raw YouTube search, no scoping'}
+                  className={clsx(
+                    'px-2 py-1.5 rounded text-xs font-medium border transition-all capitalize',
+                    scope === s
+                      ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                      : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
+                  )}
+                >
+                  {/* "All YouTube", not "All" — the market facet already has an
+                      "All" button and two of them side by side is ambiguous. */}
+                  {s === 'finance' ? 'Finance' : 'All YouTube'}
+                </button>
+              ))}
+            </div>
             {activeFilterCount > 0 && (
               <button
                 type="button"
@@ -357,7 +384,13 @@ export default function VideosPage() {
                 <span className="text-xs text-text-secondary truncate">
                   {searchQuery.isFetching
                     ? <>Searching YouTube for <span className="text-text-primary font-medium">“{ytQuery}”</span>…</>
-                    : <>YouTube results for <span className="text-text-primary font-medium">“{ytQuery}”</span> — channel and market filters don’t apply here.</>}
+                    : <>
+                        YouTube results for <span className="text-text-primary font-medium">“{ytQuery}”</span>
+                        {searchQuery.data?.scope === 'finance' && (
+                          <span className="text-text-muted"> · finance-scoped (searched “{searchQuery.data.effectiveQuery}” in news &amp; politics)</span>
+                        )}
+                        <span className="text-text-muted"> — channel and market filters don’t apply here.</span>
+                      </>}
                 </span>
               </div>
               <button

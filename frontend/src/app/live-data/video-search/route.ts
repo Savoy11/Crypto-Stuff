@@ -25,10 +25,29 @@ export interface VideoSearchResponse {
   /** False when no API key is configured — the UI shows a setup notice. */
   configured: boolean
   query: string
+  /** What was actually sent to YouTube — differs from `query` under finance scope. */
+  effectiveQuery: string
+  scope: SearchScope
   videos: VideoItem[]
   updatedAt: string
   error?: string
 }
+
+export type SearchScope = 'finance' | 'all'
+
+/**
+ * YouTube has no finance vertical, so an unscoped search for an ambiguous term
+ * returns whatever is popular — "washington" surfaced Major League Cricket
+ * highlights and local wildfire coverage.
+ *
+ * Measured across four strategies: category-25 alone still returned local news;
+ * context terms alone pulled in low-credibility finance-adjacent channels; the
+ * two together returned CNBC, AP and Associated Press. Hence both, as the
+ * default, with 'all' available when the user genuinely wants raw YouTube.
+ */
+const FINANCE_CONTEXT = 'markets economy'
+/** YouTube's "News & Politics" category — where most finance coverage lives. */
+const NEWS_POLITICS_CATEGORY = '25'
 
 interface YouTubeSearchItem {
   id?: { videoId?: string }
@@ -41,9 +60,12 @@ interface YouTubeSearchItem {
   }
 }
 
-function empty(query: string, configured: boolean, error?: string): NextResponse {
+function empty(
+  query: string, effectiveQuery: string, scope: SearchScope, configured: boolean, error?: string
+): NextResponse {
   return NextResponse.json({
-    ok: !error, configured, query, videos: [], updatedAt: new Date().toISOString(), error,
+    ok: !error, configured, query, effectiveQuery, scope,
+    videos: [], updatedAt: new Date().toISOString(), error,
   } satisfies VideoSearchResponse)
 }
 
@@ -51,17 +73,23 @@ export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get('q')?.trim() ?? ''
   const order = request.nextUrl.searchParams.get('order') === 'date' ? 'date' : 'relevance'
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '25', 10) || 25, 50)
+  const scope: SearchScope = request.nextUrl.searchParams.get('scope') === 'all' ? 'all' : 'finance'
+
+  // Under finance scope the query is augmented; returned as effectiveQuery so
+  // the UI can show what was actually searched rather than quietly differing.
+  const effectiveQuery = scope === 'finance' && query ? `${query} ${FINANCE_CONTEXT}` : query
 
   const key = getProviderKey('youtube-search')
-  if (!key) return empty(query, false)
-  if (!query) return empty(query, true)
+  if (!key) return empty(query, effectiveQuery, scope, false)
+  if (!query) return empty(query, effectiveQuery, scope, true)
 
   const url = new URL('https://www.googleapis.com/youtube/v3/search')
   url.searchParams.set('part', 'snippet')
   url.searchParams.set('type', 'video')
-  url.searchParams.set('q', query)
+  url.searchParams.set('q', effectiveQuery)
   url.searchParams.set('order', order)
   url.searchParams.set('maxResults', String(limit))
+  if (scope === 'finance') url.searchParams.set('videoCategoryId', NEWS_POLITICS_CATEGORY)
   url.searchParams.set('key', key)
 
   try {
@@ -77,7 +105,7 @@ export async function GET(request: NextRequest) {
         ? 'YouTube API rejected the request — daily quota exhausted, or the key is restricted/not enabled for the Data API.'
         : `YouTube search failed (HTTP ${res.status}).`
       recordProviderFetch('youtube-search', { error: `HTTP ${res.status}` })
-      return empty(query, true, detail)
+      return empty(query, effectiveQuery, scope, true, detail)
     }
 
     const data = await res.json() as { items?: YouTubeSearchItem[] }
@@ -117,11 +145,11 @@ export async function GET(request: NextRequest) {
 
     recordProviderFetch('youtube-search', { count: videos.length })
     return NextResponse.json({
-      ok: true, configured: true, query, videos, updatedAt: new Date().toISOString(),
+      ok: true, configured: true, query, effectiveQuery, scope, videos, updatedAt: new Date().toISOString(),
     } satisfies VideoSearchResponse)
   } catch (e) {
     const message = e instanceof Error ? e.message : 'YouTube search unavailable'
     recordProviderFetch('youtube-search', { error: message })
-    return empty(query, true, message)
+    return empty(query, effectiveQuery, scope, true, message)
   }
 }
