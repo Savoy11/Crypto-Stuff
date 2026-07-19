@@ -13,6 +13,7 @@ import {
   PlugZap,
   Rss,
   MessageSquare,
+  Video,
   ChevronRight,
   Plus,
   Trash2,
@@ -249,11 +250,11 @@ function SubredditPanel() {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type ProviderCategory = 'price' | 'news' | 'social' | 'llm'
+type ProviderCategory = 'price' | 'news' | 'social' | 'video' | 'llm'
 type ProviderMarket = 'crypto' | 'equities'
 type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
-type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
+type FeedFormat = 'rss' | 'atom' | 'youtube' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
 
 interface BuiltinProviderView {
   id: string
@@ -844,9 +845,11 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const defaultFormat: FeedFormat = market === 'equities'
-    ? (category === 'price' ? 'json-quote' : category === 'news' ? 'rss' : 'json-social')
-    : (category === 'news' || category === 'social' ? 'rss' : 'json-price')
+  const defaultFormat: FeedFormat = category === 'video'
+    ? 'youtube' // channel id or full /feeds/videos.xml URL
+    : market === 'equities'
+      ? (category === 'price' ? 'json-quote' : category === 'news' ? 'rss' : 'json-social')
+      : (category === 'news' || category === 'social' ? 'rss' : 'json-price')
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -910,6 +913,7 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
 
   const sourceLabel = category === 'news' ? 'news source'
     : category === 'social' ? 'social source'
+    : category === 'video' ? 'video channel'
     : market === 'equities' ? 'quote feed' : 'price feed'
 
   if (!open) {
@@ -1038,6 +1042,10 @@ export default function SettingsPage() {
   const customEquityNewsProviders = customProviders.filter((p) => p.category === 'news' && marketOf(p) === 'equities')
   const equitySocialProviders = builtinProviders.filter((p) => p.category === 'social' && marketOf(p) === 'equities')
   const customEquitySocialProviders = customProviders.filter((p) => p.category === 'social' && marketOf(p) === 'equities')
+  const cryptoVideoProviders = builtinProviders.filter((p) => p.category === 'video' && marketOf(p) === 'crypto')
+  const customCryptoVideoProviders = customProviders.filter((p) => p.category === 'video' && marketOf(p) === 'crypto')
+  const equityVideoProviders = builtinProviders.filter((p) => p.category === 'video' && marketOf(p) === 'equities')
+  const customEquityVideoProviders = customProviders.filter((p) => p.category === 'video' && marketOf(p) === 'equities')
   const llmProviders = builtinProviders.filter((p) => p.category === 'llm')
 
   const activeCount = providers.filter((p) => {
@@ -1143,6 +1151,42 @@ export default function SettingsPage() {
                 <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
               ))}
               <AddCustomSourceForm category="social" market="equities" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Equity video */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Video size={15} className="text-violet-400" />
+              <h2 className="text-sm font-semibold text-slate-300">Market Video Sources</h2>
+              <span className="text-xs text-slate-500">— keyless YouTube channel feeds, merged on the Videos page</span>
+            </div>
+            <div className="space-y-2">
+              {equityVideoProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {customEquityVideoProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="video" market="equities" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Crypto video */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Video size={15} className="text-accent-blue" />
+              <h2 className="text-sm font-semibold text-slate-300">Crypto Video Sources</h2>
+              <span className="text-xs text-slate-500">— keyless YouTube channel feeds, merged on the Videos page</span>
+            </div>
+            <div className="space-y-2">
+              {cryptoVideoProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {customCryptoVideoProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="video" market="crypto" onAdd={fetchProviders} />
             </div>
           </section>
 

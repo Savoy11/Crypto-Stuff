@@ -145,6 +145,15 @@ async function testProvider(provider: { id: string; isCustom?: boolean; url?: st
     case 'tiingo':        return testTiingo(key)
     case 'alpha-vantage': return testAlphaVantage(key)
     case 'yahoo-finance': return testYahooFinance()
+    case 'yt-bloomberg':      return testYouTubeChannel('UCIALMKvObZNtJ6AmdCLP7Lg', 'Bloomberg Television')
+    case 'yt-cnbc':           return testYouTubeChannel('UCrp_UI8XtuYfpiqluWLD7Lw', 'CNBC Television')
+    case 'yt-yahoo-finance':  return testYouTubeChannel('UCEAZeUIeJs0IjQiqTCdVSIg', 'Yahoo Finance')
+    case 'yt-ft':             return testYouTubeChannel('UCoUxsWakJucWg46KW5RsvPw', 'Financial Times')
+    case 'yt-wsj':            return testYouTubeChannel('UCK7tptUDHh-RYDsdxO1-5QQ', 'The Wall Street Journal')
+    case 'yt-coin-bureau':    return testYouTubeChannel('UCqK_GSMbpiV8spgD3ZGloSw', 'Coin Bureau')
+    case 'yt-bankless':       return testYouTubeChannel('UCAl9Ld79qaZxp9JzEOwd3aA', 'Bankless')
+    case 'yt-benjamin-cowen': return testYouTubeChannel('UCRvqjQPSeaWn-uEx-w0XOIg', 'Benjamin Cowen')
+    case 'yt-altcoin-daily':  return testYouTubeChannel('UCbLhGKVY-bJPcawebgtNfbw', 'Altcoin Daily')
     case 'yahoo-news':    return testRssFeed('https://finance.yahoo.com/news/rssindex', 'Yahoo Finance News')
     case 'marketwatch':   return testRssFeed('https://feeds.content.dowjones.io/public/rss/mw_topstories', 'MarketWatch')
     case 'cnbc':          return testRssFeed('https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', 'CNBC')
@@ -278,6 +287,17 @@ async function testYahooFinance(): Promise<TestResult> {
   })
   if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
   return { ok: true, detail: 'Yahoo Finance spark API reachable' }
+}
+
+/** Reachability check for a keyless YouTube channel feed. */
+async function testYouTubeChannel(channelId: string, label: string): Promise<TestResult> {
+  const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)' },
+  })
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+  const entries = ((await res.text()).match(/<entry>/g) ?? []).length
+  if (entries === 0) return { ok: false, error: 'Feed reachable but returned no videos' }
+  return { ok: true, detail: `${label} — ${entries} recent videos` }
 }
 
 // Verify an LLM key by listing models on the provider's (OpenAI-compatible) endpoint.

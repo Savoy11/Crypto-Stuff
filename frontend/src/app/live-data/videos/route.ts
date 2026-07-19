@@ -1,0 +1,177 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { getVideoProviders, recordProviderFetch, type AnyActiveProvider, type ProviderMarket } from '@/lib/api/live/providers'
+import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { decodeEntities, stripTags } from '@/lib/utils/html'
+
+// Server-side proxy for the Videos feed.
+//   GET /live-data/videos                  → every enabled channel, both markets
+//   GET /live-data/videos?market=crypto    → one market only
+//   GET /live-data/videos?limit=60
+//
+// REGISTRY-DRIVEN, same shape as market-news: built-in channels are toggled on
+// the Integrations page and user-added custom feeds (format 'youtube', with a
+// channel id or full feed URL) run alongside them. All active sources fetch in
+// parallel via Promise.allSettled — any subset may fail without failing the
+// route.
+//
+// YouTube publishes per-channel Atom at /feeds/videos.xml?channel_id=…, keyless
+// and without quota, which is why this needs no API key. Channel ids live here
+// rather than in providers.ts so the generic provider type stays free of
+// YouTube-specific fields — mirroring how market-news holds its feed URLs.
+
+export const dynamic = 'force-dynamic'
+
+/** Provider id → YouTube channel id. Every id here was verified to resolve. */
+const BUILTIN_CHANNELS: Record<string, string> = {
+  'yt-bloomberg':      'UCIALMKvObZNtJ6AmdCLP7Lg',
+  'yt-cnbc':           'UCrp_UI8XtuYfpiqluWLD7Lw',
+  'yt-yahoo-finance':  'UCEAZeUIeJs0IjQiqTCdVSIg',
+  'yt-ft':             'UCoUxsWakJucWg46KW5RsvPw',
+  'yt-wsj':            'UCK7tptUDHh-RYDsdxO1-5QQ',
+  'yt-coin-bureau':    'UCqK_GSMbpiV8spgD3ZGloSw',
+  'yt-bankless':       'UCAl9Ld79qaZxp9JzEOwd3aA',
+  'yt-benjamin-cowen': 'UCRvqjQPSeaWn-uEx-w0XOIg',
+  'yt-altcoin-daily':  'UCbLhGKVY-bJPcawebgtNfbw',
+}
+
+export interface VideoItem {
+  id: string
+  title: string
+  /** Trimmed channel description — YouTube descriptions are mostly promo links. */
+  summary: string
+  url: string
+  thumbnail: string | null
+  channel: string
+  /** Provider id that served this item, for attribution + utilization. */
+  provider: string
+  publishedAt: string
+  market: ProviderMarket
+  /** Published within the last 24h. */
+  isNew: boolean
+}
+
+export interface VideosResponse {
+  ok: boolean
+  updatedAt: string
+  videos: VideoItem[]
+  /** Channels that answered, for the page's source filter. */
+  channels: Array<{ provider: string; channel: string; market: ProviderMarket; count: number }>
+}
+
+function feedUrl(provider: AnyActiveProvider): string | null {
+  if (provider.isCustom) {
+    // Custom entries accept either a bare channel id or a full feed URL.
+    const raw = provider.url?.trim()
+    if (!raw) return null
+    if (/^UC[\w-]{20,}$/.test(raw)) {
+      return `https://www.youtube.com/feeds/videos.xml?channel_id=${raw}`
+    }
+    return validatePublicHttpUrl(raw)
+  }
+  const channelId = BUILTIN_CHANNELS[provider.id]
+  return channelId ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}` : null
+}
+
+/** Pull one tag's text out of an Atom entry. */
+function tag(entry: string, name: string): string {
+  const m = entry.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`, 'i'))
+  return m ? decodeEntities(m[1].trim()) : ''
+}
+
+function parseChannelFeed(xml: string, provider: AnyActiveProvider, market: ProviderMarket): VideoItem[] {
+  const channel = decodeEntities((xml.match(/<title>([^<]+)<\/title>/) || [])[1] ?? provider.name)
+  const entries = xml.match(/<entry>[\s\S]*?<\/entry>/g) ?? []
+  const dayAgo = Date.now() - 24 * 60 * 60 * 1000
+
+  return entries.map((entry): VideoItem | null => {
+    const videoId = tag(entry, 'yt:videoId')
+    const title = tag(entry, 'title')
+    if (!videoId || !title) return null
+
+    const published = tag(entry, 'published') || new Date().toISOString()
+    const thumbnail = (entry.match(/<media:thumbnail[^>]*url="([^"]+)"/i) || [])[1] ?? null
+    // Descriptions are dominated by sponsor/affiliate links — strip markup,
+    // drop URL lines, and keep only the opening prose.
+    const rawSummary = tag(entry, 'media:description')
+    const summary = stripTags(rawSummary)
+      .split(/\s+/)
+      .filter((w) => !/^https?:\/\//i.test(w))
+      .join(' ')
+      .slice(0, 240)
+      .trim()
+
+    return {
+      id: `${provider.id}:${videoId}`,
+      title,
+      summary,
+      url: `https://www.youtube.com/watch?v=${videoId}`,
+      thumbnail,
+      channel: decodeEntities(tag(entry, 'name') || channel),
+      provider: provider.id,
+      publishedAt: new Date(published).toISOString(),
+      market,
+      isNew: new Date(published).getTime() >= dayAgo,
+    }
+  }).filter((v): v is VideoItem => v !== null)
+}
+
+async function fetchProvider(provider: AnyActiveProvider, market: ProviderMarket): Promise<VideoItem[]> {
+  const url = feedUrl(provider)
+  if (!url) {
+    recordProviderFetch(provider.id, { error: 'No channel id configured' })
+    return []
+  }
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)', Accept: 'application/atom+xml, application/xml' },
+      next: { revalidate: 600 }, // channels post a few times a day at most
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const items = parseChannelFeed(await res.text(), provider, market)
+    recordProviderFetch(provider.id, { count: items.length })
+    return items
+  } catch (e) {
+    recordProviderFetch(provider.id, { error: e instanceof Error ? e.message : 'fetch failed' })
+    return []
+  }
+}
+
+export async function GET(request: NextRequest) {
+  const marketParam = request.nextUrl.searchParams.get('market')
+  const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '60', 10) || 60, 200)
+
+  const markets: ProviderMarket[] =
+    marketParam === 'crypto' || marketParam === 'equities' ? [marketParam] : ['crypto', 'equities']
+
+  // Flatten to (provider, market) pairs so every channel fetches in parallel
+  // rather than market-by-market.
+  const jobs = markets.flatMap((market) =>
+    getVideoProviders(market).map((provider) => ({ provider, market }))
+  )
+
+  const settled = await Promise.allSettled(jobs.map(({ provider, market }) => fetchProvider(provider, market)))
+
+  const videos: VideoItem[] = []
+  const channels = new Map<string, { provider: string; channel: string; market: ProviderMarket; count: number }>()
+
+  settled.forEach((result, i) => {
+    if (result.status !== 'fulfilled' || result.value.length === 0) return
+    const { provider, market } = jobs[i]
+    videos.push(...result.value)
+    channels.set(provider.id, {
+      provider: provider.id,
+      channel: result.value[0].channel,
+      market,
+      count: result.value.length,
+    })
+  })
+
+  videos.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+
+  return NextResponse.json({
+    ok: true,
+    updatedAt: new Date().toISOString(),
+    videos: videos.slice(0, limit),
+    channels: [...channels.values()].sort((a, b) => a.channel.localeCompare(b.channel)),
+  } satisfies VideosResponse)
+}

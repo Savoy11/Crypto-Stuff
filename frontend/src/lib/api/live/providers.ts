@@ -3,12 +3,12 @@ import path from 'path'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ProviderCategory = 'price' | 'news' | 'social' | 'llm'
+export type ProviderCategory = 'price' | 'news' | 'social' | 'video' | 'llm'
 /** Which side of the suite a provider feeds. Absent = 'crypto' (back-compat with stored configs). */
 export type ProviderMarket = 'crypto' | 'equities'
 export type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 export type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
-export type FeedFormat = 'rss' | 'atom' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
+export type FeedFormat = 'rss' | 'atom' | 'youtube' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
 
 export interface CustomProviderDef {
   /** Unique id — generated on creation, e.g. "custom-1718000000000" */
@@ -293,6 +293,120 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     freeTierLabel: 'Keyless — already active',
     keyUrl: 'https://www.cnbc.com/markets/',
     priority: 3,
+  },
+
+  // ── Video (category: 'video') ── keyless YouTube channel feeds
+  // YouTube publishes per-channel Atom at /feeds/videos.xml?channel_id=…, no key
+  // and no quota. Channel ids live in /live-data/videos/route.ts, mirroring how
+  // market-news keeps its feed URLs route-side. Every id below was verified to
+  // resolve before being added — do the same for any new entry.
+  {
+    id: 'yt-bloomberg',
+    name: 'Bloomberg Television',
+    category: 'video',
+    market: 'equities',
+    description: 'Bloomberg TV segments — markets, macro, and company coverage.',
+    features: ['Market coverage', 'Macro interviews', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@markets',
+    priority: 1,
+  },
+  {
+    id: 'yt-cnbc',
+    name: 'CNBC Television',
+    category: 'video',
+    market: 'equities',
+    description: 'CNBC broadcast clips — earnings reaction, interviews, market open/close.',
+    features: ['Earnings reaction', 'Interviews', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@CNBCtelevision',
+    priority: 2,
+  },
+  {
+    id: 'yt-yahoo-finance',
+    name: 'Yahoo Finance',
+    category: 'video',
+    market: 'equities',
+    description: 'Yahoo Finance video desk — market recaps and company analysis.',
+    features: ['Market recaps', 'Company analysis', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@YahooFinance',
+    priority: 3,
+  },
+  {
+    id: 'yt-ft',
+    name: 'Financial Times',
+    category: 'video',
+    market: 'equities',
+    description: 'FT video explainers on markets, economics, and business.',
+    features: ['Explainers', 'Global markets', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@FinancialTimes',
+    priority: 4,
+  },
+  {
+    id: 'yt-wsj',
+    name: 'The Wall Street Journal',
+    category: 'video',
+    market: 'equities',
+    description: 'WSJ video coverage of markets, business, and economics.',
+    features: ['Business coverage', 'Explainers', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@WSJ',
+    priority: 5,
+  },
+  {
+    id: 'yt-coin-bureau',
+    name: 'Coin Bureau',
+    category: 'video',
+    market: 'crypto',
+    description: 'Long-form crypto research and protocol breakdowns.',
+    features: ['Protocol research', 'Market outlook', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@CoinBureau',
+    priority: 1,
+  },
+  {
+    id: 'yt-bankless',
+    name: 'Bankless',
+    category: 'video',
+    market: 'crypto',
+    description: 'DeFi and Ethereum ecosystem interviews and analysis.',
+    features: ['DeFi coverage', 'Founder interviews', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@Bankless',
+    priority: 2,
+  },
+  {
+    id: 'yt-benjamin-cowen',
+    name: 'Benjamin Cowen',
+    category: 'video',
+    market: 'crypto',
+    description: 'Quantitative crypto market analysis and cycle work.',
+    features: ['Quant analysis', 'Cycle models', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@intothecryptoverse',
+    priority: 3,
+  },
+  {
+    id: 'yt-altcoin-daily',
+    name: 'Altcoin Daily',
+    category: 'video',
+    market: 'crypto',
+    description: 'Daily crypto news roundups and altcoin commentary.',
+    features: ['Daily roundups', 'Altcoin coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.youtube.com/@AltcoinDaily',
+    priority: 4,
   },
 
   // ── Equity social (market: 'equities') ── all active providers run in parallel
@@ -599,6 +713,19 @@ export function getEquityQuoteProviders(): AnyActiveProvider[] {
     .filter((p) => !p.isCustom)
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
   return [...customs, ...builtins]
+}
+
+/**
+ * Enabled video providers for one market, built-ins by priority then customs.
+ *
+ * Market-scoped like the news/social getters so the Videos page can honour the
+ * user's bundle — crypto channels only when the Crypto module is on, finance
+ * channels when Equities or Funds is.
+ */
+export function getVideoProviders(market: ProviderMarket): AnyActiveProvider[] {
+  return getAllProviders()
+    .filter((p) => p.category === 'video' && marketOf(p) === market && p.status === 'active')
+    .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
 /** All active equity providers for a category, built-ins sorted by priority, customs appended. */
