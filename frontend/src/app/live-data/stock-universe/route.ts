@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProviderKey } from '@/lib/api/live/providers'
 import { EQUITY_CATALOG, EQUITY_BY_SYMBOL, mapSectorName, type SectorId } from '@/lib/data/equityCatalog'
+import { fetchEpsBySymbol, computePeRatio } from '@/lib/server/secFundamentals'
 
 // The equities universe for the Stock Registry.
 //   GET /live-data/stock-universe            → full universe (daily-refreshed)
@@ -39,6 +40,8 @@ export interface StockUniverseResponse {
   source: 'fmp' | 'catalog'
   count: number
   entries: UniverseEntry[]
+  /** How many entries had P/E backfilled from SEC diluted EPS. */
+  peEnriched?: number
   updatedAt: string
   error?: string
 }
@@ -98,6 +101,33 @@ function toEntry(row: FmpScreenerRow): UniverseEntry | null {
     description: curated?.description,
     website: curated?.website,
   }
+}
+
+/**
+ * Fill in P/E for entries the screener left null, using SEC diluted EPS.
+ *
+ * FMP's company-screener carries no P/E, so without this every non-curated name
+ * has a blank P/E column and is invisible to the registry's min/max P/E filter
+ * — even on a paid plan. The result is a *trailing* P/E: last completed fiscal
+ * year's diluted EPS against the screener's reference price, so it will differ
+ * somewhat from a broker's forward or TTM figure.
+ *
+ * Mutates in place. Never throws — a P/E is enrichment, and losing it must not
+ * cost us the universe.
+ */
+async function enrichPeRatios(entries: UniverseEntry[]): Promise<number> {
+  const missing = entries.filter((e) => e.peRatio == null && e.referencePrice > 0)
+  if (missing.length === 0) return 0 // curated-only universe already has P/E
+
+  const epsBySymbol = await fetchEpsBySymbol()
+  if (epsBySymbol.size === 0) return 0 // SEC unreachable — leave nulls
+
+  let filled = 0
+  for (const entry of missing) {
+    const pe = computePeRatio(entry.referencePrice, epsBySymbol.get(entry.symbol))
+    if (pe != null) { entry.peRatio = pe; filled++ }
+  }
+  return filled
 }
 
 async function fetchFmpUniverse(key: string): Promise<UniverseEntry[]> {
@@ -173,7 +203,13 @@ export async function GET(req: NextRequest) {
   }
   try {
     const entries = await fetchFmpUniverse(key)
-    return NextResponse.json({ ok: true, configured: true, source: 'fmp', count: entries.length, entries, updatedAt: new Date().toISOString() } satisfies StockUniverseResponse)
+    // Separate boundary: the universe is already good here, so a SEC hiccup
+    // should cost us the P/E column, not the whole response.
+    let peEnriched = 0
+    try {
+      peEnriched = await enrichPeRatios(entries)
+    } catch { /* leave P/E null */ }
+    return NextResponse.json({ ok: true, configured: true, source: 'fmp', count: entries.length, entries, peEnriched, updatedAt: new Date().toISOString() } satisfies StockUniverseResponse)
   } catch (e) {
     const entries = catalogUniverse()
     return NextResponse.json({
