@@ -499,7 +499,15 @@ export async function runTool(
       }
       case 'get_market_news': {
         const limit = Math.min(Number(input.limit ?? 10) || 10, 25)
-        const data = (await getJson(origin, `/live-data/market-news?limit=${limit}`)) as {
+        // Equity feeds are per-ticker RSS rather than text-searchable, so the
+        // watchlist widens coverage by fetching each ticker's own feed. Only
+        // the ticker-shaped terms apply here; crypto ids would match nothing.
+        const wlSymbols = (watchlistTerms ?? [])
+          .filter((t) => /^[A-Za-z.\-]{1,6}$/.test(t))
+          .map((t) => t.toUpperCase())
+        const p = new URLSearchParams({ limit: String(limit) })
+        if (wlSymbols.length > 0) p.set('watchlist', wlSymbols.slice(0, 6).join(','))
+        const data = (await getJson(origin, `/live-data/market-news?${p.toString()}`)) as {
           ok?: boolean
           articles?: { title: string; url: string; source: string; publishedAt: string; summary: string; sentiment: string; category: string; relatedSymbols: string[] }[]
         }

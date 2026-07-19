@@ -8,7 +8,7 @@ import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useFeedBiasStore } from '@/store/useFeedBiasStore'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
-import { applyBias, } from '@/lib/watchlist/bias'
+import { applyBias, shouldAugmentFetch } from '@/lib/watchlist/bias'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import type { MarketArticle, MarketNewsCategory, MarketNewsResponse } from '@/app/live-data/market-news/route'
@@ -136,19 +136,30 @@ function EquityNewsContent() {
   const [keywordInput, setKeywordInput] = useState('')
   const [keywords, setKeywords] = useState<string[]>([])
 
+  const watchlist = useWatchlistBias()
+  const biasStrength = useFeedBiasStore((s) => s.getStrength('market-news'))
+  // Only widen the fetch at Strong/Only — Light is a pure reorder of what
+  // already arrived, and shouldn't cost extra upstream requests.
+  const biasSymbols = shouldAugmentFetch(biasStrength) ? watchlist.symbols.slice(0, 6) : []
+  const biasSymbolsKey = biasSymbols.join(',')
+
   const { data, isLoading, isFetching, refetch } = useQuery<MarketNewsResponse>({
-    queryKey: ['equity-news', symbolFilter],
+    queryKey: ['equity-news', symbolFilter, biasSymbolsKey],
     queryFn: () => {
       const params = new URLSearchParams({ limit: '50' })
       if (symbolFilter !== 'all') params.set('symbol', symbolFilter)
+      // At Strong/Only the route fetches each watchlist ticker's own Yahoo feed,
+      // which widens coverage rather than just reordering. Skipped when the user
+      // has picked a specific symbol — that's a more explicit intent.
+      if (biasSymbols.length > 0 && symbolFilter === 'all') {
+        params.set('watchlist', biasSymbols.join(','))
+      }
       return fetch(`/live-data/market-news?${params}`).then((r) => r.json())
     },
     staleTime: 2 * 60 * 1000,
     refetchInterval: 5 * 60 * 1000,
   })
 
-  const watchlist = useWatchlistBias()
-  const biasStrength = useFeedBiasStore((s) => s.getStrength('market-news'))
   /** Market articles carry ticker tags; text is the fallback. */
   const toBiasable = (a: MarketArticle) => ({
     symbols: a.relatedSymbols,
