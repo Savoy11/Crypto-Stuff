@@ -409,6 +409,24 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     priority: 4,
   },
 
+  // Keyed, and deliberately not part of the channel merge: this one powers
+  // on-demand YouTube-wide keyword search rather than a standing feed. The
+  // Data API v3 charges 100 quota units per search against a 10,000/day free
+  // allowance (~100 searches/day), so the Videos page only calls it on an
+  // explicit user action, never per keystroke.
+  {
+    id: 'youtube-search',
+    name: 'YouTube Search',
+    category: 'video',
+    market: 'equities',
+    description: 'Search all of YouTube by keyword, beyond the standing channel feeds. Data API v3 — 100 quota units per search against a 10,000/day free allowance.',
+    features: ['Whole-of-YouTube search', 'Relevance or date ordering', 'Quota-limited'],
+    requiresKey: true,
+    freeTierLabel: 'Free tier: ~100 searches/day',
+    keyUrl: 'https://console.cloud.google.com/apis/library/youtube.googleapis.com',
+    priority: 10,
+  },
+
   // ── Equity social (market: 'equities') ── all active providers run in parallel
   {
     id: 'reddit-stocks',

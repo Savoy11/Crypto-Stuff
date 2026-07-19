@@ -146,7 +146,12 @@ export async function GET(request: NextRequest) {
   // Flatten to (provider, market) pairs so every channel fetches in parallel
   // rather than market-by-market.
   const jobs = markets.flatMap((market) =>
-    getVideoProviders(market).map((provider) => ({ provider, market }))
+    getVideoProviders(market)
+      // youtube-search shares the 'video' category but is an on-demand keyword
+      // search, not a standing channel feed — it has no channel id and is
+      // served by /live-data/video-search.
+      .filter((provider) => provider.id !== 'youtube-search')
+      .map((provider) => ({ provider, market }))
   )
 
   const settled = await Promise.allSettled(jobs.map(({ provider, market }) => fetchProvider(provider, market)))

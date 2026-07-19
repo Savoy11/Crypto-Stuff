@@ -154,6 +154,7 @@ async function testProvider(provider: { id: string; isCustom?: boolean; url?: st
     case 'yt-bankless':       return testYouTubeChannel('UCAl9Ld79qaZxp9JzEOwd3aA', 'Bankless')
     case 'yt-benjamin-cowen': return testYouTubeChannel('UCRvqjQPSeaWn-uEx-w0XOIg', 'Benjamin Cowen')
     case 'yt-altcoin-daily':  return testYouTubeChannel('UCbLhGKVY-bJPcawebgtNfbw', 'Altcoin Daily')
+    case 'youtube-search':    return testYouTubeSearch(key)
     case 'yahoo-news':    return testRssFeed('https://finance.yahoo.com/news/rssindex', 'Yahoo Finance News')
     case 'marketwatch':   return testRssFeed('https://feeds.content.dowjones.io/public/rss/mw_topstories', 'MarketWatch')
     case 'cnbc':          return testRssFeed('https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', 'CNBC')
@@ -298,6 +299,23 @@ async function testYouTubeChannel(channelId: string, label: string): Promise<Tes
   const entries = ((await res.text()).match(/<entry>/g) ?? []).length
   if (entries === 0) return { ok: false, error: 'Feed reachable but returned no videos' }
   return { ok: true, detail: `${label} — ${entries} recent videos` }
+}
+
+/**
+ * Verify a YouTube Data API key with the cheapest possible call.
+ *
+ * Uses videos.list (1 quota unit) rather than search.list (100), so testing a
+ * key doesn't burn 1% of the daily allowance.
+ */
+async function testYouTubeSearch(key: string | undefined): Promise<TestResult> {
+  if (!key) return { ok: false, error: 'No API key set' }
+  const url = `https://www.googleapis.com/youtube/v3/videos?part=id&id=dQw4w9WgXcQ&key=${encodeURIComponent(key)}`
+  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (res.status === 403) {
+    return { ok: false, error: 'Rejected (403) — key restricted, quota exhausted, or Data API not enabled' }
+  }
+  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+  return { ok: true, detail: 'YouTube Data API key valid (verified with a 1-unit call)' }
 }
 
 // Verify an LLM key by listing models on the provider's (OpenAI-compatible) endpoint.

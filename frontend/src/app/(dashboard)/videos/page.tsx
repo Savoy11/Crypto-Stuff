@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineChart, Sparkles } from 'lucide-react'
+import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineChart, Sparkles, Youtube, AlertCircle, ArrowUpDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import type { VideoItem, VideosResponse } from '@/app/live-data/videos/route'
+import type { VideoSearchResponse } from '@/app/live-data/video-search/route'
 import type { ProviderMarket } from '@/lib/api/live/providers'
 
 // Video feed — keyless YouTube channel Atom feeds, merged and ranked by recency.
@@ -40,6 +41,39 @@ function timeAgo(iso: string): string {
 
 /** How many cards load their thumbnail eagerly — roughly the first two rows. */
 const EAGER_THUMBNAILS = 6
+
+type SortKey = 'newest' | 'oldest' | 'channel'
+type RecencyKey = 'all' | '24h' | '7d' | '30d'
+type MarketKey = 'all' | ProviderMarket
+
+const RECENCY_WINDOWS: Record<Exclude<RecencyKey, 'all'>, number> = {
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+}
+
+const SORTS: Array<{ value: SortKey; label: string }> = [
+  { value: 'newest', label: 'Newest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'channel', label: 'Channel A–Z' },
+]
+
+const RECENCIES: Array<{ value: RecencyKey; label: string }> = [
+  { value: 'all', label: 'Any time' },
+  { value: '24h', label: 'Past 24h' },
+  { value: '7d', label: 'Past week' },
+  { value: '30d', label: 'Past month' },
+]
+
+/**
+ * Every whitespace-separated term must appear somewhere in the video's text.
+ * AND rather than OR — with 120+ cards, narrowing is what the user wants.
+ */
+function matchesTerms(video: VideoItem, terms: string[]): boolean {
+  if (terms.length === 0) return true
+  const haystack = `${video.title} ${video.summary} ${video.channel}`.toLowerCase()
+  return terms.every((t) => haystack.includes(t))
+}
 
 function VideoCard({ video, eager = false }: { video: VideoItem; eager?: boolean }) {
   const meta = MARKET_META[video.market]
@@ -117,8 +151,16 @@ export default function VideosPage() {
   const fundsOn = useEntitlementStore((s) => s.isEnabled('funds'))
   const marketsOn = equitiesOn || fundsOn
 
-  const [channelFilter, setChannelFilter] = useState('all')
+  // Multi-select: empty set means "all channels".
+  const [selectedChannels, setSelectedChannels] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
+  const [sort, setSort] = useState<SortKey>('newest')
+  const [recency, setRecency] = useState<RecencyKey>('all')
+  const [marketFilter, setMarketFilter] = useState<MarketKey>('all')
+  // The query actually submitted to YouTube — separate from `search`, which
+  // filters locally as you type. Search costs 100 quota units, so it only runs
+  // when explicitly submitted.
+  const [ytQuery, setYtQuery] = useState('')
 
   const { data, isLoading, isFetching, refetch } = useQuery<VideosResponse>({
     queryKey: ['videos'],
@@ -127,27 +169,78 @@ export default function VideosPage() {
     refetchInterval: 30 * 60 * 1000,
   })
 
+  const searchQuery = useQuery<VideoSearchResponse>({
+    queryKey: ['video-search', ytQuery],
+    queryFn: () => fetch(`/live-data/video-search?q=${encodeURIComponent(ytQuery)}`).then((r) => r.json()),
+    enabled: ytQuery.length > 0,
+    staleTime: 60 * 60 * 1000, // quota is scarce — one call per query per hour
+    refetchOnWindowFocus: false,
+    retry: false,
+  })
+
+  const searchResults = searchQuery.data?.videos ?? []
+  const searchConfigured = searchQuery.data?.configured ?? true
+  const isSearchMode = ytQuery.length > 0
+
   const marketEnabled = (m: ProviderMarket) => (m === 'crypto' ? cryptoOn : marketsOn)
+
+  const terms = useMemo(
+    () => search.trim().toLowerCase().split(/\s+/).filter(Boolean),
+    [search]
+  )
 
   // Filter on the entitlement rather than the query, for the same reason as
   // /headlines: the store rehydrates an effect after mount, so a fetch can land
-  // before we know a module is disabled.
+  // before we know a module is disabled. Search results bypass the market and
+  // channel filters — they're whole-of-YouTube and belong to no module.
   const videos = useMemo(() => {
-    const all = (data?.videos ?? []).filter((v) => marketEnabled(v.market))
-    const term = search.trim().toLowerCase()
-    return all.filter((v) => {
-      if (channelFilter !== 'all' && v.provider !== channelFilter) return false
-      if (term && !`${v.title} ${v.summary} ${v.channel}`.toLowerCase().includes(term)) return false
+    const base = isSearchMode
+      ? searchResults
+      : (data?.videos ?? []).filter((v) => marketEnabled(v.market))
+
+    const cutoff = recency === 'all' ? 0 : Date.now() - RECENCY_WINDOWS[recency]
+
+    const filtered = base.filter((v) => {
+      if (!isSearchMode) {
+        if (marketFilter !== 'all' && v.market !== marketFilter) return false
+        if (selectedChannels.size > 0 && !selectedChannels.has(v.provider)) return false
+      }
+      if (cutoff && new Date(v.publishedAt).getTime() < cutoff) return false
+      if (!matchesTerms(v, terms)) return false
       return true
     })
+
+    const sorted = [...filtered]
+    if (sort === 'newest') sorted.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+    else if (sort === 'oldest') sorted.sort((a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime())
+    else sorted.sort((a, b) => a.channel.localeCompare(b.channel) || new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+    return sorted
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, channelFilter, search, cryptoOn, marketsOn])
+  }, [data, searchResults, isSearchMode, selectedChannels, terms, sort, recency, marketFilter, cryptoOn, marketsOn])
 
   const channels = useMemo(
     () => (data?.channels ?? []).filter((c) => marketEnabled(c.market)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [data, cryptoOn, marketsOn]
   )
+
+  const toggleChannel = (provider: string) => {
+    setSelectedChannels((prev) => {
+      const next = new Set(prev)
+      if (next.has(provider)) next.delete(provider)
+      else next.add(provider)
+      return next
+    })
+  }
+
+  const activeFilterCount =
+    (search ? 1 : 0) + (sort !== 'newest' ? 1 : 0) + (recency !== 'all' ? 1 : 0) +
+    (marketFilter !== 'all' ? 1 : 0) + (selectedChannels.size > 0 ? 1 : 0)
+
+  const clearFilters = () => {
+    setSearch(''); setSort('newest'); setRecency('all')
+    setMarketFilter('all'); setSelectedChannels(new Set()); setYtQuery('')
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6 max-w-6xl mx-auto w-full">
@@ -195,53 +288,179 @@ export default function VideosPage() {
       {/* Filters */}
       {(cryptoOn || marketsOn) && (
         <div className="flex flex-col gap-3">
-          <div className="relative max-w-sm">
-            <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search titles, channels…"
-              className="w-full bg-bg-secondary border border-border rounded pl-7 pr-7 py-1.5 text-xs text-text-secondary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-blue/60"
-            />
-            {search && (
+          {/* Search row — local filter as you type, YouTube search on submit */}
+          <form
+            className="flex flex-wrap items-center gap-2"
+            onSubmit={(e) => { e.preventDefault(); setYtQuery(search.trim()) }}
+          >
+            <div className="relative flex-1 min-w-56 max-w-md">
+              <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter loaded videos — or press Search YouTube…"
+                className="w-full bg-bg-secondary border border-border rounded pl-7 pr-7 py-1.5 text-xs text-text-secondary placeholder:text-text-muted/60 focus:outline-none focus:border-accent-blue/60"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X size={11} />
+                </button>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={!search.trim() || searchQuery.isFetching}
+              title="Search all of YouTube (uses API quota)"
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs font-medium border border-red-500/30 bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors disabled:opacity-40 disabled:hover:bg-red-500/10"
+            >
+              {searchQuery.isFetching
+                ? <Loader2 size={12} className="animate-spin" aria-hidden />
+                : <Youtube size={12} aria-hidden />}
+              Search YouTube
+            </button>
+            {activeFilterCount > 0 && (
               <button
-                onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-secondary transition-colors"
-                aria-label="Clear search"
+                type="button"
+                onClick={clearFilters}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded text-xs text-text-muted border border-border hover:text-text-secondary hover:bg-bg-elevated transition-colors"
               >
-                <X size={11} />
+                <X size={11} aria-hidden />
+                Clear {activeFilterCount}
               </button>
             )}
-          </div>
+          </form>
 
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => setChannelFilter('all')}
-              className={clsx(
-                'px-2.5 py-1 rounded text-xs font-medium border transition-all',
-                channelFilter === 'all'
-                  ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                  : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
-              )}
-            >
-              All Channels
-            </button>
-            {channels.map((c) => (
+          {/* Search-mode banner */}
+          {isSearchMode && (
+            <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-red-500/25 bg-red-500/5">
+              <div className="flex items-center gap-2 min-w-0">
+                <Youtube size={13} className="text-red-400 flex-shrink-0" aria-hidden />
+                <span className="text-xs text-text-secondary truncate">
+                  {searchQuery.isFetching
+                    ? <>Searching YouTube for <span className="text-text-primary font-medium">“{ytQuery}”</span>…</>
+                    : <>YouTube results for <span className="text-text-primary font-medium">“{ytQuery}”</span> — channel and market filters don’t apply here.</>}
+                </span>
+              </div>
               <button
-                key={c.provider}
-                onClick={() => setChannelFilter(c.provider)}
-                className={clsx(
-                  'px-2.5 py-1 rounded text-xs font-medium border transition-all',
-                  channelFilter === c.provider
-                    ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                    : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
-                )}
+                // Clears the text too: leaving it set would re-apply it as a
+                // local filter, so "Back to feed" would land on an empty grid.
+                onClick={() => { setYtQuery(''); setSearch('') }}
+                className="text-[11px] text-text-muted hover:text-text-secondary transition-colors flex-shrink-0"
               >
-                {c.channel}
+                Back to feed
               </button>
-            ))}
-          </div>
+            </div>
+          )}
+
+          {/* Not-configured / error notice for YouTube search */}
+          {isSearchMode && !searchQuery.isFetching && (!searchConfigured || searchQuery.data?.error) && (
+            <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-amber-500/25 bg-amber-500/5">
+              <AlertCircle size={13} className="text-amber-400 flex-shrink-0 mt-0.5" aria-hidden />
+              <p className="text-xs text-text-secondary leading-relaxed">
+                {!searchConfigured ? (
+                  <>
+                    Whole-of-YouTube search needs a YouTube Data API key. Add one under{' '}
+                    <Link href="/settings" className="text-accent-blue hover:underline">Integrations → Market Video Sources</Link>.
+                    The channel feeds above keep working without it.
+                  </>
+                ) : searchQuery.data?.error}
+              </p>
+            </div>
+          )}
+
+          {/* Facets — hidden in search mode, where they don't apply */}
+          {!isSearchMode && (
+            <>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+                {/* Market */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-text-muted">Market:</span>
+                  {([['all', 'All'], ['crypto', 'Crypto'], ['equities', 'Markets']] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      onClick={() => setMarketFilter(value)}
+                      disabled={value === 'crypto' ? !cryptoOn : value === 'equities' ? !marketsOn : false}
+                      className={clsx(
+                        'px-2 py-1 rounded text-xs font-medium border transition-all disabled:opacity-30',
+                        marketFilter === value
+                          ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                          : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Recency */}
+                <div className="flex items-center gap-1.5">
+                  <Clock size={11} className="text-text-muted" aria-hidden />
+                  {RECENCIES.map((r) => (
+                    <button
+                      key={r.value}
+                      onClick={() => setRecency(r.value)}
+                      className={clsx(
+                        'px-2 py-1 rounded text-xs font-medium border transition-all',
+                        recency === r.value
+                          ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                          : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
+                      )}
+                    >
+                      {r.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sort */}
+                <div className="flex items-center gap-1.5">
+                  <ArrowUpDown size={11} className="text-text-muted" aria-hidden />
+                  <select
+                    value={sort}
+                    onChange={(e) => setSort(e.target.value as SortKey)}
+                    className="bg-bg-secondary border border-border rounded px-2 py-1 text-xs text-text-secondary focus:outline-none focus:border-accent-blue/60"
+                  >
+                    {SORTS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Channels — multi-select */}
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setSelectedChannels(new Set())}
+                  className={clsx(
+                    'px-2.5 py-1 rounded text-xs font-medium border transition-all',
+                    selectedChannels.size === 0
+                      ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                      : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
+                  )}
+                >
+                  All Channels
+                </button>
+                {channels.map((c) => (
+                  <button
+                    key={c.provider}
+                    onClick={() => toggleChannel(c.provider)}
+                    className={clsx(
+                      'px-2.5 py-1 rounded text-xs font-medium border transition-all',
+                      selectedChannels.has(c.provider)
+                        ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                        : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated'
+                    )}
+                  >
+                    {c.channel}
+                    <span className="ml-1 text-[10px] text-text-muted/70 font-mono">{c.count}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -263,14 +482,26 @@ export default function VideosPage() {
       )}
 
       {/* Empty */}
-      {!isLoading && (cryptoOn || marketsOn) && videos.length === 0 && (
+      {!isLoading && !searchQuery.isFetching && (cryptoOn || marketsOn) && videos.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-text-muted text-center">
           <Video size={36} className="mb-3 opacity-30" aria-hidden />
           <p className="text-sm">
-            {search || channelFilter !== 'all'
-              ? 'No videos match the current filters.'
-              : 'No videos available — channel feeds may be unreachable.'}
+            {isSearchMode
+              ? searchConfigured
+                ? <>No YouTube results for “{ytQuery}”.</>
+                : <>Add a YouTube Data API key to search beyond the channel feeds.</>
+              : activeFilterCount > 0
+                ? 'No videos match the current filters.'
+                : 'No videos available — channel feeds may be unreachable.'}
           </p>
+          {!isSearchMode && activeFilterCount > 0 && (
+            <button
+              onClick={clearFilters}
+              className="mt-3 px-3 py-1.5 rounded text-xs bg-bg-elevated border border-border text-text-secondary hover:text-text-primary transition-colors"
+            >
+              Clear filters
+            </button>
+          )}
         </div>
       )}
     </div>
