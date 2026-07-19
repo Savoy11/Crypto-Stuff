@@ -5,7 +5,7 @@
 // The source ladder is REGISTRY-DRIVEN (see providers.ts): fetchSecurityQuotes
 // walks getEquityQuoteProviders() — user-added custom quote feeds first, then
 // built-ins by priority (FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage
-// → Yahoo → Stooq). Providers are enabled/disabled and keyed from the
+// → Yahoo). Providers are enabled/disabled and keyed from the
 // Integrations page; utilization is recorded per attempt so the page shows
 // which source is actually serving. Route handlers fall through to static
 // catalog reference prices when every live source fails, so pages always render.
@@ -24,7 +24,7 @@ export interface SecurityQuote {
   /** True when this quote is a static catalog reference price, not a live reading. */
   reference?: boolean
   price: number
-  /** Absolute change vs previous close (Stooq: vs today's open). */
+  /** Absolute change vs previous close. */
   change: number | null
   changePercent: number | null
   previousClose: number | null
@@ -308,41 +308,6 @@ export async function fetchYahooQuotes(symbols: string[]): Promise<Record<string
   return quotes
 }
 
-// ─── Stooq ────────────────────────────────────────────────────────────────────
-
-export async function fetchStooqQuotes(symbols: string[]): Promise<Record<string, SecurityQuote>> {
-  const quotes: Record<string, SecurityQuote> = {}
-  for (const group of chunk(symbols, 40)) {
-    const stooqSymbols = group.map((s) => `${s.toLowerCase()}.us`).join(',')
-    const res = await fetch(
-      `https://stooq.com/q/l/?s=${stooqSymbols}&f=sd2t2ohlcv&h&e=csv`,
-      { headers: BROWSER_HEADERS, next: { revalidate: 60 } }
-    )
-    if (!res.ok) throw new Error(`Stooq ${res.status}`)
-    const lines = (await res.text()).trim().split('\n').slice(1) // drop header
-    for (const line of lines) {
-      const [rawSymbol, , , open, , , close, volume] = line.split(',')
-      const price = parseFloat(close)
-      const openPrice = parseFloat(open)
-      if (!rawSymbol || !isFinite(price)) continue
-      const symbol = rawSymbol.replace(/\.US$/i, '').toUpperCase()
-      // Stooq has no previous close in this format — change is vs today's open.
-      const change = isFinite(openPrice) ? price - openPrice : null
-      quotes[symbol] = {
-        symbol,
-        price,
-        change,
-        changePercent: change != null && openPrice ? (change / openPrice) * 100 : null,
-        previousClose: null,
-        marketCap: null,
-        volume: isFinite(parseFloat(volume)) ? parseFloat(volume) : null,
-      }
-    }
-  }
-  if (Object.keys(quotes).length === 0) throw new Error('Stooq returned no quotes')
-  return quotes
-}
-
 // ─── Custom quote feeds (user-added on the Integrations page) ────────────────
 
 /** Walk a dot-path ("data.last") into an object. */
@@ -467,7 +432,6 @@ async function fetchFromProvider(p: AnyActiveProvider, symbols: string[]): Promi
     case 'tiingo':        return fetchTiingoQuotes(symbols)
     case 'alpha-vantage': return fetchAlphaVantageQuotes(symbols)
     case 'yahoo-finance': return fetchYahooQuotes(symbols)
-    case 'stooq':         return fetchStooqQuotes(symbols)
     default: throw new Error(`No fetcher for provider ${p.id}`)
   }
 }

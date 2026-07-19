@@ -137,7 +137,7 @@ export default function WatchlistPage() {
           description="Watchlists are cross-module: mix crypto, stocks, ETFs, and mutual funds in one list with live prices. Create separate lists per strategy — e.g. 'Dividend picks' or 'High risk'."
           details={[
             { label: 'Persistence', text: 'Lists are saved in this browser (localStorage) and persist between sessions on this device. Account sync arrives with the database backend.' },
-            { label: 'Prices', text: 'Live via CoinGecko (crypto) and the FMP→Yahoo→Stooq ladder (securities); unavailable prices show — rather than stale values.' },
+            { label: 'Prices', text: 'Live via CoinGecko (crypto) and the FMP→Yahoo ladder (securities); unavailable prices show — rather than stale values.' },
           ]}
         />
       </div>

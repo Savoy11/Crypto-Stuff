@@ -29,16 +29,6 @@ export const WS_RECONNECT_INITIAL = 1_000
 export const WS_RECONNECT_MAX = 30_000
 export const WS_HEARTBEAT_INTERVAL = 25_000
 
-export const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard', icon: 'LayoutDashboard' },
-  { href: '/assets', label: 'Assets', icon: 'Database' },
-  { href: '/risk-scores', label: 'Risk Scores', icon: 'Shield' },
-  { href: '/reserves', label: 'Reserves', icon: 'Vault' },
-  { href: '/alerts', label: 'Alerts', icon: 'Bell' },
-  { href: '/watchlist', label: 'Watchlist', icon: 'Star' },
-  { href: '/reports', label: 'Reports', icon: 'FileBarChart' },
-] as const
-
 export const TIME_RANGE_OPTIONS = [
   { label: '1H', value: '1h' },
   { label: '24H', value: '24h' },

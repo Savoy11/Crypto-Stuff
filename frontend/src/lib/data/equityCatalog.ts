@@ -7,7 +7,7 @@
 // reachable; the reference values keep every page rendering offline.
 //
 // Symbols use Yahoo Finance notation (BRK-B, not BRK.B) so one symbol string
-// works across every live source (Yahoo, Stooq, FMP).
+// works across every live source (Yahoo, FMP).
 
 export type SectorId =
   | 'technology'
