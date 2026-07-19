@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import { getEquityProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickDate, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
+import { decodeEntities, stripCdata } from '@/lib/utils/html'
 
 // Server-side proxy for stock-market news (equities & funds modules).
 //   GET /live-data/market-news                → general market headlines
@@ -56,17 +57,6 @@ function yahooTickerFeedUrl(symbol: string): string {
 }
 
 // ─── RSS parsing ──────────────────────────────────────────────────────────────
-
-function stripCdata(value: string): string {
-  return value.replace(/^<!\[CDATA\[/, '').replace(/\]\]>$/, '').trim()
-}
-
-function decodeEntities(value: string): string {
-  return value
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ')
-}
 
 function extractTag(item: string, tag: string): string {
   const match = item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))
