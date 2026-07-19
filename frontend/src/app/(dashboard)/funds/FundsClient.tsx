@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, Clock, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MetricCard } from '@/components/ui/MetricCard'
 import {
@@ -587,6 +587,23 @@ export function FundsClient() {
                             {row.type === 'etf' ? 'ETF' : 'MF'}
                           </span>
                           <span className="font-mono font-semibold text-text-primary flex-shrink-0">{row.symbol}</span>
+                          {/* Official issuer page. Nested inside the row Link, so
+                              stopPropagation is required or the row navigation
+                              swallows the click. Curated funds only — the listing
+                              directories carry no URL, and a guessed one 404s. */}
+                          {row.website && (
+                            <a
+                              href={row.website}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Official ${row.symbol} page on the issuer's site`}
+                              aria-label={`Official ${row.symbol} page on the issuer's site`}
+                              className="flex-shrink-0 text-text-muted hover:text-accent-blue transition-colors"
+                            >
+                              <ExternalLink size={11} aria-hidden />
+                            </a>
+                          )}
                           {(row.strategy === 'leveraged' || row.strategy === 'inverse') && (
                             <span
                               className={clsx('px-1 py-0.5 rounded text-[9px] font-bold border flex-shrink-0',

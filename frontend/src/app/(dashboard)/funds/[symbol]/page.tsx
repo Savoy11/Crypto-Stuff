@@ -274,6 +274,9 @@ export default function FundDetailPage() {
                         <dt className="text-text-muted flex-shrink-0">
                           <ExplainedLabel label={label} explain={explain} />
                         </dt>
+                        {/* No link here — the header already links the issuer's
+                            product page, and two links to the same URL on one
+                            page is noise. */}
                         <dd className="font-mono tabular-nums text-text-primary text-right text-xs">{value}</dd>
                       </div>
                     ))}
