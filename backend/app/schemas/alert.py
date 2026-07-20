@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -48,6 +47,7 @@ class AlertResponse(BaseModel):
 
 class AlertSummary(BaseModel):
     """Alert counts by severity for a dashboard widget."""
+
     total: int = 0
     info: int = 0
     warning: int = 0

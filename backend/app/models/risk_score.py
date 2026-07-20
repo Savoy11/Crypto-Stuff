@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import enum
 import uuid
-from datetime import date, datetime
+from datetime import date
 
-from sqlalchemy import Date, DateTime, Enum, ForeignKey, Index, Numeric, String, func
+from sqlalchemy import Date, Enum, ForeignKey, Index, Numeric, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -68,7 +68,7 @@ class RiskScore(Base, UUIDMixin, TimestampMixin):
     )
 
     # ── Relationships ────────────────────────────────────────────────────────
-    asset: Mapped["Asset"] = relationship("Asset", back_populates="risk_scores")  # noqa: F821
+    asset: Mapped[Asset] = relationship("Asset", back_populates="risk_scores")  # noqa: F821
 
     def __repr__(self) -> str:
         return (

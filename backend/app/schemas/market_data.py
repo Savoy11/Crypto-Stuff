@@ -7,11 +7,12 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class MarketDataPoint(BaseModel):
     """A single OHLCV-style market data point."""
+
     timestamp: datetime
     price_usd: float | None = None
     price_open: float | None = None
@@ -72,6 +73,7 @@ class MarketDataHistoryResponse(BaseModel):
 
 class PegStabilitySnapshot(BaseModel):
     """Real-time peg stability snapshot."""
+
     asset_id: uuid.UUID
     current_price: float
     peg_target: float

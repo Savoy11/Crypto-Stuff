@@ -7,11 +7,11 @@ from __future__ import annotations
 import asyncio
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy import select, desc, func
+from sqlalchemy import desc, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -230,21 +230,25 @@ class ScoringEngine:
         completeness = {
             "market_data": 1.0 if asset_data.get("prices") else 0.0,
             "reserve_data": (
-                1.0 if asset_data.get("reserve_composition") else
-                0.5 if asset_data.get("collateralization_ratio") else 0.0
+                1.0
+                if asset_data.get("reserve_composition")
+                else 0.5
+                if asset_data.get("collateralization_ratio")
+                else 0.0
             ),
             "blockchain_data": 1.0 if asset_data.get("velocity") is not None else 0.0,
             "security_data": (
-                1.0 if asset_data.get("smart_contract_data") else
-                0.3 if asset_data.get("issuer_data") else 0.0
+                1.0
+                if asset_data.get("smart_contract_data")
+                else 0.3
+                if asset_data.get("issuer_data")
+                else 0.0
             ),
         }
 
         from app.scoring.weights import CONFIDENCE_THRESHOLDS
-        raw_confidence = sum(
-            completeness[k] * w
-            for k, w in CONFIDENCE_THRESHOLDS.items()
-        )
+
+        raw_confidence = sum(completeness[k] * w for k, w in CONFIDENCE_THRESHOLDS.items())
 
         # Apply staleness penalty to reserve_data component
         attestation_date = asset_data.get("last_attestation_date")
@@ -284,16 +288,12 @@ class ScoringEngine:
         below = sum(1 for s in all_scores if s < score)
         return float(below / len(all_scores) * 100.0)
 
-    async def _calculate_percentile(
-        self, score: float, db: AsyncSession
-    ) -> float | None:
+    async def _calculate_percentile(self, score: float, db: AsyncSession) -> float | None:
         """Query today's scores and compute percentile rank."""
         try:
             today = datetime.now(UTC).date()
             result = await db.execute(
-                select(RiskScore.overall_score).where(
-                    RiskScore.score_date == today
-                )
+                select(RiskScore.overall_score).where(RiskScore.score_date == today)
             )
             all_scores = [float(row[0]) for row in result.all()]
             if not all_scores:
@@ -304,9 +304,7 @@ class ScoringEngine:
             logger.warning("percentile_calculation_failed", error=str(exc))
             return None
 
-    async def _gather_asset_data(
-        self, asset_id: uuid.UUID, db: AsyncSession
-    ) -> dict[str, Any]:
+    async def _gather_asset_data(self, asset_id: uuid.UUID, db: AsyncSession) -> dict[str, Any]:
         """
         Load all relevant data for an asset from the database.
         All five category queries run concurrently via asyncio.gather.
@@ -373,9 +371,15 @@ class ScoringEngine:
             data["prices"] = prices
             latest_md = market_rows[0]
             data["market_cap"] = float(latest_md.market_cap) if latest_md.market_cap else None
-            data["depth_1pct"] = float(latest_md.liquidity_depth_1pct) if latest_md.liquidity_depth_1pct else None
-            data["depth_2pct"] = float(latest_md.liquidity_depth_2pct) if latest_md.liquidity_depth_2pct else None
-            data["spread_bps"] = float(latest_md.bid_ask_spread_bps) if latest_md.bid_ask_spread_bps else None
+            data["depth_1pct"] = (
+                float(latest_md.liquidity_depth_1pct) if latest_md.liquidity_depth_1pct else None
+            )
+            data["depth_2pct"] = (
+                float(latest_md.liquidity_depth_2pct) if latest_md.liquidity_depth_2pct else None
+            )
+            data["spread_bps"] = (
+                float(latest_md.bid_ask_spread_bps) if latest_md.bid_ask_spread_bps else None
+            )
 
         liq = liq_result.scalar_one_or_none()
         if liq:
@@ -386,7 +390,9 @@ class ScoringEngine:
         if bm:
             data["velocity"] = float(bm.velocity) if bm.velocity else None
             data["holder_count"] = int(bm.holder_count) if bm.holder_count else None
-            data["active_addresses_24h"] = int(bm.active_addresses_24h) if bm.active_addresses_24h else None
+            data["active_addresses_24h"] = (
+                int(bm.active_addresses_24h) if bm.active_addresses_24h else None
+            )
             data["transfer_count_24h"] = (
                 int(bm.transfer_count_24h) if getattr(bm, "transfer_count_24h", None) else None
             )
@@ -400,7 +406,9 @@ class ScoringEngine:
         ra = ra_result.scalar_one_or_none()
         if ra:
             data["reserve_composition"] = ra.reserve_composition or {}
-            data["collateralization_ratio"] = float(ra.collateralization_ratio) if ra.collateralization_ratio else None
+            data["collateralization_ratio"] = (
+                float(ra.collateralization_ratio) if ra.collateralization_ratio else None
+            )
             data["last_attestation_date"] = ra.attestation_date
             data["attester_quality"] = getattr(ra, "attester_type", None) or "unknown"
 
@@ -435,11 +443,7 @@ class ScoringEngine:
         stmt = pg_insert(RiskScore).values(**values)
         stmt = stmt.on_conflict_do_update(
             constraint="uq_risk_score_asset_date",
-            set_={
-                k: stmt.excluded[k]
-                for k in values
-                if k not in ("asset_id", "score_date")
-            },
+            set_={k: stmt.excluded[k] for k in values if k not in ("asset_id", "score_date")},
         )
         await db.execute(stmt)
         await db.flush()

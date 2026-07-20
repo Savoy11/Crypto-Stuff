@@ -3,13 +3,11 @@ Unit tests for the CoinGecko data pipeline.
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.pipelines.coingecko import CoinGeckoPipeline
-
 
 MOCK_COINGECKO_MARKET_RESPONSE = [
     {

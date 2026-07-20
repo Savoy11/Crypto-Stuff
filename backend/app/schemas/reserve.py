@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class ReserveCompositionItem(BaseModel):
     """A single line item in the reserve composition."""
+
     asset_type: str = Field(..., examples=["cash", "tbills", "repo", "crypto", "other"])
     percentage: float = Field(..., ge=0, le=100, examples=[40.0])
     value_usd: float = Field(..., ge=0)
@@ -62,6 +63,7 @@ class ReserveAttestationResponse(BaseModel):
 
 class ReserveQualityScore(BaseModel):
     """Computed quality metrics for a reserve attestation."""
+
     attestation_id: uuid.UUID
     asset_id: uuid.UUID
     composition_score: float = Field(..., ge=0, le=100)

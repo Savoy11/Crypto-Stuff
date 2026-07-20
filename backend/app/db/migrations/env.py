@@ -9,12 +9,21 @@ from sqlalchemy.ext.asyncio import create_async_engine
 
 # Import all models so Alembic can detect them
 from app.config import settings
-from app.models.base import Base  # noqa: F401
 from app.models import (  # noqa: F401
-    alert, api_key, asset, audit_log, blockchain_metric,
-    liquidity_metric, market_data, reserve_attestation,
-    risk_score, user, wallet_concentration, watchlist,
+    alert,
+    api_key,
+    asset,
+    audit_log,
+    blockchain_metric,
+    liquidity_metric,
+    market_data,
+    reserve_attestation,
+    risk_score,
+    user,
+    wallet_concentration,
+    watchlist,
 )
+from app.models.base import Base  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

@@ -38,7 +38,7 @@ class APIKey(Base, UUIDMixin, TimestampMixin):
     )
 
     # ── Relationships ────────────────────────────────────────────────────────
-    user: Mapped["User"] = relationship("User", back_populates="api_keys")  # noqa: F821
+    user: Mapped[User] = relationship("User", back_populates="api_keys")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<APIKey '{self.name}' user={self.user_id} prefix={self.key_prefix}>"

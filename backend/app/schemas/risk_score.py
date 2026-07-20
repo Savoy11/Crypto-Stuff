@@ -40,6 +40,7 @@ class RiskScoreResponse(BaseModel):
 
 class RiskScoreLatest(RiskScoreResponse):
     """Latest score with asset summary."""
+
     asset_symbol: str | None = None
     asset_name: str | None = None
     asset_type: str | None = None

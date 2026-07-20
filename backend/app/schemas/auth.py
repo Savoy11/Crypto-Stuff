@@ -50,6 +50,7 @@ class RegisterRequest(BaseModel):
 
 class TokenPayload(BaseModel):
     """Decoded JWT payload."""
+
     sub: str  # user ID
     role: str
     type: str

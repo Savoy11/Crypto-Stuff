@@ -97,7 +97,7 @@ class BasePipeline(ABC):
                     return response.json()
 
                 if response.status_code in self.RETRY_STATUS_CODES and attempt < retries:
-                    wait = min(self.BACKOFF_MAX, base ** attempt)
+                    wait = min(self.BACKOFF_MAX, base**attempt)
                     logger.warning(
                         "pipeline_retry",
                         pipeline=self.name,
@@ -117,7 +117,7 @@ class BasePipeline(ABC):
 
             except httpx.TimeoutException as exc:
                 if attempt < retries:
-                    wait = min(self.BACKOFF_MAX, base ** attempt)
+                    wait = min(self.BACKOFF_MAX, base**attempt)
                     logger.warning(
                         "pipeline_timeout_retry",
                         pipeline=self.name,
@@ -187,7 +187,9 @@ class BasePipeline(ABC):
             PipelineError: If any required key is missing.
         """
         if not isinstance(data, dict):
-            raise PipelineError(self.name, f"Expected dict response from {source}, got {type(data)}")
+            raise PipelineError(
+                self.name, f"Expected dict response from {source}, got {type(data)}"
+            )
 
         missing = [k for k in required_keys if k not in data]
         if missing:
@@ -203,7 +205,9 @@ class BasePipeline(ABC):
     ) -> None:
         """Validate that the response is a non-empty list."""
         if not isinstance(data, list):
-            raise PipelineError(self.name, f"Expected list response from {source}, got {type(data)}")
+            raise PipelineError(
+                self.name, f"Expected list response from {source}, got {type(data)}"
+            )
 
     def deduplicate_records(
         self,

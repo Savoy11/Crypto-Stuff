@@ -8,7 +8,7 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy import desc, func, select
 
 from app.core.exceptions import http_404
@@ -18,7 +18,6 @@ from app.models.reserve_attestation import ReserveAttestation
 from app.schemas.reserve import (
     ReserveAttestationCreate,
     ReserveAttestationResponse,
-    ReserveQualityScore,
 )
 
 logger = structlog.get_logger(__name__)
@@ -116,41 +115,50 @@ async def get_reserve_quality_score(
     if not ra:
         raise http_404("Reserve attestation", str(asset_id))
 
+    from datetime import datetime
+
     from app.analytics.reserve_quality import (
         composite_reserve_score,
         identify_reserve_risk_flags,
     )
-    from datetime import date, datetime, timezone
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     days_since = (today - ra.attestation_date).days
 
     sub_scores = composite_reserve_score(
         composition=ra.reserve_composition or {},
-        collateralization_ratio=float(ra.collateralization_ratio) if ra.collateralization_ratio else None,
+        collateralization_ratio=float(ra.collateralization_ratio)
+        if ra.collateralization_ratio
+        else None,
         last_attestation_date=ra.attestation_date,
         attester_quality=ra.attester_type or "unknown",
     )
 
     risk_flags = identify_reserve_risk_flags(
         composition=ra.reserve_composition or {},
-        collateralization_ratio=float(ra.collateralization_ratio) if ra.collateralization_ratio else None,
+        collateralization_ratio=float(ra.collateralization_ratio)
+        if ra.collateralization_ratio
+        else None,
         days_since_attestation=days_since,
     )
 
-    return _envelope({
-        "attestation_id": str(ra.id),
-        "asset_id": str(asset_id),
-        "composition_score": sub_scores["composition_score"],
-        "collateralization_score": sub_scores["collateralization_score"],
-        "freshness_score": sub_scores["freshness_score"],
-        "attester_score": sub_scores["attester_score"],
-        "composite_score": sub_scores["composite_score"],
-        "days_since_attestation": days_since,
-        "collateralization_ratio": float(ra.collateralization_ratio) if ra.collateralization_ratio else None,
-        "composition_breakdown": ra.reserve_composition,
-        "risk_flags": risk_flags,
-    })
+    return _envelope(
+        {
+            "attestation_id": str(ra.id),
+            "asset_id": str(asset_id),
+            "composition_score": sub_scores["composition_score"],
+            "collateralization_score": sub_scores["collateralization_score"],
+            "freshness_score": sub_scores["freshness_score"],
+            "attester_score": sub_scores["attester_score"],
+            "composite_score": sub_scores["composite_score"],
+            "days_since_attestation": days_since,
+            "collateralization_ratio": float(ra.collateralization_ratio)
+            if ra.collateralization_ratio
+            else None,
+            "composition_breakdown": ra.reserve_composition,
+            "risk_flags": risk_flags,
+        }
+    )
 
 
 @router.post(

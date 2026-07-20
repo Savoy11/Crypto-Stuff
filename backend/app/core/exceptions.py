@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from fastapi import HTTPException, status
 
-
 # ------------------------------------------------------------------ #
 # Base
 # ------------------------------------------------------------------ #
@@ -43,7 +42,11 @@ class InvalidTokenError(CAEPException):
 
 class InsufficientPermissionsError(CAEPException):
     def __init__(self, required_role: str = "") -> None:
-        msg = f"Insufficient permissions. Required role: {required_role}" if required_role else "Insufficient permissions"
+        msg = (
+            f"Insufficient permissions. Required role: {required_role}"
+            if required_role
+            else "Insufficient permissions"
+        )
         super().__init__(msg, "INSUFFICIENT_PERMISSIONS")
 
 

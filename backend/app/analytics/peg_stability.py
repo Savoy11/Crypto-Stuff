@@ -5,8 +5,8 @@ depeg event detection, and peg score computation.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 import numpy as np
@@ -236,7 +236,10 @@ def calculate_peg_score(
     score -= mean_penalty
 
     # Penalise max deviation (up to -30 points)
-    max_penalty = min(30.0, max(0.0, (stats.max_deviation_bps - threshold_warning_bps) / threshold_critical_bps * 30.0))
+    max_penalty = min(
+        30.0,
+        max(0.0, (stats.max_deviation_bps - threshold_warning_bps) / threshold_critical_bps * 30.0),
+    )
     score -= max_penalty
 
     # Penalise depeg event frequency (up to -20 points)
@@ -301,8 +304,6 @@ def compute_peg_analytics_summary(
             }
             for e in events
         ],
-        "rolling_volatility_bps": [
-            round(v, 4) if not math.isnan(v) else None for v in rolling_vol
-        ],
+        "rolling_volatility_bps": [round(v, 4) if not math.isnan(v) else None for v in rolling_vol],
         "data_points": len(prices),
     }

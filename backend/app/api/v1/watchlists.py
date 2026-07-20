@@ -5,16 +5,19 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
 
 import structlog
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 from sqlalchemy import select
 
 from app.core.exceptions import http_404, http_409
 from app.dependencies import CurrentUser, DBSession
 from app.models.watchlist import Watchlist
-from app.schemas.watchlist import WatchlistAddAsset, WatchlistCreate, WatchlistResponse, WatchlistUpdate
+from app.schemas.watchlist import (
+    WatchlistAddAsset,
+    WatchlistCreate,
+    WatchlistUpdate,
+)
 
 logger = structlog.get_logger(__name__)
 router = APIRouter(prefix="/watchlists", tags=["Watchlists"])
@@ -57,7 +60,9 @@ async def list_watchlists(
     return _envelope([_to_response(w) for w in watchlists])
 
 
-@router.post("", response_model=dict, status_code=status.HTTP_201_CREATED, summary="Create a watchlist")
+@router.post(
+    "", response_model=dict, status_code=status.HTTP_201_CREATED, summary="Create a watchlist"
+)
 async def create_watchlist(
     body: WatchlistCreate,
     db: DBSession,
@@ -65,9 +70,7 @@ async def create_watchlist(
 ) -> dict:
     # Check duplicate name for user
     existing = await db.execute(
-        select(Watchlist).where(
-            Watchlist.user_id == current_user.id, Watchlist.name == body.name
-        )
+        select(Watchlist).where(Watchlist.user_id == current_user.id, Watchlist.name == body.name)
     )
     if existing.scalar_one_or_none():
         raise http_409(f"Watchlist named '{body.name}' already exists")
@@ -75,9 +78,10 @@ async def create_watchlist(
     # If setting as default, clear existing defaults
     if body.is_default:
         from sqlalchemy import update
+
         await db.execute(
             update(Watchlist)
-            .where(Watchlist.user_id == current_user.id, Watchlist.is_default == True)
+            .where(Watchlist.user_id == current_user.id, Watchlist.is_default is True)
             .values(is_default=False)
         )
 
@@ -100,9 +104,7 @@ async def get_watchlist(
     current_user: CurrentUser,
 ) -> dict:
     result = await db.execute(
-        select(Watchlist).where(
-            Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
-        )
+        select(Watchlist).where(Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id)
     )
     wl = result.scalar_one_or_none()
     if not wl:
@@ -118,9 +120,7 @@ async def update_watchlist(
     current_user: CurrentUser,
 ) -> dict:
     result = await db.execute(
-        select(Watchlist).where(
-            Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
-        )
+        select(Watchlist).where(Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id)
     )
     wl = result.scalar_one_or_none()
     if not wl:
@@ -146,9 +146,7 @@ async def delete_watchlist(
     current_user: CurrentUser,
 ) -> dict:
     result = await db.execute(
-        select(Watchlist).where(
-            Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
-        )
+        select(Watchlist).where(Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id)
     )
     wl = result.scalar_one_or_none()
     if not wl:
@@ -167,9 +165,7 @@ async def add_asset(
     current_user: CurrentUser,
 ) -> dict:
     result = await db.execute(
-        select(Watchlist).where(
-            Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
-        )
+        select(Watchlist).where(Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id)
     )
     wl = result.scalar_one_or_none()
     if not wl:
@@ -185,7 +181,9 @@ async def add_asset(
     return _envelope(_to_response(wl))
 
 
-@router.delete("/{watchlist_id}/assets/{asset_id}", response_model=dict, summary="Remove asset from watchlist")
+@router.delete(
+    "/{watchlist_id}/assets/{asset_id}", response_model=dict, summary="Remove asset from watchlist"
+)
 async def remove_asset(
     watchlist_id: uuid.UUID,
     asset_id: uuid.UUID,
@@ -193,9 +191,7 @@ async def remove_asset(
     current_user: CurrentUser,
 ) -> dict:
     result = await db.execute(
-        select(Watchlist).where(
-            Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id
-        )
+        select(Watchlist).where(Watchlist.id == watchlist_id, Watchlist.user_id == current_user.id)
     )
     wl = result.scalar_one_or_none()
     if not wl:

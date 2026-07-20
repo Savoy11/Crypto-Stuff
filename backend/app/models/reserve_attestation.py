@@ -4,9 +4,9 @@ ReserveAttestation model — stores reserve proof and composition records.
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import date
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import Boolean, Date, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -46,12 +46,10 @@ class ReserveAttestation(Base, UUIDMixin, TimestampMixin):
     verification_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── Indexes ──────────────────────────────────────────────────────────────
-    __table_args__ = (
-        Index("ix_reserve_asset_date", "asset_id", "attestation_date"),
-    )
+    __table_args__ = (Index("ix_reserve_asset_date", "asset_id", "attestation_date"),)
 
     # ── Relationships ────────────────────────────────────────────────────────
-    asset: Mapped["Asset"] = relationship(  # noqa: F821
+    asset: Mapped[Asset] = relationship(  # noqa: F821
         "Asset", back_populates="reserve_attestations"
     )
 

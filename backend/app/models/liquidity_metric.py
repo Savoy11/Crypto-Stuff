@@ -22,9 +22,7 @@ class LiquidityMetric(Base, UUIDMixin):
         nullable=False,
         index=True,
     )
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     # Aggregated liquidity
     dex_liquidity_usd: Mapped[float | None] = mapped_column(Numeric(30, 2), nullable=True)
@@ -47,12 +45,10 @@ class LiquidityMetric(Base, UUIDMixin):
     top_venues: Mapped[list | None] = mapped_column(JSONB, nullable=True, default=list)
 
     # ── Indexes ──────────────────────────────────────────────────────────────
-    __table_args__ = (
-        Index("ix_liquidity_asset_ts", "asset_id", "timestamp"),
-    )
+    __table_args__ = (Index("ix_liquidity_asset_ts", "asset_id", "timestamp"),)
 
     # ── Relationships ────────────────────────────────────────────────────────
-    asset: Mapped["Asset"] = relationship("Asset", back_populates="liquidity_metrics")  # noqa: F821
+    asset: Mapped[Asset] = relationship("Asset", back_populates="liquidity_metrics")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<LiquidityMetric asset={self.asset_id} ts={self.timestamp}>"

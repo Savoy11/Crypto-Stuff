@@ -131,7 +131,9 @@ def verify_token(token: str, expected_type: str = TOKEN_TYPE_ACCESS) -> dict[str
     return payload
 
 
-async def verify_token_not_revoked(token: str, expected_type: str = TOKEN_TYPE_ACCESS) -> dict[str, Any]:
+async def verify_token_not_revoked(
+    token: str, expected_type: str = TOKEN_TYPE_ACCESS
+) -> dict[str, Any]:
     """
     Decode, validate, and check against the Redis JTI revocation blocklist.
     Use this variant for refresh-token flows where revocation must be enforced.
@@ -140,8 +142,8 @@ async def verify_token_not_revoked(token: str, expected_type: str = TOKEN_TYPE_A
     jti = payload.get("jti")
     if jti:
         try:
-            import redis.asyncio as aioredis
             from app.core.rate_limiter import get_redis
+
             redis_client = await get_redis()
             revoked = await redis_client.exists(f"blocklist:{jti}")
             if revoked:
@@ -231,6 +233,7 @@ def require_role(minimum_role: str):
         async def admin_only_endpoint(current_user = Depends(get_current_user)):
             ...
     """
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -242,7 +245,9 @@ def require_role(minimum_role: str):
             if not has_role(str(user_role), minimum_role):
                 raise InsufficientPermissionsError(minimum_role)
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator
 
 

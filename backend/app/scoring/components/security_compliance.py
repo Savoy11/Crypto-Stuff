@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.analytics.smart_contract_risk import composite_smart_contract_score
 from app.analytics.counterparty_risk import composite_counterparty_score
+from app.analytics.smart_contract_risk import composite_smart_contract_score
 
 
 def compute_security_compliance_score(

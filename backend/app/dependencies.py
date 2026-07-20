@@ -14,14 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.exceptions import (
-    InsufficientPermissionsError,
     InvalidTokenError,
     TokenExpiredError,
     http_401,
     http_403,
 )
 from app.core.rate_limiter import SlidingWindowRateLimiter, get_redis
-from app.core.security import ROLE_HIERARCHY, has_role, verify_token
+from app.core.security import has_role, verify_token
 from app.db.session import get_db_session
 from app.models.user import User
 
@@ -66,9 +65,9 @@ async def get_current_user(
     try:
         payload = verify_token(token, expected_type="access")
     except TokenExpiredError:
-        raise http_401("Access token has expired")
+        raise http_401("Access token has expired") from None
     except InvalidTokenError:
-        raise http_401("Invalid authentication token")
+        raise http_401("Invalid authentication token") from None
 
     user_id_str = payload.get("sub")
     if not user_id_str:
@@ -77,7 +76,7 @@ async def get_current_user(
     try:
         user_id = uuid.UUID(user_id_str)
     except ValueError:
-        raise http_401("Invalid user ID in token")
+        raise http_401("Invalid user ID in token") from None
 
     result = await db.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
@@ -128,13 +127,12 @@ def require_role(minimum_role: str):
         async def endpoint(current_user: User = Depends(require_role("admin"))):
             ...
     """
+
     async def role_checker(
         current_user: User = Depends(get_current_user),
     ) -> User:
         if not has_role(str(current_user.role), minimum_role):
-            raise http_403(
-                f"Insufficient permissions. Required role: {minimum_role}"
-            )
+            raise http_403(f"Insufficient permissions. Required role: {minimum_role}")
         return current_user
 
     return role_checker
@@ -170,6 +168,7 @@ async def rate_limit_dependency(
     allowed, info = await limiter.is_allowed(identifier)
     if not allowed:
         from app.core.exceptions import http_429
+
         raise http_429(settings.RATE_LIMIT_REQUESTS, settings.RATE_LIMIT_WINDOW)
 
 

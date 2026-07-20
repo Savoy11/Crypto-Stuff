@@ -11,10 +11,10 @@ import numpy as np
 
 def calculate_stress_composite(
     peg_deviation_bps: float | None,
-    liquidity_change_pct: float | None,   # negative = drop in liquidity
-    volume_spike_ratio: float | None,     # current_vol / avg_vol
-    price_volatility_30d: float | None,   # annualised vol
-    holder_change_pct: float | None,      # recent % change in holder count
+    liquidity_change_pct: float | None,  # negative = drop in liquidity
+    volume_spike_ratio: float | None,  # current_vol / avg_vol
+    price_volatility_30d: float | None,  # annualised vol
+    holder_change_pct: float | None,  # recent % change in holder count
 ) -> dict[str, Any]:
     """
     Compute a composite macro stress indicator from multiple signals.
@@ -120,8 +120,12 @@ def detect_regime_change(
     arr = np.asarray(price_series, dtype=np.float64)
     returns = np.diff(arr) / arr[:-1]
 
-    short_vol = float(np.std(returns[-window_short:], ddof=1)) if len(returns) >= window_short else None
-    long_vol = float(np.std(returns[-window_long:], ddof=1)) if len(returns) >= window_long else None
+    short_vol = (
+        float(np.std(returns[-window_short:], ddof=1)) if len(returns) >= window_short else None
+    )
+    long_vol = (
+        float(np.std(returns[-window_long:], ddof=1)) if len(returns) >= window_long else None
+    )
 
     if short_vol is None or long_vol is None or long_vol == 0:
         return {"regime": "insufficient_data", "vol_ratio": None, "is_regime_change": False}
@@ -144,7 +148,7 @@ def detect_regime_change(
     return {
         "regime": regime,
         "vol_ratio": round(vol_ratio, 4),
-        "short_vol_annualised": round(short_vol * (252 ** 0.5) * 100, 4),
-        "long_vol_annualised": round(long_vol * (252 ** 0.5) * 100, 4),
+        "short_vol_annualised": round(short_vol * (252**0.5) * 100, 4),
+        "long_vol_annualised": round(long_vol * (252**0.5) * 100, 4),
         "is_regime_change": is_change,
     }

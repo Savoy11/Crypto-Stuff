@@ -7,7 +7,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Numeric, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Index, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -85,8 +85,8 @@ class Alert(Base, UUIDMixin):
     )
 
     # ── Relationships ────────────────────────────────────────────────────────
-    asset: Mapped["Asset"] = relationship("Asset", back_populates="alerts")  # noqa: F821
-    user: Mapped["User | None"] = relationship("User", back_populates="alerts")  # noqa: F821
+    asset: Mapped[Asset] = relationship("Asset", back_populates="alerts")  # noqa: F821
+    user: Mapped[User | None] = relationship("User", back_populates="alerts")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<Alert {self.alert_type} severity={self.severity} asset={self.asset_id}>"

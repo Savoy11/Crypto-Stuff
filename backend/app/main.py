@@ -3,8 +3,8 @@ Crypto Asset Evaluation Platform — FastAPI application entry point.
 """
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 import structlog
 from fastapi import FastAPI
@@ -80,9 +80,8 @@ def create_app() -> FastAPI:
         from starlette.responses import Response as SResponse
 
         req = SRequest(scope, receive)
-        client_ip = (
-            req.headers.get("x-forwarded-for", "").split(",")[0].strip()
-            or (req.client.host if req.client else "")
+        client_ip = req.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
+            req.client.host if req.client else ""
         )
         allowed_ips = {"127.0.0.1", "::1", "localhost"}
         if client_ip not in allowed_ips and not settings.DEBUG:

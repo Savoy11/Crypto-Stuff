@@ -5,8 +5,7 @@ identifying outliers in time-series metric data.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -205,7 +204,9 @@ def detect_metric_anomalies(
     flagged_pct = len(combined_indices) / len(metric_history) * 100.0
 
     # Severity classification
-    if flagged_pct > 10.0 or (combined_indices and max(global_z[i] for i in combined_indices) > 5.0):
+    if flagged_pct > 10.0 or (
+        combined_indices and max(global_z[i] for i in combined_indices) > 5.0
+    ):
         severity = "critical"
     elif flagged_pct > 5.0:
         severity = "high"

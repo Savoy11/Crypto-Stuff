@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models.asset import AssetType
 from app.models.risk_score import RiskBand
@@ -58,6 +58,7 @@ class AssetResponse(AssetBase):
 
 class AssetSummary(BaseModel):
     """Lightweight asset representation for list views."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -71,6 +72,7 @@ class AssetSummary(BaseModel):
 
 class LatestMetrics(BaseModel):
     """Snapshot of the most recent metrics for an asset."""
+
     price_usd: float | None = None
     market_cap: float | None = None
     volume_24h: float | None = None
@@ -83,11 +85,13 @@ class LatestMetrics(BaseModel):
 
 class AssetDetailResponse(AssetResponse):
     """Full asset detail including latest metrics."""
+
     latest_metrics: LatestMetrics | None = None
 
 
 class AssetAnalyticsBundle(BaseModel):
     """Comprehensive analytics response for a single asset."""
+
     asset: AssetResponse
     latest_metrics: LatestMetrics | None = None
     peg_stability: dict[str, Any] | None = None
@@ -101,6 +105,7 @@ class AssetAnalyticsBundle(BaseModel):
 
 class AssetComparisonResponse(BaseModel):
     """Multi-asset comparison result."""
+
     assets: list[AssetDetailResponse]
     comparison_metrics: dict[str, dict[str, Any]] = Field(default_factory=dict)
     rankings: dict[str, list[dict[str, Any]]] = Field(default_factory=dict)

@@ -69,7 +69,7 @@ def calculate_hhi(balances: list[float]) -> float:
         return 0.0
 
     shares = arr / total  # fraction held by each wallet
-    hhi = float(np.sum(shares ** 2) * 10_000.0)
+    hhi = float(np.sum(shares**2) * 10_000.0)
     return max(0.0, min(10_000.0, hhi))
 
 
