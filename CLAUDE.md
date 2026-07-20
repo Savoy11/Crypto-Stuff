@@ -13,6 +13,55 @@ An institutional-grade financial analytics suite built with Next.js 14 (App Rout
 
 ---
 
+## Current state (updated 2026-07-20 — read this before planning work)
+
+Phase 1 is running from **`docs/TASK-QUEUE.md`**: 14 tasks in 4 waves, each with a self-contained
+prompt that can be handed to an agent without conversation context. Read that file first; it records
+sequencing rationale and which task owns which files.
+
+**Wave 0 is complete.** Both of its tasks corrected the plan before code moved:
+
+- **Data audit (T1)** — audited every `/live-data/*` route from the owner's own network. The previous
+  harness reported 43/43 PASS while several routes served static catalogs. Routes are now classified
+  REAL / FALLBACK / UNCONFIGURED / EMPTY / FAIL. Six bugs fixed. Landed in PR #21.
+- **Risk scale spec (R1)** — `docs/architecture/risk-scale-spec.md` on branch `docs/risk-scale-spec`.
+
+### Two corrections that overturned prior belief
+
+1. **There is no risk-scale polarity conflict.** `lib/utils/risk.ts` and `lib/risk/types.ts` are the
+   same 0–100 **higher-is-safer** scale with identical 80/60/40/20 thresholds. Earlier notes claiming
+   three contradictory inverted scales were wrong. What exists between those files is *duplication*,
+   not contradiction. The one genuine inversion is `lib/data/stakingProviders.ts` (1–10, higher =
+   riskier), which reaches the public `/api/v1/staking/opportunities` `max_risk` filter.
+2. **`/risk-scores` is live and always has been** — it does not import `LiveUnavailable`. The real
+   defect is `lib/api/live/overlay.ts` nulling `riskScore` on every live asset with a stale comment
+   claiming no free source exists; ~12 components render N/A while a working composite already exists.
+   `assets/[id]/page.tsx` shows both in one viewport. Also: `assetCatalog.ts` carries 109 hardcoded
+   `riskScore` literals defused only by that nulling.
+
+**Decided by the owner 2026-07-19:** user-facing "Risk Score" is being renamed to **"Safety Score"**
+(the scale stays higher-is-safer; nothing inverts), and `/api/v1` legacy risk fields stay additive with
+no deprecation date until request logging exists to show real usage.
+
+### Environment constraint that governs task routing
+
+Any task whose deliverable is *"which data sources actually work"* **must run on the owner's machine**.
+Results are IP-dependent: Binance is geo-blocked (451), Reddit and LunarCrush block datacenter IPs.
+A cloud or CI run produces a systematically wrong baseline. Code reading, design, and spec work are
+fine remotely.
+
+### Testing the live data layer
+
+```
+npm run smoke   # 13-test quick subset (CI)
+npm run audit   # full 72-check audit, plus audit:strict and audit:json
+```
+`scripts/smoke.mjs` was deleted and folded into `scripts/test-live-data.mjs`. Run `npm run audit`
+before trusting any route, and read its REAL vs FALLBACK classification — a 200 carrying fallback data
+is the failure mode that misdirects debugging to the UI layer.
+
+---
+
 ## Tech Stack
 
 | Layer | Choice |
@@ -228,7 +277,7 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 ### Quote plumbing for both modules (`src/lib/api/live/marketData.ts`)
 **All four equity data surfaces are registry-driven** (same provider system as crypto — `src/lib/api/live/providers.ts`, configured on the Integrations page, persisted to `.provider-config.json`; providers carry `market: 'crypto' | 'equities'` so the two sides never cross). Every surface records per-provider utilization, supports toggling/reordering built-ins, and accepts user-added custom feeds (SSRF-validated, auth via header/query/bearer, tolerant JSON field extraction in `src/lib/server/customFeeds.ts`):
 
-- **Quotes** (`fetchSecurityQuotes` → `getEquityQuoteProviders()`): custom `json-quote` feeds first, then FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage (key-gated) → Yahoo spark → Stooq → catalog reference prices. `{symbol}` (per-symbol) or `{symbols}` (batch) placeholders.
+- **Quotes** (`fetchSecurityQuotes` → `getEquityQuoteProviders()`): custom `json-quote` feeds first, then FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage (key-gated) → Yahoo spark → ~~Stooq~~ → catalog reference prices. `{symbol}` (per-symbol) or `{symbols}` (batch) placeholders. **Stooq is dead as of the 2026-07-19 audit** (404 on all variants) — that rung no longer functions, so the ladder effectively ends at Yahoo spark before falling through to catalog reference prices.
 - **News** (`/live-data/market-news` → `getEquityProviders('news')`): built-ins Yahoo Finance News / MarketWatch / CNBC plus custom `rss`/`atom`/`json-news` feeds, all active sources merged in parallel.
 - **Social** (`/live-data/stock-social` → `getEquityProviders('social')`): built-ins Reddit Finance / StockTwits plus custom `json-social` feeds. (Reddit 403s from datacenter IPs without OAuth — expect StockTwits-only in server/CI environments.)
 - **OHLCV / TA / backtests** (`/live-data/security-ohlcv` → `getEquityOhlcvProviders()`): custom `json-ohlcv` feeds first, then Yahoo Finance → Tiingo → FMP.
@@ -315,7 +364,7 @@ Risk/status color convention used across the app:
 | Portfolios | `/portfolios` | 🟢 Live | Live prices + portfolio history (`/live-data/portfolio-*`) |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
-| Backtests | `/backtests` | 🔴 Not available | Requires a backtesting backend; not present |
+| Risk Case Studies | `/backtests` | 🟢 Derived | **Relabeled from "Backtests"** — the nav label in `registry.ts` reads "Risk Case Studies". Replays the risk model against historical stablecoin depeg case studies. An earlier version of this table listed it 🔴 Not available / "requires a backtesting backend"; that was wrong, the page exists (~419 lines). |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–4 stocks/funds, normalized growth-of-100 + stats (`security-chart`) |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands |
