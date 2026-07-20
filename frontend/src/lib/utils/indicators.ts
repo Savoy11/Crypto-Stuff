@@ -669,6 +669,7 @@ export function easeOfMovement(candles: OhlcvCandle[], period = 14): (number | n
   const raw = candles.map((c, i) => {
     if (i === 0) return 0
     const midMove = (c.high + c.low) / 2 - (candles[i - 1].high + candles[i - 1].low) / 2
+    if (c.volume === 0) return 0 // avoid boxRatio=0 -> Infinity/NaN poisoning the SMA window
     const boxRatio = c.volume / (c.high - c.low || 1)
     return midMove / boxRatio
   })
@@ -711,7 +712,10 @@ export function massIndex(candles: OhlcvCandle[], fastPeriod = 9, slowPeriod = 2
     if (v1 === null || v2 === null || v2 === 0) return NaN
     return v1 / v2
   })
-  return sma(ratio, slowPeriod).map((v) => (v !== null && !isNaN(v) ? v : null))
+  // Canonical Mass Index is a rolling SUM (not mean) of the EMA ratio over
+  // slowPeriod — the reversal "bulge" threshold (~27) is defined against the
+  // sum. sma()*slowPeriod recovers the sum.
+  return sma(ratio, slowPeriod).map((v) => (v !== null && !isNaN(v) ? v * slowPeriod : null))
 }
 
 // ─── Elder Ray Index ──────────────────────────────────────────────────────────
@@ -826,9 +830,11 @@ export function stochasticOscillator(candles: OhlcvCandle[], kPeriod = 14, kSmoo
     const low = Math.min(...slice.map((c) => c.low))
     return high === low ? 50 : ((candles[i].close - low) / (high - low)) * 100
   })
-  const smoothK = sma(rawK.map((v) => v ?? 0), kSmooth)
-  const k = rawK.map((v, i) => v === null ? null : smoothK[i])
-  const d = sma(k.map((v) => v ?? 0), dSmooth).map((v, i) => k[i] === null ? null : v)
+  // Use NaN (not 0) for warm-up nulls so the fabricated values don't leak into
+  // the smoothing window and emit deflated %K/%D too early. Mirrors stochasticRsi.
+  const smoothK = sma(rawK.map((v) => v ?? NaN), kSmooth)
+  const k = smoothK.map((v, i) => (rawK[i] === null || v === null || isNaN(v)) ? null : v)
+  const d = sma(k.map((v) => v ?? NaN), dSmooth).map((v, i) => (k[i] === null || v === null || isNaN(v)) ? null : v)
   return { k, d }
 }
 
@@ -892,15 +898,25 @@ export function tsi(values: number[], longPeriod = 25, shortPeriod = 13): (numbe
 
 export function fisherTransform(candles: OhlcvCandle[], period = 9): (number | null)[] {
   const result: (number | null)[] = new Array(candles.length).fill(null)
+  const value: number[] = new Array(candles.length).fill(0) // Ehlers' intermediate Value1 series
+  let prevFisher = 0
   for (let i = period - 1; i < candles.length; i++) {
     const slice = candles.slice(i - period + 1, i + 1)
     const high = Math.max(...slice.map((c) => c.high))
     const low = Math.min(...slice.map((c) => c.low))
     const range = high - low
-    if (range === 0) continue
-    const raw = 0.33 * 2 * ((candles[i].close - low) / range - 0.5) + 0.67 * (result[i - 1] ?? 0) / 100 * 0.5
-    const clamped = Math.max(-0.999, Math.min(0.999, raw))
-    result[i] = Math.log((1 + clamped) / (1 - clamped)) * 0.5 * 100
+    const norm = range === 0 ? 0 : (candles[i].close - low) / range - 0.5
+    // Ehlers Fisher Transform, two recursive series:
+    //   Value1 = 0.66*norm + 0.67*Value1_prev   (clamped to |v| < 1)
+    //   Fisher = 0.5*ln((1+Value1)/(1-Value1)) + 0.5*Fisher_prev
+    // The previous version fed back the Fisher OUTPUT instead of Value1 and
+    // dropped the 0.5*Fisher_prev smoothing — neither Ehlers nor coherent.
+    let v = 0.66 * norm + 0.67 * value[i - 1]
+    v = Math.max(-0.999, Math.min(0.999, v))
+    value[i] = v
+    const fisher = 0.5 * Math.log((1 + v) / (1 - v)) + 0.5 * prevFisher
+    result[i] = fisher
+    prevFisher = fisher
   }
   return result
 }
@@ -914,7 +930,11 @@ export function coppockCurve(values: number[], wmaLen = 10, roc1 = 14, roc2 = 11
     const v2 = r2[i]
     return v !== null && v2 !== null ? v + v2 : null
   })
-  return wma(combined.map((v) => v ?? 0), wmaLen).map((v, i) => combined[i] === null ? null : v)
+  // Mask the whole WMA window, not just combined[i]: zero-filled warm-up entries
+  // must not leak into the weighted sum. First valid value is at roc1 + wmaLen - 1.
+  return wma(combined.map((v) => v ?? 0), wmaLen).map((v, i) =>
+    combined[i] == null || combined[i - wmaLen + 1] == null ? null : v,
+  )
 }
 
 // ─── Klinger Volume Oscillator ────────────────────────────────────────────────
