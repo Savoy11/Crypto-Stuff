@@ -17,6 +17,8 @@ import {
   normalizeToCommonStart,
   windowStats,
   correlationMatrix,
+  toDailyCloses,
+  commonStartTime,
   type ChartPoint,
   type NamedSeries,
 } from '@/lib/utils/compareStats'
@@ -37,6 +39,11 @@ const OPTIONS: Option[] = [
 ]
 const OPTION_BY_SYMBOL = new Map<string, Option>()
 for (const o of OPTIONS) if (!OPTION_BY_SYMBOL.has(o.symbol)) OPTION_BY_SYMBOL.set(o.symbol, o)
+// Case-insensitive lookup for URL deep links: several crypto symbols are
+// mixed-case in the catalog (USDe, lisUSD, …) and would otherwise round-trip
+// into the URL but silently drop on reload (review finding).
+const OPTION_BY_UPPER = new Map<string, Option>()
+for (const o of OPTIONS) if (!OPTION_BY_UPPER.has(o.symbol.toUpperCase())) OPTION_BY_UPPER.set(o.symbol.toUpperCase(), o)
 
 const MAX_SYMBOLS = 6
 const DEFAULT_SYMBOLS = ['VOO', 'QQQ']
@@ -56,19 +63,24 @@ const color = (i: number) => CHART_COLORS[i % CHART_COLORS.length]
 
 interface CryptoChartResponse { ok: boolean; candles?: Array<{ date: string; close: number }> }
 
-/** Fetch a symbol's close history as {t(ms), close}[], from the right source. */
+/**
+ * Fetch a symbol's close history as {t(ms), close}[], from the right source.
+ * Every series is snapped to daily closes on UTC-date boundaries
+ * (toDailyCloses) — crypto arrives midnight-stamped, Yahoo bars carry
+ * market-open epochs, and CoinGecko returns hourly points on short ranges;
+ * without the shared date grid, cross-class rows never align (null
+ * correlations, fragmented chart) and hourly points break annualization.
+ */
 async function fetchPoints(opt: Option, range: (typeof RANGES)[number]): Promise<ChartPoint[]> {
   if (opt.kind === 'crypto') {
     const r = await fetch(`/live-data/chart?id=${encodeURIComponent(opt.id ?? opt.symbol.toLowerCase())}&days=${range.days}`)
     const j = (await r.json()) as CryptoChartResponse
     if (!j.ok || !j.candles) return []
-    return j.candles
-      .map((c) => ({ t: new Date(c.date).getTime(), close: c.close }))
-      .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.close))
+    return toDailyCloses(j.candles.map((c) => ({ t: new Date(c.date).getTime(), close: c.close })))
   }
   const r = await fetch(`/live-data/security-chart?symbol=${encodeURIComponent(opt.symbol)}&range=${range.value}`)
   const j = (await r.json()) as SecurityChartResponse
-  return j.chart?.points ?? []
+  return toDailyCloses(j.chart?.points ?? [])
 }
 
 const STAT_LABELS = ['Type', 'Sector', 'Market cap', 'P/E (TTM)', 'Dividend yield', 'Beta (5Y)', 'Expense ratio']
@@ -127,8 +139,13 @@ function CompareInner() {
 
   const [symbols, setSymbols] = useState<string[]>(() => {
     const raw = searchParams.get('symbols')
+    // Case-insensitive resolve to the catalog's canonical casing, deduped.
     const parsed = raw
-      ? raw.split(',').map((s) => s.trim().toUpperCase()).filter((s) => OPTION_BY_SYMBOL.has(s)).slice(0, MAX_SYMBOLS)
+      ? Array.from(new Set(
+          raw.split(',')
+            .map((s) => OPTION_BY_UPPER.get(s.trim().toUpperCase())?.symbol)
+            .filter((s): s is string => !!s),
+        )).slice(0, MAX_SYMBOLS)
       : []
     return parsed.length ? parsed : DEFAULT_SYMBOLS
   })
@@ -174,7 +191,16 @@ function CompareInner() {
   )
 
   const chartData = useMemo(() => normalizeToCommonStart(series), [series])
-  const perf = useMemo(() => series.map((s) => ({ symbol: s.symbol, stats: windowStats(s.points) })), [series])
+  // Stats over the SAME common-start window the chart is rebased to — otherwise
+  // series with different history depths report non-comparable "window" figures
+  // side by side (review finding).
+  const perf = useMemo(() => {
+    const start = commonStartTime(series)
+    return series.map((s) => ({
+      symbol: s.symbol,
+      stats: windowStats(start != null ? s.points.filter((p) => p.t >= start) : s.points),
+    }))
+  }, [series])
   const corr = useMemo(() => correlationMatrix(series.filter((s) => s.points.length > 1)), [series])
 
   const loading = chartQueries.some((q) => q.isLoading)
@@ -254,6 +280,7 @@ function CompareInner() {
             tooltipFormatter={(v, name) => [`${v}`, name]}
             height={320}
             showLegend
+            connectNulls
           />
         ) : (
           <LiveUnavailable message="No live history source is reachable for the selected symbols right now — the comparison appears once Yahoo Finance / CoinGecko (or FMP with a key) responds." />
@@ -302,7 +329,7 @@ function CompareInner() {
             </tbody>
           </table>
           <p className="px-4 py-2 text-[11px] text-text-muted border-t border-border/60">
-            Derived from the live series over the selected range; assumes ~daily spacing for annualization. Sharpe uses a 0% risk-free rate.
+            Derived from date-aligned daily closes over the common window; annualization matches per-series bar spacing (daily/weekly/monthly). Sharpe uses a 0% risk-free rate.
           </p>
         </div>
       )}
@@ -310,7 +337,7 @@ function CompareInner() {
       {/* Return correlation matrix */}
       {corr.symbols.length >= 2 && (
         <div className="rounded-card border border-border bg-bg-card overflow-x-auto">
-          <h2 className="px-4 pt-4 pb-2 text-sm font-medium text-text-secondary">Return correlation <span className="text-text-muted font-normal">— daily, over the window</span></h2>
+          <h2 className="px-4 pt-4 pb-2 text-sm font-medium text-text-secondary">Return correlation <span className="text-text-muted font-normal">— date-aligned closes over the window</span></h2>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">

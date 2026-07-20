@@ -5,6 +5,9 @@ import {
   normalizeToCommonStart,
   pearson,
   correlationMatrix,
+  toDailyCloses,
+  commonStartTime,
+  periodsPerYear,
   type ChartPoint,
 } from '../compareStats'
 
@@ -93,5 +96,83 @@ describe('correlationMatrix', () => {
       { symbol: 'B', points: [{ t: 9, close: 1 }, { t: 10, close: 2 }] },
     ])
     expect(matrix[0][1]).toBeNull()
+  })
+})
+
+// ─── Session-review fixes: cross-calendar alignment + spacing-aware annualization ──
+
+const DAY = 86_400_000
+
+describe('toDailyCloses', () => {
+  it('snaps midnight-stamped and market-open-stamped points to the same date key', () => {
+    // The production failure: crypto at UTC midnight vs a Yahoo bar at 13:30 UTC
+    // the same day shared zero exact timestamps.
+    const day0 = Date.UTC(2026, 0, 5)
+    const crypto = toDailyCloses([{ t: day0, close: 100 }])
+    const stock = toDailyCloses([{ t: day0 + 13.5 * 3_600_000, close: 200 }])
+    expect(crypto[0].t).toBe(stock[0].t)
+  })
+
+  it('collapses hourly points to one daily close (last value wins)', () => {
+    const day0 = Date.UTC(2026, 0, 5)
+    const hourly = Array.from({ length: 24 }, (_, h) => ({ t: day0 + h * 3_600_000, close: 100 + h }))
+    const out = toDailyCloses(hourly)
+    expect(out).toHaveLength(1)
+    expect(out[0].close).toBe(123) // 23:00 close
+  })
+
+  it('sorts unsorted input and drops non-finite points', () => {
+    const day0 = Date.UTC(2026, 0, 5)
+    const out = toDailyCloses([
+      { t: day0 + 2 * DAY, close: 3 },
+      { t: day0, close: 1 },
+      { t: NaN, close: 9 },
+      { t: day0 + DAY, close: NaN },
+    ])
+    expect(out.map((p) => p.close)).toEqual([1, 3])
+  })
+
+  it('makes cross-calendar correlation computable (the null-matrix repro)', () => {
+    const day0 = Date.UTC(2026, 0, 5)
+    // Perfectly correlated closes, incompatible raw timestamps.
+    const cryptoRaw = [0, 1, 2, 3, 4].map((i) => ({ t: day0 + i * DAY, close: 100 + i * 2 }))
+    const stockRaw = [0, 1, 2, 3, 4].map((i) => ({ t: day0 + i * DAY + 13.5 * 3_600_000, close: 50 + i }))
+    const before = correlationMatrix([
+      { symbol: 'BTC', points: cryptoRaw },
+      { symbol: 'VOO', points: stockRaw },
+    ])
+    expect(before.matrix[0][1]).toBeNull() // exact-timestamp join: zero common keys
+    const after = correlationMatrix([
+      { symbol: 'BTC', points: toDailyCloses(cryptoRaw) },
+      { symbol: 'VOO', points: toDailyCloses(stockRaw) },
+    ])
+    expect(after.matrix[0][1]).not.toBeNull()
+    expect(after.matrix[0][1]!).toBeGreaterThan(0.99)
+  })
+})
+
+describe('commonStartTime', () => {
+  it('returns the latest first-timestamp across usable series', () => {
+    const a = pts([1, 2, 3])
+    const b = pts([1, 2]).map((p) => ({ ...p, t: p.t + 5 * DAY }))
+    expect(commonStartTime([{ symbol: 'A', points: a }, { symbol: 'B', points: b }])).toBe(b[0].t)
+    expect(commonStartTime([{ symbol: 'A', points: [] }])).toBeNull()
+  })
+})
+
+describe('periodsPerYear (spacing-aware annualization)', () => {
+  it('detects daily, weekly, and monthly spacing', () => {
+    expect(periodsPerYear(pts([1, 2, 3, 4], DAY))).toBe(252)
+    expect(periodsPerYear(pts([1, 2, 3, 4], 7 * DAY))).toBe(52)
+    expect(periodsPerYear(pts([1, 2, 3, 4], 30 * DAY))).toBe(12)
+  })
+
+  it('windowStats annualizes weekly bars with sqrt(52), not sqrt(252)', () => {
+    const weekly = pts([100, 102, 99, 104, 101, 105], 7 * DAY)
+    const daily = pts([100, 102, 99, 104, 101, 105], DAY)
+    const w = windowStats(weekly)!
+    const d = windowStats(daily)!
+    // Identical returns, different spacing: weekly vol must be sqrt(252/52) smaller.
+    expect(d.volPct / w.volPct).toBeCloseTo(Math.sqrt(252 / 52), 6)
   })
 })

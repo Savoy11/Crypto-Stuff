@@ -14,6 +14,52 @@ export interface NamedSeries {
 
 const TRADING_DAYS = 252
 
+/**
+ * Snap each point to the UTC midnight of its calendar date and collapse
+ * same-day points to the LAST close (the daily close). Session-review fix:
+ * this is what makes cross-venue series comparable at all — crypto history
+ * arrives stamped at UTC midnight, Yahoo equity bars at market-open epoch
+ * seconds, FMP at midnight, so exact-timestamp joins across those calendars
+ * share ZERO keys (every cross-class correlation was null and mixed charts
+ * fragmented). It also collapses CoinGecko's hourly auto-granularity on
+ * 2–90-day ranges to true daily closes, which annualization assumes.
+ */
+export function toDailyCloses(points: ChartPoint[]): ChartPoint[] {
+  const sorted = [...points]
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.close))
+    .sort((a, b) => a.t - b.t)
+  const byDay = new Map<number, number>()
+  for (const p of sorted) {
+    const d = new Date(p.t)
+    byDay.set(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()), p.close)
+  }
+  return Array.from(byDay.entries()).map(([t, close]) => ({ t, close }))
+}
+
+/** The shared start (latest first-timestamp) across series with >1 point, or null. */
+export function commonStartTime(series: NamedSeries[]): number | null {
+  const usable = series.filter((s) => s.points.length > 1)
+  if (usable.length === 0) return null
+  return Math.max(...usable.map((s) => s.points[0].t))
+}
+
+/**
+ * Annualization factor inferred from the series' median spacing, so weekly
+ * (5Y) and monthly (MAX) bars aren't annualized as if daily — √252 on weekly
+ * returns understates volatility ~2.2× (review finding).
+ */
+export function periodsPerYear(points: ChartPoint[]): number {
+  if (points.length < 3) return TRADING_DAYS
+  const dts: number[] = []
+  for (let i = 1; i < points.length; i++) dts.push(points[i].t - points[i - 1].t)
+  dts.sort((a, b) => a - b)
+  const medDays = dts[Math.floor(dts.length / 2)] / 86_400_000
+  if (medDays <= 0) return TRADING_DAYS
+  if (medDays <= 1.5) return TRADING_DAYS // daily (weekend gaps don't move the median)
+  if (medDays <= 8) return 52 // weekly bars
+  return 12 // monthly bars
+}
+
 /** Simple period-over-period returns of a close series. */
 export function simpleReturns(points: ChartPoint[]): number[] {
   const r: number[] = []
@@ -45,7 +91,8 @@ export interface WindowStats {
 
 /**
  * Performance statistics over the visible window, derived from the actual close
- * series (not reference fundamentals). Assumes ~daily spacing for annualization.
+ * series (not reference fundamentals). Annualization uses the series' inferred
+ * bar spacing (daily/weekly/monthly), not a blanket daily assumption.
  */
 export function windowStats(points: ChartPoint[]): WindowStats | null {
   if (points.length < 2) return null
@@ -55,8 +102,9 @@ export function windowStats(points: ChartPoint[]): WindowStats | null {
 
   const rets = simpleReturns(points)
   const sd = sampleStd(rets)
-  const volPct = sd * Math.sqrt(TRADING_DAYS) * 100
-  const sharpe = sd > 0 ? (mean(rets) / sd) * Math.sqrt(TRADING_DAYS) : null
+  const ppy = periodsPerYear(points)
+  const volPct = sd * Math.sqrt(ppy) * 100
+  const sharpe = sd > 0 ? (mean(rets) / sd) * Math.sqrt(ppy) : null
 
   let peak = points[0].close
   let maxDd = 0
@@ -81,7 +129,7 @@ export function normalizeToCommonStart(series: NamedSeries[]): NormalizedChart {
   const usable = series.filter((s) => s.points.length > 1)
   if (usable.length === 0) return { rows: [], present: [] }
 
-  const start = Math.max(...usable.map((s) => s.points[0].t))
+  const start = commonStartTime(series)!
   const rows = new Map<number, Record<string, number>>()
   const present: string[] = []
 

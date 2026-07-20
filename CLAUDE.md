@@ -317,7 +317,7 @@ Risk/status color convention used across the app:
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
 | Backtests | `/backtests` | 🔴 Not available | Requires a backtesting backend; not present |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
-| Compare | `/compare` | 🟢 Live | 2–4 stocks/funds, normalized growth-of-100 + stats (`security-chart`) |
+| Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
 
