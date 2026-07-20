@@ -145,17 +145,18 @@ const BINANCE_SYMBOL: Record<string, string> = {
 // an identical klines API. Trying both makes OHLCV work regardless of region.
 const BINANCE_HOSTS = ['https://api.binance.com', 'https://api.binance.us']
 
-async function fetchBinance(id: string, cfg: RangeConfig): Promise<OhlcvCandle[]> {
+async function fetchBinance(id: string, cfg: RangeConfig): Promise<{ candles: OhlcvCandle[]; host: string }> {
   const symbol = BINANCE_SYMBOL[id.toLowerCase()]
   if (!symbol) throw new Error('no-binance-mapping')
 
   const path = `/api/v3/klines?symbol=${symbol}&interval=${cfg.binanceInterval}&limit=${cfg.binanceLimit}`
   let res: Response | undefined
+  let servedBy = ''
   let lastStatus = 0
   for (const host of BINANCE_HOSTS) {
     try {
       const r = await fetch(host + path, { next: { revalidate: cfg.revalidate } })
-      if (r.ok) { res = r; break }
+      if (r.ok) { res = r; servedBy = host; break }
       lastStatus = r.status // 451 (geo-block), 400 (symbol not on this host), etc. → try next host
     } catch {
       // network error → try next host
@@ -171,7 +172,7 @@ async function fetchBinance(id: string, cfg: RangeConfig): Promise<OhlcvCandle[]
     volume: parseFloat(volume) * parseFloat(close) / 1e6,
   }))
   candles = applySlice(candles, cfg)
-  return candles
+  return { candles, host: servedBy }
 }
 
 // ─── CoinGecko ─────────────────────────────────────────────────────────────────
@@ -238,8 +239,21 @@ export async function GET(request: NextRequest) {
 
   if (source !== 'coingecko' && BINANCE_SYMBOL[id.toLowerCase()]) {
     try {
-      const candles = await fetchBinance(id, cfg)
-      return NextResponse.json({ ok: true, range, candles, granularity: cfg.candleSize, source: 'binance' })
+      const { candles, host } = await fetchBinance(id, cfg)
+      // `source` stays 'binance' — it is the provider-family key that consumers
+      // (technical-analysis page, agent tools) switch on, so renaming it would
+      // silently blank their provenance label.
+      //
+      // `venue` is additive and records which host actually served the data.
+      // api.binance.com is geo-blocked (451) from some regions, so the flat
+      // 'binance' label hid the fact that candles were really coming from the
+      // Binance.US mirror — a separate venue with its own liquidity and
+      // therefore its own prices. Anything comparing CAEP candles against a
+      // Binance.com reference needs to know which one it got.
+      return NextResponse.json({
+        ok: true, range, candles, granularity: cfg.candleSize, source: 'binance',
+        venue: host.includes('binance.us') ? 'binance-us' : 'binance-com',
+      })
     } catch (err) {
       // fall through to CoinGecko unless explicitly forced to Binance
       if (source === 'binance') {

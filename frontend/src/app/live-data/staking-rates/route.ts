@@ -127,8 +127,13 @@ export async function GET() {
     timedFetch('https://api.rocketpool.net/api/apr', { headers: { Accept: 'application/json' } }),
     // 3. Marinade mSOL 1-year APY
     timedFetch('https://api.marinade.finance/msol/apy/1y', { headers: { Accept: 'application/json' } }),
-    // 4. Jito jitoSOL APY
-    timedFetch('https://kobe.mainnet.jito.network/api/v1/apy', { headers: { Accept: 'application/json' } }),
+    // 4. Jito jitoSOL APY.
+    // The old /api/v1/apy endpoint now 404s, which silently pinned jitoSOL to
+    // the 7.5% static estimate while the docs still advertised it as live — and
+    // the estimate was ~41% above the real rate. /api/v1/stake_pool_stats is the
+    // current endpoint; it returns a time series where `apy` is an array of
+    // { data, date } and `data` is a FRACTION (0.0532 = 5.32%).
+    timedFetch('https://kobe.mainnet.jito.network/api/v1/stake_pool_stats', { headers: { Accept: 'application/json' } }),
     // 5. Stride stATOM APY
     timedFetch('https://edge.stride.zone/api/stake-stats', { headers: { Accept: 'application/json' } }),
     // 6. Cosmos Hub staking APR (Mintscan public API)
@@ -203,7 +208,14 @@ export async function GET() {
   if (jitoRes.status === 'fulfilled' && jitoRes.value.ok) {
     try {
       const d = await jitoRes.value.json()
-      const raw = typeof d === 'number' ? d : extractNumber(d, 'value') ?? extractNumber(d, 'apy')
+      // stake_pool_stats shape: { apy: [{ data: 0.0532, date: '…' }, …] } —
+      // take the most recent sample. Older/simpler shapes are still accepted so
+      // this keeps working if the endpoint reverts to a scalar.
+      const series = Array.isArray(d?.apy) ? d.apy : null
+      const latest = series?.length ? series[series.length - 1] : null
+      const raw = typeof latest?.data === 'number'
+        ? latest.data
+        : typeof d === 'number' ? d : extractNumber(d, 'value') ?? extractNumber(d, 'apy')
       if (raw != null) {
         const pct = clamp(normPct(raw), 0, 25)
         if (pct != null) { rates.jito_sol = round2(pct); sources.jito_sol = 'live' }

@@ -22,8 +22,21 @@ export async function GET(req: NextRequest) {
   const ids  = req.nextUrl.searchParams.get('ids')?.split(',').filter(Boolean) ?? []
   const date = req.nextUrl.searchParams.get('date') ?? ''
 
+  // Both params are required. This used to answer HTTP 200 with source:'error',
+  // which is indistinguishable from "the upstream had no data for that date" —
+  // a caller (or an audit) reads it as a data gap rather than a bad request.
+  // Reject it properly instead; 200 is reserved for a real answer.
   if (!ids.length || !date) {
-    return NextResponse.json({ date, prices: {}, source: 'error', updatedAt: new Date().toISOString() })
+    return NextResponse.json(
+      { date, prices: {}, source: 'error', error: 'ids and date are both required (date format YYYY-MM-DD)', updatedAt: new Date().toISOString() },
+      { status: 400 }
+    )
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return NextResponse.json(
+      { date, prices: {}, source: 'error', error: `invalid date "${date}" — expected YYYY-MM-DD`, updatedAt: new Date().toISOString() },
+      { status: 400 }
+    )
   }
 
   const cgDate = toCGDate(date)
