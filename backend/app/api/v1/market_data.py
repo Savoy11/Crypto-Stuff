@@ -54,7 +54,7 @@ async def get_latest_prices(
             (latest_subq.c.asset_id == MarketData.asset_id)
             & (latest_subq.c.latest_ts == MarketData.timestamp),
         )
-        .where(Asset.is_active is True)
+        .where(Asset.is_active.is_(True))
     )
 
     if symbols:

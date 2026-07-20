@@ -81,7 +81,7 @@ async def create_watchlist(
 
         await db.execute(
             update(Watchlist)
-            .where(Watchlist.user_id == current_user.id, Watchlist.is_default is True)
+            .where(Watchlist.user_id == current_user.id, Watchlist.is_default.is_(True))
             .values(is_default=False)
         )
 

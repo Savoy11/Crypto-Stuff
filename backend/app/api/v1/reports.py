@@ -54,7 +54,7 @@ async def get_portfolio_summary(
             (latest_subq.c.asset_id == RiskScore.asset_id)
             & (latest_subq.c.latest == RiskScore.score_date),
         )
-        .where(Asset.is_active is True)
+        .where(Asset.is_active.is_(True))
     )
     if asset_type:
         query = query.where(Asset.asset_type == asset_type)
@@ -120,7 +120,7 @@ async def peer_comparison(
             (latest_subq.c.asset_id == RiskScore.asset_id)
             & (latest_subq.c.latest == RiskScore.score_date),
         )
-        .where(Asset.is_active is True, Asset.asset_type == asset_type)
+        .where(Asset.is_active.is_(True), Asset.asset_type == asset_type)
         .order_by(desc(RiskScore.overall_score))
     )
     rows = result.all()
@@ -175,7 +175,7 @@ async def get_risk_trend(
         query = (
             select(RiskScore.score_date, func.avg(RiskScore.overall_score).label("avg_score"))
             .join(Asset, Asset.id == RiskScore.asset_id)
-            .where(Asset.is_active is True, RiskScore.score_date >= since)
+            .where(Asset.is_active.is_(True), RiskScore.score_date >= since)
             .group_by(RiskScore.score_date)
             .order_by(RiskScore.score_date)
         )

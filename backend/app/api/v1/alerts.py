@@ -71,7 +71,7 @@ async def list_alerts(
             func.count().label("cnt"),
             func.sum(func.cast(~Alert.is_read, func.Integer())).label("unread"),
         )
-        .where(Alert.is_resolved is False)
+        .where(Alert.is_resolved.is_(False))
         .group_by(Alert.severity)
     )
 
@@ -205,7 +205,7 @@ async def mark_all_read(
     """Mark all unread alerts for the current user as read."""
     stmt = (
         update(Alert)
-        .where(Alert.user_id == current_user.id, Alert.is_read is False)
+        .where(Alert.user_id == current_user.id, Alert.is_read.is_(False))
         .values(is_read=True)
     )
     result = await db.execute(stmt)

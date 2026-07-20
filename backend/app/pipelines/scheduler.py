@@ -35,7 +35,7 @@ async def _load_active_assets() -> list[Asset]:
     """Load all active assets from the database."""
     factory = get_session_factory()
     async with factory() as session:
-        result = await session.execute(select(Asset).where(Asset.is_active is True))
+        result = await session.execute(select(Asset).where(Asset.is_active.is_(True)))
         return list(result.scalars().all())
 
 
