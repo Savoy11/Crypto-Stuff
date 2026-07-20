@@ -1,0 +1,25 @@
+# Dependencies & build output — reinstalled/rebuilt inside the image. Shipping
+# a host node_modules (especially from Windows) poisons the Linux build with
+# platform-specific binaries, and bloats the context by hundreds of MB.
+node_modules
+.next
+out
+
+# Server-side secret stores (gitignored; UI-saved API keys and exchange
+# credentials). Must never enter build context/layers.
+.provider-config.json
+.agent-prompts.json
+.exchange-credentials.json
+.env
+.env.*
+
+# VCS, editor, logs, test output
+.git
+.gitignore
+*.log
+coverage
+.DS_Store
+
+# Docker itself
+Dockerfile
+.dockerignore
