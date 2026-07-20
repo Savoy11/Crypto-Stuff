@@ -306,7 +306,7 @@ Risk/status color convention used across the app:
 | Watchlist | `/watchlist` | 🟢 Live | Cross-module: coins, stocks, ETFs & funds in named lists with live prices |
 | News | `/news` | 🟢 Live | Multi-provider RSS/JSON; sentiment + asset detection |
 | Social | `/social` | 🟡 Partial | `/live-data/social` — verify which signals are live vs derived |
-| Global Adoption | `/global-adoption` | 🟡 Partial | Static country data + live CBDC news feed |
+| Global | `/global-adoption` | ⚪ De-routed | Access removed (T5) pending a post-production rework — a mislabeled CBDC tracker on stale/duplicated static data with a fabricated live timestamp. Page + `/live-data/cbdc-data` route retained; `/global-adoption` redirects to `/headlines`. See `docs/assessments/T5-utility-triage.md`. |
 | Transfer Fee Calc | `/transfer-fees` | 🟡 Partial | Static fee table (`transferFees.ts`) + live token prices; staleness-labeled |
 | Staking | `/staking` | 🟡 Partial | Live stETH/mSOL/jitoSOL APR; other providers reference/estimated |
 | Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
@@ -315,7 +315,7 @@ Risk/status color convention used across the app:
 | Portfolios | `/portfolios` | 🟢 Live | Live prices + portfolio history (`/live-data/portfolio-*`) |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
-| Backtests | `/backtests` | 🔴 Not available | Requires a backtesting backend; not present |
+| Risk Case Studies | `/backtests` | 🟡 Static | Educational replay of 3 real depeg events (UST, USDC-SVB, BUSD) with reconstructed risk-model scores; self-labeled "simulated — not live data". No live pipeline (relabeled from "Backtests"). |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands |

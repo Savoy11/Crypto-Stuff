@@ -15,6 +15,15 @@ const nextConfig = {
       },
     ]
   },
+  async redirects() {
+    return [
+      // Global page de-routed pending a post-production rework (see T5 triage:
+      // docs/assessments/T5-utility-triage.md). The page and its
+      // /live-data/cbdc-data route are intentionally LEFT IN PLACE — this only
+      // removes user access. Delete this entry to re-enable the page.
+      { source: '/global-adoption', destination: '/headlines', permanent: false },
+    ]
+  },
   async headers() {
     return [
       {
