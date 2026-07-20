@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { OhlcvCandle } from '@/lib/utils/indicators'
 import { getEquityOhlcvProviders, getProviderKey, recordProviderFetch } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickNumber, type ActiveCustom } from '@/lib/server/customFeeds'
+import { adjustCandles } from '@/lib/utils/ohlcvAdjust'
 
 // OHLCV proxy for equities / ETFs / mutual funds — feeds the TA and backtest
 // pages. REGISTRY-DRIVEN ladder (getEquityOhlcvProviders): user-added custom
@@ -50,25 +51,34 @@ async function fetchYahooOhlcv(symbol: string, range: string): Promise<OhlcvCand
   const payload = await res.json() as {
     chart?: { result?: Array<{
       timestamp?: number[]
-      indicators?: { quote?: Array<{
-        open?: Array<number | null>; high?: Array<number | null>
-        low?: Array<number | null>; close?: Array<number | null>
-        volume?: Array<number | null>
-      }> }
+      indicators?: {
+        quote?: Array<{
+          open?: Array<number | null>; high?: Array<number | null>
+          low?: Array<number | null>; close?: Array<number | null>
+          volume?: Array<number | null>
+        }>
+        adjclose?: Array<{ adjclose?: Array<number | null> }>
+      }
     }> }
   }
   const result = payload.chart?.result?.[0]
   const quote = result?.indicators?.quote?.[0]
   if (!result?.timestamp || !quote) throw new Error('Yahoo: empty result')
-  const candles: OhlcvCandle[] = []
+  // Yahoo's `quote` OHLC is split-adjusted but NOT dividend-adjusted; `adjclose`
+  // is split+dividend-adjusted. Carry the adjClose per kept bar so we can put
+  // the whole candle on the fully-adjusted basis (consistent with Tiingo/FMP).
+  const adjcloseArr = result.indicators?.adjclose?.[0]?.adjclose
+  const raw: OhlcvCandle[] = []
+  const adjCloses: Array<number | null | undefined> = []
   result.timestamp.forEach((t, i) => {
     const open = quote.open?.[i]; const high = quote.high?.[i]
     const low = quote.low?.[i];   const close = quote.close?.[i]
     if (open == null || high == null || low == null || close == null) return
-    candles.push({ time: t, open, high, low, close, volume: quote.volume?.[i] ?? 0 })
+    raw.push({ time: t, open, high, low, close, volume: quote.volume?.[i] ?? 0 })
+    adjCloses.push(adjcloseArr?.[i])
   })
-  if (candles.length === 0) throw new Error('Yahoo: no candles')
-  return candles
+  if (raw.length === 0) throw new Error('Yahoo: no candles')
+  return adjustCandles(raw, adjCloses)
 }
 
 async function fetchFmpOhlcv(symbol: string, range: string): Promise<OhlcvCandle[]> {
@@ -81,16 +91,28 @@ async function fetchFmpOhlcv(symbol: string, range: string): Promise<OhlcvCandle
     { next: { revalidate: 900 } }
   )
   if (!res.ok) throw new Error(`FMP ${res.status}`)
-  const rows = await res.json() as Array<{ date: string; open: number; high: number; low: number; close: number; volume: number }>
+  // `adjClose` (split+dividend adjusted) is used when present so a split isn't a
+  // cliff and FMP matches Yahoo/Tiingo's adjusted basis. NOTE: whether the
+  // `/stable/historical-price-eod/full` payload carries adjClose varies by plan;
+  // when absent we fall back to raw close (factor 1). If a split stock still
+  // shows a cliff on the FMP path, switch to /stable/historical-price-eod/
+  // dividend-adjusted — verify live with a key (see T11 assessment).
+  const rows = await res.json() as Array<{
+    date: string; open: number; high: number; low: number; close: number; volume: number; adjClose?: number
+  }>
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('FMP: empty result')
-  return rows
+  const sorted = rows
     .map((row) => ({
-      time: Math.floor(new Date(row.date).getTime() / 1000),
-      open: row.open, high: row.high, low: row.low, close: row.close,
-      volume: row.volume ?? 0,
+      raw: {
+        time: Math.floor(new Date(row.date).getTime() / 1000),
+        open: row.open, high: row.high, low: row.low, close: row.close,
+        volume: row.volume ?? 0,
+      } as OhlcvCandle,
+      adjClose: row.adjClose,
     }))
-    .sort((a, b) => a.time - b.time)
+    .sort((a, b) => a.raw.time - b.raw.time)
     .slice(-RANGE_DAYS[range])
+  return adjustCandles(sorted.map((s) => s.raw), sorted.map((s) => s.adjClose))
 }
 
 async function fetchTiingoOhlcv(symbol: string, range: string): Promise<OhlcvCandle[]> {
@@ -102,13 +124,20 @@ async function fetchTiingoOhlcv(symbol: string, range: string): Promise<OhlcvCan
     { headers: { Accept: 'application/json' }, next: { revalidate: 900 } }
   )
   if (!res.ok) throw new Error(`Tiingo ${res.status}`)
-  const rows = await res.json() as Array<{ date: string; open: number; high: number; low: number; close: number; volume: number }>
+  // Tiingo returns both raw (open/high/low/close/volume) and split+dividend
+  // adjusted (adj*) fields. Use the adjusted set so a split is a continuous
+  // series (not a cliff) and the output matches Yahoo/FMP's adjusted basis.
+  const rows = await res.json() as Array<{
+    date: string; open: number; high: number; low: number; close: number; volume: number
+    adjOpen?: number; adjHigh?: number; adjLow?: number; adjClose?: number; adjVolume?: number
+  }>
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('Tiingo: empty result')
   return rows
     .map((row) => ({
       time: Math.floor(new Date(row.date).getTime() / 1000),
-      open: row.open, high: row.high, low: row.low, close: row.close,
-      volume: row.volume ?? 0,
+      open: row.adjOpen ?? row.open, high: row.adjHigh ?? row.high,
+      low: row.adjLow ?? row.low, close: row.adjClose ?? row.close,
+      volume: row.adjVolume ?? row.volume ?? 0,
     }))
     .sort((a, b) => a.time - b.time)
 }
