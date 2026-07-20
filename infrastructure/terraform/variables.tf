@@ -142,7 +142,7 @@ variable "eks_node_disk_size" {
 variable "eks_public_access_cidrs" {
   description = "CIDRs allowed to reach the EKS public API endpoint"
   type        = list(string)
-  default     = ["0.0.0.0/0"]  # Restrict in production to corporate IP ranges
+  default     = ["0.0.0.0/0"] # Restrict in production to corporate IP ranges
 }
 
 ###############################################################################

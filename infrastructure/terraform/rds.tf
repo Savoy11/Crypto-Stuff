@@ -60,12 +60,12 @@ resource "aws_rds_cluster_parameter_group" "caep" {
 
   parameter {
     name  = "work_mem"
-    value = "16384"  # 16MB in KB
+    value = "16384" # 16MB in KB
   }
 
   parameter {
     name  = "maintenance_work_mem"
-    value = "262144"  # 256MB in KB
+    value = "262144" # 256MB in KB
   }
 
   parameter {
@@ -153,33 +153,33 @@ resource "aws_secretsmanager_secret_version" "rds_password" {
 }
 
 resource "aws_rds_cluster" "caep" {
-  cluster_identifier              = "${local.name_prefix}-aurora"
-  engine                         = "aurora-postgresql"
-  engine_version                 = var.rds_engine_version
-  engine_mode                    = "provisioned"
-  database_name                  = "caep"
-  master_username                = "caep"
-  master_password                = random_password.rds_master.result
-  manage_master_user_password    = false
+  cluster_identifier          = "${local.name_prefix}-aurora"
+  engine                      = "aurora-postgresql"
+  engine_version              = var.rds_engine_version
+  engine_mode                 = "provisioned"
+  database_name               = "caep"
+  master_username             = "caep"
+  master_password             = random_password.rds_master.result
+  manage_master_user_password = false
 
   # Networking
-  db_subnet_group_name            = module.vpc.database_subnet_group_name
-  vpc_security_group_ids          = [aws_security_group.rds.id]
-  availability_zones              = local.azs
-  port                            = 5432
+  db_subnet_group_name   = module.vpc.database_subnet_group_name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  availability_zones     = local.azs
+  port                   = 5432
 
   # Storage encryption
-  storage_encrypted               = true
-  kms_key_id                      = aws_kms_key.caep.arn
+  storage_encrypted = true
+  kms_key_id        = aws_kms_key.caep.arn
 
   # Backups
-  backup_retention_period         = var.rds_backup_retention_days
-  preferred_backup_window         = "03:00-04:00"
-  preferred_maintenance_window    = "mon:04:00-mon:05:00"
-  copy_tags_to_snapshot           = true
-  skip_final_snapshot             = false
-  final_snapshot_identifier       = "${local.name_prefix}-final-${formatdate("YYYY-MM-DD", timestamp())}"
-  deletion_protection             = var.rds_deletion_protection
+  backup_retention_period      = var.rds_backup_retention_days
+  preferred_backup_window      = "03:00-04:00"
+  preferred_maintenance_window = "mon:04:00-mon:05:00"
+  copy_tags_to_snapshot        = true
+  skip_final_snapshot          = false
+  final_snapshot_identifier    = "${local.name_prefix}-final-${formatdate("YYYY-MM-DD", timestamp())}"
+  deletion_protection          = var.rds_deletion_protection
 
   # Logs
   enabled_cloudwatch_logs_exports = ["postgresql"]
@@ -215,11 +215,11 @@ resource "aws_rds_cluster" "caep" {
 resource "aws_rds_cluster_instance" "caep" {
   count = var.rds_instance_count
 
-  identifier              = "${local.name_prefix}-aurora-${count.index}"
-  cluster_identifier      = aws_rds_cluster.caep.id
-  instance_class          = var.rds_instance_class
-  engine                  = aws_rds_cluster.caep.engine
-  engine_version          = aws_rds_cluster.caep.engine_version
+  identifier         = "${local.name_prefix}-aurora-${count.index}"
+  cluster_identifier = aws_rds_cluster.caep.id
+  instance_class     = var.rds_instance_class
+  engine             = aws_rds_cluster.caep.engine
+  engine_version     = aws_rds_cluster.caep.engine_version
 
   # First instance is the writer; subsequent are readers
   promotion_tier = count.index == 0 ? 0 : 1
@@ -228,10 +228,10 @@ resource "aws_rds_cluster_instance" "caep" {
   db_subnet_group_name    = module.vpc.database_subnet_group_name
 
   # Monitoring
-  monitoring_interval          = 15  # Enhanced monitoring every 15 seconds
-  monitoring_role_arn          = aws_iam_role.rds_monitoring.arn
-  performance_insights_enabled = true
-  performance_insights_kms_key_id = aws_kms_key.caep.arn
+  monitoring_interval                   = 15 # Enhanced monitoring every 15 seconds
+  monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
+  performance_insights_enabled          = true
+  performance_insights_kms_key_id       = aws_kms_key.caep.arn
   performance_insights_retention_period = 7
 
   # Auto minor version upgrade
@@ -303,7 +303,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory" {
   namespace           = "AWS/RDS"
   period              = 60
   statistic           = "Average"
-  threshold           = 536870912  # 512MB in bytes
+  threshold           = 536870912 # 512MB in bytes
   treat_missing_data  = "notBreaching"
 
   dimensions = {
