@@ -135,6 +135,10 @@ export function useAssetsWithStore() {
     riskBand: filters.riskBand !== 'all' ? filters.riskBand : undefined,
     minRiskScore: filters.minRiskScore > 0 ? filters.minRiskScore : undefined,
     maxRiskScore: filters.maxRiskScore < 100 ? filters.maxRiskScore : undefined,
+    // Review fix: this store field was never threaded into the query params, so
+    // any UI bound to it (the Coins screener's "Min mkt cap") silently did
+    // nothing. applyParams has supported it all along.
+    minMarketCap: filters.minMarketCap > 0 ? filters.minMarketCap : undefined,
     search: filters.search || undefined,
     sortBy: sort.key,
     sortDirection: sort.direction,
