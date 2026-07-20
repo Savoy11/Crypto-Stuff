@@ -13,7 +13,7 @@ from prometheus_client import make_asgi_app
 
 from app.api.v1.router import api_router
 from app.config import settings
-from app.core.exceptions import CAEPException
+from app.core.exceptions import CAEPError
 from app.core.middleware import setup_middleware
 from app.db.session import close_db, get_engine
 from app.pipelines.scheduler import start_scheduler, stop_scheduler
@@ -106,8 +106,8 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------ #
     # Global exception handler
     # ------------------------------------------------------------------ #
-    @app.exception_handler(CAEPException)
-    async def caep_exception_handler(request, exc: CAEPException) -> JSONResponse:  # type: ignore[type-arg]
+    @app.exception_handler(CAEPError)
+    async def caep_exception_handler(request, exc: CAEPError) -> JSONResponse:  # type: ignore[type-arg]
         logger.warning("caep_exception", detail=exc.detail, code=exc.status_code)
         return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
 
