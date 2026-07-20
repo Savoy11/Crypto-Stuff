@@ -462,7 +462,7 @@ export default function TransferFeesPage() {
             <PageHeader
               title="Transfer Fee Calculator"
               subtitle="Find the cheapest route to move crypto between exchanges and wallets"
-              description="The Transfer Fee Calculator compares withdrawal costs across 25 exchanges and 16 networks. It accounts for network gas fees, exchange withdrawal minimums, and multi-hop routes (e.g. sending to an intermediate wallet to avoid unsupported direct transfers)."
+              description="The Transfer Fee Calculator compares withdrawal costs across 30 exchanges and 18 networks. It accounts for network gas fees, exchange withdrawal minimums, and multi-hop routes (e.g. sending to an intermediate wallet to avoid unsupported direct transfers)."
               details={[
                 { label: 'Live gas prices', text: 'BTC fees use live mempool data. EVM gas is estimated from current CoinGecko ETH price × typical gas units. Other networks use static estimates.' },
                 { label: 'Multi-hop routes', text: 'When a direct exchange-to-exchange path is unavailable, the calculator finds the best two-leg route via your personal wallet.' },
@@ -482,7 +482,7 @@ export default function TransferFeesPage() {
               Refresh fees
             </button>
           )}
-          <DataBadge status="live" source="CoinGecko + mempool.space" />
+          <DataBadge status="estimate" source="BTC live (mempool.space) · other gas estimated" />
           {dataUpdatedAt && (
             <span className="text-[10px] text-slate-500">
               Updated {new Date(dataUpdatedAt).toLocaleTimeString()}

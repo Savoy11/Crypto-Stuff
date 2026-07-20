@@ -104,7 +104,7 @@ frontend/src/
 │   │   ├── normalize.ts            # piecewise/linear normalizers, vol, drawdown
 │   │   └── profiles/               # equity, optionsTrade, stakingAdapter
 │   ├── data/                       # Static/semi-static data files (no API calls)
-│   │   ├── transferFees.ts         # 25 exchanges × 16 coins × 16 networks
+│   │   ├── transferFees.ts         # 30 exchanges × 22 coins × 18 networks
 │   │   ├── stakingProviders.ts     # 18 staking providers with risk profiles
 │   │   ├── equityCatalog.ts        # ~70 large-cap stocks, 11 sectors, reference data
 │   │   └── fundCatalog.ts          # ~55 ETFs/mutual funds + computeFeeDrag()
@@ -191,9 +191,9 @@ const { data } = useQuery({
 ### `src/lib/data/transferFees.ts`
 Central data file for the Transfer Fee Calculator.
 
-- **`CoinId`** union — 16 coins: `'btc' | 'eth' | 'usdt' | 'usdc' | 'bnb' | 'sol' | 'dai' | 'xrp' | 'ltc' | 'trx' | 'doge' | 'matic' | 'avax' | 'ada' | 'dot' | 'atom'`
-- **`NetworkId`** union — 16 networks: erc20, trc20, bep20, solana, polygon, arbitrum, base, optimism, avalanche, bitcoin, xrpl, litecoin, dogecoin, cardano, polkadot, cosmos
-- **`EXCHANGES`** array — 25 exchanges (Binance through Hyperliquid), each with per-coin/per-network `withdrawFee`, `minWithdraw`, `withdrawEnabled`, `depositEnabled`, optional `note`
+- **`CoinId`** union — 22 coins: btc, eth, usdt, usdc, bnb, sol, dai, xrp, ltc, trx, doge, matic, avax, ada, dot, atom, link, ton, shib, uni, near, arb
+- **`NetworkId`** union — 18 networks: erc20, trc20, bep20, solana, polygon, arbitrum, base, optimism, avalanche, bitcoin, xrpl, litecoin, dogecoin, cardano, polkadot, cosmos, ton_network, near_network
+- **`EXCHANGES`** array — 30 exchanges (Binance through Hyperliquid), each with per-coin/per-network `withdrawFee`, `minWithdraw`, `withdrawEnabled`, `depositEnabled`, optional `note`. Data is hand-maintained with provenance: `TRANSFER_FEES_LAST_VERIFIED` + `getTransferFeeProvenance()` drive a staleness banner (stale after 120 days).
 - **`findTransferPaths()`** — path-finding algorithm: direct routes first, then multi-hop via personal wallet, sorted by totalFeeUsd
 - **`PERSONAL_WALLET_ID = 'wallet'`** — the "My Wallet" option in the From/To selectors
 - **`EVM_NETWORKS`** — array of all EVM-compatible network IDs (address collision danger)
