@@ -93,3 +93,55 @@ The static table stays as the fallback and for venues without a public/keyed end
 ## Deferred (needs live/keyed access)
 Per-exchange fee spot-check against current published schedules; and, if approved, the
 `/live-data/transfer-fees` live-sourcing route above.
+
+---
+
+## Addendum — 2026-07-20 follow-up audit (second pass)
+
+### Logic bugs found and fixed (missed by the first pass)
+
+1. **Wallet-as-source returned `[]` (high).** `findTransferPaths()` never handled
+   `PERSONAL_WALLET_ID` as the *source*, yet the route-builder UI offers it in the From slot
+   and the public v1 API documents `from=wallet` in its own error copy. Wallet-origin legs
+   silently rendered nothing; multi-stop wallet routes (the page's own recommendation) showed
+   an empty leg and understated the cumulative total. Fixed: wallet → exchange now builds
+   deposit routes (no exchange fee, sender pays gas, no exchange minimum, cheapest recommended).
+2. **v1 per-hop `totalFeeUsd` double-counted gas (medium).** Hops summed
+   `exchangeFee + networkFee` even where the withdrawal fee covers gas, contradicting the
+   route total. New `TransferHop.gasCoveredByFee` drives the math; a test pins
+   hop-sum == path-total across direct / wallet / multi-hop shapes.
+3. **Fetch failure produced a false error (medium).** An unreachable `/live-data/network-fees`
+   emptied the fee map → every route claimed "No compatible network found" while the status bar
+   claimed "using static estimates" (none existed). The page now falls back to real static
+   estimates built from `networkFees.ts`'s single source of truth.
+4. **Cumulative multi-leg total skipped non-viable legs silently (low).** Now `≥ $X` + amber
+   "incomplete" note. 5. **Gas labeling (low).** Hops now say "covered by fee" / "paid from wallet".
+
+Also noted: `computeSegmentOptions()` is dead code (its custom-route-builder consumer is gone).
+
+### Live fee spot-check (the pass the first audit deferred)
+
+Exchange APIs (KuCoin/HTX/Binance) 403 datacenter IPs, so verification went through currently
+published schedules and 2026 fee guides (sources in the verification transcript). **21
+high-traffic pairs checked: 12 confirmed, 9 corrected:**
+
+| Exchange | Pair | Was | Now | Basis |
+|---|---|---|---|---|
+| Binance | ETH/erc20 | 0.0003 | 0.0008 + dynamic note | ~$3.20, ChainFeeTracker Mar-2026 |
+| Binance | USDT/erc20 | 1 | 3.5 + dynamic note | $3.5–5, two 2026 sources |
+| Coinbase | BTC/bitcoin | 0.0001 flat | 0.000025 + pass-through note | Coinbase charges no markup — dynamic pass-through |
+| Coinbase | ETH/erc20 | 0.0003 flat | 0.001 + pass-through note | same model |
+| OKX | BTC/bitcoin | 0.0005 | 0.0001 + dynamic note | OKX learn pages 2026 (often lower) |
+| OKX | ETH/erc20 | 0.0006 | 0.0001 + dynamic note | ~0.0001 ETH, OKX 2026 |
+| Bybit | ETH/erc20 | 0.0003 | 0.005 + Mantle-free note | 2026 sources (single-source — recheck on live screen) |
+| Gemini | BTC + ETH | 0 (10 free/mo) | pass-through typical values | free tier no longer on Gemini's schedule (sources partially conflict — noted in entry) |
+| KuCoin | SOL/solana | 0.02 | 0.01 | BitDegree 2026 |
+
+Cross-checks: 1 USDT is still the standard TRC-20 fee across majors (Tron's Aug-2025 energy
+price cut halved on-chain costs; no wave of hikes). Gemini's remaining unverified "10 free
+withdrawals" entries were re-noted as legacy values pending confirmation.
+
+**`TRANSFER_FEES_LAST_VERIFIED` was deliberately not bumped** — 21 of ~543 entries were
+re-verified; the long tail still dates to 2025-06-01 and the staleness banner must stay on.
+The T8 recommendation stands: the real fix is the keyed `/live-data/transfer-fees`
+live-sourcing route (Binance `capital/config/getall` first).

@@ -4,6 +4,13 @@
 
 // Machine-readable date the exchange withdrawal fees were last hand-verified.
 // Surfaced in the UI; drives the staleness warning. Update when fees are reviewed.
+//
+// 2026-07-20 partial re-verification: 21 high-traffic (exchange, coin, network)
+// pairs were checked against currently published schedules (see
+// docs/assessments/T8-transfer-fees-audit.md addendum) — 12 confirmed, 9
+// corrected in place with `re-verified 2026-07` notes. The date below is
+// deliberately NOT bumped: it describes the table as a whole, and the ~520
+// long-tail entries were not re-checked, so the staleness banner must stay on.
 export const TRANSFER_FEES_LAST_VERIFIED = '2025-06-01'
 
 // Days after which the hand-maintained withdrawal fees are considered stale.
@@ -248,13 +255,13 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'bep20',    withdrawFee: 0.000017,  minWithdraw: 0.0001,  withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0003,    minWithdraw: 0.003,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0008,    minWithdraw: 0.003,   withdrawEnabled: true, depositEnabled: true, note: 'Dynamic fee — adjusts with gas (re-verified 2026-07)' },
         { networkId: 'arbitrum', withdrawFee: 0.00025,   minWithdraw: 0.001,   withdrawEnabled: true, depositEnabled: true },
         { networkId: 'optimism', withdrawFee: 0.00025,   minWithdraw: 0.001,   withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.00025,   minWithdraw: 0.001,   withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 1.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 3.5,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Dynamic — gas-dependent, $3.5–5 typical (re-verified 2026-07)' },
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.8,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
@@ -346,10 +353,10 @@ export const EXCHANGES: Exchange[] = [
     id: 'coinbase', name: 'Coinbase', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0001,  minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.000025, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through (no Coinbase markup) — varies with congestion' },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0003,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.001,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through (no Coinbase markup) — varies with gas' },
         { networkId: 'base',     withdrawFee: 0.0001,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'polygon',  withdrawFee: 0.0003,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
       ]},
@@ -477,11 +484,11 @@ export const EXCHANGES: Exchange[] = [
     id: 'okx', name: 'OKX', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0005,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.0001,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true, note: 'Dynamic — often lower (re-verified 2026-07)' },
         { networkId: 'bep20',    withdrawFee: 0.000017, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0006, minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0001, minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true, note: 'Dynamic — adjusts with gas (re-verified 2026-07)' },
         { networkId: 'arbitrum', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'optimism', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'base',     withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
@@ -580,7 +587,7 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'bep20',    withdrawFee: 0.000017, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0003, minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.005,  minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true, note: 'Mainnet fee — free via Mantle network (re-verified 2026-07)' },
         { networkId: 'arbitrum', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'optimism', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
       ]},
@@ -691,20 +698,20 @@ export const EXCHANGES: Exchange[] = [
     id: 'gemini', name: 'Gemini', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free; thereafter 0.001 BTC' },
+        { networkId: 'bitcoin',  withdrawFee: 0.000025, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through — the former 10-free-per-month tier is no longer on Gemini schedule (re-verified 2026-07)' },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'erc20',    withdrawFee: 0.001, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through — the former 10-free-per-month tier is no longer on Gemini schedule (re-verified 2026-07)' },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
-        { networkId: 'polygon',  withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'erc20',    withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
+        { networkId: 'polygon',  withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
       ]},
       ltc:  { networks: [
-        { networkId: 'litecoin', withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'litecoin', withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
       ]},
       doge: { networks: [
-        { networkId: 'dogecoin', withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'dogecoin', withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
       ]},
     },
   },
@@ -783,7 +790,7 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
       ]},
       sol:  { networks: [
-        { networkId: 'solana',   withdrawFee: 0.02, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'solana',   withdrawFee: 0.01, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
       ]},
       dai:  { networks: [
         { networkId: 'erc20',    withdrawFee: 4.0,  minWithdraw: 8,   withdrawEnabled: true, depositEnabled: true },
