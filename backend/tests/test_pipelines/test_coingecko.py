@@ -64,6 +64,7 @@ class TestCoinGeckoPipeline:
         with patch.object(self.pipeline, "_raw_fetch", new=flaky):
             result = await self.pipeline.fetch_with_retry("/coins/markets", max_retries=3)
         assert call_count == 3
+        assert result == MOCK_COINGECKO_MARKET_RESPONSE
 
     def test_map_market_item_to_internal(self):
         raw = MOCK_COINGECKO_MARKET_RESPONSE[0]

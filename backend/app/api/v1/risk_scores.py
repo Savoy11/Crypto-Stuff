@@ -45,7 +45,6 @@ async def list_risk_scores(
     score_date: str | None = Query(None, description="ISO date string YYYY-MM-DD"),
 ) -> dict:
     """Paginated list of latest risk scores across all assets."""
-    today = datetime.now(UTC).date()
 
     # Subquery for latest score date per asset
     latest_subq = (

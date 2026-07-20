@@ -191,7 +191,8 @@ def detect_metric_anomalies(
     combined_indices = sorted(z_indices | iqr_indices)
 
     # Rolling Z-scores
-    rolling_z = rolling_z_score(metric_history, rolling_window)
+    # TODO: surface these via AnomalyReport for trending analysis (see docstring).
+    rolling_z = rolling_z_score(metric_history, rolling_window)  # noqa: F841
 
     # Global Z-scores for reporting
     global_z: list[float] = []

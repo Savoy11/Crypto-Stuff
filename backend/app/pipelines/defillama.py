@@ -148,7 +148,6 @@ class DefiLlamaPipeline(BasePipeline):
         for sc in stablecoins:
             sc_symbol = sc.get("symbol", "").upper()
             sc_id = str(sc.get("id", ""))
-            sc_name = sc.get("name", "").lower()
 
             for asset in assets:
                 # Try explicit defillama_id first
@@ -222,7 +221,6 @@ class DefiLlamaPipeline(BasePipeline):
             return []
 
         tokens = detail.get("tokens", [])
-        peg_target = float((asset.asset_metadata or {}).get("peg_target", 1.0))
         records: list[dict[str, Any]] = []
 
         for entry in tokens:
