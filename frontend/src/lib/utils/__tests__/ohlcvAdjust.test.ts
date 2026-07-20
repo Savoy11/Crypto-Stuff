@@ -43,6 +43,21 @@ describe('adjustCandles (equity split/dividend adjustment)', () => {
     for (const o of out) for (const v of [o.open, o.high, o.low, o.close]) expect(Number.isNaN(v)).toBe(false)
   })
 
+  it('passes through a bar whose raw close is NaN even when adjClose is finite (review-hardened)', () => {
+    // Reachable only via a malformed provider row (adjClose present, close absent):
+    // previously f = adj/NaN produced NaN open/high/low.
+    const raw = [c(1, 10, 11, 9, NaN)]
+    const out = adjustCandles(raw, [5])
+    expect(out[0]).toEqual(raw[0])
+    expect(Number.isNaN(out[0].open)).toBe(false)
+  })
+
+  it('passes through on a zero or negative adjClose instead of zeroing the candle (review-hardened)', () => {
+    const raw = [c(1, 10, 11, 9, 10), c(2, 10, 11, 9, 10)]
+    const out = adjustCandles(raw, [0, -4])
+    expect(out).toEqual(raw)   // factor-0 / negative would poison every indicator downstream
+  })
+
   it('is a no-op when adjClose equals close (factor 1)', () => {
     const raw = [c(1, 10, 11, 9, 10.5), c(2, 20, 22, 18, 21)]
     const out = adjustCandles(raw, [10.5, 21])

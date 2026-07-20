@@ -18,7 +18,12 @@ export function adjustCandles(
 ): OhlcvCandle[] {
   return candles.map((c, i) => {
     const adj = adjCloses[i]
-    if (adj == null || !Number.isFinite(adj) || c.close <= 0) return c
+    // Passthrough on any degenerate input (review-hardened): a missing/non-finite
+    // or non-positive adjClose, or a missing/non-finite/non-positive raw close.
+    // A NaN close would otherwise produce NaN OHL (NaN <= 0 is false), and an
+    // adjClose of 0 would zero the whole candle and poison every indicator.
+    if (adj == null || !Number.isFinite(adj) || adj <= 0) return c
+    if (!Number.isFinite(c.close) || c.close <= 0) return c
     const f = adj / c.close
     return { time: c.time, open: c.open * f, high: c.high * f, low: c.low * f, close: adj, volume: c.volume }
   })
