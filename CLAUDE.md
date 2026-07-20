@@ -105,7 +105,7 @@ frontend/src/
 │   │   └── profiles/               # equity, optionsTrade, stakingAdapter
 │   ├── data/                       # Static/semi-static data files (no API calls)
 │   │   ├── transferFees.ts         # 25 exchanges × 16 coins × 16 networks
-│   │   ├── stakingProviders.ts     # 18 staking providers with risk profiles
+│   │   ├── stakingProviders.ts     # 47 staking providers with risk profiles
 │   │   ├── equityCatalog.ts        # ~70 large-cap stocks, 11 sectors, reference data
 │   │   └── fundCatalog.ts          # ~55 ETFs/mutual funds + computeFeeDrag()
 │   ├── api/                        # API client functions
@@ -208,10 +208,10 @@ Central data file for the Staking Opportunities page.
 - **`RiskProfile`** — 6 dimensions, each 1–10: `custodyRisk`, `counterpartyRisk`, `contractRisk`, `slashingRisk`, `liquidityRisk`, `regulatoryRisk`
 - **`computeOverallRisk(risks)`** — weighted composite score (counterparty 25%, custody 20%, liquidity 20%, contract 15%, slashing 10%, regulatory 10%)
 - **`getRiskLevel(score)`** — returns `'low' | 'medium' | 'high' | 'critical'`
-- **`STAKING_PROVIDERS`** array — 18 providers:
-  - CeFi: Celsius (defunct, cautionary), Coinbase, Kraken, Binance, OKX, Bybit
-  - Wallet: Ledger Live, MetaMask, Phantom, Trust Wallet, Exodus
-  - Liquid: Lido, Rocket Pool, Marinade, Jito, Stride, Benqi, Ankr
+- **`STAKING_PROVIDERS`** array — 47 providers (count is dynamic; the page reads `STAKING_PROVIDERS.length`). Representative names:
+  - CeFi: Celsius (defunct, cautionary), Coinbase, Kraken, Binance, OKX, Bybit, KuCoin, Crypto.com, Bitget, Gate.io, HTX, Robinhood, Nexo
+  - Wallet: Ledger Live, MetaMask, Phantom, Trust Wallet, Exodus, Keplr, Solflare
+  - Liquid/restaking: Lido, Rocket Pool, Marinade, Jito, Stride, Benqi, EtherFi, Frax, Stakewise, Stader, Swell, Renzo, Kelp, Puffer, Bedrock, Sanctum, Babylon, Lombard, Aave, Convex, Ankr, MetaPool, and more
 
 To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius should always be kept — it's used as the educational cautionary example.
 

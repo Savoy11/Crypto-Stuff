@@ -175,6 +175,9 @@ function ProviderCard({
                   {live && !provider.defunct && (
                     <span className="text-[9px] text-emerald-500/70 ml-0.5">LIVE</span>
                   )}
+                  {!live && !provider.defunct && (
+                    <span className="text-[9px] text-amber-400/70 ml-0.5" title="Static estimate — not a live reading; verify with the provider">est</span>
+                  )}
                   {provider.defunct && (
                     <span className="text-[9px] text-red-400/60 ml-1">ADVERTISED</span>
                   )}
