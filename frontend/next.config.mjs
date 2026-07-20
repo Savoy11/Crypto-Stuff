@@ -10,8 +10,17 @@ const nextConfig = {
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
     return [
       {
-        source: '/api/:path*',
-        destination: `${apiUrl}/api/:path*`,
+        // Proxies leftover /api/* traffic to the legacy backend.
+        //
+        // `/api/auth/` is excluded because Auth.js owns it. This rewrite runs
+        // in the default `afterFiles` phase, which resolves *after* concrete
+        // file routes but *before* dynamic ones — so /api/auth/signup (a real
+        // file) reached its handler while /api/auth/csrf and
+        // /api/auth/callback/* (served by the [...nextauth] catch-all) were
+        // silently proxied to the dormant backend and 500'd. Every Auth.js
+        // endpoint except the two literal ones was unreachable.
+        source: '/api/:path((?!auth/).*)',
+        destination: `${apiUrl}/api/:path`,
       },
     ]
   },
