@@ -28,7 +28,10 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+# This repo has no public/ directory (Next doesn't require one). The standalone
+# server serves ./public when present, so create an empty one; switch back to
+# `COPY --from=builder /app/public ./public` if the directory is ever added.
+RUN mkdir ./public
 
 # Leverage output standalone traces for minimal image
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
