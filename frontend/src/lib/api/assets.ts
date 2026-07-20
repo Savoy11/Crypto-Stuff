@@ -4,6 +4,7 @@ import type { PaginatedResponse, QueryParams } from '@/types/api'
 import { LIVE_DATA } from '@/lib/constants'
 import { fetchLiveMarkets } from './live/liveClient'
 import { buildLiveAssets, buildLiveAssetDetail } from './live/overlay'
+import { applyRiskComposite, type RiskScoreIndex } from './live/riskScores'
 
 export interface GetAssetsParams extends QueryParams {
   assetType?: string
@@ -32,7 +33,11 @@ function compareValues(av: unknown, bv: unknown, dir: number): number {
   return 0
 }
 
-function applyParams(all: Asset[], params: GetAssetsParams): PaginatedResponse<Asset> {
+// Exported for tests: the R2 session review confirmed risk band/score filters
+// and the riskScore sort MUST run on enriched assets — the catalog carries null
+// risk (live composite only), so filtering pre-enrichment silently empties the
+// result and sorting is a no-op. getAssets() enriches BEFORE calling this.
+export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedResponse<Asset> {
   let assets = [...all]
 
   if (params.search) {
@@ -83,10 +88,21 @@ function applyParams(all: Asset[], params: GetAssetsParams): PaginatedResponse<A
 }
 
 export const assetsApi = {
-  getAssets: async (params: GetAssetsParams = {}): Promise<PaginatedResponse<Asset>> => {
+  /**
+   * List assets. Pass the live risk-composite index (from useRiskScoreIndex /
+   * fetchRiskScoreIndex) so scores are joined BEFORE filtering, sorting, and
+   * pagination — otherwise the risk band/score filters run against the
+   * catalog's null risk and return nothing, and the Safety Score sort no-ops
+   * (R2 Phase 2 review finding H1).
+   */
+  getAssets: async (params: GetAssetsParams = {}, riskIndex?: RiskScoreIndex): Promise<PaginatedResponse<Asset>> => {
     if (LIVE_DATA) {
       const { quotes } = await fetchLiveMarkets()
-      return applyParams(buildLiveAssets(quotes), params)
+      let assets = buildLiveAssets(quotes)
+      if (riskIndex && riskIndex.size > 0) {
+        assets = assets.map((a) => applyRiskComposite(a, riskIndex))
+      }
+      return applyParams(assets, params)
     }
     const { data } = await apiClient.get<PaginatedResponse<Asset>>('/assets', { params })
     return data

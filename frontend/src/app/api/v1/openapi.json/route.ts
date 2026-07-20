@@ -92,11 +92,12 @@ const SPEC = {
       get: {
         tags: ['staking'],
         summary: 'Find staking opportunities for a coin',
-        description: 'Returns staking options across CeFi exchanges, self-custody wallets, and liquid staking protocols. Each opportunity includes live APY (where available), lock-up period, custody model, and a composite risk score (1–10) across 6 dimensions: custody, counterparty, smart contract, slashing, liquidity, and regulatory risk.',
+        description: 'Returns staking options across CeFi exchanges, self-custody wallets, and liquid staking protocols. Each opportunity includes live APY (where available), lock-up period, custody model, and a composite score across 6 dimensions: custody, counterparty, smart contract, slashing, liquidity, and regulatory risk. SCORING: prefer safetyScore (0–100, HIGHER = SAFER) with its 5-level band and the min_safety filter. The legacy riskScore (1–10, HIGHER = RISKIER), riskLevel, and max_risk are deprecated but unchanged for existing consumers.',
         parameters: [
           { name: 'coin',          in: 'query', description: 'Filter by coin id (e.g. eth, sol, ada)',                                 schema: { type: 'string', example: 'eth' } },
           { name: 'category',      in: 'query', description: 'Filter by provider category',                                            schema: { type: 'string', enum: ['cefi', 'wallet', 'liquid'] } },
-          { name: 'max_risk',      in: 'query', description: 'Maximum composite risk score (1–10). Default 10 (all providers).',       schema: { type: 'number', example: 5 } },
+          { name: 'min_safety',    in: 'query', description: 'Minimum canonical safety score floor (0–100, HIGHER = SAFER). Only opportunities scoring at or above this are returned. Preferred over the deprecated max_risk.', schema: { type: 'number', example: 60 } },
+          { name: 'max_risk',      in: 'query', description: 'DEPRECATED (use min_safety). Maximum legacy composite risk score (1–10, higher = riskier). Default 10 (all providers).', deprecated: true, schema: { type: 'number', example: 5 } },
           { name: 'include_defunct', in: 'query', description: 'Include defunct providers like Celsius as cautionary examples.',       schema: { type: 'boolean', default: false } },
         ],
         responses: {
@@ -263,8 +264,10 @@ const SPEC = {
                 receiptToken:   { type: 'string', nullable: true, example: 'stETH' },
                 minStakeNative: { type: 'number', example: 0 },
                 custodyModel:   { type: 'string', enum: ['custodial', 'non-custodial', 'smart-contract'] },
-                riskScore:      { type: 'number', example: 3.5, description: 'Composite risk score 1–10 (10 = highest risk)' },
-                riskLevel:      { type: 'string', enum: ['low', 'medium', 'high', 'critical'] },
+                safetyScore:    { type: 'number', example: 72.2, description: 'Canonical safety score 0–100 (HIGHER = SAFER). Preferred.' },
+                band:           { type: 'string', enum: ['low', 'moderate', 'elevated', 'high', 'critical'], description: 'Canonical 5-level band for safetyScore (low = safest).' },
+                riskScore:      { type: 'number', example: 3.5, deprecated: true, description: 'DEPRECATED (use safetyScore). Legacy composite risk score 1–10 (10 = highest risk).' },
+                riskLevel:      { type: 'string', enum: ['low', 'medium', 'high', 'critical'], deprecated: true, description: 'DEPRECATED (use band). Legacy 4-level vocabulary for riskScore.' },
                 riskBreakdown: {
                   type: 'object',
                   properties: {

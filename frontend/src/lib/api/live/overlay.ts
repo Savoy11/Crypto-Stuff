@@ -5,11 +5,17 @@ import type { LiveQuote } from './liveClient'
 
 // Builds the live-mode asset views. Static metadata (name, symbol, chain,
 // issuer, description, contract address, etc.) is retained from the catalog;
-// numeric market fields are overlaid from the live quote, and everything that
-// has no free live source — derived risk/reserve/peg metrics — is nulled out so
-// the UI renders "N/A" instead of fabricated numbers.
+// numeric market fields are overlaid from the live quote. Reserve/peg metrics
+// with no free live source stay null so the UI renders "N/A" instead of
+// fabricated numbers.
+//
+// riskScore/riskBand are NO LONGER nulled here: a real live composite exists at
+// /live-data/risk-scores, joined onto assets at the hook layer (see
+// lib/api/live/riskScores.ts). The catalog already exports riskScore/riskBand as
+// null (the fabricated literals were deleted in R2 Phase 1), so unscored assets
+// remain null and honest until the composite is joined.
 
-// Returns a copy of the catalog asset with all live + derived numerics nulled.
+// Returns a copy of the catalog asset with all live market numerics nulled.
 // This is the base for both the "no live data" case and the overlay case.
 function nulledAsset(meta: Asset): Asset {
   return {
@@ -22,8 +28,6 @@ function nulledAsset(meta: Asset): Asset {
     priceChangePercent24h: null,
     pegDeviation: null,
     pegDeviationBps: null,
-    riskScore: null,
-    riskBand: null,
     reserveRatio: null,
   }
 }

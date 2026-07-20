@@ -37,7 +37,8 @@ const EMBED_CHART_TYPES: { type: ChartType; label: string; desc: string; Icon: L
   { type: 'baseline',    label: 'Baseline',      desc: 'Green/red vs. first period close',          Icon: Layers },
 ]
 import { clsx } from 'clsx'
-import { useAsset } from '@/hooks/useAssets'
+import { useAsset, useRiskScoreIndex } from '@/hooks/useAssets'
+import { applyRiskComposite } from '@/lib/api/live/riskScores'
 import { PegDeviationChart } from '@/components/analytics/PegDeviationChart'
 import { ReserveComposition } from '@/components/analytics/ReserveComposition'
 import { ScoreBreakdown } from '@/components/analytics/ScoreBreakdown'
@@ -479,7 +480,7 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
         <div className="flex items-center gap-6 flex-shrink-0">
           {/* Risk score */}
           <div className="flex flex-col items-center gap-1">
-            <div className="text-[10px] text-text-muted uppercase tracking-wide">Risk Score</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Safety Score</div>
             <div
               className="font-mono font-extrabold text-5xl tabular-nums"
               style={{ color: getScoreColor(asset.riskScore ?? 0) }}
@@ -615,7 +616,7 @@ function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
 }
 
 // ─── Live composite risk panel ────────────────────────────────────────────────
-// Wired to the same engine as the Risk Scores leaderboard: stablecoins get the
+// Wired to the same engine as the Safety Score leaderboard: stablecoins get the
 // 5-pillar Reserve/Peg/Structure/Adoption/News profile (with fatal-flaw
 // slashing); every other asset gets Volatility/Liquidity/Scale/Trend/News.
 
@@ -646,7 +647,7 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Composite Risk</h3>
         <div className="rounded-card border border-border bg-bg-card p-8 text-center">
           <Shield size={24} className="mx-auto text-text-muted" aria-hidden />
-          <p className="mt-3 text-sm font-medium text-text-secondary">Risk score not available for this asset</p>
+          <p className="mt-3 text-sm font-medium text-text-secondary">Safety score not available for this asset</p>
           <p className="mt-1 text-xs text-text-muted max-w-md mx-auto">
             {data && !data.ok
               ? 'Market data sources (DefiLlama / CoinGecko) are unreachable right now — no scores were computed rather than showing stale or fabricated values.'
@@ -1216,7 +1217,12 @@ export default function AssetDetailPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
 
-  const { data: asset, isLoading, isError, refetch } = useAsset(params.id)
+  const { data: rawAsset, isLoading, isError, refetch } = useAsset(params.id)
+  // R2 Phase 2: join the live risk composite so the gauge below reads a real
+  // score instead of N/A. Unscored assets stay null. (Same-page live composite
+  // panel and this gauge now draw from one source — resolving the old contradiction.)
+  const { data: riskIndex } = useRiskScoreIndex()
+  const asset = rawAsset && riskIndex ? applyRiskComposite(rawAsset, riskIndex) : rawAsset
 
   if (isLoading) {
     return (

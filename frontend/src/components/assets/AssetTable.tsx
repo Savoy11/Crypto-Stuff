@@ -99,7 +99,7 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
       },
       {
         key: 'riskScore',
-        header: 'Risk Score',
+        header: 'Safety Score',
         sortable: true,
         align: 'right',
         accessor: (row) => <RiskScoreBadge score={row.riskScore} band={row.riskBand} />,
