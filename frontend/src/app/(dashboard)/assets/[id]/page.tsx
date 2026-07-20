@@ -1241,7 +1241,7 @@ export default function AssetDetailPage() {
   if (isError || !asset) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-24">
-        <p className="text-sm text-text-muted">Asset not found or failed to load</p>
+        <p className="text-sm text-text-muted">Coin not found or failed to load</p>
         <div className="flex gap-3">
           <button
             onClick={() => refetch()}
@@ -1253,7 +1253,7 @@ export default function AssetDetailPage() {
             onClick={() => router.push('/assets')}
             className="px-3 py-1.5 rounded text-xs bg-accent-blue/10 border border-accent-blue/30 text-accent-blue hover:bg-accent-blue/20 transition-colors"
           >
-            Back to Assets
+            Back to Coins
           </button>
         </div>
       </div>
@@ -1266,10 +1266,10 @@ export default function AssetDetailPage() {
       <button
         onClick={() => router.push('/assets')}
         className="flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
-        aria-label="Back to assets list"
+        aria-label="Back to coins list"
       >
         <ChevronLeft size={14} aria-hidden />
-        All Assets
+        All Coins
       </button>
 
       {/* Header */}
