@@ -4,6 +4,13 @@
 
 // Machine-readable date the exchange withdrawal fees were last hand-verified.
 // Surfaced in the UI; drives the staleness warning. Update when fees are reviewed.
+//
+// 2026-07-20 partial re-verification: 21 high-traffic (exchange, coin, network)
+// pairs were checked against currently published schedules (see
+// docs/assessments/T8-transfer-fees-audit.md addendum) — 12 confirmed, 9
+// corrected in place with `re-verified 2026-07` notes. The date below is
+// deliberately NOT bumped: it describes the table as a whole, and the ~520
+// long-tail entries were not re-checked, so the staleness banner must stay on.
 export const TRANSFER_FEES_LAST_VERIFIED = '2025-06-01'
 
 // Days after which the hand-maintained withdrawal fees are considered stale.
@@ -248,13 +255,13 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'bep20',    withdrawFee: 0.000017,  minWithdraw: 0.0001,  withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0003,    minWithdraw: 0.003,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0008,    minWithdraw: 0.003,   withdrawEnabled: true, depositEnabled: true, note: 'Dynamic fee — adjusts with gas (re-verified 2026-07)' },
         { networkId: 'arbitrum', withdrawFee: 0.00025,   minWithdraw: 0.001,   withdrawEnabled: true, depositEnabled: true },
         { networkId: 'optimism', withdrawFee: 0.00025,   minWithdraw: 0.001,   withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.00025,   minWithdraw: 0.001,   withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 1.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 3.5,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Dynamic — gas-dependent, $3.5–5 typical (re-verified 2026-07)' },
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.8,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
@@ -346,10 +353,10 @@ export const EXCHANGES: Exchange[] = [
     id: 'coinbase', name: 'Coinbase', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0001,  minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.000025, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through (no Coinbase markup) — varies with congestion' },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0003,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.001,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through (no Coinbase markup) — varies with gas' },
         { networkId: 'base',     withdrawFee: 0.0001,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'polygon',  withdrawFee: 0.0003,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
       ]},
@@ -477,11 +484,11 @@ export const EXCHANGES: Exchange[] = [
     id: 'okx', name: 'OKX', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0005,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.0001,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true, note: 'Dynamic — often lower (re-verified 2026-07)' },
         { networkId: 'bep20',    withdrawFee: 0.000017, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0006, minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0001, minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true, note: 'Dynamic — adjusts with gas (re-verified 2026-07)' },
         { networkId: 'arbitrum', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'optimism', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'base',     withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
@@ -580,7 +587,7 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'bep20',    withdrawFee: 0.000017, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0003, minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.005,  minWithdraw: 0.005,  withdrawEnabled: true, depositEnabled: true, note: 'Mainnet fee — free via Mantle network (re-verified 2026-07)' },
         { networkId: 'arbitrum', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'optimism', withdrawFee: 0.0001, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
       ]},
@@ -691,20 +698,20 @@ export const EXCHANGES: Exchange[] = [
     id: 'gemini', name: 'Gemini', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free; thereafter 0.001 BTC' },
+        { networkId: 'bitcoin',  withdrawFee: 0.000025, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through — the former 10-free-per-month tier is no longer on Gemini schedule (re-verified 2026-07)' },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'erc20',    withdrawFee: 0.001, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'Network-fee pass-through — the former 10-free-per-month tier is no longer on Gemini schedule (re-verified 2026-07)' },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
-        { networkId: 'polygon',  withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'erc20',    withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
+        { networkId: 'polygon',  withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
       ]},
       ltc:  { networks: [
-        { networkId: 'litecoin', withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'litecoin', withdrawFee: 0,    minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
       ]},
       doge: { networks: [
-        { networkId: 'dogecoin', withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'First 10 withdrawals/month free' },
+        { networkId: 'dogecoin', withdrawFee: 0,    minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Legacy free-tier value — Gemini has moved to network-fee pass-through; confirm current schedule' },
       ]},
     },
   },
@@ -783,7 +790,7 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
       ]},
       sol:  { networks: [
-        { networkId: 'solana',   withdrawFee: 0.02, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'solana',   withdrawFee: 0.01, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
       ]},
       dai:  { networks: [
         { networkId: 'erc20',    withdrawFee: 4.0,  minWithdraw: 8,   withdrawEnabled: true, depositEnabled: true },
@@ -1652,6 +1659,14 @@ export interface TransferHop {
   networkFee: number
   networkFeeUsd: number
   nativeGasToken: string
+  /**
+   * True when this hop's on-chain gas is already covered by the exchange
+   * withdrawal fee (CEX-source hops). False when the sender pays gas out of
+   * their own wallet (wallet-source hops). A hop's true cost is therefore
+   * exchangeFeeUsd when covered, exchangeFeeUsd + networkFeeUsd when not —
+   * summing both on a covered hop double-counts the gas.
+   */
+  gasCoveredByFee: boolean
   note?: string
 }
 
@@ -1753,15 +1768,64 @@ export function findTransferPaths(
 ): TransferPath[] {
   if (fromId === toId) return []
 
-  const fromEx = EXCHANGES.find(e => e.id === fromId)
-  if (!fromEx) return []
-
   const toEx = toId === PERSONAL_WALLET_ID
     ? null
     : EXCHANGES.find(e => e.id === toId)
   if (toId !== PERSONAL_WALLET_ID && !toEx) return []
 
   const coinPriceUsd = coinPrices[coinId] ?? 1
+
+  // Wallet → exchange: an on-chain deposit. No withdrawal fee and no exchange
+  // minimum applies — the sender pays gas from their own wallet on whichever
+  // deposit network the destination accepts. (Both the route builder UI and
+  // the public v1 API accept "wallet" as a source; before this branch existed
+  // they silently got an empty result.)
+  if (fromId === PERSONAL_WALLET_ID) {
+    if (!toEx) return []
+    const toCoinW = toEx.coins[coinId]
+    if (!toCoinW || toCoinW.networks.length === 0) {
+      return [{ id: 'no-dest', type: 'no-path', networkId: null, hops: [], exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0, estimatedTime: 'N/A', warnings: [{ type: 'danger', title: 'Not supported at destination', message: `${toEx.name} does not support ${coinId.toUpperCase()} deposits.` }], isViable: false, isRecommended: false }]
+    }
+    const walletPaths: TransferPath[] = []
+    const amountUsd = amount * coinPriceUsd
+    for (const dNet of toCoinW.networks) {
+      if (!dNet.depositEnabled) continue
+      const nFee = networkFees[dNet.networkId]
+      if (!nFee) continue
+      const network = NETWORKS[dNet.networkId]
+      const totalFeeUsd = nFee.feeUsd
+      walletPaths.push({
+        id: `wallet-${dNet.networkId}`,
+        type: 'direct',
+        networkId: dNet.networkId,
+        hops: [{
+          step: 1, from: 'Personal Wallet', to: toEx.name, networkId: dNet.networkId,
+          exchangeFee: 0, exchangeFeeUsd: 0,
+          networkFee: nFee.feeNative, networkFeeUsd: nFee.feeUsd,
+          nativeGasToken: nFee.nativeToken, gasCoveredByFee: false, note: dNet.note,
+        }],
+        exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: nFee.feeUsd,
+        totalFeeUsd,
+        feePercent: amountUsd > 0 ? (totalFeeUsd / amountUsd) * 100 : 0,
+        estimatedTime: network.estimatedTime,
+        warnings: [
+          ...buildWarnings(dNet.networkId, amount, 0, coinId, totalFeeUsd, amountUsd, 'Personal Wallet', dNet.note),
+          { type: 'info', title: 'Gas paid from your wallet', message: `You must hold ${nFee.nativeToken} in the sending wallet to pay on-chain gas for this deposit.` },
+        ],
+        isViable: true, isRecommended: false,
+      })
+    }
+    if (walletPaths.length === 0) {
+      return [{ id: 'no-path', type: 'no-path', networkId: null, hops: [], exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0, estimatedTime: 'N/A', warnings: [{ type: 'danger', title: 'No transfer path found', message: `No deposit network with fee data found at ${toEx.name} for ${coinId.toUpperCase()}.` }], isViable: false, isRecommended: false }]
+    }
+    walletPaths.sort((a, b) => a.totalFeeUsd - b.totalFeeUsd)
+    walletPaths[0].isRecommended = true
+    return walletPaths
+  }
+
+  const fromEx = EXCHANGES.find(e => e.id === fromId)
+  if (!fromEx) return []
+
   const fromCoin = fromEx.coins[coinId]
 
   if (!fromCoin || fromCoin.networks.length === 0) {
@@ -1805,7 +1869,7 @@ export function findTransferPaths(
         step: 1, from: fromEx.name, to: toName, networkId: wNet.networkId,
         exchangeFee: wNet.withdrawFee, exchangeFeeUsd,
         networkFee: nFee.feeNative, networkFeeUsd: nFee.feeUsd,
-        nativeGasToken: nFee.nativeToken, note: wNet.note,
+        nativeGasToken: nFee.nativeToken, gasCoveredByFee: true, note: wNet.note,
       }],
       exchangeFeeCoin: wNet.withdrawFee, exchangeFeeUsd, networkFeeUsd,
       totalFeeUsd, feePercent,
@@ -1840,8 +1904,8 @@ export function findTransferPaths(
         type: 'multi-hop',
         networkId: srcNet.networkId,
         hops: [
-          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken },
-          { step: 2, from: 'Personal Wallet', to: toEx.name, networkId: dstNet.networkId, exchangeFee: 0, exchangeFeeUsd: 0, networkFee: dstNFee.feeNative, networkFeeUsd: dstNFee.feeUsd, nativeGasToken: dstNFee.nativeToken },
+          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken, gasCoveredByFee: true },
+          { step: 2, from: 'Personal Wallet', to: toEx.name, networkId: dstNet.networkId, exchangeFee: 0, exchangeFeeUsd: 0, networkFee: dstNFee.feeNative, networkFeeUsd: dstNFee.feeUsd, nativeGasToken: dstNFee.nativeToken, gasCoveredByFee: false },
         ],
         exchangeFeeCoin: srcNet.withdrawFee, exchangeFeeUsd, networkFeeUsd, totalFeeUsd,
         feePercent: amountUsd > 0 ? (totalFeeUsd / amountUsd) * 100 : 0,
