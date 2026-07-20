@@ -38,11 +38,27 @@ export function piecewise(value: number, points: ReadonlyArray<readonly [number,
 }
 
 /**
- * Convert a 1–10 higher-is-riskier rating (the staking providers scale)
- * to a 0–100 higher-is-safer score. 1 → 100, 10 → 0.
+ * Convert a 1–10 higher-is-RISKIER rating (the staking providers scale,
+ * `stakingProviders.ts` computeOverallRisk) to a 0–100 higher-is-safer score.
+ * INVERTS polarity: 1 → 100, 10 → 0.
+ *
+ * Do NOT use this for a source that is already higher-is-safer (e.g. coin
+ * discovery) — it would flip the meaning. Use tenPointSafetyToCanonical there.
  */
 export function tenPointRiskToSafety(risk: number): number {
   return clamp(((10 - risk) / 9) * 100, 0, 100)
+}
+
+/**
+ * Convert a 1–10 higher-is-SAFER rating (the coin-discovery scale,
+ * `coin-discovery/route.ts` scoreRisk) to the 0–100 higher-is-safer canonical
+ * score. PRESERVES polarity (pure rescale): 1 → 0, 10 → 100.
+ *
+ * This is NOT tenPointRiskToSafety: applying that inverter here would turn a
+ * 9/10-safe coin into ~11/100 (critical) — the migration's worst likely bug.
+ */
+export function tenPointSafetyToCanonical(safety: number): number {
+  return clamp(((safety - 1) / 9) * 100, 0, 100)
 }
 
 /** Annualized volatility from a series of closing prices (daily bars). */
