@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { runBacktest } from '../backtest'
 import type { OhlcvCandle } from '../indicators'
 
+// open[i] = close[i-1] (a gapless series), high/low straddle close by ±1.
 function candlesFromCloses(closes: number[], volume = 1000): OhlcvCandle[] {
   return closes.map((close, i) => ({
     time: 1_700_000_000 + i * 86_400,
@@ -15,26 +16,31 @@ function candlesFromCloses(closes: number[], volume = 1000): OhlcvCandle[] {
 
 const approx = (a: number, b: number, eps = 1e-6) => Math.abs(a - b) < eps
 
-// Deterministic donchian_breakout scenario:
-//   closes[0..24] = 100  → no breakout (needs > prior-20-high = 101)
-//   closes[25]    = 110  → breakout, ENTER long at 110 (bar 25)
-//   closes[26..44]= 110  → held (never < prior-20-low)
-//   closes[45]    = 50   → breakdown, EXIT at 50 (bar 45)
-// One losing trade: (50 - 110) / 110 = -54.5454% over 20 bars.
+// Deterministic donchian_breakout scenario with NEXT-BAR execution:
+//   closes[0..24]  = 100 → no breakout (needs > prior-20-high = 101)
+//   closes[25]     = 110 → breakout signal on bar 25 → ENTER at open[26] (=110)
+//   closes[26..44] = 110 → held
+//   closes[45]     = 50  → breakdown signal on bar 45 → EXIT at open[46] (=50)
+//   closes[46]     = 50  → execution bar for the exit
+// One losing trade: (50 - 110) / 110 = -54.5454% held bars 26→46.
 const DONCHIAN_ONE_TRADE = [
   ...Array(25).fill(100),
   ...Array(20).fill(110),
   50,
+  50,
 ]
 
 describe('runBacktest — engine mechanics (donchian_breakout)', () => {
-  it('enters and exits on the signal bars at their closes', () => {
-    const res = runBacktest(candlesFromCloses(DONCHIAN_ONE_TRADE), 'donchian_breakout')
+  it('fills on the bar AFTER the signal, at that bar’s open (no look-ahead)', () => {
+    const candles = candlesFromCloses(DONCHIAN_ONE_TRADE)
+    const res = runBacktest(candles, 'donchian_breakout')
     expect(res).not.toBeNull()
     expect(res!.trades).toHaveLength(1)
     const t = res!.trades[0]
-    expect(t.entryIndex).toBe(25)
-    expect(t.exitIndex).toBe(45)
+    expect(t.entryIndex).toBe(26) // signal on 25, fill on 26
+    expect(t.exitIndex).toBe(46) // signal on 45, fill on 46
+    expect(t.entryPrice).toBe(candles[26].open)
+    expect(t.exitPrice).toBe(candles[46].open)
     expect(t.entryPrice).toBe(110)
     expect(t.exitPrice).toBe(50)
     expect(t.bars).toBe(20)
@@ -47,7 +53,6 @@ describe('runBacktest — engine mechanics (donchian_breakout)', () => {
     expect(approx(res.metrics.totalReturn, expectedRet, 1e-4)).toBe(true)
     expect(res.metrics.winRate).toBe(0)
     expect(res.metrics.sampleCount).toBe(1)
-    // single losing trade → drawdown equals the loss magnitude
     expect(approx(res.metrics.maxDrawdown, Math.abs(expectedRet), 1e-4)).toBe(true)
     expect(res.equityCurve).toHaveLength(1)
     expect(approx(res.equityCurve[0], 1 + expectedRet / 100, 1e-6)).toBe(true)
@@ -61,14 +66,12 @@ describe('runBacktest — engine mechanics (donchian_breakout)', () => {
     expect(approx(res.trades[0].returnPct, expected, 1e-4)).toBe(true)
   })
 
-  it('inverts the trade P&L for the short direction', () => {
+  it('the long side loses on this breakdown; the short side is a finite mirror', () => {
     const long = runBacktest(candlesFromCloses(DONCHIAN_ONE_TRADE), 'donchian_breakout', { direction: 'long' })!
     const short = runBacktest(candlesFromCloses(DONCHIAN_ONE_TRADE), 'donchian_breakout', { direction: 'short' })!
-    // Short enters where long exits and vice-versa, but the sign of a move
-    // captured should flip: a price drop that loses money long makes money short.
     expect(long.trades[0].returnPct).toBeLessThan(0)
-    // short side trades this series profitably (mirror of the long loss)
     expect(short.trades.length).toBeGreaterThan(0)
+    expect(Number.isFinite(short.trades[0].returnPct)).toBe(true)
   })
 
   it('returns null when there are fewer candles than the strategy needs', () => {
@@ -77,6 +80,13 @@ describe('runBacktest — engine mechanics (donchian_breakout)', () => {
 
   it('returns null for an unknown strategy key', () => {
     expect(runBacktest(candlesFromCloses(DONCHIAN_ONE_TRADE), 'not_a_strategy')).toBeNull()
+  })
+
+  it('does not act on a signal formed on the final bar (nothing to fill on)', () => {
+    // Breakout only on the very last bar → no next bar to execute → no trade.
+    const closes = [...Array(25).fill(100), ...Array(21).fill(100), 200]
+    const res = runBacktest(candlesFromCloses(closes), 'donchian_breakout')!
+    expect(res.trades).toHaveLength(0)
   })
 })
 
@@ -87,7 +97,7 @@ describe('runBacktest — invariants on a realistic series', () => {
   for (const key of ['ema_cross_fast', 'donchian_breakout', 'bollinger_bounce']) {
     it(`${key}: metrics are internally consistent and finite`, () => {
       const res = runBacktest(candles, key)
-      if (res === null) return // strategy may need more bars; covered elsewhere
+      if (res === null) return
       const m = res.metrics
       expect(res.equityCurve).toHaveLength(res.trades.length)
       expect(m.sampleCount).toBe(res.trades.length)
@@ -102,17 +112,4 @@ describe('runBacktest — invariants on a realistic series', () => {
       if (m.sortinoRatio !== null) expect(Number.isFinite(m.sortinoRatio)).toBe(true)
     })
   }
-})
-
-// NOTE: these tests document the CURRENT execution model — a signal computed on
-// bar i (from indicators through closes[i]) fills at closes[i], the same bar.
-// Whether that is acceptable (vs. next-bar execution) is a methodology decision
-// flagged separately, not silently changed here.
-describe('runBacktest — execution timing (documented convention)', () => {
-  it('fills at the close of the signal bar (same-bar execution)', () => {
-    const candles = candlesFromCloses(DONCHIAN_ONE_TRADE)
-    const res = runBacktest(candles, 'donchian_breakout')!
-    expect(res.trades[0].entryPrice).toBe(candles[res.trades[0].entryIndex].close)
-    expect(res.trades[0].exitPrice).toBe(candles[res.trades[0].exitIndex].close)
-  })
 })
