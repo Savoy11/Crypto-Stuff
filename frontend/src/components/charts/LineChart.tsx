@@ -32,6 +32,8 @@ interface LineChartProps {
   height?: number
   showGrid?: boolean
   showLegend?: boolean
+  /** Bridge gaps where a series has no value for a row (mixed-granularity data). */
+  connectNulls?: boolean
 }
 
 export function LineChart({
@@ -45,6 +47,7 @@ export function LineChart({
   height = 240,
   showGrid = true,
   showLegend = false,
+  connectNulls = false,
 }: LineChartProps) {
   return (
     <ResponsiveContainer width="100%" height={height}>
@@ -106,6 +109,7 @@ export function LineChart({
             dot={false}
             activeDot={{ r: 4, stroke: s.color, strokeWidth: 2, fill: '#1a1d26' }}
             isAnimationActive={false}
+            connectNulls={connectNulls}
           />
         ))}
       </RechartsLineChart>
