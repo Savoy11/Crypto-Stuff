@@ -193,7 +193,7 @@ Crypto module:
 - News / Social: Multi-provider news with sentiment; social sentiment tracking
 - Global Adoption: Country-level crypto adoption map
 - Transfer Fees: Calculator for the cheapest transfer route across 25 exchanges, 16 coins, 16 networks
-- Staking: Opportunities across 18 providers (CeFi, Wallet, Liquid) with live APR and risk profiles
+- Staking: Opportunities across 47 providers (CeFi, Wallet, Liquid) with live APR and risk profiles
 - Technical Analysis: OHLCV charts with indicators (RSI, MACD, Bollinger Bands, EMA, SMA, VWAP)
 - Wallets: Connected wallets and watched addresses with pump report tab
 

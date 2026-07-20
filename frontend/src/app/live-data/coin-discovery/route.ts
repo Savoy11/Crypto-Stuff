@@ -3,6 +3,9 @@ import {
   CAEP_TRACKED_IDS, UTILITY_MAP, CATEGORY_INFO, SCORING_CONFIG,
   getRecommendationLevel, type RecommendationLevel,
 } from '@/lib/data/coinCatalog'
+import { tenPointSafetyToCanonical } from '@/lib/risk/normalize'
+import { bandForScore } from '@/lib/risk/engine'
+import type { RiskBand } from '@/lib/risk/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,8 +28,12 @@ export interface CandidateCoin {
   scores: {
     marketCap: number         // 1–10
     utility: number           // 1–10
-    risk: number              // 1–10 (higher = less risky)
-    overall: number           // weighted composite
+    risk: number              // 1–10 (higher = less risky) — LEGACY, kept one release
+    /** Canonical 0–100 safety score (higher = safer). R2 migration; prefer this. */
+    riskCanonical: number     // 0–100
+    /** Canonical band for riskCanonical (low/moderate/elevated/high/critical). */
+    band: RiskBand
+    overall: number           // weighted composite (still on the 1–10 sub-scores)
   }
   scoreReasons: {
     marketCap: string
@@ -233,6 +240,10 @@ export async function GET(req: Request) {
           marketCap: mc.score,
           utility:   util.score,
           risk:      risk.score,
+          // R2: scoreRisk is 1–10 higher=SAFER, so rescale (preserve polarity).
+          // NOT tenPointRiskToSafety — that inverter would flip a safe coin to critical.
+          riskCanonical: parseFloat(tenPointSafetyToCanonical(risk.score).toFixed(1)),
+          band:          bandForScore(tenPointSafetyToCanonical(risk.score)),
           overall,
         },
         scoreReasons: {

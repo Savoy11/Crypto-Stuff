@@ -58,7 +58,7 @@ export function HistoricalScoreChart({ assetId, assetSymbol }: HistoricalScoreCh
 
   return (
     <ChartContainer
-      title={`Risk Score History${assetSymbol ? ` — ${assetSymbol}` : ''}`}
+      title={`Safety Score History${assetSymbol ? ` — ${assetSymbol}` : ''}`}
       subtitle={`Avg: ${formatScore(avgScore)} / Latest: ${formatScore(latestScore)}`}
       controls={<DateRangePicker value={timeRange} onChange={setTimeRange} />}
       loading={isLoading}

@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import { useQueries } from '@tanstack/react-query'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { GitCompareArrows, Search, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
@@ -9,26 +10,80 @@ import { LineChart } from '@/components/charts/LineChart'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import { EQUITY_CATALOG, SECTOR_INFO, getEquity } from '@/lib/data/equityCatalog'
 import { FUND_CATALOG, getFund } from '@/lib/data/fundCatalog'
+import { ASSET_CATALOG } from '@/lib/data/assetCatalog'
 import { CHART_COLORS, STALE_TIME_LONG } from '@/lib/constants'
 import { formatCompact } from '@/lib/utils/format'
+import {
+  normalizeToCommonStart,
+  windowStats,
+  correlationMatrix,
+  toDailyCloses,
+  commonStartTime,
+  type ChartPoint,
+  type NamedSeries,
+} from '@/lib/utils/compareStats'
 import type { SecurityChartResponse } from '@/app/live-data/security-chart/route'
 
-// Side-by-side comparison of 2–4 stocks/funds: normalized price chart plus a
-// key-stats table (reference fundamentals, labeled). Morningstar-style.
+// Cross-module comparison of 2–6 stocks, ETFs, funds AND crypto: a normalized
+// growth-of-100 chart, computed window performance (return / volatility /
+// drawdown / Sharpe from the live series), a return-correlation matrix, and a
+// labeled reference-fundamentals table. Selection + range are URL-deep-linkable.
 
-interface Option { symbol: string; name: string; kind: 'stock' | 'fund' }
+type Kind = 'stock' | 'fund' | 'crypto'
+interface Option { symbol: string; name: string; kind: Kind; id?: string }
 
 const OPTIONS: Option[] = [
   ...EQUITY_CATALOG.map((e) => ({ symbol: e.symbol, name: e.name, kind: 'stock' as const })),
   ...FUND_CATALOG.map((f) => ({ symbol: f.symbol, name: f.name, kind: 'fund' as const })),
+  ...ASSET_CATALOG.map((a) => ({ symbol: a.symbol, name: a.name, kind: 'crypto' as const, id: a.id })),
 ]
+const OPTION_BY_SYMBOL = new Map<string, Option>()
+for (const o of OPTIONS) if (!OPTION_BY_SYMBOL.has(o.symbol)) OPTION_BY_SYMBOL.set(o.symbol, o)
+// Case-insensitive lookup for URL deep links: several crypto symbols are
+// mixed-case in the catalog (USDe, lisUSD, …) and would otherwise round-trip
+// into the URL but silently drop on reload (review finding).
+const OPTION_BY_UPPER = new Map<string, Option>()
+for (const o of OPTIONS) if (!OPTION_BY_UPPER.has(o.symbol.toUpperCase())) OPTION_BY_UPPER.set(o.symbol.toUpperCase(), o)
+
+const MAX_SYMBOLS = 6
+const DEFAULT_SYMBOLS = ['VOO', 'QQQ']
 
 const RANGES = [
-  { value: '1y', label: '1Y' },
-  { value: '5y', label: '5Y' },
-  { value: 'max', label: 'MAX' },
+  { value: '1mo', label: '1M', days: '30' },
+  { value: '3mo', label: '3M', days: '90' },
+  { value: '6mo', label: '6M', days: '180' },
+  { value: '1y', label: '1Y', days: '365' },
+  { value: '5y', label: '5Y', days: '1825' },
+  { value: 'max', label: 'MAX', days: 'max' },
 ] as const
-type Range = typeof RANGES[number]['value']
+type Range = (typeof RANGES)[number]['value']
+const RANGE_VALUES = RANGES.map((r) => r.value) as readonly string[]
+
+const color = (i: number) => CHART_COLORS[i % CHART_COLORS.length]
+
+interface CryptoChartResponse { ok: boolean; candles?: Array<{ date: string; close: number }> }
+
+/**
+ * Fetch a symbol's close history as {t(ms), close}[], from the right source.
+ * Every series is snapped to daily closes on UTC-date boundaries
+ * (toDailyCloses) — crypto arrives midnight-stamped, Yahoo bars carry
+ * market-open epochs, and CoinGecko returns hourly points on short ranges;
+ * without the shared date grid, cross-class rows never align (null
+ * correlations, fragmented chart) and hourly points break annualization.
+ */
+async function fetchPoints(opt: Option, range: (typeof RANGES)[number]): Promise<ChartPoint[]> {
+  if (opt.kind === 'crypto') {
+    const r = await fetch(`/live-data/chart?id=${encodeURIComponent(opt.id ?? opt.symbol.toLowerCase())}&days=${range.days}`)
+    const j = (await r.json()) as CryptoChartResponse
+    if (!j.ok || !j.candles) return []
+    return toDailyCloses(j.candles.map((c) => ({ t: new Date(c.date).getTime(), close: c.close })))
+  }
+  const r = await fetch(`/live-data/security-chart?symbol=${encodeURIComponent(opt.symbol)}&range=${range.value}`)
+  const j = (await r.json()) as SecurityChartResponse
+  return toDailyCloses(j.chart?.points ?? [])
+}
+
+const STAT_LABELS = ['Type', 'Sector', 'Market cap', 'P/E (TTM)', 'Dividend yield', 'Beta (5Y)', 'Expense ratio']
 
 function statRows(symbol: string): Array<[string, string]> {
   const e = getEquity(symbol)
@@ -55,58 +110,101 @@ function statRows(symbol: string): Array<[string, string]> {
       ['Expense ratio', `${f.expenseRatioPct}%`],
     ]
   }
+  if (OPTION_BY_SYMBOL.get(symbol)?.kind === 'crypto') {
+    return [['Type', 'Crypto'], ['Sector', '—'], ['Market cap', '—'], ['P/E (TTM)', '—'], ['Dividend yield', '—'], ['Beta (5Y)', '—'], ['Expense ratio', '—']]
+  }
   return []
 }
 
+const pct = (v: number, dp = 1) => `${v >= 0 ? '+' : ''}${v.toFixed(dp)}%`
+const signClass = (v: number) => (v > 0 ? 'text-emerald-400' : v < 0 ? 'text-red-400' : 'text-text-secondary')
+
+function corrCellStyle(v: number | null): CSSProperties {
+  if (v === null) return {}
+  const a = Math.min(Math.abs(v), 1) * 0.5
+  return { backgroundColor: v >= 0 ? `rgba(16,185,129,${a})` : `rgba(239,68,68,${a})` }
+}
+
 export default function ComparePage() {
-  const [symbols, setSymbols] = useState<string[]>(['VOO', 'QQQ'])
+  return (
+    <Suspense fallback={<div className="h-64" />}>
+      <CompareInner />
+    </Suspense>
+  )
+}
+
+function CompareInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const [symbols, setSymbols] = useState<string[]>(() => {
+    const raw = searchParams.get('symbols')
+    // Case-insensitive resolve to the catalog's canonical casing, deduped.
+    const parsed = raw
+      ? Array.from(new Set(
+          raw.split(',')
+            .map((s) => OPTION_BY_UPPER.get(s.trim().toUpperCase())?.symbol)
+            .filter((s): s is string => !!s),
+        )).slice(0, MAX_SYMBOLS)
+      : []
+    return parsed.length ? parsed : DEFAULT_SYMBOLS
+  })
+  const [range, setRange] = useState<Range>(() => {
+    const raw = searchParams.get('range')
+    return raw && RANGE_VALUES.includes(raw) ? (raw as Range) : '1y'
+  })
   const [search, setSearch] = useState('')
-  const [range, setRange] = useState<Range>('1y')
+
+  // Keep the URL in sync so a comparison is shareable/bookmarkable.
+  useEffect(() => {
+    const params = new URLSearchParams()
+    params.set('symbols', symbols.join(','))
+    params.set('range', range)
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }, [symbols, range, router])
 
   const matches = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q || symbols.length >= 4) return []
+    if (!q || symbols.length >= MAX_SYMBOLS) return []
     return OPTIONS
       .filter((o) => !symbols.includes(o.symbol) && (o.symbol.toLowerCase().includes(q) || o.name.toLowerCase().includes(q)))
       .slice(0, 8)
   }, [search, symbols])
 
+  const rangeObj = RANGES.find((r) => r.value === range)!
   const chartQueries = useQueries({
-    queries: symbols.map((symbol) => ({
-      queryKey: ['security-chart', symbol, range],
-      queryFn: () => fetch(`/live-data/security-chart?symbol=${encodeURIComponent(symbol)}&range=${range}`)
-        .then((r) => r.json() as Promise<SecurityChartResponse>),
-      staleTime: STALE_TIME_LONG,
-    })),
+    queries: symbols.map((symbol) => {
+      const opt = OPTION_BY_SYMBOL.get(symbol)
+      return {
+        queryKey: ['compare-chart', opt?.kind, opt?.id ?? symbol, range],
+        queryFn: () => (opt ? fetchPoints(opt, rangeObj) : Promise.resolve([] as ChartPoint[])),
+        staleTime: STALE_TIME_LONG,
+      }
+    }),
   })
 
-  // Normalize each series to 100 at the shared start
-  const chartData = useMemo(() => {
-    const series = chartQueries
-      .map((q, i) => ({ symbol: symbols[i], points: q.data?.chart?.points ?? [] }))
-      .filter((s) => s.points.length > 1)
-    if (series.length === 0) return { rows: [], present: [] as string[] }
-    const start = Math.max(...series.map((s) => s.points[0].t))
-    const rows = new Map<number, Record<string, number>>()
-    for (const s of series) {
-      const visible = s.points.filter((p) => p.t >= start)
-      const base = visible[0]?.close
-      if (!base) continue
-      for (const p of visible) {
-        const row = rows.get(p.t) ?? {}
-        row[s.symbol] = Math.round((p.close / base) * 1000) / 10
-        rows.set(p.t, row)
-      }
-    }
-    return {
-      rows: Array.from(rows.entries()).sort((a, b) => a[0] - b[0]).map(([t, vals]) => ({ t, ...vals })),
-      present: series.map((s) => s.symbol),
-    }
+  const dataKey = chartQueries.map((q) => q.dataUpdatedAt).join(',')
+  const series: NamedSeries[] = useMemo(
+    () => symbols.map((s, i) => ({ symbol: s, points: chartQueries[i]?.data ?? [] })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbols, range, chartQueries.map((q) => q.dataUpdatedAt).join(',')])
+    [symbols.join(','), dataKey],
+  )
+
+  const chartData = useMemo(() => normalizeToCommonStart(series), [series])
+  // Stats over the SAME common-start window the chart is rebased to — otherwise
+  // series with different history depths report non-comparable "window" figures
+  // side by side (review finding).
+  const perf = useMemo(() => {
+    const start = commonStartTime(series)
+    return series.map((s) => ({
+      symbol: s.symbol,
+      stats: windowStats(start != null ? s.points.filter((p) => p.t >= start) : s.points),
+    }))
+  }, [series])
+  const corr = useMemo(() => correlationMatrix(series.filter((s) => s.points.length > 1)), [series])
 
   const loading = chartQueries.some((q) => q.isLoading)
-  const STAT_LABELS = ['Type', 'Sector', 'Market cap', 'P/E (TTM)', 'Dividend yield', 'Beta (5Y)', 'Expense ratio']
+  const anyStats = perf.some((p) => p.stats !== null)
 
   return (
     <div className="space-y-6 max-w-screen-xl mx-auto">
@@ -114,10 +212,11 @@ export default function ComparePage() {
         <GitCompareArrows className="h-6 w-6 text-accent-blue" aria-hidden />
         <PageHeader
           title="Compare"
-          subtitle="Side-by-side stocks and funds — normalized performance plus key stats"
-          description="Pick 2–4 stocks, ETFs, or mutual funds. The chart normalizes every series to 100 at the common start date so different price levels compare directly; the table shows reference fundamentals."
+          subtitle="Side-by-side stocks, funds and crypto — normalized performance, risk stats, correlation"
+          description="Pick 2–6 stocks, ETFs, mutual funds, or coins. The chart normalizes every series to 100 at the common start date; the stats below are computed from the live price series over the selected window."
           details={[
-            { label: 'Fundamentals', text: 'Stats are approximate reference values from the catalogs, labeled per the suite convention.' },
+            { label: 'Performance stats', text: 'Return, volatility, drawdown and Sharpe are derived from the fetched history over the current range.' },
+            { label: 'Fundamentals', text: 'The reference table shows approximate catalog values, labeled per the suite convention.' },
           ]}
         />
       </div>
@@ -126,26 +225,26 @@ export default function ComparePage() {
       <div className="flex flex-wrap items-center gap-2">
         {symbols.map((s, i) => (
           <span key={s} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm font-mono font-medium"
-            style={{ borderColor: `${CHART_COLORS[i]}55`, color: CHART_COLORS[i], backgroundColor: `${CHART_COLORS[i]}14` }}>
+            style={{ borderColor: `${color(i)}55`, color: color(i), backgroundColor: `${color(i)}14` }}>
             {s}
             <button onClick={() => setSymbols(symbols.filter((x) => x !== s))} aria-label={`Remove ${s}`} className="opacity-70 hover:opacity-100">
               <X size={12} aria-hidden />
             </button>
           </span>
         ))}
-        {symbols.length < 4 && (
+        {symbols.length < MAX_SYMBOLS && (
           <div className="relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" aria-hidden />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Add symbol…"
-              className="w-52 rounded-lg border border-border bg-bg-elevated pl-8 pr-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
+              placeholder="Add stock, fund or coin…"
+              className="w-56 rounded-lg border border-border bg-bg-elevated pl-8 pr-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
             />
             {matches.length > 0 && (
               <div className="absolute top-full left-0 mt-1 w-72 rounded-lg border border-border bg-bg-card shadow-xl shadow-black/40 z-20 overflow-hidden">
                 {matches.map((o) => (
-                  <button key={o.symbol} onClick={() => { setSymbols([...symbols, o.symbol]); setSearch('') }}
+                  <button key={`${o.kind}-${o.symbol}`} onClick={() => { setSymbols([...symbols, o.symbol]); setSearch('') }}
                     className="w-full flex items-center justify-between px-3 py-2 text-left text-sm text-text-secondary hover:bg-bg-elevated hover:text-text-primary transition-colors">
                     <span className="truncate"><span className="font-mono font-medium">{o.symbol}</span> — {o.name}</span>
                     <span className="text-[10px] text-text-muted ml-2 capitalize">{o.kind}</span>
@@ -174,27 +273,104 @@ export default function ComparePage() {
         ) : chartData.rows.length > 1 ? (
           <LineChart
             data={chartData.rows}
-            series={chartData.present.map((s, i) => ({ key: s, label: s, color: CHART_COLORS[symbols.indexOf(s)] ?? CHART_COLORS[i] }))}
+            series={chartData.present.map((s) => ({ key: s, label: s, color: color(symbols.indexOf(s)) }))}
             xKey="t"
             xFormatter={(v) => new Date(Number(v)).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
             yFormatter={(v) => String(v)}
             tooltipFormatter={(v, name) => [`${v}`, name]}
             height={320}
             showLegend
+            connectNulls
           />
         ) : (
-          <LiveUnavailable message="No live history source is reachable for the selected symbols right now — the comparison chart appears once Yahoo Finance (or FMP with a key) responds." />
+          <LiveUnavailable message="No live history source is reachable for the selected symbols right now — the comparison appears once Yahoo Finance / CoinGecko (or FMP with a key) responds." />
         )}
       </div>
 
-      {/* Stats table */}
+      {/* Computed performance over the window */}
+      {anyStats && (
+        <div className="rounded-card border border-border bg-bg-card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-text-muted">Performance <span className="normal-case">(this window)</span></th>
+                {symbols.map((s, i) => (
+                  <th key={s} className="px-4 py-2.5 text-right text-xs font-mono font-semibold" style={{ color: color(i) }}>{s}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60 font-mono tabular-nums">
+              <tr>
+                <td className="px-4 py-2.5 text-text-muted font-sans">Total return</td>
+                {perf.map((p) => (
+                  <td key={p.symbol} className={clsx('px-4 py-2.5 text-right', p.stats ? signClass(p.stats.totalReturnPct) : 'text-text-muted')}>
+                    {p.stats ? pct(p.stats.totalReturnPct) : '—'}
+                  </td>
+                ))}
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 text-text-muted font-sans">Volatility (ann.)</td>
+                {perf.map((p) => (
+                  <td key={p.symbol} className="px-4 py-2.5 text-right text-text-secondary">{p.stats ? `${p.stats.volPct.toFixed(1)}%` : '—'}</td>
+                ))}
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 text-text-muted font-sans">Max drawdown</td>
+                {perf.map((p) => (
+                  <td key={p.symbol} className="px-4 py-2.5 text-right text-red-400">{p.stats ? `-${p.stats.maxDrawdownPct.toFixed(1)}%` : '—'}</td>
+                ))}
+              </tr>
+              <tr>
+                <td className="px-4 py-2.5 text-text-muted font-sans">Sharpe (ann.)</td>
+                {perf.map((p) => (
+                  <td key={p.symbol} className="px-4 py-2.5 text-right text-text-secondary">{p.stats?.sharpe != null ? p.stats.sharpe.toFixed(2) : '—'}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+          <p className="px-4 py-2 text-[11px] text-text-muted border-t border-border/60">
+            Derived from date-aligned daily closes over the common window; annualization matches per-series bar spacing (daily/weekly/monthly). Sharpe uses a 0% risk-free rate.
+          </p>
+        </div>
+      )}
+
+      {/* Return correlation matrix */}
+      {corr.symbols.length >= 2 && (
+        <div className="rounded-card border border-border bg-bg-card overflow-x-auto">
+          <h2 className="px-4 pt-4 pb-2 text-sm font-medium text-text-secondary">Return correlation <span className="text-text-muted font-normal">— date-aligned closes over the window</span></h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-4 py-2 text-left text-xs font-medium text-text-muted"></th>
+                {corr.symbols.map((s) => (
+                  <th key={s} className="px-4 py-2 text-right text-xs font-mono font-semibold text-text-secondary">{s}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="font-mono tabular-nums">
+              {corr.symbols.map((rowSym, i) => (
+                <tr key={rowSym}>
+                  <td className="px-4 py-2 text-xs font-semibold text-text-secondary">{rowSym}</td>
+                  {corr.matrix[i].map((v, j) => (
+                    <td key={j} className="px-4 py-2 text-right text-text-primary" style={corrCellStyle(v)}>
+                      {v === null ? '—' : v.toFixed(2)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Reference fundamentals */}
       <div className="rounded-card border border-border bg-bg-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
               <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-text-muted">Stat <span className="normal-case">(reference)</span></th>
               {symbols.map((s, i) => (
-                <th key={s} className="px-4 py-2.5 text-right text-xs font-mono font-semibold" style={{ color: CHART_COLORS[i] }}>{s}</th>
+                <th key={s} className="px-4 py-2.5 text-right text-xs font-mono font-semibold" style={{ color: color(i) }}>{s}</th>
               ))}
             </tr>
           </thead>

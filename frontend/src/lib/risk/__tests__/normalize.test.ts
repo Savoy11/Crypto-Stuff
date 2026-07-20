@@ -6,6 +6,7 @@ import {
   maxDrawdown,
   piecewise,
   tenPointRiskToSafety,
+  tenPointSafetyToCanonical,
 } from '../normalize'
 
 describe('linear', () => {
@@ -99,5 +100,23 @@ describe('clamp', () => {
     expect(clamp(5, 0, 10)).toBe(5)
     expect(clamp(-1, 0, 10)).toBe(0)
     expect(clamp(11, 0, 10)).toBe(10)
+  })
+})
+
+describe('tenPointSafetyToCanonical vs tenPointRiskToSafety', () => {
+  it('preserves polarity (1→0, 10→100), unlike the inverting converter', () => {
+    expect(tenPointSafetyToCanonical(1)).toBe(0)
+    expect(tenPointSafetyToCanonical(10)).toBe(100)
+    expect(tenPointSafetyToCanonical(5.5)).toBe(50)
+  })
+
+  it('is the polarity-opposite of tenPointRiskToSafety at the endpoints', () => {
+    // A higher-is-safer input should map high; the risk converter would flip it.
+    expect(tenPointSafetyToCanonical(10)).toBe(100)
+    expect(tenPointRiskToSafety(10)).toBe(0)
+    expect(tenPointSafetyToCanonical(1)).toBe(0)
+    expect(tenPointRiskToSafety(1)).toBe(100)
+    // They agree only at the midpoint.
+    expect(tenPointSafetyToCanonical(5.5)).toBe(tenPointRiskToSafety(5.5))
   })
 })

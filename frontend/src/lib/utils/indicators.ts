@@ -25,14 +25,26 @@ export function ema(values: number[], period: number): (number | null)[] {
   const k = 2 / (period + 1)
   const result: (number | null)[] = new Array(values.length).fill(null)
   let prev: number | null = null
+  const seed: number[] = []
   for (let i = 0; i < values.length; i++) {
-    if (i < period - 1) { prev = null; continue }
+    const v = values[i]
     if (prev === null) {
-      prev = values.slice(0, period).reduce((s, v) => s + v, 0) / period
+      // Seed from the first `period` FINITE values, skipping any leading
+      // null/NaN warm-up (e.g. a MACD/TRIX line that is undefined until an
+      // upstream EMA is ready). Seeding blindly from slice(0, period) let a
+      // single leading NaN poison the entire series with NaN.
+      if (!Number.isFinite(v)) continue
+      seed.push(v)
+      if (seed.length === period) {
+        prev = seed.reduce((s, x) => s + x, 0) / period
+        result[i] = prev
+      }
+    } else if (Number.isFinite(v)) {
+      prev = v * k + prev * (1 - k)
       result[i] = prev
     } else {
-      prev = values[i] * k + prev * (1 - k)
-      result[i] = prev
+      // Gap after seeding: emit null but keep the last EMA to resume cleanly.
+      result[i] = null
     }
   }
   return result
@@ -172,13 +184,24 @@ export function stochasticRsi(values: number[], rsiPeriod = 14, stochPeriod = 14
 // ─── ATR (Average True Range) ─────────────────────────────────────────────────
 
 export function atr(candles: OhlcvCandle[], period = 14): (number | null)[] {
-  if (candles.length < 2) return candles.map(() => null)
+  const result: (number | null)[] = new Array(candles.length).fill(null)
+  if (candles.length < 2) return result
   const trueRanges = candles.map((c, i) => {
     if (i === 0) return c.high - c.low
     const prev = candles[i - 1].close
     return Math.max(c.high - c.low, Math.abs(c.high - prev), Math.abs(c.low - prev))
   })
-  return sma(trueRanges, period)
+  if (trueRanges.length < period) return result
+  // Wilder's smoothing (the canonical ATR), not a simple moving average:
+  // seed with the SMA of the first `period` true ranges, then
+  // ATR_i = (ATR_{i-1} * (period - 1) + TR_i) / period. Matches adx()/rsi().
+  let prev = trueRanges.slice(0, period).reduce((s, v) => s + v, 0) / period
+  result[period - 1] = prev
+  for (let i = period; i < trueRanges.length; i++) {
+    prev = (prev * (period - 1) + trueRanges[i]) / period
+    result[i] = prev
+  }
+  return result
 }
 
 // ─── OBV (On-Balance Volume) ──────────────────────────────────────────────────
@@ -646,6 +669,7 @@ export function easeOfMovement(candles: OhlcvCandle[], period = 14): (number | n
   const raw = candles.map((c, i) => {
     if (i === 0) return 0
     const midMove = (c.high + c.low) / 2 - (candles[i - 1].high + candles[i - 1].low) / 2
+    if (c.volume === 0) return 0 // avoid boxRatio=0 -> Infinity/NaN poisoning the SMA window
     const boxRatio = c.volume / (c.high - c.low || 1)
     return midMove / boxRatio
   })
@@ -688,7 +712,10 @@ export function massIndex(candles: OhlcvCandle[], fastPeriod = 9, slowPeriod = 2
     if (v1 === null || v2 === null || v2 === 0) return NaN
     return v1 / v2
   })
-  return sma(ratio, slowPeriod).map((v) => (v !== null && !isNaN(v) ? v : null))
+  // Canonical Mass Index is a rolling SUM (not mean) of the EMA ratio over
+  // slowPeriod — the reversal "bulge" threshold (~27) is defined against the
+  // sum. sma()*slowPeriod recovers the sum.
+  return sma(ratio, slowPeriod).map((v) => (v !== null && !isNaN(v) ? v * slowPeriod : null))
 }
 
 // ─── Elder Ray Index ──────────────────────────────────────────────────────────
@@ -733,7 +760,7 @@ export function pivotPoints(candles: OhlcvCandle[]): PivotPoints | null {
 
 export function dema(values: number[], period = 20): (number | null)[] {
   const e1 = ema(values, period)
-  const nonNull1 = e1.map((v) => v ?? 0)
+  const nonNull1 = e1.map((v) => v ?? NaN)
   const e2 = ema(nonNull1, period)
   return e1.map((v1, i) => {
     const v2 = e2[i]
@@ -744,9 +771,9 @@ export function dema(values: number[], period = 20): (number | null)[] {
 
 export function tema(values: number[], period = 20): (number | null)[] {
   const e1 = ema(values, period)
-  const nonNull1 = e1.map((v) => v ?? 0)
+  const nonNull1 = e1.map((v) => v ?? NaN)
   const e2 = ema(nonNull1, period)
-  const nonNull2 = e2.map((v) => v ?? 0)
+  const nonNull2 = e2.map((v) => v ?? NaN)
   const e3 = ema(nonNull2, period)
   return e1.map((v1, i) => {
     const v2 = e2[i]; const v3 = e3[i]
@@ -803,9 +830,11 @@ export function stochasticOscillator(candles: OhlcvCandle[], kPeriod = 14, kSmoo
     const low = Math.min(...slice.map((c) => c.low))
     return high === low ? 50 : ((candles[i].close - low) / (high - low)) * 100
   })
-  const smoothK = sma(rawK.map((v) => v ?? 0), kSmooth)
-  const k = rawK.map((v, i) => v === null ? null : smoothK[i])
-  const d = sma(k.map((v) => v ?? 0), dSmooth).map((v, i) => k[i] === null ? null : v)
+  // Use NaN (not 0) for warm-up nulls so the fabricated values don't leak into
+  // the smoothing window and emit deflated %K/%D too early. Mirrors stochasticRsi.
+  const smoothK = sma(rawK.map((v) => v ?? NaN), kSmooth)
+  const k = smoothK.map((v, i) => (rawK[i] === null || v === null || isNaN(v)) ? null : v)
+  const d = sma(k.map((v) => v ?? NaN), dSmooth).map((v, i) => (k[i] === null || v === null || isNaN(v)) ? null : v)
   return { k, d }
 }
 
@@ -819,7 +848,7 @@ export function ppo(values: number[], fast = 12, slow = 26, signal = 9): { ppo: 
     if (f === null || s === null || s === 0) return null
     return ((f - s) / s) * 100
   })
-  const signalLine = ema(ppoLine.map((v) => v ?? 0), signal).map((v, i) => ppoLine[i] === null ? null : v)
+  const signalLine = ema(ppoLine.map((v) => v ?? NaN), signal).map((v, i) => ppoLine[i] === null ? null : v)
   const histogram = ppoLine.map((v, i) => {
     const s = signalLine[i]
     return v !== null && s !== null ? v - s : null
@@ -856,8 +885,8 @@ export function vortex(candles: OhlcvCandle[], period = 14): VortexResult {
 
 export function tsi(values: number[], longPeriod = 25, shortPeriod = 13): (number | null)[] {
   const pc = values.map((v, i) => i === 0 ? 0 : v - values[i - 1])
-  const smoothPC = ema(ema(pc, longPeriod).map((v) => v ?? 0), shortPeriod)
-  const smoothAPC = ema(ema(pc.map(Math.abs), longPeriod).map((v) => v ?? 0), shortPeriod)
+  const smoothPC = ema(ema(pc, longPeriod).map((v) => v ?? NaN), shortPeriod)
+  const smoothAPC = ema(ema(pc.map(Math.abs), longPeriod).map((v) => v ?? NaN), shortPeriod)
   return smoothPC.map((v, i) => {
     const apc = smoothAPC[i]
     if (v === null || apc === null || apc === 0) return null
@@ -869,15 +898,25 @@ export function tsi(values: number[], longPeriod = 25, shortPeriod = 13): (numbe
 
 export function fisherTransform(candles: OhlcvCandle[], period = 9): (number | null)[] {
   const result: (number | null)[] = new Array(candles.length).fill(null)
+  const value: number[] = new Array(candles.length).fill(0) // Ehlers' intermediate Value1 series
+  let prevFisher = 0
   for (let i = period - 1; i < candles.length; i++) {
     const slice = candles.slice(i - period + 1, i + 1)
     const high = Math.max(...slice.map((c) => c.high))
     const low = Math.min(...slice.map((c) => c.low))
     const range = high - low
-    if (range === 0) continue
-    const raw = 0.33 * 2 * ((candles[i].close - low) / range - 0.5) + 0.67 * (result[i - 1] ?? 0) / 100 * 0.5
-    const clamped = Math.max(-0.999, Math.min(0.999, raw))
-    result[i] = Math.log((1 + clamped) / (1 - clamped)) * 0.5 * 100
+    const norm = range === 0 ? 0 : (candles[i].close - low) / range - 0.5
+    // Ehlers Fisher Transform, two recursive series:
+    //   Value1 = 0.66*norm + 0.67*Value1_prev   (clamped to |v| < 1)
+    //   Fisher = 0.5*ln((1+Value1)/(1-Value1)) + 0.5*Fisher_prev
+    // The previous version fed back the Fisher OUTPUT instead of Value1 and
+    // dropped the 0.5*Fisher_prev smoothing — neither Ehlers nor coherent.
+    let v = 0.66 * norm + 0.67 * value[i - 1]
+    v = Math.max(-0.999, Math.min(0.999, v))
+    value[i] = v
+    const fisher = 0.5 * Math.log((1 + v) / (1 - v)) + 0.5 * prevFisher
+    result[i] = fisher
+    prevFisher = fisher
   }
   return result
 }
@@ -891,7 +930,11 @@ export function coppockCurve(values: number[], wmaLen = 10, roc1 = 14, roc2 = 11
     const v2 = r2[i]
     return v !== null && v2 !== null ? v + v2 : null
   })
-  return wma(combined.map((v) => v ?? 0), wmaLen).map((v, i) => combined[i] === null ? null : v)
+  // Mask the whole WMA window, not just combined[i]: zero-filled warm-up entries
+  // must not leak into the weighted sum. First valid value is at roc1 + wmaLen - 1.
+  return wma(combined.map((v) => v ?? 0), wmaLen).map((v, i) =>
+    combined[i] == null || combined[i - wmaLen + 1] == null ? null : v,
+  )
 }
 
 // ─── Klinger Volume Oscillator ────────────────────────────────────────────────

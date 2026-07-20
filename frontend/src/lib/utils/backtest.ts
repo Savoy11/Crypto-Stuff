@@ -1,6 +1,6 @@
 // Backtester for the Technical Analysis page. Evaluates strategies bar-by-bar
-// over a daily candle series. Pure computation — no look-ahead beyond the
-// current bar's close.
+// over a daily candle series. Pure computation, no look-ahead: a signal formed
+// on bar i's close fills on bar i+1's open (the earliest tradable price).
 
 import { rsi, sma, ema, macd, bollingerBands, type OhlcvCandle } from './indicators'
 
@@ -503,19 +503,25 @@ export function runBacktest(
   let entryIndex = 0
   let entryPrice = 0
 
-  for (let i = 1; i < candles.length; i++) {
+  // A signal is computed on bar i (from indicators through closes[i]), but the
+  // trade fills on the NEXT bar's open — the earliest price actually tradable
+  // once bar i has closed. Filling on closes[i] (same bar) is look-ahead
+  // optimism. Loop stops at length-1 so bar i's signal always has an i+1 to
+  // execute on; a signal on the final bar cannot be acted upon.
+  for (let i = 1; i < candles.length - 1; i++) {
+    const execI = i + 1
     if (!inPosition) {
       const signal = isShort ? strat.exit(ctx, i) : strat.entry(ctx, i)
-      if (signal) { inPosition = true; entryIndex = i; entryPrice = ctx.closes[i] }
+      if (signal) { inPosition = true; entryIndex = execI; entryPrice = candles[execI].open }
     } else {
       const signal = isShort ? strat.entry(ctx, i) : strat.exit(ctx, i)
       if (signal) {
-        const exitPrice = ctx.closes[i]
+        const exitPrice = candles[execI].open
         const gross = isShort
           ? (entryPrice - exitPrice) / entryPrice
           : (exitPrice - entryPrice) / entryPrice
         const net = gross - 2 * feesPct   // pay fee on both legs
-        trades.push({ entryIndex, exitIndex: i, entryPrice, exitPrice, returnPct: net * 100, bars: i - entryIndex })
+        trades.push({ entryIndex, exitIndex: execI, entryPrice, exitPrice, returnPct: net * 100, bars: execI - entryIndex })
         inPosition = false
       }
     }

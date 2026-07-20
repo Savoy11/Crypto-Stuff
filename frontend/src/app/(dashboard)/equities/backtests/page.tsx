@@ -11,6 +11,7 @@ import { MetricCard } from '@/components/ui/MetricCard'
 import { AreaChart } from '@/components/charts/AreaChart'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import { rsi, sma, macd } from '@/lib/utils/indicators'
+import { runEquityBacktest } from '@/lib/utils/equityBacktest'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import type { SecurityOhlcvResponse } from '@/app/live-data/security-ohlcv/route'
@@ -79,92 +80,13 @@ const STRATEGIES: StrategyDef[] = [
   },
 ]
 
-// ─── Backtest engine ──────────────────────────────────────────────────────────
-
-interface Trade {
-  entryTime: number
-  exitTime: number
-  entryPrice: number
-  exitPrice: number
-  returnPct: number
-}
-
-interface BacktestResult {
-  curve: Array<{ t: number; strategy: number; buyHold: number }>
-  totalReturnPct: number
-  buyHoldReturnPct: number
-  cagrPct: number | null
-  maxDrawdownPct: number
-  sharpe: number | null
-  trades: Trade[]
-  winRatePct: number | null
-  exposurePct: number
-}
-
-function runBacktest(
-  times: number[], closes: number[], desired: boolean[], barsPerYear: number
-): BacktestResult {
-  const n = closes.length
-  let equity = 1
-  let buyHold = 1
-  const curve: BacktestResult['curve'] = [{ t: times[0] * 1000, strategy: 100, buyHold: 100 }]
-  const periodReturns: number[] = []
-  const trades: Trade[] = []
-  let peak = 1
-  let maxDrawdown = 0
-  let inBars = 0
-  let entry: { time: number; price: number } | null = null
-
-  for (let i = 1; i < n; i++) {
-    const barReturn = closes[i] / closes[i - 1] - 1
-    // Position for bar i is the signal computed at bar i-1 — no lookahead.
-    const inMarket = desired[i - 1]
-    const stratReturn = inMarket ? barReturn : 0
-    equity *= 1 + stratReturn
-    buyHold *= 1 + barReturn
-    periodReturns.push(stratReturn)
-    if (inMarket) inBars++
-
-    if (inMarket && !entry) entry = { time: times[i - 1], price: closes[i - 1] }
-    if (!desired[i] && entry) {
-      trades.push({
-        entryTime: entry.time, exitTime: times[i],
-        entryPrice: entry.price, exitPrice: closes[i],
-        returnPct: (closes[i] / entry.price - 1) * 100,
-      })
-      entry = null
-    }
-
-    peak = Math.max(peak, equity)
-    maxDrawdown = Math.max(maxDrawdown, (peak - equity) / peak)
-    curve.push({ t: times[i] * 1000, strategy: equity * 100, buyHold: buyHold * 100 })
-  }
-  if (entry) {
-    trades.push({
-      entryTime: entry.time, exitTime: times[n - 1],
-      entryPrice: entry.price, exitPrice: closes[n - 1],
-      returnPct: (closes[n - 1] / entry.price - 1) * 100,
-    })
-  }
-
-  const years = (times[n - 1] - times[0]) / 31_557_600
-  const mean = periodReturns.reduce((s, r) => s + r, 0) / periodReturns.length
-  const variance = periodReturns.reduce((s, r) => s + (r - mean) ** 2, 0) / periodReturns.length
-  const stdev = Math.sqrt(variance)
-  const wins = trades.filter((t) => t.returnPct > 0).length
-
-  return {
-    curve,
-    totalReturnPct: (equity - 1) * 100,
-    buyHoldReturnPct: (buyHold - 1) * 100,
-    cagrPct: years > 0.5 ? (Math.pow(equity, 1 / years) - 1) * 100 : null,
-    maxDrawdownPct: maxDrawdown * 100,
-    sharpe: stdev > 0 ? (mean / stdev) * Math.sqrt(barsPerYear) : null,
-    trades,
-    winRatePct: trades.length > 0 ? (wins / trades.length) * 100 : null,
-    exposurePct: (inBars / (n - 1)) * 100,
-  }
-}
+// Transaction-cost tiers (per side). 0 = the naive frictionless backtest.
+const FEE_TIERS = [
+  { bps: 0,  label: 'No fees' },
+  { bps: 5,  label: '0.05%' },
+  { bps: 10, label: '0.10%' },
+  { bps: 25, label: '0.25%' },
+] as const
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -172,6 +94,7 @@ function EquityBacktestsContent() {
   const [symbol, setSymbol] = useState('AAPL')
   const [period, setPeriod] = useState<Period>('5Y')
   const [strategyId, setStrategyId] = useState('sma-cross')
+  const [feeBps, setFeeBps] = useState<number>(0)
 
   const { data, isLoading } = useQuery<SecurityOhlcvResponse>({
     queryKey: ['security-ohlcv', symbol, period],
@@ -187,8 +110,8 @@ function EquityBacktestsContent() {
     if (candles.length < 50) return null
     const closes = candles.map((c) => c.close)
     const times = candles.map((c) => c.time)
-    return runBacktest(times, closes, strategy.positions(closes), barsPerYear)
-  }, [data, strategy, barsPerYear])
+    return runEquityBacktest(times, closes, strategy.positions(closes), barsPerYear, { feeBps })
+  }, [data, strategy, barsPerYear, feeBps])
 
   const beatMarket = result != null && result.totalReturnPct > result.buyHoldReturnPct
 
@@ -202,7 +125,7 @@ function EquityBacktestsContent() {
         <PageHeader
           title="Strategy Backtests"
           subtitle="Run rules-based strategies against real price history, benchmarked to buy & hold"
-          description="Each strategy is simulated bar-by-bar on actual Yahoo Finance history with no lookahead: the position taken on each bar comes from the signal computed on the previous bar. No transaction costs, slippage, dividends, or taxes are modelled."
+          description="Each strategy is simulated bar-by-bar on actual Yahoo Finance history with no lookahead: the position taken on each bar comes from the signal computed on the previous bar. Apply an optional per-side transaction cost below; slippage, dividends, and taxes are still not modelled."
           details={[
             { label: 'Sharpe ratio', text: 'Mean bar return over its standard deviation, annualized by bar frequency. Above ~1 is good; below 0 means the strategy lost money per unit of risk.' },
             { label: 'Exposure', text: 'Fraction of bars the strategy held the stock — lower exposure with similar return means less time at risk.' },
@@ -215,8 +138,9 @@ function EquityBacktestsContent() {
         <AlertTriangle size={16} className="text-amber-400 flex-shrink-0 mt-0.5" aria-hidden />
         <p className="text-xs text-text-muted leading-relaxed">
           <span className="font-medium text-amber-300">Educational, not investment advice.</span>{' '}
-          Past performance does not predict future results. These simulations ignore trading costs, slippage,
-          dividends, and taxes — real-world results would differ, usually for the worse.
+          Past performance does not predict future results. Even with a transaction cost applied, these
+          simulations still ignore slippage, dividends, and taxes — real-world results would differ, usually
+          for the worse.
         </p>
       </div>
 
@@ -242,6 +166,24 @@ function EquityBacktestsContent() {
               {label}
             </button>
           ))}
+        </div>
+
+        {/* Transaction-cost tier (per side) */}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-wider text-text-muted">Fee / side</span>
+          <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
+            {FEE_TIERS.map(({ bps, label }) => (
+              <button
+                key={bps}
+                onClick={() => setFeeBps(bps)}
+                title="Transaction cost charged once per side (each entry and each exit)"
+                className={clsx('px-2.5 py-1 rounded text-[11px] font-medium transition-colors',
+                  feeBps === bps ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -341,6 +283,7 @@ function EquityBacktestsContent() {
               <div className="px-4 py-3 border-b border-border">
                 <h2 className="text-sm font-medium text-text-secondary">
                   Round Trips <span className="text-text-muted font-normal">(latest {Math.min(result.trades.length, 12)} of {result.trades.length})</span>
+                  {feeBps > 0 && <span className="text-text-muted font-normal"> · P&amp;L below is gross; headline metrics include the {(feeBps / 100).toFixed(2)}%/side fee</span>}
                 </h2>
               </div>
               <div className="grid grid-cols-12 gap-2 px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-text-muted border-b border-border/60">

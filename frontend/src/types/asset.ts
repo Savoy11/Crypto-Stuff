@@ -1,5 +1,8 @@
 export type AssetType = 'stablecoin' | 'tokenized' | 'cbdc' | 'defi' | 'layer1'
-export type RiskBand = 'low' | 'moderate' | 'elevated' | 'high' | 'critical'
+// Single source of truth for the band vocabulary is lib/risk/types.ts. Imported
+// locally (used below) and re-exported so existing `@/types/asset` importers work.
+import type { RiskBand } from '@/lib/risk/types'
+export type { RiskBand }
 export type Blockchain =
   | 'ethereum' | 'solana' | 'polygon' | 'avalanche' | 'tron' | 'bitcoin'
   | 'bnb-chain' | 'cardano' | 'polkadot' | 'ton' | 'bitcoin-cash' | 'litecoin'

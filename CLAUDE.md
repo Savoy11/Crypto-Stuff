@@ -40,7 +40,7 @@ frontend/src/
 │   ├── (dashboard)/                # All main pages (use Sidebar layout)
 │   │   ├── layout.tsx              # Dashboard shell with Sidebar
 │   │   ├── headlines/page.tsx      # Landing page — cross-module aggregate news feed
-│   │   ├── assets/page.tsx         # Asset registry with live prices
+│   │   ├── assets/page.tsx         # Coin Registry ("Coins" nav; route kept /assets) — live prices
 │   │   ├── risk-scores/page.tsx
 │   │   ├── reserves/page.tsx
 │   │   ├── alerts/page.tsx
@@ -105,7 +105,7 @@ frontend/src/
 │   │   └── profiles/               # equity, optionsTrade, stakingAdapter
 │   ├── data/                       # Static/semi-static data files (no API calls)
 │   │   ├── transferFees.ts         # 30 exchanges × 22 coins × 18 networks
-│   │   ├── stakingProviders.ts     # 18 staking providers with risk profiles
+│   │   ├── stakingProviders.ts     # 47 staking providers with risk profiles
 │   │   ├── equityCatalog.ts        # ~70 large-cap stocks, 11 sectors, reference data
 │   │   └── fundCatalog.ts          # ~55 ETFs/mutual funds + computeFeeDrag()
 │   ├── api/                        # API client functions
@@ -208,10 +208,10 @@ Central data file for the Staking Opportunities page.
 - **`RiskProfile`** — 6 dimensions, each 1–10: `custodyRisk`, `counterpartyRisk`, `contractRisk`, `slashingRisk`, `liquidityRisk`, `regulatoryRisk`
 - **`computeOverallRisk(risks)`** — weighted composite score (counterparty 25%, custody 20%, liquidity 20%, contract 15%, slashing 10%, regulatory 10%)
 - **`getRiskLevel(score)`** — returns `'low' | 'medium' | 'high' | 'critical'`
-- **`STAKING_PROVIDERS`** array — 18 providers:
-  - CeFi: Celsius (defunct, cautionary), Coinbase, Kraken, Binance, OKX, Bybit
-  - Wallet: Ledger Live, MetaMask, Phantom, Trust Wallet, Exodus
-  - Liquid: Lido, Rocket Pool, Marinade, Jito, Stride, Benqi, Ankr
+- **`STAKING_PROVIDERS`** array — 47 providers (count is dynamic; the page reads `STAKING_PROVIDERS.length`). Representative names:
+  - CeFi: Celsius (defunct, cautionary), Coinbase, Kraken, Binance, OKX, Bybit, KuCoin, Crypto.com, Bitget, Gate.io, HTX, Robinhood, Nexo
+  - Wallet: Ledger Live, MetaMask, Phantom, Trust Wallet, Exodus, Keplr, Solflare
+  - Liquid/restaking: Lido, Rocket Pool, Marinade, Jito, Stride, Benqi, EtherFi, Frax, Stakewise, Stader, Swell, Renzo, Kelp, Puffer, Bedrock, Sanctum, Babylon, Lombard, Aave, Convex, Ankr, MetaPool, and more
 
 To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius should always be kept — it's used as the educational cautionary example.
 
@@ -298,15 +298,15 @@ Risk/status color convention used across the app:
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
 | Headlines | `/headlines` | 🟢 Live | **Landing page** (`/` and post-login redirect here). Client-side merge of `/live-data/news` (crypto) + `/live-data/market-news` (equities) into a cross-module "Top Stories" strip plus a section per enabled module. Sections follow the entitlement store, so the feed reflects the user's bundle. Funds has no general feed of its own and shares the Markets section. Replaced the old `/dashboard` page; its `components/dashboard/*` widgets are retained but no longer routed (except `RiskHeatmap`, still used by `PopoutContent`). |
-| Asset Registry | `/assets` | 🟢 Live | Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
-| Asset Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-asset news |
+| Coins (Coin Registry) | `/assets` | 🟢 Live | Nav label "Coins"; route path kept as `/assets` to preserve deep links. Market-breadth KPIs, asset-type chips + inline screener, sortable/paginated table (Stock-Registry-standard layout), canonical Safety Score column, Reserve Monitor tab. Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
+| Coin Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-coin news |
 | Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk` |
 | Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`) |
 | Alerts | TopBar bell | 🟢 Live | `/live-data/alerts` — stablecoin depegs + major-asset 24h moves; surfaced in the TopBar bell (no standalone page) |
 | Watchlist | `/watchlist` | 🟢 Live | Cross-module: coins, stocks, ETFs & funds in named lists with live prices |
 | News | `/news` | 🟢 Live | Multi-provider RSS/JSON; sentiment + asset detection |
 | Social | `/social` | 🟡 Partial | `/live-data/social` — verify which signals are live vs derived |
-| Global Adoption | `/global-adoption` | 🟡 Partial | Static country data + live CBDC news feed |
+| Global | `/global-adoption` | ⚪ De-routed | Access removed (T5) pending a post-production rework — a mislabeled CBDC tracker on stale/duplicated static data with a fabricated live timestamp. Page + `/live-data/cbdc-data` route retained; `/global-adoption` redirects to `/headlines`. See `docs/assessments/T5-utility-triage.md`. |
 | Transfer Fee Calc | `/transfer-fees` | 🟡 Partial | Static fee table (`transferFees.ts`) + live token prices; staleness-labeled |
 | Staking | `/staking` | 🟡 Partial | Live stETH/mSOL/jitoSOL APR; other providers reference/estimated |
 | Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
@@ -315,9 +315,9 @@ Risk/status color convention used across the app:
 | Portfolios | `/portfolios` | 🟢 Live | Live prices + portfolio history (`/live-data/portfolio-*`) |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
-| Backtests | `/backtests` | 🔴 Not available | Requires a backtesting backend; not present |
+| Risk Case Studies | `/backtests` | 🟡 Static | Educational replay of 3 real depeg events (UST, USDC-SVB, BUSD) with reconstructed risk-model scores; self-labeled "simulated — not live data". No live pipeline (relabeled from "Backtests"). |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
-| Compare | `/compare` | 🟢 Live | 2–4 stocks/funds, normalized growth-of-100 + stats (`security-chart`) |
+| Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
 

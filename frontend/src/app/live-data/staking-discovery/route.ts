@@ -5,6 +5,8 @@ import {
 } from '@/lib/data/stakingDiscovery'
 import { computeOverallRisk, getRiskLevel } from '@/lib/data/stakingProviders'
 import type { ProviderCategory, RiskProfile } from '@/lib/data/stakingProviders'
+import { scoreStakingProvider } from '@/lib/risk/profiles/stakingAdapter'
+import type { RiskBand } from '@/lib/risk/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,8 +32,17 @@ export interface DiscoveredPool {
   category:        ProviderCategory
   custodyModel:    'custodial' | 'non-custodial' | 'smart-contract'
   risks:           RiskProfile
+  /**
+   * @deprecated LEGACY 1–10 higher-is-RISKIER composite (computeOverallRisk).
+   * Kept one release for existing consumers; migrate to `safetyScore`.
+   */
   riskScore:       number
+  /** @deprecated Legacy band for `riskScore`; migrate to `band`. */
   riskLevel:       ReturnType<typeof getRiskLevel>
+  /** Canonical 0–100 safety score (higher = safer). R2 migration; prefer this. */
+  riskCanonical:   number
+  /** Canonical band for `riskCanonical` (low/moderate/elevated/high/critical). */
+  band:            RiskBand
   hasReceiptToken: boolean
   chainMature:     boolean
   source:          DiscoverySource
@@ -106,6 +117,9 @@ function buildPool(
   })
   const riskScore = computeOverallRisk(risks)
   if (riskScore > maxRisk) return null
+  // Canonical 0–100 higher-is-safer composite via the shared, tested adapter
+  // (same weights as computeOverallRisk, converted at the boundary).
+  const composite = scoreStakingProvider(risks)
   return {
     poolId:          partial.poolId,
     project:         partial.project,
@@ -126,6 +140,8 @@ function buildPool(
     risks,
     riskScore:       parseFloat(riskScore.toFixed(1)),
     riskLevel:       getRiskLevel(riskScore),
+    riskCanonical:   parseFloat(composite.score.toFixed(1)),
+    band:            composite.band,
     hasReceiptToken: receipt,
     chainMature,
     source:          partial.source,

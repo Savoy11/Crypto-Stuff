@@ -282,7 +282,7 @@ function EventCard({ event }: { event: DepegEvent }) {
       {/* Sparkline */}
       <div className="px-5 pt-4 pb-2">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-[10px] font-medium text-text-muted uppercase tracking-wider">Risk Score Timeline</span>
+          <span className="text-[10px] font-medium text-text-muted uppercase tracking-wider">Safety Score Timeline</span>
           <span className="text-[10px] text-text-muted flex items-center gap-1">
             <span className="inline-block size-2 rounded-full bg-amber-400" /> event marker
           </span>
