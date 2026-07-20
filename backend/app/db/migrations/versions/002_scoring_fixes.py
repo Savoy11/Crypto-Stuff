@@ -44,7 +44,11 @@ def upgrade() -> None:
         """
     )
 
-    # Add UNIQUE constraint
+    # Add UNIQUE constraint. 001 now also creates this constraint inline, so
+    # drop-then-add keeps this migration idempotent on both a fresh schema
+    # (001 already made it) and a legacy schema (001 predated it). Matches the
+    # IF EXISTS / IF NOT EXISTS guarding used by every other statement here.
+    op.execute("ALTER TABLE risk_scores DROP CONSTRAINT IF EXISTS uq_risk_score_asset_date")
     op.execute(
         "ALTER TABLE risk_scores "
         "ADD CONSTRAINT uq_risk_score_asset_date UNIQUE (asset_id, score_date)"
