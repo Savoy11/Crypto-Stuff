@@ -115,7 +115,9 @@ export async function GET(req: NextRequest) {
       network:       h.networkId ?? null,
       exchangeFee:   h.exchangeFeeUsd,
       networkFee:    h.networkFeeUsd,
-      totalFeeUsd:   h.exchangeFeeUsd + h.networkFeeUsd,
+      // A CEX withdrawal fee covers the on-chain gas, so summing both on such
+      // a hop double-counts it; hop totals must add up to the route total.
+      totalFeeUsd:   h.gasCoveredByFee ? h.exchangeFeeUsd : h.exchangeFeeUsd + h.networkFeeUsd,
       nativeToken:   h.nativeGasToken,
       networkName:   h.networkId ? (NETWORKS[h.networkId]?.name ?? h.networkId) : null,
       note:          h.note ?? null,

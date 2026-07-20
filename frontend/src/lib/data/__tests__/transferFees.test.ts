@@ -85,4 +85,58 @@ describe('findTransferPaths', () => {
     expect(evmPath, 'expected at least one EVM-network route for ETH').toBeTruthy()
     expect(evmPath!.warnings.some((w) => w.title === 'Address format collision risk')).toBe(true)
   })
+
+  // Regression: both the route-builder UI and the public v1 API accept
+  // "wallet" as a SOURCE; findTransferPaths used to return [] for it, so
+  // wallet-origin legs silently rendered nothing and v1 replied with an empty
+  // routes array for a documented parameter value.
+  it('wallet → exchange yields viable deposit routes: no exchange fee, total = gas, cheapest recommended', () => {
+    const paths = findTransferPaths(PERSONAL_WALLET_ID, 'coinbase', 'usdt', 1000, ALL_FEES, PRICES)
+    expect(paths.length).toBeGreaterThan(0)
+    for (const p of paths) {
+      expect(p.type).toBe('direct')
+      expect(p.exchangeFeeCoin).toBe(0)
+      expect(p.exchangeFeeUsd).toBe(0)
+      // The sender pays gas from their own wallet — it IS the total cost.
+      expect(p.totalFeeUsd).toBeCloseTo(p.networkFeeUsd, 9)
+      expect(p.isViable).toBe(true)
+      expect(p.hops[0].gasCoveredByFee).toBe(false)
+      expect(p.warnings.some((w) => w.title === 'Gas paid from your wallet')).toBe(true)
+      // No exchange minimum applies to an on-chain deposit.
+      expect(p.warnings.some((w) => w.title === 'Below minimum withdrawal')).toBe(false)
+    }
+    for (let i = 1; i < paths.length; i++) expect(paths[i].totalFeeUsd).toBeGreaterThanOrEqual(paths[i - 1].totalFeeUsd)
+    const recommended = paths.filter((p) => p.isRecommended)
+    expect(recommended).toHaveLength(1)
+    expect(recommended[0]).toBe(paths[0])
+  })
+
+  it('wallet → exchange that does not list the coin returns an explanatory no-path', () => {
+    // Hyperliquid only supports USDC — BTC from a wallet has no destination.
+    const paths = findTransferPaths(PERSONAL_WALLET_ID, 'hyperliquid', 'btc', 1, ALL_FEES, PRICES)
+    expect(paths).toHaveLength(1)
+    expect(paths[0].type).toBe('no-path')
+    expect(paths[0].isViable).toBe(false)
+  })
+
+  // The hop-level invariant the v1 API payload relies on: a hop's true cost is
+  // exchangeFeeUsd when its gas is covered by the withdrawal fee, otherwise
+  // exchangeFeeUsd + networkFeeUsd — and those must sum to the path total.
+  it('per-hop costs (respecting gasCoveredByFee) sum exactly to the path total', () => {
+    const scenarios: Array<[string, string]> = [
+      ['binance', 'coinbase'],
+      ['binance', PERSONAL_WALLET_ID],
+      [PERSONAL_WALLET_ID, 'kraken'],
+    ]
+    for (const [from, to] of scenarios) {
+      for (const p of findTransferPaths(from, to, 'usdt', 1000, ALL_FEES, PRICES)) {
+        if (p.type === 'no-path') continue
+        const hopSum = p.hops.reduce(
+          (s, h) => s + (h.gasCoveredByFee ? h.exchangeFeeUsd : h.exchangeFeeUsd + h.networkFeeUsd),
+          0,
+        )
+        expect(hopSum, `${from}→${to} ${p.id}`).toBeCloseTo(p.totalFeeUsd, 9)
+      }
+    }
+  })
 })

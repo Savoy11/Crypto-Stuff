@@ -20,6 +20,21 @@ import {
 } from '@/lib/data/transferFees'
 import type { NetworkFeesResponse } from '@/app/live-data/network-fees/route'
 import type { CoinListResponse, CoinListEntry } from '@/lib/types/coinList'
+import { NETWORK_GAS, FALLBACK_PRICES } from '@/lib/data/networkFees'
+
+// Static last-resort fee/price maps so the calculator still works (honestly
+// labeled as estimates) when /live-data/network-fees is unreachable. Without
+// these, an empty fee map made every route report "No compatible network
+// found" while the status bar claimed static estimates were in use.
+const STATIC_FEES: NetworkFeeMap = Object.fromEntries(
+  Object.entries(NETWORK_GAS).map(([id, g]) => [id, {
+    feeNative: g.native,
+    feeUsd: parseFloat((g.native * (FALLBACK_PRICES[g.priceKey] ?? 1)).toFixed(4)),
+    nativeToken: g.token,
+    source: 'estimate' as const,
+  }]),
+) as NetworkFeeMap
+const STATIC_PRICES: CoinPriceMap = { ...FALLBACK_PRICES }
 
 // ─── Data fetching ─────────────────────────────────────────────────────────────
 
@@ -110,7 +125,12 @@ function HopRow({ hop, coinId, coinPrices }: {
         <div>
           <p className="text-slate-500 mb-0.5">Network gas</p>
           <p className="text-slate-200 font-mono">{hop.networkFee.toFixed(6)} {hop.nativeGasToken}</p>
-          <p className="text-slate-500">${hop.networkFeeUsd.toFixed(2)}</p>
+          <p className="text-slate-500">
+            ${hop.networkFeeUsd.toFixed(2)}
+            {hop.gasCoveredByFee
+              ? <span className="text-emerald-500/80"> · covered by fee</span>
+              : <span className="text-amber-400/80"> · paid from wallet</span>}
+          </p>
         </div>
         <div>
           <p className="text-slate-500 mb-0.5">Deposit fee</p>
@@ -240,6 +260,9 @@ function PathCard({ path, coinId, amount, coinPrices }: {
               <div>
                 <p className="text-[10px] text-slate-500 mb-0.5">Network gas</p>
                 <p className="text-xs font-mono font-bold text-slate-200">${path.networkFeeUsd.toFixed(2)}</p>
+                <p className="text-[10px] text-slate-500">
+                  {path.hops.every(h => h.gasCoveredByFee) ? 'included in withdrawal fee' : 'paid from your wallet'}
+                </p>
               </div>
               <div>
                 <p className="text-[10px] text-slate-500 mb-0.5">Total cost</p>
@@ -410,8 +433,8 @@ export default function TransferFeesPage() {
     return () => { cancelled = true }
   }, [])
 
-  const networkFees = useMemo<NetworkFeeMap>(() => data?.networkFees ?? {}, [data])
-  const coinPrices  = useMemo<CoinPriceMap>(() => data?.coinPrices  ?? {}, [data])
+  const networkFees = useMemo<NetworkFeeMap>(() => data?.networkFees ?? STATIC_FEES, [data])
+  const coinPrices  = useMemo<CoinPriceMap>(() => data?.coinPrices  ?? STATIC_PRICES, [data])
 
   // Determine if selected coin has fee data in our database
   const isSupportedCoin = SUPPORTED_SYMBOLS.has(coinId.toUpperCase())
@@ -434,11 +457,15 @@ export default function TransferFeesPage() {
     })
   }, [isSupportedCoin, stops, coinId, numAmount, networkFees, coinPrices])
 
-  // Cumulative cost: best viable path from each leg
+  // Cumulative cost: best viable path from each leg. Legs with no viable path
+  // contribute nothing — count them so the total isn't presented as complete.
   const cumulativeBestFee = segmentPaths.reduce((acc, segPaths) => {
     const best = segPaths.find(p => p.isViable && p.type !== 'no-path')
     return acc + (best?.totalFeeUsd ?? 0)
   }, 0)
+  const legsWithoutViablePath = segmentPaths.filter(
+    segPaths => !segPaths.some(p => p.isViable && p.type !== 'no-path')
+  ).length
 
   const hasAdjacentDuplicate = stops.some((s, i) => i > 0 && s === stops[i - 1])
 
@@ -764,9 +791,14 @@ export default function TransferFeesPage() {
                   <span className="text-xs text-blue-300 font-medium flex items-center gap-1.5">
                     <Zap size={11} />
                     {stops.length - 1}-leg route · cumulative best cost
+                    {legsWithoutViablePath > 0 && (
+                      <span className="text-amber-400 font-normal">
+                        · incomplete — {legsWithoutViablePath} leg{legsWithoutViablePath > 1 ? 's have' : ' has'} no viable route
+                      </span>
+                    )}
                   </span>
-                  <span className="font-mono text-sm font-bold text-blue-400">
-                    ${cumulativeBestFee.toFixed(2)}
+                  <span className={clsx('font-mono text-sm font-bold', legsWithoutViablePath > 0 ? 'text-amber-400' : 'text-blue-400')}>
+                    {legsWithoutViablePath > 0 ? `≥ $${cumulativeBestFee.toFixed(2)}` : `$${cumulativeBestFee.toFixed(2)}`}
                   </span>
                 </div>
               )}
