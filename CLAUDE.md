@@ -40,7 +40,7 @@ frontend/src/
 │   ├── (dashboard)/                # All main pages (use Sidebar layout)
 │   │   ├── layout.tsx              # Dashboard shell with Sidebar
 │   │   ├── headlines/page.tsx      # Landing page — cross-module aggregate news feed
-│   │   ├── assets/page.tsx         # Asset registry with live prices
+│   │   ├── assets/page.tsx         # Coin Registry ("Coins" nav; route kept /assets) — live prices
 │   │   ├── risk-scores/page.tsx
 │   │   ├── reserves/page.tsx
 │   │   ├── alerts/page.tsx
@@ -298,8 +298,8 @@ Risk/status color convention used across the app:
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
 | Headlines | `/headlines` | 🟢 Live | **Landing page** (`/` and post-login redirect here). Client-side merge of `/live-data/news` (crypto) + `/live-data/market-news` (equities) into a cross-module "Top Stories" strip plus a section per enabled module. Sections follow the entitlement store, so the feed reflects the user's bundle. Funds has no general feed of its own and shares the Markets section. Replaced the old `/dashboard` page; its `components/dashboard/*` widgets are retained but no longer routed (except `RiskHeatmap`, still used by `PopoutContent`). |
-| Asset Registry | `/assets` | 🟢 Live | Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
-| Asset Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-asset news |
+| Coins (Coin Registry) | `/assets` | 🟢 Live | Nav label "Coins"; route path kept as `/assets` to preserve deep links. Market-breadth KPIs, asset-type chips + inline screener, sortable/paginated table (Stock-Registry-standard layout), canonical Safety Score column, Reserve Monitor tab. Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
+| Coin Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-coin news |
 | Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk` |
 | Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`) |
 | Alerts | TopBar bell | 🟢 Live | `/live-data/alerts` — stablecoin depegs + major-asset 24h moves; surfaced in the TopBar bell (no standalone page) |

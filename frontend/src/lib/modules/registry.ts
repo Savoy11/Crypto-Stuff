@@ -86,7 +86,7 @@ export const MODULES: SuiteModule[] = [
     ],
     optional: true,
     navItems: [
-      { href: '/assets', label: 'Assets', icon: Database },
+      { href: '/assets', label: 'Coins', icon: Database },
       { href: '/news', label: 'News', icon: Newspaper },
       { href: '/social', label: 'Social', icon: MessageSquare },
       { href: '/wallets', label: 'Wallets', icon: Wallet },
