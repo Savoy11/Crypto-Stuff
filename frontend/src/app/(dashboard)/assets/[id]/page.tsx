@@ -37,7 +37,8 @@ const EMBED_CHART_TYPES: { type: ChartType; label: string; desc: string; Icon: L
   { type: 'baseline',    label: 'Baseline',      desc: 'Green/red vs. first period close',          Icon: Layers },
 ]
 import { clsx } from 'clsx'
-import { useAsset } from '@/hooks/useAssets'
+import { useAsset, useRiskScoreIndex } from '@/hooks/useAssets'
+import { applyRiskComposite } from '@/lib/api/live/riskScores'
 import { PegDeviationChart } from '@/components/analytics/PegDeviationChart'
 import { ReserveComposition } from '@/components/analytics/ReserveComposition'
 import { ScoreBreakdown } from '@/components/analytics/ScoreBreakdown'
@@ -1216,7 +1217,12 @@ export default function AssetDetailPage() {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
 
-  const { data: asset, isLoading, isError, refetch } = useAsset(params.id)
+  const { data: rawAsset, isLoading, isError, refetch } = useAsset(params.id)
+  // R2 Phase 2: join the live risk composite so the gauge below reads a real
+  // score instead of N/A. Unscored assets stay null. (Same-page live composite
+  // panel and this gauge now draw from one source — resolving the old contradiction.)
+  const { data: riskIndex } = useRiskScoreIndex()
+  const asset = rawAsset && riskIndex ? applyRiskComposite(rawAsset, riskIndex) : rawAsset
 
   if (isLoading) {
     return (

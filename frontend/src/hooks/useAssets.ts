@@ -4,6 +4,7 @@ import { assetsApi, type GetAssetsParams } from '@/lib/api/assets'
 import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import { STALE_TIME_SHORT, STALE_TIME_MEDIUM, GC_TIME } from '@/lib/constants'
+import { fetchRiskScoreIndex, RISK_SCORES_QUERY_KEY, applyRiskComposite } from '@/lib/api/live/riskScores'
 import type { Asset, AssetType } from '@/types/asset'
 
 export const ASSET_KEYS = {
@@ -40,6 +41,19 @@ export function useWatchlist() {
   return useQuery({
     queryKey: ASSET_KEYS.watchlist(),
     queryFn: () => assetsApi.getWatchlist(),
+    staleTime: STALE_TIME_MEDIUM,
+    gcTime: GC_TIME,
+  })
+}
+
+/**
+ * The live risk composite for every scored asset, indexed by id. Shared query
+ * key so registry / detail / heatmap dedupe to a single request (R2 Phase 2).
+ */
+export function useRiskScoreIndex() {
+  return useQuery({
+    queryKey: RISK_SCORES_QUERY_KEY,
+    queryFn: fetchRiskScoreIndex,
     staleTime: STALE_TIME_MEDIUM,
     gcTime: GC_TIME,
   })
@@ -123,6 +137,7 @@ export function useAssetsWithStore() {
   }
 
   const mainQuery = useAssets(params)
+  const riskIndexQuery = useRiskScoreIndex()
 
   // Convert discovered coins and filter them by the active search term.
   // Other filters (assetType, riskBand, etc.) are intentionally skipped — the
@@ -153,5 +168,14 @@ export function useAssetsWithStore() {
     }
   }, [mainQuery.data, addedCoins, filters.search])
 
-  return { ...mainQuery, data: mergedData }
+  // R2 Phase 2: join the live risk composite onto each asset. Unscored assets
+  // keep riskScore/riskBand null → "N/A" (never fabricated). See riskScores.ts.
+  const enrichedData = useMemo(() => {
+    if (!mergedData) return mergedData
+    const idx = riskIndexQuery.data
+    if (!idx || idx.size === 0) return mergedData
+    return { ...mergedData, data: mergedData.data.map((a) => applyRiskComposite(a, idx)) }
+  }, [mergedData, riskIndexQuery.data])
+
+  return { ...mainQuery, data: enrichedData }
 }
