@@ -192,8 +192,8 @@ export default function RiskScoresPage() {
       <div className="flex items-center gap-3">
         <Shield className="h-6 w-6 text-accent-blue flex-shrink-0" aria-hidden />
         <PageHeader
-          title="Risk Score Leaderboard"
-          subtitle="Composite risk computed live — weighted pillars, fatal-flaw overrides, full audit trail"
+          title="Safety Score Leaderboard"
+          subtitle="Composite safety (0–100, higher = safer) computed live — weighted pillars, fatal-flaw overrides, full audit trail"
           description="Every score is composed from observable data: DefiLlama reserves and peg mechanisms, a batched CoinGecko market snapshot (7-day sparkline volatility, liquidity, scale), curated issuer disclosures, and CAEP's news sentiment pipeline. Scores run 0–100 — higher is safer. Stablecoins additionally pass through a fatal-flaw override: when Reserve, Structure, or Peg falls below its critical threshold, the composite is slashed multiplicatively, because a collapsing reserve cannot be averaged away by good sentiment."
           details={[
             { label: 'Score bands', text: 'Low risk (80–100) · Moderate (60–79) · Elevated (40–59) · High (20–39) · Critical (0–19).' },
@@ -264,7 +264,7 @@ export default function RiskScoresPage() {
       <p className="text-[11px] text-text-muted text-center">
         Sources: DefiLlama {data?.sources.defillama ? '✓' : '✗'} · CoinGecko {data?.sources.coingecko ? '✓' : '✗'} · News pipeline {data?.sources.news ? '✓' : '✗'}
         {' '}· curated issuer disclosures as of {data?.metaAsOf ?? '—'} · profiles v{data?.profileVersions.stablecoin ?? '—'} / v{data?.profileVersions.cryptoAsset ?? '—'}
-        {' '}· risk scores are analytics, not investment advice
+        {' '}· safety scores are analytics, not investment advice
       </p>
     </div>
   )

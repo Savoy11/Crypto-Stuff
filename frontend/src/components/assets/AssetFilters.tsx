@@ -160,7 +160,7 @@ export function AssetFilters() {
         </div>
       </FilterGroup>
 
-      <FilterGroup label="Risk Score Range">
+      <FilterGroup label="Safety Score Range">
         <div className="space-y-3">
           <div>
             <div className="flex justify-between text-[10px] text-text-muted mb-1">
@@ -174,7 +174,7 @@ export function AssetFilters() {
               value={filters.minRiskScore}
               onChange={(e) => setFilters({ minRiskScore: Number(e.target.value) })}
               className="w-full accent-accent-blue"
-              aria-label="Minimum risk score"
+              aria-label="Minimum safety score"
             />
             <input
               type="range"
@@ -183,7 +183,7 @@ export function AssetFilters() {
               value={filters.maxRiskScore}
               onChange={(e) => setFilters({ maxRiskScore: Number(e.target.value) })}
               className="w-full accent-accent-blue"
-              aria-label="Maximum risk score"
+              aria-label="Maximum safety score"
             />
           </div>
         </div>

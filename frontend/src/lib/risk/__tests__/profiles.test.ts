@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeOverallRisk, type RiskProfile } from '../../data/stakingProviders'
+import { computeOverallRisk, mergedRisks, type RiskProfile } from '../../data/stakingProviders'
 import { scoreEquity } from '../profiles/equity'
 import {
   isNetShortPremium,
@@ -206,5 +206,29 @@ describe('scoreStakingProvider', () => {
 
   it('puts a Celsius-like provider in the critical band', () => {
     expect(scoreStakingProvider(celsiusLike).band).toBe('critical')
+  })
+
+  // R2 Phase 3.5 — the staking-discovery and public-API routes score
+  // mergedRisks(provider.risks, asset.assetRisks). Confirm asset-level overrides
+  // flow through the adapter and preserve legacy ordering on the canonical scale.
+  it('preserves ordering through mergedRisks asset overrides', () => {
+    // An asset override that WORSENS liquidity must lower the canonical safety.
+    const worseLiquidity = mergedRisks(lidoLike, { liquidityRisk: 9 })
+    const base = scoreStakingProvider(lidoLike)
+    const overridden = scoreStakingProvider(worseLiquidity)
+    // Legacy composite rises (riskier); canonical safety must fall.
+    expect(computeOverallRisk(worseLiquidity)).toBeGreaterThan(computeOverallRisk(lidoLike))
+    expect(overridden.score).toBeLessThan(base.score)
+    // And the override still maps exactly onto the linear legacy weighting.
+    const legacy = computeOverallRisk(worseLiquidity)
+    expect(overridden.score).toBeCloseTo(((10 - legacy) / 9) * 100, 1)
+  })
+
+  it('mergedRisks with no overrides is identical to the base profile', () => {
+    expect(mergedRisks(lidoLike, undefined)).toEqual(lidoLike)
+    expect(scoreStakingProvider(mergedRisks(lidoLike, {})).score).toBeCloseTo(
+      scoreStakingProvider(lidoLike).score,
+      5,
+    )
   })
 })

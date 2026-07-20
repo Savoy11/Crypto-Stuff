@@ -480,7 +480,7 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
         <div className="flex items-center gap-6 flex-shrink-0">
           {/* Risk score */}
           <div className="flex flex-col items-center gap-1">
-            <div className="text-[10px] text-text-muted uppercase tracking-wide">Risk Score</div>
+            <div className="text-[10px] text-text-muted uppercase tracking-wide">Safety Score</div>
             <div
               className="font-mono font-extrabold text-5xl tabular-nums"
               style={{ color: getScoreColor(asset.riskScore ?? 0) }}
@@ -647,7 +647,7 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
         <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Composite Risk</h3>
         <div className="rounded-card border border-border bg-bg-card p-8 text-center">
           <Shield size={24} className="mx-auto text-text-muted" aria-hidden />
-          <p className="mt-3 text-sm font-medium text-text-secondary">Risk score not available for this asset</p>
+          <p className="mt-3 text-sm font-medium text-text-secondary">Safety score not available for this asset</p>
           <p className="mt-1 text-xs text-text-muted max-w-md mx-auto">
             {data && !data.ok
               ? 'Market data sources (DefiLlama / CoinGecko) are unreachable right now — no scores were computed rather than showing stale or fabricated values.'

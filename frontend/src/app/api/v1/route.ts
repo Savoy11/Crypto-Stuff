@@ -15,7 +15,7 @@ export async function GET() {
       { method: 'GET', path: '/api/v1/exchanges',                description: 'List all supported exchanges with coins and networks', params: ['tier (1|2)'] },
       { method: 'GET', path: '/api/v1/network-fees',             description: 'Current gas/network fees for all 16 supported blockchains', params: [] },
       { method: 'GET', path: '/api/v1/transfer/routes',          description: 'Find cheapest transfer routes between two exchanges for a coin', params: ['from (required)', 'to (required)', 'coin (required)', 'amount (default: coin default)'] },
-      { method: 'GET', path: '/api/v1/staking/opportunities',    description: 'Staking options for a coin with APY, lock-up, and risk scores', params: ['coin', 'category (cefi|wallet|liquid)', 'max_risk (1-10)'] },
+      { method: 'GET', path: '/api/v1/staking/opportunities',    description: 'Staking options for a coin with APY, lock-up, and a safetyScore (0–100, higher = safer)', params: ['coin', 'category (cefi|wallet|liquid)', 'min_safety (0-100 floor)', 'max_risk (1-10, deprecated)'] },
       { method: 'GET', path: '/api/v1/news',                     description: 'Recent news articles for a coin with sentiment analysis', params: ['coin', 'limit (default: 20)', 'sentiment (positive|negative|neutral)'] },
     ],
     supported_coins: ['btc','eth','usdt','usdc','bnb','sol','dai','xrp','ltc','trx','doge','matic','avax','ada','dot','atom'],

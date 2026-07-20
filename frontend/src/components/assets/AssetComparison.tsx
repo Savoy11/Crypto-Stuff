@@ -19,7 +19,7 @@ const METRIC_ROWS: {
   sortDir?: 'asc' | 'desc' // which direction is "better"
 }[] = [
   {
-    label: 'Risk Score',
+    label: 'Safety Score',
     accessor: (a) => a.riskScore,
     format: (_, a) => <RiskScoreBadge score={a.riskScore} band={a.riskBand} />,
     sortDir: 'desc',

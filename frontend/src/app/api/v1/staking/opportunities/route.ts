@@ -5,6 +5,7 @@ import {
   resolveYieldType, YIELD_TYPE_META,
   type StakingCoinId, type ProviderCategory,
 } from '@/lib/data/stakingProviders'
+import { scoreStakingProvider } from '@/lib/risk/profiles/stakingAdapter'
 
 export const dynamic = 'force-dynamic'
 export { options as OPTIONS }
@@ -53,6 +54,18 @@ export async function GET(req: NextRequest) {
   // i.e. exclude governance-token and lending yield. Set to 'true' to include them.
   const includeAdjacent = searchParams.get('include_adjacent') === 'true'
   const maxRisk       = parseFloat(searchParams.get('max_risk') ?? '10')
+  // Canonical-scale FLOOR on safety (0–100 higher = safer): when set, only
+  // opportunities scoring AT OR ABOVE it are returned. Additive to `max_risk`,
+  // which is left byte-identical in meaning (1–10 higher = riskier). See R2 §5.3.
+  //
+  // NOTE: the spec (§5.3 Phase 5a) drafted this as `max_safety`, but a *floor*
+  // named `max_*` re-creates the exact inverted-filter footgun §5.3 exists to
+  // prevent (an agent reading "max" as a ceiling gets the opposite result,
+  // silently, with a 200). It is named `min_safety` here for that reason; the
+  // legacy `max_safety` spelling is accepted as an alias so no drafted client
+  // breaks, but both mean the same floor.
+  const minSafetyRaw  = searchParams.get('min_safety') ?? searchParams.get('max_safety')
+  const minSafety     = minSafetyRaw != null ? parseFloat(minSafetyRaw) : null
   const includeDefunct = searchParams.get('include_defunct') === 'true'
 
   const liveRates = await fetchLiveRates()
@@ -83,6 +96,11 @@ export async function GET(req: NextRequest) {
       const riskScore = computeOverallRisk(effectiveRisks)
       if (riskScore > maxRisk) continue
 
+      // Canonical 0–100 higher-is-safer composite via the shared, tested adapter.
+      const composite = scoreStakingProvider(effectiveRisks)
+      const safetyScore = parseFloat(composite.score.toFixed(1))
+      if (minSafety != null && safetyScore < minSafety) continue
+
       const liveApr = asset.liveAprKey ? liveRates[asset.liveAprKey] : undefined
       const apr     = liveApr ?? asset.staticApr
       const aprSource: 'live' | 'estimate' = liveApr != null ? 'live' : 'estimate'
@@ -105,6 +123,12 @@ export async function GET(req: NextRequest) {
         receiptToken:    asset.receiptToken ?? null,
         minStakeNative:  asset.minStakeNative,
         custodyModel:    provider.custodyModel,
+        // Canonical 0–100 higher-is-safer score + 5-level band (R2 §5.3 Phase 5a).
+        // Prefer these; the legacy trio below is retained on its own scale.
+        safetyScore,
+        band:            composite.band,
+        // @deprecated LEGACY 1–10 higher-is-RISKIER + 4-level vocabulary. Kept
+        // byte-identical for existing consumers; migrate to safetyScore/band.
         riskScore:       parseFloat(riskScore.toFixed(2)),
         riskLevel:       getRiskLevel(riskScore),
         riskBreakdown: {
@@ -141,8 +165,8 @@ export async function GET(req: NextRequest) {
     opportunities,
     total: opportunities.length,
     yieldTypeCounts,
-    filters: { coin: coinParam ?? 'all', category: categoryParam ?? 'all', yieldType: yieldTypeParam ?? 'all', includeAdjacent, maxRisk, includeDefunct },
-    note: 'Each opportunity carries a yieldType (native, liquid, cefi, restaking, governance, lending). By default only products that actually stake the queried coin are returned; governance-token staking and lending yield are excluded unless include_adjacent=true or yield_type is set explicitly. riskScore is a composite 1–10 score (10 = highest risk). Defunct providers (e.g. Celsius) are excluded by default — use include_defunct=true.',
+    filters: { coin: coinParam ?? 'all', category: categoryParam ?? 'all', yieldType: yieldTypeParam ?? 'all', includeAdjacent, maxRisk, minSafety, includeDefunct },
+    note: 'Each opportunity carries a yieldType (native, liquid, cefi, restaking, governance, lending). By default only products that actually stake the queried coin are returned; governance-token staking and lending yield are excluded unless include_adjacent=true or yield_type is set explicitly. SCORING: prefer safetyScore (0–100, HIGHER = SAFER) with its 5-level band (low/moderate/elevated/high/critical); filter it with min_safety (a 0–100 floor). The legacy riskScore (1–10, HIGHER = RISKIER) with its riskLevel and the max_risk filter remain unchanged for existing consumers but are deprecated. Defunct providers (e.g. Celsius) are excluded by default — use include_defunct=true.',
     updatedAt: new Date().toISOString(),
   }, { headers: CORS })
 }
