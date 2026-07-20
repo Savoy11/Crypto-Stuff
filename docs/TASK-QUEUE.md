@@ -385,6 +385,18 @@ returns no data, that omit the live-only constraint (CAEP has no mock data path 
 must say "not available" rather than invent a number), and that do not establish the agent's
 market scope.
 
+RUN `npm run audit` FIRST, before judging any agent's output. The T1 audit classifies every
+live-data route REAL / FALLBACK / UNCONFIGURED / EMPTY / FAIL, and agent tools read those same
+routes. An agent giving vague answers because its tool sits on a FALLBACK route is a data
+problem, not a prompt problem — do not tune a prompt to compensate for a degraded feed.
+
+Note T1 changed what several agent tools now return: stock-social went from 0 to 45 signals
+(Reddit was a permanent no-op), staking rates are corrected (jitoSOL was overstated 41%), and
+wallet/eth no longer 502s on Ethereum and Polygon. Any prior impression of these agents predates
+those fixes. Known still-degraded: stock-universe and stock-outliers serve a 79-name curated
+catalog because FMP's screener is paid-only, so the equity-screener agent finds outliers within
+a hand-picked set — judge its prompt against what it can actually see.
+
 Verify each agent's tools actually work — toolsForAgent(toolset) should give each agent only
 its market's tools, and every tool should hit a route that returns real data. Note that
 web_search is Anthropic-only and that agents on other providers silently lose it; confirm the
