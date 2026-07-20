@@ -82,7 +82,7 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: [
       '/assets', '/news', '/social', '/wallets',
       '/transfer-fees', '/staking', '/staking-discovery', '/coin-discovery',
-      '/technical-analysis', '/backtests', '/risk-scores', '/reserves',
+      '/technical-analysis', '/risk-scores', '/reserves',
     ],
     optional: true,
     navItems: [
@@ -95,7 +95,6 @@ export const MODULES: SuiteModule[] = [
       { href: '/staking-discovery', label: 'Staking Discovery', icon: TrendingUp },
       { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
       { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
-      { href: '/backtests', label: 'Risk Case Studies', icon: FlaskConical },
     ],
   },
   {

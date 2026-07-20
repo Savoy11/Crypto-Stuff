@@ -315,7 +315,7 @@ Risk/status color convention used across the app:
 | Portfolios | `/portfolios` | 🟢 Live | Live prices + portfolio history (`/live-data/portfolio-*`) |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
-| Risk Case Studies | `/backtests` | 🟡 Static | Educational replay of 3 real depeg events (UST, USDC-SVB, BUSD) with reconstructed risk-model scores; self-labeled "simulated — not live data". No live pipeline (relabeled from "Backtests"). |
+| Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands |

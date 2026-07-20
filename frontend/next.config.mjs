@@ -22,6 +22,9 @@ const nextConfig = {
       // /live-data/cbdc-data route are intentionally LEFT IN PLACE — this only
       // removes user access. Delete this entry to re-enable the page.
       { source: '/global-adoption', destination: '/headlines', permanent: false },
+      // Risk Case Studies removed (2026-07): static educational replay with no
+      // clear user value — page deleted, deep links land on Headlines.
+      { source: '/backtests', destination: '/headlines', permanent: false },
     ]
   },
   async headers() {
