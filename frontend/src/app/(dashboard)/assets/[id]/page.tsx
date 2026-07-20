@@ -616,7 +616,7 @@ function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
 }
 
 // ─── Live composite risk panel ────────────────────────────────────────────────
-// Wired to the same engine as the Risk Scores leaderboard: stablecoins get the
+// Wired to the same engine as the Safety Score leaderboard: stablecoins get the
 // 5-pillar Reserve/Peg/Structure/Adoption/News profile (with fatal-flaw
 // slashing); every other asset gets Volatility/Liquidity/Scale/Trend/News.
 

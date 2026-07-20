@@ -4,7 +4,7 @@ import { assetsApi, type GetAssetsParams } from '@/lib/api/assets'
 import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import { STALE_TIME_SHORT, STALE_TIME_MEDIUM, GC_TIME } from '@/lib/constants'
-import { fetchRiskScoreIndex, RISK_SCORES_QUERY_KEY, applyRiskComposite } from '@/lib/api/live/riskScores'
+import { fetchRiskScoreIndex, RISK_SCORES_QUERY_KEY, applyRiskComposite, type RiskScoreIndex } from '@/lib/api/live/riskScores'
 import type { Asset, AssetType } from '@/types/asset'
 
 export const ASSET_KEYS = {
@@ -17,10 +17,16 @@ export const ASSET_KEYS = {
   search: (q: string) => [...ASSET_KEYS.all, 'search', q] as const,
 }
 
-export function useAssets(params: GetAssetsParams = {}) {
+/**
+ * List assets. When a risk index is supplied it is joined onto assets BEFORE
+ * filtering/sorting/pagination (see assetsApi.getAssets) so the Safety Score
+ * filters and sort operate on real scores. `riskIndexVersion` must change when
+ * the index does (use the index query's dataUpdatedAt) so results recompute.
+ */
+export function useAssets(params: GetAssetsParams = {}, riskIndex?: RiskScoreIndex, riskIndexVersion = 0) {
   return useQuery({
-    queryKey: ASSET_KEYS.list(params),
-    queryFn: () => assetsApi.getAssets(params),
+    queryKey: [...ASSET_KEYS.list(params), riskIndexVersion],
+    queryFn: () => assetsApi.getAssets(params, riskIndex),
     staleTime: STALE_TIME_SHORT,
     gcTime: GC_TIME,
     placeholderData: (prev) => prev,
@@ -136,8 +142,11 @@ export function useAssetsWithStore() {
     pageSize,
   }
 
-  const mainQuery = useAssets(params)
   const riskIndexQuery = useRiskScoreIndex()
+  // Pass the live composite into the list query so risk filters/sort see real
+  // scores (enrich-before-filter). dataUpdatedAt keys the recompute when the
+  // index lands or refreshes.
+  const mainQuery = useAssets(params, riskIndexQuery.data, riskIndexQuery.dataUpdatedAt)
 
   // Convert discovered coins and filter them by the active search term.
   // Other filters (assetType, riskBand, etc.) are intentionally skipped — the
@@ -168,8 +177,10 @@ export function useAssetsWithStore() {
     }
   }, [mainQuery.data, addedCoins, filters.search])
 
-  // R2 Phase 2: join the live risk composite onto each asset. Unscored assets
-  // keep riskScore/riskBand null → "N/A" (never fabricated). See riskScores.ts.
+  // R2 Phase 2: the registry rows arrive already enriched (getAssets joins the
+  // composite pre-filter). This second join only matters for discovery-store
+  // coins merged in above; it is idempotent for everything else. Unscored
+  // assets keep riskScore/riskBand null → "N/A" (never fabricated).
   const enrichedData = useMemo(() => {
     if (!mergedData) return mergedData
     const idx = riskIndexQuery.data

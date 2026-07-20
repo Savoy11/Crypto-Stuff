@@ -61,7 +61,7 @@ function MarketOverviewPopout() {
 
   const items = [
     { label: 'Assets Monitored', value: overview?.totalAssets?.toString() ?? '—' },
-    { label: 'Avg Risk Score', value: overview?.avgRiskScore != null ? formatScore(overview.avgRiskScore) : NA_LABEL },
+    { label: 'Avg Safety Score', value: overview?.avgRiskScore != null ? formatScore(overview.avgRiskScore) : NA_LABEL },
     { label: 'High / Critical', value: overview?.criticalHighCount?.toString() ?? NA_LABEL },
     { label: 'Active Alerts', value: alertStats?.unread?.toString() ?? '—' },
     { label: 'Total Market Cap', value: overview?.totalMarketCap != null ? formatCompact(overview.totalMarketCap) : NA_LABEL },
