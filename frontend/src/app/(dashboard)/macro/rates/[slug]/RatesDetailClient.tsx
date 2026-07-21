@@ -41,7 +41,7 @@ export function RatesDetailClient({ slug }: { slug: string }) {
   return (
     <div className="space-y-6 max-w-screen-xl mx-auto">
       <Link href="/macro/rates" className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary transition-colors">
-        <ArrowLeft size={13} aria-hidden /> Rates &amp; Bonds
+        <ArrowLeft size={13} aria-hidden /> Bonds &amp; Rates
       </Link>
 
       {/* Header + live quote */}

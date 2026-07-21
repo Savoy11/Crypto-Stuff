@@ -1,4 +1,4 @@
-// Rates & Bonds catalog for the Macro Markets module.
+// Bonds & Rates catalog for the Macro Markets module.
 // Treasury yield indices and bond futures, all verified to price live through
 // /live-data/security-quotes (Yahoo symbols) on 2026-07-21. The official
 // yield curve comes from /live-data/treasury-yield-curve (treasury.gov,

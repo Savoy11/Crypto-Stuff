@@ -829,6 +829,11 @@ ul, ol {
   margin-right: -0.5rem;
 }
 
+.mx-1 {
+  margin-left: 0.25rem;
+  margin-right: 0.25rem;
+}
+
 .mx-5 {
   margin-left: 1.25rem;
   margin-right: 1.25rem;
@@ -2650,6 +2655,11 @@ ul, ol {
   background-color: rgb(59 130 246 / 0.7);
 }
 
+.bg-border {
+  --tw-bg-opacity: 1;
+  background-color: rgb(30 36 51 / var(--tw-bg-opacity, 1));
+}
+
 .bg-cyan-400\/10 {
   background-color: rgb(34 211 238 / 0.1);
 }
@@ -3982,6 +3992,11 @@ ul, ol {
 
 .blur {
   --tw-blur: blur(8px);
+  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
+}
+
+.invert {
+  --tw-invert: invert(100%);
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 

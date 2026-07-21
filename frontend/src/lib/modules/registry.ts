@@ -125,9 +125,10 @@ export const MODULES: SuiteModule[] = [
     optional: true,
     navItems: [
       { href: '/macro', label: 'Macro Overview', icon: Globe },
+      { href: '/macro/news', label: 'Macro News', icon: Newspaper },
       { href: '/macro/commodities', label: 'Commodities', icon: Gem },
       { href: '/macro/currencies', label: 'Currencies', icon: Banknote },
-      { href: '/macro/rates', label: 'Rates & Bonds', icon: Percent },
+      { href: '/macro/rates', label: 'Bonds & Rates', icon: Percent },
     ],
   },
   {

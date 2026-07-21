@@ -62,7 +62,7 @@ const AREAS: MacroArea[] = [
     ],
   },
   {
-    title: 'Rates & Bonds',
+    title: 'Bonds & Rates',
     icon: Percent,
     accent: '#64748b',
     blurb: 'The official treasury yield curve, live yields and bond futures, and the bond ETF shelf. CUSIP-level bond quotes are licensed data — the page says so rather than pretending.',
@@ -118,7 +118,7 @@ function MacroContent() {
           subtitle="Commodities, currencies, and rates — live now, toolsets building out"
           description="One module, three areas, mirroring the Crypto and Equities toolsets: registries with live quotes, detail pages with charts and news, shared technical analysis and backtests, and macro-aware AI agents. The quotes below are live through the same data plumbing the rest of the suite uses."
           details={[
-            { label: 'Build order', text: 'Commodities first, then Currencies, then Rates & Bonds — richest free data first.' },
+            { label: 'Build order', text: 'Commodities first, then Currencies, then Bonds & Rates — richest free data first.' },
             { label: 'Data honesty', text: 'Everything shown is live or explicitly unavailable. Individual bond quotes (CUSIP-level) have no free source and will never be fabricated.' },
           ]}
         />

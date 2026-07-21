@@ -15,7 +15,7 @@ import { getFund } from '@/lib/data/fundCatalog'
 import { STALE_TIME_SHORT, STALE_TIME_LONG } from '@/lib/constants'
 import type { YieldCurveResponse } from '@/app/live-data/treasury-yield-curve/route'
 
-// Rates & Bonds — Macro Markets module. Official treasury yield curve with
+// Bonds & Rates — Macro Markets module. Official treasury yield curve with
 // lookback comparisons, live yield indices and bond futures, and the bond
 // ETF shelf. CUSIP-level bond quotes are licensed data — stated plainly below.
 
@@ -76,7 +76,7 @@ export function RatesClient() {
           <Percent size={18} className="text-slate-400" aria-hidden />
         </div>
         <PageHeader
-          title="Rates & Bonds"
+          title="Bonds & Rates"
           subtitle="The official treasury curve, live yields, futures, and the bond ETF shelf"
           description="The yield curve below is the US Treasury's official daily par curve — 13 maturities, not an approximation. Yield indices and bond futures quote live intraday. Individual corporate and municipal bond quotes are licensed data with no free source, so this page deliberately does not show them."
         />

@@ -175,11 +175,11 @@ ETFs & Funds**, with three areas that mirror the Crypto and Equities toolsets:
 | Area | Coverage | Primary data (verified live 2026-07-21) |
 |------|----------|------------------------------------------|
 | **Commodities** | Metals, energy, agriculture futures + ETF proxies | Yahoo futures chain (`GC=F`, `CL=F`, `SI=F`, `NG=F`, `HG=F`, grains…) through the existing `security-quotes`/`security-chart`/`security-ohlcv` routes — all three probed working |
-| **Rates & Bonds** | Treasury yield curve, bond futures, bond ETFs | Yahoo yield indices (`^IRX ^FVX ^TNX ^TYX`) + futures (`ZB=F`, `ZN=F`) via existing routes; `fiscaldata.treasury.gov` (keyless) for official rates; bond ETFs already in `fundCatalog` |
+| **Bonds & Rates** | Treasury yield curve, bond futures, bond ETFs | Yahoo yield indices (`^IRX ^FVX ^TNX ^TYX`) + futures (`ZB=F`, `ZN=F`) via existing routes; `fiscaldata.treasury.gov` (keyless) for official rates; bond ETFs already in `fundCatalog` |
 | **Currencies (fiat)** | Major/EM FX pairs, dollar index | Yahoo FX (`EURUSD=X`, `JPY=X`, `DX-Y.NYB`) intraday via existing routes; `frankfurter.dev` (keyless ECB reference) for daily crosses + conversion |
 
 **Honesty constraint (bonds):** individual corporate/muni bond quotes are
-licensed data with no free source. The area is deliberately "Rates & Bonds" —
+licensed data with no free source. The area is deliberately "Bonds & Rates" —
 yield curve, treasury futures, bond ETFs — and must never imply CUSIP-level
 quotes. Live-only rules apply as everywhere: no free source → explicit
 "not available" notice.
@@ -212,7 +212,7 @@ the core surfaces.**
    watchlists, Compare, and Portfolio Builder drift can hold them.
 
 ### Build order (decided 2026-07-21)
-Commodities → Currencies → Rates & Bonds. Commodities first: richest free
+Commodities → Currencies → Bonds & Rates. Commodities first: richest free
 data, simplest catalog, most visual appeal. Rates last only because its UX
 needs the most careful honest-data framing, not for data availability.
 
@@ -221,17 +221,22 @@ needs the most careful honest-data framing, not for data availability.
   `quoteBasis` so grains render ¢/bu not fake dollars), registry + detail pages.
 - **Currencies** — `currencyCatalog.ts` (18 pairs + DXY), `/live-data/fx-rates`
   (frankfurter.dev ECB daily reference, keyless), registry + converter + detail.
-- **Rates & Bonds** — `ratesCatalog.ts` (4 yield indices + 4 CBOT futures),
+- **Bonds & Rates** — `ratesCatalog.ts` (4 yield indices + 4 CBOT futures),
   `/live-data/treasury-yield-curve` (treasury.gov official 13-maturity par
   curve + 2s10s/3m10y spreads + shape), curve chart with 1M/YTD lookbacks,
   bond ETF shelf into /funds. CUSIP-honesty note on-page.
 - `PriceChartCard` gained `valueFormat: 'usd' | 'plain'` (default unchanged)
   so FX/yields/cents contracts don't get $-mislabeled axes.
 
+- **Macro News** (2026-07-21) — `/macro/news` + `/live-data/macro-news`:
+  8 keyless RSS feeds, content-first pillar classifier (off-pillar articles
+  dropped), 14-day staleness cutoff, future-pubDate clamp, balanced
+  per-pillar merge. Area label renamed "Rates & Bonds" → "Bonds & Rates".
+
 Still open from "What must be built": provider-registry `market: 'macro'`
-union extensions + Integrations rows, macro news feeds, `macro-research` /
-`macro-screener` agents, instruments-layer entries (watchlist/portfolio
-support for macro symbols).
+union extensions + Integrations rows, `macro-research` / `macro-screener`
+agents, instruments-layer entries (watchlist/portfolio support for macro
+symbols).
 
 ---
 
