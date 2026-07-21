@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { PriceChartCard } from '@/components/markets/PriceChartCard'
 import { CURRENCY_CATEGORY_INFO, formatFxRate, getCurrency } from '@/lib/data/currencyCatalog'
+import { getFund } from '@/lib/data/fundCatalog'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 
 // FX pair detail — live rate, history chart (shared markets shell), and
@@ -32,6 +33,9 @@ export function CurrencyDetailClient({ slug }: { slug: string }) {
   })
 
   const up = (quote?.changePercent ?? 0) >= 0
+  const proxies = entry.etfProxies
+    .map((symbol) => ({ symbol, fund: getFund(symbol) }))
+    .filter((p) => p.fund != null)
 
   return (
     <div className="space-y-6 max-w-screen-xl mx-auto">
@@ -76,32 +80,58 @@ export function CurrencyDetailClient({ slug }: { slug: string }) {
           <PriceChartCard symbol={entry.symbol} valueFormat="plain" />
         </div>
 
-        <div className="rounded-card border border-border bg-bg-card p-4 self-start">
-          <h2 className="text-sm font-medium text-text-secondary mb-3">{isIndex ? 'Index' : 'Pair'}</h2>
-          <dl className="space-y-2 text-xs">
-            {!isIndex && (
-              <>
-                <div className="flex justify-between"><dt className="text-text-muted">Base</dt><dd className="text-text-primary font-mono">{entry.base}</dd></div>
-                <div className="flex justify-between"><dt className="text-text-muted">Quote</dt><dd className="text-text-primary font-mono">{entry.quote}</dd></div>
-              </>
-            )}
-            <div className="flex justify-between"><dt className="text-text-muted">Category</dt><dd className="text-text-primary">{info.label}</dd></div>
-            {quote?.previousClose != null && (
-              <div className="flex justify-between"><dt className="text-text-muted">Previous close</dt><dd className="text-text-primary font-mono tabular-nums">{formatFxRate(entry, quote.previousClose)}</dd></div>
-            )}
-            {!isIndex && quote?.price != null && quote.price > 0 && (
-              <div className="flex justify-between">
-                <dt className="text-text-muted">Inverse</dt>
-                <dd className="text-text-primary font-mono tabular-nums">
-                  1 {entry.quote} = {(1 / quote.price).toLocaleString(undefined, { maximumFractionDigits: 4 })} {entry.base}
-                </dd>
+        <div className="space-y-4">
+          <div className="rounded-card border border-border bg-bg-card p-4">
+            <h2 className="text-sm font-medium text-text-secondary mb-3">{isIndex ? 'Index' : 'Pair'}</h2>
+            <dl className="space-y-2 text-xs">
+              {!isIndex && (
+                <>
+                  <div className="flex justify-between"><dt className="text-text-muted">Base</dt><dd className="text-text-primary font-mono">{entry.base}</dd></div>
+                  <div className="flex justify-between"><dt className="text-text-muted">Quote</dt><dd className="text-text-primary font-mono">{entry.quote}</dd></div>
+                </>
+              )}
+              <div className="flex justify-between"><dt className="text-text-muted">Category</dt><dd className="text-text-primary">{info.label}</dd></div>
+              {quote?.previousClose != null && (
+                <div className="flex justify-between"><dt className="text-text-muted">Previous close</dt><dd className="text-text-primary font-mono tabular-nums">{formatFxRate(entry, quote.previousClose)}</dd></div>
+              )}
+              {!isIndex && quote?.price != null && quote.price > 0 && (
+                <div className="flex justify-between">
+                  <dt className="text-text-muted">Inverse</dt>
+                  <dd className="text-text-primary font-mono tabular-nums">
+                    1 {entry.quote} = {(1 / quote.price).toLocaleString(undefined, { maximumFractionDigits: 4 })} {entry.base}
+                  </dd>
+                </div>
+              )}
+            </dl>
+            <p className="mt-3 pt-3 border-t border-border/60 text-xs text-text-muted leading-relaxed">{entry.description}</p>
+            <p className="mt-3 text-[11px] text-text-muted leading-relaxed">
+              A rising rate means a stronger {isIndex ? 'dollar' : entry.base} against the {isIndex ? 'basket' : entry.quote}.
+            </p>
+          </div>
+
+          {/* ETF proxies */}
+          <div className="rounded-card border border-border bg-bg-card p-4">
+            <h2 className="text-sm font-medium text-text-secondary mb-3">ETF Proxies</h2>
+            {proxies.length > 0 ? (
+              <div className="space-y-2">
+                {proxies.map(({ symbol, fund }) => (
+                  <Link key={symbol} href={`/funds/${symbol.toLowerCase()}`}
+                    className="flex items-center gap-2 text-xs group">
+                    <span className="font-mono font-semibold text-text-primary group-hover:text-accent-blue transition-colors w-12">{symbol}</span>
+                    <span className="text-text-muted flex-1 truncate">{fund!.name}</span>
+                    <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue transition-colors" aria-hidden />
+                  </Link>
+                ))}
               </div>
+            ) : (
+              <p className="text-xs text-text-muted leading-relaxed">
+                No fund in the catalog gives direct exposure to this {isIndex ? 'index' : 'pair'}. {isIndex ? '' : 'Exposure requires a forex account or futures contract.'}
+              </p>
             )}
-          </dl>
-          <p className="mt-3 pt-3 border-t border-border/60 text-xs text-text-muted leading-relaxed">{entry.description}</p>
-          <p className="mt-3 text-[11px] text-text-muted leading-relaxed">
-            A rising rate means a stronger {isIndex ? 'dollar' : entry.base} against the {isIndex ? 'basket' : entry.quote}.
-          </p>
+            <p className="mt-3 pt-3 border-t border-border/60 text-[11px] text-text-muted leading-relaxed">
+              These funds hold currency deposits (or the index futures), not the FX spot market itself — a proxy, subject to its own expense ratio and tracking error.
+            </p>
+          </div>
         </div>
       </div>
     </div>

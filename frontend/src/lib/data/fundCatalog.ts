@@ -22,6 +22,7 @@ export type FundCategoryId =
   | 'dividend-income'
   | 'bond'
   | 'commodity'
+  | 'currency'
   | 'crypto'
   | 'balanced'
 
@@ -37,6 +38,7 @@ export const FUND_CATEGORY_INFO: Record<FundCategoryId, { label: string; color: 
   'dividend-income': { label: 'Dividend & Income', color: '#22c55e' },
   'bond':            { label: 'Bond',              color: '#64748b' },
   'commodity':       { label: 'Commodity',         color: '#a16207' },
+  'currency':        { label: 'Currency',           color: '#22c55e' },
   'crypto':          { label: 'Crypto',            color: '#eab308' },
   'balanced':        { label: 'Balanced',          color: '#0ea5e9' },
 }
@@ -255,6 +257,25 @@ export const FUND_CATALOG: FundEntry[] = [
   { symbol: 'CANE', name: 'Teucrium Sugar Fund',               type: 'etf', issuer: 'Teucrium', category: 'commodity', expenseRatioPct: 1.00, aumB: 0.05, referencePrice: 10,  yieldPct: null, inceptionYear: 2011, indexTracked: 'ICE No. 11 sugar futures (laddered)', topHoldings: [], website: 'https://teucrium.com/cane', description: 'The one surviving single-softs proxy in this catalog — coffee, cocoa, and cotton’s equivalents were delisted.' },
   { symbol: 'IBIT', name: 'iShares Bitcoin Trust',             type: 'etf', issuer: 'BlackRock',    category: 'crypto', expenseRatioPct: 0.25, aumB: 80, referencePrice: 60, yieldPct: null, inceptionYear: 2024, indexTracked: 'Bitcoin (spot)', topHoldings: [], website: 'https://www.ishares.com/us/products/333011/ishares-bitcoin-trust-etf', description: 'Spot Bitcoin ETF — bridges the crypto module and brokerage accounts.' },
   { symbol: 'ETHA', name: 'iShares Ethereum Trust',            type: 'etf', issuer: 'BlackRock',    category: 'crypto', expenseRatioPct: 0.25, aumB: 10, referencePrice: 25, yieldPct: null, inceptionYear: 2024, indexTracked: 'Ether (spot)', topHoldings: [], website: 'https://www.ishares.com/us/products/337614/ishares-ethereum-trust-etf', description: 'Spot Ether ETF counterpart to IBIT.' },
+
+  // ── Currency ETFs ─────────────────────────────────────────────────────────
+  // Backing the Macro Markets currencies pillar (lib/data/currencyCatalog.ts
+  // etfProxies). Each holds currency deposits, giving direct exposure to that
+  // currency vs USD. Verified actively trading 2026-07-21 — the equivalent
+  // single-currency funds for every EM/exotic pair in the catalog (Mexican
+  // peso FXM, Brazilian real BZF, Chinese yuan CYB, Indian rupee ICN, South
+  // African rand SZR) were confirmed DELISTED during that same check and are
+  // deliberately not listed anywhere; no US-listed fund has ever covered the
+  // Korean won or New Zealand dollar specifically.
+  { symbol: 'FXE', name: 'Invesco CurrencyShares Euro Trust',            type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.40, aumB: 0.2,  referencePrice: 105, yieldPct: null, inceptionYear: 2005, indexTracked: 'EUR/USD spot (cash deposits)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=FXE', description: 'Holds euro-denominated deposits — direct EUR/USD exposure, no futures roll.' },
+  { symbol: 'FXB', name: 'Invesco CurrencyShares British Pound Sterling Trust', type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.40, aumB: 0.1, referencePrice: 129, yieldPct: null, inceptionYear: 2006, indexTracked: 'GBP/USD spot (cash deposits)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=FXB', description: 'Holds sterling deposits — direct exposure to "Cable".' },
+  { symbol: 'FXY', name: 'Invesco CurrencyShares Japanese Yen Trust',   type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.40, aumB: 0.3,  referencePrice: 56,  yieldPct: null, inceptionYear: 2006, indexTracked: 'USD/JPY spot (cash deposits)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=FXY', description: 'Holds yen deposits — rises when the yen strengthens against the dollar (i.e. USD/JPY falls).' },
+  { symbol: 'FXF', name: 'Invesco CurrencyShares Swiss Franc Trust',    type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.40, aumB: 0.15, referencePrice: 108, yieldPct: null, inceptionYear: 2006, indexTracked: 'USD/CHF spot (cash deposits)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=FXF', description: 'Holds franc deposits — the classic safe-haven currency trade in fund form.' },
+  { symbol: 'FXC', name: 'Invesco CurrencyShares Canadian Dollar Trust', type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.40, aumB: 0.1, referencePrice: 69,  yieldPct: null, inceptionYear: 2006, indexTracked: 'USD/CAD spot (cash deposits)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=FXC', description: 'Holds loonie deposits — a currency proxy for Canadian oil-export sensitivity.' },
+  { symbol: 'FXA', name: 'Invesco CurrencyShares Australian Dollar Trust', type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.40, aumB: 0.1, referencePrice: 69, yieldPct: null, inceptionYear: 2006, indexTracked: 'AUD/USD spot (cash deposits)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=FXA', description: 'Holds Australian-dollar deposits — the "aussie" as a China-demand proxy in fund form.' },
+  { symbol: 'UUP', name: 'Invesco DB US Dollar Index Bullish Fund',     type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.75, aumB: 0.5, referencePrice: 28, yieldPct: null, inceptionYear: 2007, indexTracked: 'ICE US Dollar Index (long futures)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=UUP', description: 'Long the same ICE Dollar Index (DXY) this catalog quotes — rises when the dollar strengthens against its basket.' },
+  { symbol: 'UDN', name: 'Invesco DB US Dollar Index Bearish Fund',     type: 'etf', issuer: 'Invesco', category: 'currency', expenseRatioPct: 0.77, aumB: 0.05, referencePrice: 18, yieldPct: null, inceptionYear: 2007, indexTracked: 'ICE US Dollar Index (short futures)', topHoldings: [], website: 'https://www.invesco.com/us/financial-products/etfs/product-detail?ticker=UDN', description: 'UUP’s mirror image — a short position on the same Dollar Index; rises when the dollar weakens.' },
+  { symbol: 'USDU', name: 'WisdomTree Bloomberg U.S. Dollar Bullish Fund', type: 'etf', issuer: 'WisdomTree', category: 'currency', expenseRatioPct: 0.51, aumB: 0.15, referencePrice: 27, yieldPct: null, inceptionYear: 2013, indexTracked: 'Bloomberg Dollar Index (long futures)', topHoldings: [], website: 'https://www.wisdomtree.com/investments/etfs/currency/usdu', description: 'Long-dollar like UUP, but tracks Bloomberg’s broader, more diversified dollar index rather than the EUR-heavy ICE DXY.' },
 
   // ── Thematic / Active ETFs ───────────────────────────────────────────────────
   { symbol: 'ARKK', name: 'ARK Innovation ETF',                type: 'etf', issuer: 'ARK Invest', category: 'us-large-growth', expenseRatioPct: 0.75, aumB: 7, referencePrice: 65, yieldPct: null, inceptionYear: 2014, indexTracked: null, topHoldings: [ { symbol: 'TSLA', name: 'Tesla', weightPct: 10 }, { symbol: 'COIN', name: 'Coinbase', weightPct: 8 }, { symbol: 'ROKU', name: 'Roku', weightPct: 7 }, { symbol: 'PLTR', name: 'Palantir', weightPct: 5 }, { symbol: 'RBLX', name: 'Roblox', weightPct: 5 } ], website: 'https://www.ark-funds.com/funds/arkk', description: 'Active high-volatility bets on disruptive innovation.' },
