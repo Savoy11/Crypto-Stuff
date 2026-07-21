@@ -3,9 +3,10 @@
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { PriceChartCard } from '@/components/markets/PriceChartCard'
 import { RATES_CATEGORY_INFO, formatRatesQuote, getRatesEntry } from '@/lib/data/ratesCatalog'
+import { getFund } from '@/lib/data/fundCatalog'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 
 // Rates instrument detail — live quote, history chart, and instrument facts.
@@ -37,6 +38,9 @@ export function RatesDetailClient({ slug }: { slug: string }) {
   const changeColor = isYield
     ? (up ? 'text-amber-400' : 'text-accent-blue')
     : (up ? 'text-emerald-400' : 'text-red-400')
+  const proxies = entry.etfProxies
+    .map((symbol) => ({ symbol, fund: getFund(symbol) }))
+    .filter((p) => p.fund != null)
 
   return (
     <div className="space-y-6 max-w-screen-xl mx-auto">
@@ -82,24 +86,51 @@ export function RatesDetailClient({ slug }: { slug: string }) {
           <PriceChartCard symbol={entry.symbol} valueFormat="plain" />
         </div>
 
-        <div className="rounded-card border border-border bg-bg-card p-4 self-start">
-          <h2 className="text-sm font-medium text-text-secondary mb-3">Instrument</h2>
-          <dl className="space-y-2 text-xs">
-            <div className="flex justify-between"><dt className="text-text-muted">Type</dt><dd className="text-text-primary">{info.label}</dd></div>
-            <div className="flex justify-between">
-              <dt className="text-text-muted">Quoted as</dt>
-              <dd className="text-text-primary font-mono">{isYield ? 'yield, %' : 'price, points of par'}</dd>
-            </div>
-            {quote?.previousClose != null && (
-              <div className="flex justify-between"><dt className="text-text-muted">Previous close</dt><dd className="text-text-primary font-mono tabular-nums">{formatRatesQuote(entry, quote.previousClose)}</dd></div>
+        <div className="space-y-4">
+          <div className="rounded-card border border-border bg-bg-card p-4">
+            <h2 className="text-sm font-medium text-text-secondary mb-3">Instrument</h2>
+            <dl className="space-y-2 text-xs">
+              <div className="flex justify-between"><dt className="text-text-muted">Type</dt><dd className="text-text-primary">{info.label}</dd></div>
+              <div className="flex justify-between">
+                <dt className="text-text-muted">Quoted as</dt>
+                <dd className="text-text-primary font-mono">{isYield ? 'yield, %' : 'price, points of par'}</dd>
+              </div>
+              {quote?.previousClose != null && (
+                <div className="flex justify-between"><dt className="text-text-muted">Previous close</dt><dd className="text-text-primary font-mono tabular-nums">{formatRatesQuote(entry, quote.previousClose)}</dd></div>
+              )}
+            </dl>
+            <p className="mt-3 pt-3 border-t border-border/60 text-xs text-text-muted leading-relaxed">{entry.description}</p>
+            <p className="mt-3 text-[11px] text-text-muted leading-relaxed">
+              {isYield
+                ? 'A rising yield means falling bond prices — and vice versa. The chart tracks the yield itself.'
+                : 'Futures prices move inversely to yields: this contract rallies when rates fall.'}
+            </p>
+          </div>
+
+          {/* Duration-matched funds */}
+          <div className="rounded-card border border-border bg-bg-card p-4">
+            <h2 className="text-sm font-medium text-text-secondary mb-3">Duration-Matched Funds</h2>
+            {proxies.length > 0 ? (
+              <div className="space-y-2">
+                {proxies.map(({ symbol, fund }) => (
+                  <Link key={symbol} href={`/funds/${symbol.toLowerCase()}`}
+                    className="flex items-center gap-2 text-xs group">
+                    <span className="font-mono font-semibold text-text-primary group-hover:text-accent-blue transition-colors w-12">{symbol}</span>
+                    <span className="text-text-muted flex-1 truncate">{fund!.name}</span>
+                    <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue transition-colors" aria-hidden />
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-muted leading-relaxed">
+                No fund in the catalog matches this maturity band closely enough to list here.
+              </p>
             )}
-          </dl>
-          <p className="mt-3 pt-3 border-t border-border/60 text-xs text-text-muted leading-relaxed">{entry.description}</p>
-          <p className="mt-3 text-[11px] text-text-muted leading-relaxed">
-            {isYield
-              ? 'A rising yield means falling bond prices — and vice versa. The chart tracks the yield itself.'
-              : 'Futures prices move inversely to yields: this contract rallies when rates fall.'}
-          </p>
+            <p className="mt-3 pt-3 border-t border-border/60 text-[11px] text-text-muted leading-relaxed">
+              Nobody buys &ldquo;the {entry.name.toLowerCase()}&rdquo; directly — these funds hold Treasuries in
+              the same maturity band, which is how this point on the curve is actually invested in.
+            </p>
+          </div>
         </div>
       </div>
     </div>

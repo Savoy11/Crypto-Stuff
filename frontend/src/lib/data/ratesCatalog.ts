@@ -28,20 +28,32 @@ export interface RatesEntry {
    */
   quoteBasis: 'pct' | 'points'
   description: string
+  /**
+   * ETF proxies matched by DURATION to this point on the curve — not a
+   * literal bet on the yield/future itself (nobody buys "the 10-year
+   * yield"), but the closest fund whose holdings sit in the same maturity
+   * band. Every symbol exists in FUND_CATALOG and was confirmed actively
+   * trading (5-day history) as of 2026-07-21.
+   *
+   * General credit/inflation/aggregate funds (LQD, HYG, TIP, BND, AGG) live
+   * in BOND_ETF_SHELF below instead — they don't correspond to a specific
+   * point on the TREASURY curve, so they aren't assigned to any one entry.
+   */
+  etfProxies: string[]
 }
 
 export const RATES_CATALOG: RatesEntry[] = [
   // ── Yield indices (CBOE, tracking on-the-run Treasury yields) ────────────
-  { slug: '13-week-yield', symbol: '^IRX', name: '13-Week T-Bill Yield', category: 'yield', quoteBasis: 'pct', description: 'The short end — tracks the Fed’s policy rate almost one-for-one; the "cash" yield.' },
-  { slug: '5-year-yield',  symbol: '^FVX', name: '5-Year Treasury Yield', category: 'yield', quoteBasis: 'pct', description: 'The belly of the curve — where rate-cut and rate-hike expectations fight it out.' },
-  { slug: '10-year-yield', symbol: '^TNX', name: '10-Year Treasury Yield', category: 'yield', quoteBasis: 'pct', description: 'The world’s benchmark interest rate — prices mortgages, equities, and everything else.' },
-  { slug: '30-year-yield', symbol: '^TYX', name: '30-Year Treasury Yield', category: 'yield', quoteBasis: 'pct', description: 'The long bond — inflation expectations and term premium over a generation.' },
+  { slug: '13-week-yield', symbol: '^IRX', name: '13-Week T-Bill Yield', category: 'yield', quoteBasis: 'pct', etfProxies: ['SGOV', 'BIL'], description: 'The short end — tracks the Fed’s policy rate almost one-for-one; the "cash" yield.' },
+  { slug: '5-year-yield',  symbol: '^FVX', name: '5-Year Treasury Yield', category: 'yield', quoteBasis: 'pct', etfProxies: ['IEI'], description: 'The belly of the curve — where rate-cut and rate-hike expectations fight it out.' },
+  { slug: '10-year-yield', symbol: '^TNX', name: '10-Year Treasury Yield', category: 'yield', quoteBasis: 'pct', etfProxies: ['IEF'], description: 'The world’s benchmark interest rate — prices mortgages, equities, and everything else.' },
+  { slug: '30-year-yield', symbol: '^TYX', name: '30-Year Treasury Yield', category: 'yield', quoteBasis: 'pct', etfProxies: ['TLT'], description: 'The long bond — inflation expectations and term premium over a generation.' },
 
   // ── Treasury futures (CBOT) ──────────────────────────────────────────────
-  { slug: '2-year-note-future',  symbol: 'ZT=F', name: '2-Year T-Note Future',  category: 'future', quoteBasis: 'points', description: 'CBOT 2-year note futures — the market’s cleanest bet on near-term Fed policy.' },
-  { slug: '5-year-note-future',  symbol: 'ZF=F', name: '5-Year T-Note Future',  category: 'future', quoteBasis: 'points', description: 'CBOT 5-year note futures — belly-of-the-curve duration in one contract.' },
-  { slug: '10-year-note-future', symbol: 'ZN=F', name: '10-Year T-Note Future', category: 'future', quoteBasis: 'points', description: 'CBOT 10-year note futures — the most traded bond future on Earth; hedging workhorse.' },
-  { slug: '30-year-bond-future', symbol: 'ZB=F', name: '30-Year T-Bond Future', category: 'future', quoteBasis: 'points', description: 'CBOT bond futures — long duration; prices move inversely and violently with 30Y yields.' },
+  { slug: '2-year-note-future',  symbol: 'ZT=F', name: '2-Year T-Note Future',  category: 'future', quoteBasis: 'points', etfProxies: ['SHY'], description: 'CBOT 2-year note futures — the market’s cleanest bet on near-term Fed policy.' },
+  { slug: '5-year-note-future',  symbol: 'ZF=F', name: '5-Year T-Note Future',  category: 'future', quoteBasis: 'points', etfProxies: ['IEI'], description: 'CBOT 5-year note futures — belly-of-the-curve duration in one contract.' },
+  { slug: '10-year-note-future', symbol: 'ZN=F', name: '10-Year T-Note Future', category: 'future', quoteBasis: 'points', etfProxies: ['IEF'], description: 'CBOT 10-year note futures — the most traded bond future on Earth; hedging workhorse.' },
+  { slug: '30-year-bond-future', symbol: 'ZB=F', name: '30-Year T-Bond Future', category: 'future', quoteBasis: 'points', etfProxies: ['TLT'], description: 'CBOT bond futures — long duration; prices move inversely and violently with 30Y yields.' },
 ]
 
 export const RATES_BY_SLUG: Record<string, RatesEntry> = Object.fromEntries(
