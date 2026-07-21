@@ -112,22 +112,23 @@ export const MODULES: SuiteModule[] = [
     ],
   },
   {
-    // Premium module — sold under its own entitlement (separate fee).
-    id: 'builder',
-    label: 'Portfolio Builder',
-    routePrefixes: ['/portfolio-builder'],
-    optional: true,
-    navItems: [
-      { href: '/portfolio-builder', label: 'Portfolio Builder', icon: Compass },
-    ],
-  },
-  {
     id: 'funds',
     label: 'ETFs & Funds',
     routePrefixes: ['/funds'],
     optional: true,
     navItems: [
       { href: '/funds', label: 'Fund Registry', icon: Landmark },
+    ],
+  },
+  {
+    // Premium module — sold under its own entitlement (separate fee).
+    // Sits last: it's the upsell, and it builds on the catalogs above it.
+    id: 'builder',
+    label: 'Portfolio Builder',
+    routePrefixes: ['/portfolio-builder'],
+    optional: true,
+    navItems: [
+      { href: '/portfolio-builder', label: 'Portfolio Builder', icon: Compass },
     ],
   },
 ]
