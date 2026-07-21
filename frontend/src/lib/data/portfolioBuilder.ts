@@ -396,9 +396,16 @@ export interface SavedPlan {
   name: string
   createdAt: string
   lastReviewedAt: string
+  /** Portfolio the monitor compares against; persisted server-side. */
+  linkedPortfolioId?: string | null
   plan: BuiltPortfolio
 }
 
+/**
+ * Legacy localStorage key. Plans now persist to Postgres via
+ * /api/user/builder-plans; this key exists only so the page can import
+ * plans saved before persistence landed (then renames it to *:imported).
+ */
 export const BUILDER_STORAGE_KEY = 'caep:builder-plans:v1'
 
 export function reviewDue(saved: SavedPlan, now = Date.now()): boolean {

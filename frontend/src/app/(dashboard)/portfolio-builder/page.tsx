@@ -1,6 +1,8 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'react-hot-toast'
 import { clsx } from 'clsx'
 import { AlertTriangle, Ban, BellRing, CheckCircle2, ChevronDown, ChevronUp, Compass, Info, Save, Trash2 } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
@@ -27,12 +29,24 @@ const TILTABLE_SECTORS: SectorId[] = [
 // plans, and review reminders. Drift-vs-actual rebalancing hooks into real
 // holdings once DB-backed portfolios land (see docs/ROADMAP.md).
 
-function loadPlans(): SavedPlan[] {
-  if (typeof window === 'undefined') return []
-  try { return JSON.parse(localStorage.getItem(BUILDER_STORAGE_KEY) ?? '[]') } catch { return [] }
+// ─── DB persistence ──────────────────────────────────────────────────────────
+// Plans live in Postgres (/api/user/builder-plans, builder_plans table).
+// localStorage remains only as an import source for plans saved before
+// persistence landed — imported once, then the key is renamed so the import
+// can never run twice or clobber server data.
+
+async function fetchPlans(): Promise<SavedPlan[]> {
+  const res = await fetch('/api/user/builder-plans')
+  const json = await res.json()
+  if (!res.ok || !json.ok) throw new Error(json.error ?? `Plans unavailable (${res.status})`)
+  return json.plans as SavedPlan[]
 }
-function savePlans(plans: SavedPlan[]) {
-  try { localStorage.setItem(BUILDER_STORAGE_KEY, JSON.stringify(plans)) } catch { /* quota */ }
+
+function readLegacyPlans(): SavedPlan[] {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(BUILDER_STORAGE_KEY) ?? '[]')
+    return Array.isArray(parsed) ? parsed : []
+  } catch { return [] }
 }
 
 const RISK_LABELS = ['', 'Capital preservation', 'Very conservative', 'Conservative', 'Cautious', 'Balanced', 'Balanced growth', 'Growth', 'Aggressive growth', 'Very aggressive', 'Maximum growth']
@@ -45,11 +59,79 @@ function BuilderContent() {
   const [cryptoComfort, setCryptoComfort] = useState<CryptoComfort>('small')
   const [amount, setAmount] = useState(25_000)
   const [result, setResult] = useState<BuiltPortfolio | null>(null)
-  const [plans, setPlans] = useState<SavedPlan[]>([])
   const [planName, setPlanName] = useState('')
   const [openPlanId, setOpenPlanId] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+  const migrationRan = useRef(false)
 
-  useEffect(() => { setPlans(loadPlans()) }, [])
+  const plansQuery = useQuery({ queryKey: ['builder-plans'], queryFn: fetchPlans, staleTime: 30_000, retry: 1 })
+  const plans = useMemo(() => plansQuery.data ?? [], [plansQuery.data])
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['builder-plans'] })
+
+  const saveMutation = useMutation({
+    mutationFn: async (payload: { name: string; plan: BuiltPortfolio }) => {
+      const res = await fetch('/api/user/builder-plans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'Save failed')
+    },
+    onSuccess: () => { setPlanName(''); invalidate() },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const reviewMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/user/builder-plans/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ markReviewed: true }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'Update failed')
+    },
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/user/builder-plans/${id}`, { method: 'DELETE' })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'Delete failed')
+    },
+    onSuccess: invalidate,
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  // One-time import of plans saved to this browser before DB persistence.
+  // Runs only after the server has answered (never migrate into an erroring
+  // API), preserves original timestamps so review reminders don't reset, and
+  // renames the key afterwards so it cannot run twice.
+  useEffect(() => {
+    if (migrationRan.current || !plansQuery.isSuccess) return
+    migrationRan.current = true
+    const legacy = readLegacyPlans()
+    if (legacy.length === 0) return
+    ;(async () => {
+      const res = await fetch('/api/user/builder-plans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          plans: legacy.map((p) => ({
+            name: p.name, plan: p.plan, createdAt: p.createdAt, lastReviewedAt: p.lastReviewedAt,
+          })),
+        }),
+      })
+      const json = await res.json()
+      if (res.ok && json.ok) {
+        localStorage.setItem(`${BUILDER_STORAGE_KEY}:imported`, localStorage.getItem(BUILDER_STORAGE_KEY) ?? '[]')
+        localStorage.removeItem(BUILDER_STORAGE_KEY)
+        toast.success(`Imported ${legacy.length} plan${legacy.length > 1 ? 's' : ''} saved in this browser`)
+        invalidate()
+      }
+      // On failure: key stays put, the import simply retries next visit.
+    })().catch(() => { /* server unreachable — retry next visit */ })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plansQuery.isSuccess])
+
   const dueReviews = useMemo(() => plans.filter((p) => reviewDue(p)), [plans])
 
   const sectorsWhere = (stance: SectorStance) =>
@@ -69,25 +151,11 @@ function BuilderContent() {
   }))
 
   const savePlan = () => {
-    if (!result) return
-    const now = new Date().toISOString()
-    const plan: SavedPlan = {
-      id: Math.random().toString(36).slice(2, 10),
-      name: planName.trim() || `Plan ${plans.length + 1}`,
-      createdAt: now, lastReviewedAt: now, plan: result,
-    }
-    const next = [...plans, plan]
-    setPlans(next); savePlans(next); setPlanName('')
+    if (!result || saveMutation.isPending) return
+    saveMutation.mutate({ name: planName.trim() || `Plan ${plans.length + 1}`, plan: result })
   }
-
-  const markReviewed = (id: string) => {
-    const next = plans.map((p) => p.id === id ? { ...p, lastReviewedAt: new Date().toISOString() } : p)
-    setPlans(next); savePlans(next)
-  }
-  const deletePlan = (id: string) => {
-    const next = plans.filter((p) => p.id !== id)
-    setPlans(next); savePlans(next)
-  }
+  const markReviewed = (id: string) => reviewMutation.mutate(id)
+  const deletePlan = (id: string) => deleteMutation.mutate(id)
 
   return (
     <div className="space-y-6 max-w-screen-xl mx-auto">
@@ -106,6 +174,18 @@ function BuilderContent() {
           ]}
         />
       </div>
+
+      {/* Persistence trouble — the builder still works, saving doesn't */}
+      {plansQuery.isError && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 flex items-start gap-3">
+          <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" aria-hidden />
+          <div className="text-xs text-text-secondary leading-relaxed">
+            <span className="font-medium text-red-300">Saved plans are unavailable</span>
+            {' '}— {(plansQuery.error as Error)?.message ?? 'the plans API could not be reached'}.
+            Building portfolios still works; saving and reviewing needs the database.
+          </div>
+        </div>
+      )}
 
       {/* Review reminders */}
       {dueReviews.length > 0 && (
@@ -283,9 +363,9 @@ function BuilderContent() {
               placeholder="Name this plan (e.g. Retirement 2050)…"
               className="w-72 rounded border border-border bg-bg-elevated px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-blue/50 focus:outline-none"
             />
-            <button onClick={savePlan}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-bg-elevated text-sm text-text-secondary hover:text-text-primary transition-colors">
-              <Save size={14} aria-hidden /> Save plan
+            <button onClick={savePlan} disabled={saveMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border bg-bg-elevated text-sm text-text-secondary hover:text-text-primary transition-colors disabled:opacity-50">
+              <Save size={14} aria-hidden /> {saveMutation.isPending ? 'Saving…' : 'Save plan'}
             </button>
           </div>
         </>
@@ -345,8 +425,8 @@ function BuilderContent() {
 
       <p className="text-[11px] text-text-muted text-center leading-relaxed">
         Educational tooling, not investment advice. Allocations are rules-based models using approximate
-        catalog data; consult a fiduciary adviser for personalized recommendations. Plans are stored in this
-        browser until account sync lands.
+        catalog data; consult a fiduciary adviser for personalized recommendations. Saved plans persist to
+        the local database and survive browser wipes.
       </p>
     </div>
   )

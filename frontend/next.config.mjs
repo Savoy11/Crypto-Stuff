@@ -12,14 +12,18 @@ const nextConfig = {
       {
         // Proxies leftover /api/* traffic to the legacy backend.
         //
-        // `/api/auth/` is excluded because Auth.js owns it. This rewrite runs
-        // in the default `afterFiles` phase, which resolves *after* concrete
-        // file routes but *before* dynamic ones — so /api/auth/signup (a real
-        // file) reached its handler while /api/auth/csrf and
-        // /api/auth/callback/* (served by the [...nextauth] catch-all) were
-        // silently proxied to the dormant backend and 500'd. Every Auth.js
-        // endpoint except the two literal ones was unreachable.
-        source: '/api/:path((?!auth/).*)',
+        // `/api/auth/` is excluded because Auth.js owns it, and `/api/user/`
+        // because the DB-backed user-data routes (builder plans, portfolios…)
+        // live there. This rewrite runs in the default `afterFiles` phase,
+        // which resolves *after* concrete file routes but *before* dynamic
+        // ones — so /api/auth/signup (a real file) reached its handler while
+        // /api/auth/csrf and /api/auth/callback/* (served by the [...nextauth]
+        // catch-all) were silently proxied to the dormant backend and 500'd.
+        // The same trap catches any dynamic segment: /api/user/builder-plans/
+        // [id] would proxy too. First-party routes with dynamic params MUST
+        // live under an excluded prefix — add new prefixes here, not routes
+        // outside /api/user/.
+        source: '/api/:path((?!auth/|user/).*)',
         destination: `${apiUrl}/api/:path`,
       },
     ]

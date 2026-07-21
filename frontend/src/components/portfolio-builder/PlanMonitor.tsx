@@ -26,8 +26,15 @@ function fmtUsd(n: number) {
 
 export function PlanMonitor({ saved }: { saved: SavedPlan }) {
   const portfolios = usePortfolioStore((s) => s.portfolios)
+  // The schema and PATCH API already support persisting which portfolio a
+  // plan is linked to (builder_plans.linked_portfolio_id) — but /portfolios
+  // itself still lives in localStorage with non-UUID ids the DB's FK check
+  // would rightly reject. Selection stays session-local until the portfolios
+  // migration lands; then this select persists through the existing API.
+  const linkedStillExists = portfolios.some((p) => p.id === saved.linkedPortfolioId)
   const [source, setSource] = useState<Source>(portfolios.length > 0 ? 'portfolio' : 'manual')
-  const [portfolioId, setPortfolioId] = useState<string>(portfolios[0]?.id ?? '')
+  const [portfolioId, setPortfolioId] = useState<string>(
+    (linkedStillExists ? saved.linkedPortfolioId! : portfolios[0]?.id) ?? '')
   const [manual, setManual] = useState<Record<string, string>>({})
 
   const portfolio = portfolios.find((p) => p.id === portfolioId)
