@@ -91,41 +91,70 @@ function detectSymbols(text: string): string[] {
 
 // ─── Reddit ───────────────────────────────────────────────────────────────────
 
-interface RedditChild {
-  data: {
-    id: string; title: string; selftext?: string; permalink: string
-    author: string; score: number; upvote_ratio?: number
-    subreddit: string; created_utc: number; stickied?: boolean
-  }
+// Reddit's JSON API (/hot.json, /search.json) returns HTTP 403 to server-side
+// requests without OAuth, from every IP we can reach — datacenter and
+// residential alike. It failed 100% of the time, which made this provider a
+// permanent silent no-op: the route still returned 200 and StockTwits signals,
+// so Reddit's absence looked like "quiet day" rather than "provider broken".
+//
+// The public Atom feeds (.rss) are keyless and DO answer server-side — this is
+// the same approach the crypto /live-data/social route already uses
+// successfully. Reddit rate-limits them aggressively (HTTP 429) when several
+// are requested at once, so callers must treat partial results as normal;
+// Promise.allSettled upstream already does.
+//
+// Trade-off: Atom carries no score or upvote_ratio. `score: 0` is the existing
+// "no score available" sentinel — both social pages render the score badge only
+// when `score > 0` — so it reads as absent rather than as a real zero, and
+// upvoteRatio is left undefined. Same convention as /live-data/social.
+function stripCdata(s: string): string {
+  return s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim()
+}
+
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
 }
 
 async function fetchSubreddit(sub: string, symbol?: string): Promise<StockSocialSignal[]> {
   const url = symbol
-    ? `https://www.reddit.com/r/${sub}/search.json?q=${encodeURIComponent(symbol)}&restrict_sr=1&sort=new&limit=15&raw_json=1`
-    : `https://www.reddit.com/r/${sub}/hot.json?limit=15&raw_json=1`
-  const res = await fetch(url, { headers: UA, next: { revalidate: 300 } })
+    ? `https://www.reddit.com/r/${sub}/search.rss?q=${encodeURIComponent(symbol)}&restrict_sr=1&sort=new&limit=15`
+    : `https://www.reddit.com/r/${sub}/hot.rss?limit=15`
+  const res = await fetch(url, {
+    headers: { ...UA, Accept: 'application/atom+xml, application/rss+xml, application/xml, text/xml' },
+    next: { revalidate: 300 },
+  })
   if (!res.ok) throw new Error(`Reddit r/${sub} ${res.status}`)
-  const payload = await res.json() as { data?: { children?: RedditChild[] } }
-  return (payload.data?.children ?? [])
-    .filter((c) => !c.data.stickied)
-    .map(({ data }) => {
-      const text = `${data.title} ${data.selftext ?? ''}`
-      return {
-        id: `reddit:${data.id}`,
-        platform: 'reddit' as const,
-        providerLabel: 'Reddit',
-        title: data.title,
-        body: (data.selftext ?? '').replace(/\s+/g, ' ').slice(0, 220),
-        url: `https://www.reddit.com${data.permalink}`,
-        author: data.author,
-        score: data.score,
-        upvoteRatio: data.upvote_ratio,
-        subreddit: data.subreddit,
-        sentiment: scoreSentiment(text),
-        symbols: symbol ? Array.from(new Set([symbol, ...detectSymbols(text)])) : detectSymbols(text),
-        publishedAt: new Date(data.created_utc * 1000).toISOString(),
-      }
-    })
+  const xml = await res.text()
+
+  const entries = [...xml.matchAll(/<entry[^>]*>([\s\S]*?)<\/entry>/gi)].slice(0, 15)
+  return entries.map((m, i): StockSocialSignal => {
+    const inner = m[1]
+    const title = stripCdata(inner.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? '')
+    const link = inner.match(/<link[^>]*href="([^"]+)"/i)?.[1] ?? '#'
+    const updated = inner.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i)?.[1] ?? ''
+    const content = decodeEntities(stripCdata(inner.match(/<content[^>]*>([\s\S]*?)<\/content>/i)?.[1] ?? ''))
+      .replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+    const author = inner.match(/<name>([\s\S]*?)<\/name>/i)?.[1]?.replace(/^\/u\//, '') ?? 'unknown'
+    const text = `${title} ${content}`
+
+    return {
+      id: `reddit:${sub}:${i}:${updated || Date.now()}`,
+      platform: 'reddit' as const,
+      providerLabel: 'Reddit',
+      title: title || '(no title)',
+      body: content.slice(0, 220),
+      url: link,
+      author,
+      score: 0, // Atom exposes no score; 0 is the UI's "no score" sentinel.
+      subreddit: sub,
+      sentiment: scoreSentiment(text),
+      symbols: symbol ? Array.from(new Set([symbol, ...detectSymbols(text)])) : detectSymbols(text),
+      publishedAt: updated ? new Date(updated).toISOString() : new Date().toISOString(),
+    }
+  })
 }
 
 // ─── StockTwits ───────────────────────────────────────────────────────────────

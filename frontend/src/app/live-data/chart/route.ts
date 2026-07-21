@@ -10,9 +10,20 @@ import { coingeckoIdFor } from '@/lib/api/live/coingeckoIds'
 //   days = lookback window in days (default 365)
 //
 // Response shape:
-//   { ok: boolean, candles: PriceCandle[] }
+//   { ok: boolean, candles: PriceCandle[], synthetic: true }
 // where PriceCandle = { date, open, high, low, close, volume } and volume is USD millions.
+//
+// ⚠ THESE ARE NOT REAL CANDLES. CoinGecko's market_chart returns a price-only
+// series, so open/high/low/close are all set to the same sampled price. The
+// shape matches /live-data/ohlcv's real OHLCV, but any calculation that depends
+// on intra-period range — ATR, true range, candlestick patterns, wick analysis,
+// intraday volatility — is meaningless on this data and will silently return
+// zero-range results. `synthetic: true` marks that in the payload.
+//
+// Use /live-data/ohlcv for genuine OHLCV. This route currently has no consumers
+// in the app; it is kept only as a thin CoinGecko market_chart proxy.
 
+export const dynamic = 'force-dynamic'
 export const revalidate = 300
 
 const BASE_URL = process.env.COINGECKO_BASE_URL?.replace(/\/$/, '') || 'https://api.coingecko.com/api/v3'
@@ -72,7 +83,9 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ ok: true, candles })
+    // synthetic: open/high/low/close are all the same sampled price — see the
+    // header note. Consumers must not treat this as real OHLC.
+    return NextResponse.json({ ok: true, candles, synthetic: true })
   } catch {
     return NextResponse.json({ ok: false, candles: [], error: 'fetch_failed' }, { status: 200 })
   }
