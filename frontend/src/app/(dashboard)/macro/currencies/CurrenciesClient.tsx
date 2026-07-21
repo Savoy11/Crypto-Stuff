@@ -13,6 +13,7 @@ import {
 } from '@/lib/data/currencyCatalog'
 import { STALE_TIME_SHORT, STALE_TIME_LONG } from '@/lib/constants'
 import type { FxRatesResponse } from '@/app/live-data/fx-rates/route'
+import type { FxRatesExtendedResponse } from '@/app/live-data/fx-rates-extended/route'
 
 // Currencies registry + converter — Macro Markets module.
 // Intraday pair quotes via security-quotes (Yahoo); the converter uses daily
@@ -25,24 +26,56 @@ interface QuotesResponse { ok: boolean; quotes?: Record<string, Quote> }
 
 const ALL_SYMBOLS = CURRENCY_CATALOG.map((c) => c.symbol)
 
+/** ECB's 30 official currencies, keyed for O(1) tier lookup. */
+const ECB_SET = new Set<string>(CONVERTER_CURRENCIES)
+
 function Converter() {
   const [amount, setAmount] = useState('1000')
   const [from, setFrom] = useState('USD')
   const [to, setTo] = useState('EUR')
 
-  const { data, isLoading } = useQuery<FxRatesResponse>({
+  const { data: ecb, isLoading: ecbLoading } = useQuery<FxRatesResponse>({
     queryKey: ['fx-rates'],
     queryFn: () => fetch('/live-data/fx-rates').then((r) => r.json()),
     staleTime: STALE_TIME_LONG,
   })
+  // Separate query, separate provenance — never blended into one "rates"
+  // object server-side, so a currency's tier is always traceable to which
+  // fetch actually returned it.
+  const { data: extended, isLoading: extendedLoading } = useQuery<FxRatesExtendedResponse>({
+    queryKey: ['fx-rates-extended'],
+    queryFn: () => fetch('/live-data/fx-rates-extended').then((r) => r.json()),
+    staleTime: STALE_TIME_LONG,
+  })
 
-  const rates = data?.ok ? data.rates : undefined
+  const rates = useMemo(() => ({
+    ...(ecb?.ok ? ecb.rates : {}),
+    ...(extended?.ok ? extended.rates : {}),
+  }), [ecb, extended])
+  const isLoading = ecbLoading || extendedLoading
+  const extendedCodes = useMemo(() => new Set(Object.keys(extended?.ok ? extended.rates ?? {} : {})), [extended])
+
   const parsed = parseFloat(amount)
-  const valid = isFinite(parsed) && parsed >= 0 && !!rates?.[from] && !!rates?.[to]
-  const rate = valid ? rates![to] / rates![from] : null
+  const valid = isFinite(parsed) && parsed >= 0 && !!rates[from] && !!rates[to]
+  const rate = valid ? rates[to] / rates[from] : null
   const result = valid && rate != null ? parsed * rate : null
+  // Only the ECB tier gets to say "official" — a conversion touching either
+  // extended-tier leg must disclose the community source, not just the date.
+  const usesExtended = extendedCodes.has(from) || extendedCodes.has(to)
 
-  const selectClass = 'rounded border border-border bg-bg-elevated px-2 py-1.5 text-sm font-mono text-text-primary focus:border-accent-blue/50 focus:outline-none'
+  const selectClass = 'rounded border border-border bg-bg-elevated px-2 py-1.5 text-sm font-mono text-text-primary focus:border-accent-blue/50 focus:outline-none max-w-[7rem]'
+  const options = (
+    <>
+      <optgroup label="Official (ECB)">
+        {CONVERTER_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+      </optgroup>
+      {extendedCodes.size > 0 && (
+        <optgroup label="Extended (community-sourced)">
+          {[...extendedCodes].sort().map((c) => <option key={c} value={c}>{c}</option>)}
+        </optgroup>
+      )}
+    </>
+  )
 
   return (
     <div className="rounded-card border border-border bg-bg-card p-4">
@@ -57,7 +90,7 @@ function Converter() {
           aria-label="Amount"
         />
         <select value={from} onChange={(e) => setFrom(e.target.value)} className={selectClass} aria-label="From currency">
-          {CONVERTER_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {options}
         </select>
         <button
           onClick={() => { setFrom(to); setTo(from) }}
@@ -67,7 +100,7 @@ function Converter() {
           <ArrowLeftRight size={13} aria-hidden />
         </button>
         <select value={to} onChange={(e) => setTo(e.target.value)} className={selectClass} aria-label="To currency">
-          {CONVERTER_CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
+          {options}
         </select>
         <div className="ml-auto text-right">
           {result != null ? (
@@ -86,8 +119,19 @@ function Converter() {
         </div>
       </div>
       <p className="mt-3 pt-3 border-t border-border/60 text-[11px] text-text-muted leading-relaxed">
-        Daily ECB reference rates{data?.ok && data.date ? ` (published ${data.date})` : ''} via frankfurter.dev —
-        indicative mid-market conversion, not a dealable price. Intraday moves show in the pairs table below.
+        {usesExtended ? (
+          <>
+            This conversion uses at least one <span className="text-amber-400">extended-tier</span> currency — sourced
+            from a community-maintained daily feed{extended?.ok && extended.date ? ` (${extended.date})` : ''}, not the
+            European Central Bank. Cross-checked against ECB where both cover the same currency; still indicative, not
+            a dealable price.
+          </>
+        ) : (
+          <>
+            Daily ECB reference rates{ecb?.ok && ecb.date ? ` (published ${ecb.date})` : ''} via frankfurter.dev —
+            indicative mid-market conversion, not a dealable price.
+          </>
+        )} Intraday moves show in the pairs table below.
       </p>
     </div>
   )
