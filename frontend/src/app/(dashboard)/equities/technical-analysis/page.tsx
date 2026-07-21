@@ -214,20 +214,26 @@ function ChartTab() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         <div className="xl:col-span-3 rounded-card border border-border bg-bg-card p-3">
           {isLoading ? (
-            <div className="flex items-center justify-center h-[420px] gap-2 text-slate-500">
+            <div className="flex items-center justify-center h-[520px] gap-2 text-slate-500">
               <Loader2 size={18} className="animate-spin" />
               <span className="text-sm">Loading {symbol} history…</span>
             </div>
           ) : candles.length > 0 ? (
-            <CandlestickChart
-              candles={candles}
-              activeIndicators={active}
-              chartType={chartType}
-              drawingTool={drawingTool}
-              drawings={drawings}
-              onDrawingComplete={(d: Drawing) => { setDrawings((prev) => [...prev, d]); setDrawingTool('none') }}
-              patterns={patterns}
-            />
+            // Explicit height, same as the crypto TA page: CandlestickChart's
+            // root is h-full, so without this the chart only got height when
+            // the xl grid row happened to be stretched by the sidebar column —
+            // and collapsed to nothing in single-column layouts.
+            <div className="h-[520px]">
+              <CandlestickChart
+                candles={candles}
+                activeIndicators={active}
+                chartType={chartType}
+                drawingTool={drawingTool}
+                drawings={drawings}
+                onDrawingComplete={(d: Drawing) => { setDrawings((prev) => [...prev, d]); setDrawingTool('none') }}
+                patterns={patterns}
+              />
+            </div>
           ) : (
             <LiveUnavailable
               className="my-12"
