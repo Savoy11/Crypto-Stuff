@@ -8,7 +8,7 @@ import {
   TrendingUp, TrendingDown, Minus, RefreshCw, Activity,
   CandlestickChart as CandlestickIcon, AreaChart as AreaIcon, BarChart2,
   LineChart as LineIcon, Layers, GitBranch,
-  MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2, Loader2,
+  MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2, Loader2, Search,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
@@ -21,9 +21,115 @@ import {
   type Signal, type DetectedPattern,
 } from '@/lib/utils/indicators'
 import { EQUITY_CATALOG, SECTOR_INFO } from '@/lib/data/equityCatalog'
+import { FUND_CATALOG } from '@/lib/data/fundCatalog'
 import type { SecurityOhlcvResponse } from '@/app/live-data/security-ohlcv/route'
+import type { StockUniverseResponse } from '@/app/live-data/stock-universe/route'
 
 const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickChart'), { ssr: false })
+
+// ─── Symbol search ───────────────────────────────────────────────────────────
+// Combobox over the Stock Registry universe (all active common stocks when an
+// FMP key is configured, curated catalog otherwise) plus the ETF catalog —
+// with free-text passthrough, because the OHLCV chain (Yahoo primary) charts
+// far more than the suggestion list: any US-listed stock, ETF, ADR, mutual
+// fund (daily NAV), or international listing with an exchange suffix
+// (7203.T, BMW.DE). An unknown ticker simply tries; no data shows the
+// honest "no OHLCV source" notice rather than being blocked up front.
+
+interface SymbolOption {
+  symbol: string
+  name: string
+  kind: 'stock' | 'etf' | 'mutual'
+}
+
+function SymbolSearch({ symbol, onSelect }: { symbol: string; onSelect: (s: string) => void }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [highlight, setHighlight] = useState(0)
+
+  const { data: universe } = useQuery<StockUniverseResponse>({
+    queryKey: ['stock-universe'],
+    queryFn: () => fetch('/live-data/stock-universe').then((r) => r.json()),
+    staleTime: 1000 * 60 * 60, // server caches daily; don't refetch while typing
+    enabled: open,
+  })
+
+  const options = useMemo<SymbolOption[]>(() => {
+    const stocks: SymbolOption[] = (universe?.entries ?? EQUITY_CATALOG.map((e) => ({ symbol: e.symbol, name: e.name })))
+      .map((e) => ({ symbol: e.symbol, name: e.name, kind: 'stock' as const }))
+    const funds: SymbolOption[] = FUND_CATALOG.map((f) => ({
+      symbol: f.symbol, name: f.name, kind: f.type === 'etf' ? 'etf' as const : 'mutual' as const,
+    }))
+    return [...stocks, ...funds]
+  }, [universe])
+
+  const matches = useMemo(() => {
+    const q = query.trim().toUpperCase()
+    if (!q) return []
+    // Symbol prefix matches first (what traders type), then name substring.
+    const bySymbol = options.filter((o) => o.symbol.toUpperCase().startsWith(q))
+    const byName = options.filter((o) =>
+      !o.symbol.toUpperCase().startsWith(q) && o.name.toUpperCase().includes(q))
+    return [...bySymbol, ...byName].slice(0, 12)
+  }, [options, query])
+
+  const pick = (s: string) => {
+    onSelect(s.toUpperCase())
+    setQuery('')
+    setOpen(false)
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-1.5 bg-bg-secondary border border-border rounded px-2 py-1.5 focus-within:border-accent-blue/60">
+        <Search size={13} className="text-text-muted flex-shrink-0" aria-hidden />
+        <input
+          value={query}
+          onChange={(e) => { setQuery(e.target.value); setOpen(true); setHighlight(0) }}
+          onFocus={() => setOpen(true)}
+          onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setHighlight((h) => Math.min(h + 1, matches.length - 1)) }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setHighlight((h) => Math.max(h - 1, 0)) }
+            else if (e.key === 'Enter' && query.trim()) {
+              e.preventDefault()
+              pick(matches[highlight]?.symbol ?? query.trim())
+            } else if (e.key === 'Escape') setOpen(false)
+          }}
+          placeholder={symbol}
+          aria-label="Search any ticker"
+          className="w-40 bg-transparent text-sm text-text-primary font-mono placeholder:text-text-primary focus:outline-none"
+        />
+      </div>
+      {open && query.trim() && (
+        <div className="absolute top-full left-0 mt-1.5 z-50 w-80 bg-bg-card border border-border rounded-xl shadow-2xl overflow-hidden">
+          {matches.map((m, i) => (
+            <button
+              key={`${m.kind}:${m.symbol}`}
+              onMouseDown={(e) => { e.preventDefault(); pick(m.symbol) }}
+              onMouseEnter={() => setHighlight(i)}
+              className={clsx('w-full flex items-center gap-2.5 px-3 py-2 text-left text-sm transition-colors',
+                i === highlight ? 'bg-accent-blue/10' : 'hover:bg-bg-elevated')}
+            >
+              <span className="font-mono font-semibold text-text-primary w-16 flex-shrink-0">{m.symbol}</span>
+              <span className="text-xs text-text-muted flex-1 truncate">{m.name}</span>
+              <span className="text-[10px] uppercase tracking-wider text-text-muted">{m.kind}</span>
+            </button>
+          ))}
+          <button
+            onMouseDown={(e) => { e.preventDefault(); pick(query.trim()) }}
+            className={clsx('w-full px-3 py-2 text-left text-xs border-t border-border/60 transition-colors',
+              matches.length === 0 || highlight >= matches.length ? 'bg-accent-blue/10' : 'hover:bg-bg-elevated')}
+          >
+            <span className="text-text-secondary">Chart </span>
+            <span className="font-mono font-semibold text-text-primary">{query.trim().toUpperCase()}</span>
+            <span className="text-text-muted"> directly — any Yahoo-listed ticker works (ADRs, international suffixes like 7203.T)</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // Equities counterpart of the crypto Technical Analysis page. Reuses the
 // shared CandlestickChart, indicator registry, signal engine, and pattern
@@ -127,15 +233,8 @@ function ChartTab() {
     <div className="space-y-4">
       {/* Controls row */}
       <div className="flex flex-wrap items-center gap-3">
-        <select
-          value={symbol}
-          onChange={(e) => { setSymbol(e.target.value); setDrawings([]) }}
-          className="bg-bg-secondary border border-border rounded px-2 py-1.5 text-sm text-text-primary font-mono focus:outline-none focus:border-accent-blue/60"
-        >
-          {EQUITY_CATALOG.map((e) => (
-            <option key={e.symbol} value={e.symbol}>{e.symbol} — {e.name}</option>
-          ))}
-        </select>
+        <SymbolSearch symbol={symbol} onSelect={(s) => { setSymbol(s); setDrawings([]) }} />
+        {entry && <span className="text-xs text-text-muted hidden md:inline">{entry.name}</span>}
 
         <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
           {RANGES.map((r) => (

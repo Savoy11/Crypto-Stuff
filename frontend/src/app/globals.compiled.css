@@ -4107,8 +4107,22 @@ ul, ol {
   color: rgb(71 85 105 / 0.6);
 }
 
+.placeholder\:text-text-primary::-moz-placeholder {
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity, 1));
+}
+
+.placeholder\:text-text-primary::placeholder {
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity, 1));
+}
+
 .last\:border-0:last-child {
   border-width: 0px;
+}
+
+.focus-within\:border-accent-blue\/60:focus-within {
+  border-color: rgb(59 130 246 / 0.6);
 }
 
 .focus-within\:border-violet-500\/60:focus-within {
