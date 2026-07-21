@@ -225,6 +225,19 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 - **`computeFeeDrag(principal, erPct, years, returnPct)`** — expense-ratio cost projection used by the Fee Drag Analyzer on fund detail pages.
 - To add a fund: append to `FUND_CATALOG` following the pattern.
 
+### `src/lib/data/portfolioBuilder.ts` (Portfolio Builder module)
+Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (55 tests).
+
+- **`buildPortfolio(inputs)`** — questionnaire → `BuiltPortfolio`. The glide path anchors to `yearsToFirstUse` (the spend date), **not** retirement; risk tolerance shifts it ±15pts but can never extend a horizon.
+- **`bondLadder(horizon)` / `consolidateLadder(rungs, sleevePct)`** — duration matched to the spend date (SHY → IEF → BND → TLT). `consolidateLadder` drops rungs worth under `MIN_RUNG_PCT` (1%) and re-spreads them, so a thin sleeve becomes one real position instead of several unbuyable slivers.
+- **Sector exclusions remove tilts only.** A broad-market core still holds the excluded companies at index weight, and the engine says so in a note — the catalog carries no screened fund, so a true screen is not deliverable. Do not "fix" this by silently dropping the core.
+- **`fees`** — blended expense ratio, annual dollar cost, and compounded drag vs a 3bps benchmark. There is deliberately **no** fee warning at build time: every reachable instrument is a cheap index fund, so the blend tops out near 0.13% and any threshold would be dead code.
+- **`checkDrift(plan, weights, valueUsd)`** — target vs actual with per-holding buy/sell dollar trades, turnover, and off-plan positions. Drift exactly on the band is `hold`; only a breach trades.
+- **`reviewPlan(saved, actual?, now?)`** — suitability monitoring: ageing glide path, risk drift, fee creep, concentration, off-plan holdings, overdue review. Checks needing real holdings are skipped rather than guessed when `actual` is absent. `now` is injectable so time-dependent behaviour is testable. **Fee creep is checked here**, against what the user actually holds (which can include 0.49–0.87% funds), not at build time.
+- **Concentration is measured against the plan's own target**, not an absolute weight — a 55% total-market core is 3,500 companies held on purpose, and flagging it would train users to ignore the warning.
+- **`actualWeightsFromPortfolio(portfolio, prices)`** — bridges a `/portfolios` portfolio into symbol→weight. Positions with no live price are **excluded, never valued at cost**; `pricedPct` reports coverage so the UI can disclose it.
+- UI: `src/components/portfolio-builder/PlanMonitor.tsx` (expandable per saved plan) supports both a linked portfolio and manual weight entry. Plans persist to `localStorage` under `BUILDER_STORAGE_KEY` until DB persistence lands.
+
 ### Quote plumbing for both modules (`src/lib/api/live/marketData.ts`)
 **All four equity data surfaces are registry-driven** (same provider system as crypto — `src/lib/api/live/providers.ts`, configured on the Integrations page, persisted to `.provider-config.json`; providers carry `market: 'crypto' | 'equities'` so the two sides never cross). Every surface records per-provider utilization, supports toggling/reordering built-ins, and accepts user-added custom feeds (SSRF-validated, auth via header/query/bearer, tolerant JSON field extraction in `src/lib/server/customFeeds.ts`):
 
@@ -318,7 +331,7 @@ Risk/status color convention used across the app:
 | Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
-| Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation, drift bands |
+| Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
 
 ### Equities module (`/equities`)

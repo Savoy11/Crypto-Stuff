@@ -2,17 +2,25 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { clsx } from 'clsx'
-import { AlertTriangle, BellRing, CheckCircle2, Compass, Info, Save, Trash2 } from 'lucide-react'
+import { AlertTriangle, Ban, BellRing, CheckCircle2, ChevronDown, ChevronUp, Compass, Info, Save, Trash2 } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { PieChart } from '@/components/charts/PieChart'
+import { PlanMonitor } from '@/components/portfolio-builder/PlanMonitor'
 import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
 import {
   ASSET_CLASS_INFO, BUILDER_STORAGE_KEY, buildPortfolio, reviewDue,
-  type BuilderInputs, type BuiltPortfolio, type CryptoComfort, type SavedPlan,
+  type BuiltPortfolio, type CryptoComfort, type SavedPlan,
 } from '@/lib/data/portfolioBuilder'
 import { formatCurrency } from '@/lib/utils/format'
+
+type SectorStance = 'focus' | 'exclude'
+
+/** Sectors with a catalog ETF to tilt into. */
+const TILTABLE_SECTORS: SectorId[] = [
+  'technology', 'financials', 'energy', 'healthcare', 'industrials', 'utilities', 'real-estate',
+]
 
 // Portfolio Builder — premium module (own entitlement = separately sellable).
 // v1: questionnaire → diversified target allocation with rationale, saved
@@ -33,21 +41,31 @@ function BuilderContent() {
   const [risk, setRisk] = useState(5)
   const [yearsToRetirement, setYearsToRetirement] = useState(25)
   const [yearsToFirstUse, setYearsToFirstUse] = useState(25)
-  const [sectors, setSectors] = useState<SectorId[]>([])
+  const [sectorStance, setSectorStance] = useState<Partial<Record<SectorId, SectorStance>>>({})
   const [cryptoComfort, setCryptoComfort] = useState<CryptoComfort>('small')
   const [amount, setAmount] = useState(25_000)
   const [result, setResult] = useState<BuiltPortfolio | null>(null)
   const [plans, setPlans] = useState<SavedPlan[]>([])
   const [planName, setPlanName] = useState('')
+  const [openPlanId, setOpenPlanId] = useState<string | null>(null)
 
   useEffect(() => { setPlans(loadPlans()) }, [])
-  const dueReviews = useMemo(() => plans.filter(reviewDue), [plans])
+  const dueReviews = useMemo(() => plans.filter((p) => reviewDue(p)), [plans])
 
-  const toggleSector = (s: SectorId) =>
-    setSectors((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s])
+  const sectorsWhere = (stance: SectorStance) =>
+    (Object.entries(sectorStance) as Array<[SectorId, SectorStance]>)
+      .filter(([, v]) => v === stance).map(([s]) => s)
+
+  // One click tilts toward a sector, the next excludes it, the next clears.
+  const cycleSector = (s: SectorId) => setSectorStance((prev) => ({
+    ...prev,
+    [s]: prev[s] === 'focus' ? 'exclude' : prev[s] === 'exclude' ? undefined : 'focus',
+  }))
 
   const build = () => setResult(buildPortfolio({
-    riskTolerance: risk, yearsToRetirement, yearsToFirstUse, sectorFocus: sectors, cryptoComfort, amount,
+    riskTolerance: risk, yearsToRetirement, yearsToFirstUse,
+    sectorFocus: sectorsWhere('focus'), sectorExclude: sectorsWhere('exclude'),
+    cryptoComfort, amount,
   }))
 
   const savePlan = () => {
@@ -80,9 +98,10 @@ function BuilderContent() {
         <PageHeader
           title="Portfolio Builder"
           subtitle="Diversified target portfolios aligned to your risk, sectors, and spend dates"
-          description="Answers to five questions produce a diversified allocation mapped to low-cost catalog instruments, each with a written rationale. The allocation anchors to when the money is actually used — not just the retirement date — and every plan carries drift bands and a review cadence."
+          description="A short questionnaire produces a diversified allocation mapped to low-cost catalog instruments, each with a written rationale. The allocation anchors to when the money is actually used — not just the retirement date — with bonds laddered to that spend date, and every plan carries drift bands and a review cadence."
           details={[
-            { label: 'Rebalancing', text: 'Plans use ±5% absolute drift bands and a 90-day review reminder. Drift-vs-actual holdings connects when database-backed portfolios land.' },
+            { label: 'Rebalancing', text: 'Plans use ±5% absolute drift bands. Expand a saved plan to compare it against a real portfolio (live-priced) or weights you enter, and see the exact trades that close the gap.' },
+            { label: 'Monitoring', text: 'Saved plans are checked for an ageing glide path, risk drift, fee creep, concentration, and holdings that fall outside the plan.' },
             { label: 'Not advice', text: 'Educational tooling. Allocations are rules-based models, not personalized investment advice.' },
           ]}
         />
@@ -134,19 +153,35 @@ function BuilderContent() {
         </div>
 
         <div>
-          <p className="text-xs text-text-muted uppercase tracking-wider mb-2">Sector focus <span className="normal-case">(optional, max 3 applied)</span></p>
+          <p className="text-xs text-text-muted uppercase tracking-wider mb-2">
+            Sectors <span className="normal-case">(optional — click once to tilt toward, twice to exclude; max 3 tilts applied)</span>
+          </p>
           <div className="flex flex-wrap gap-1.5">
             {(Object.entries(SECTOR_INFO) as Array<[SectorId, { label: string; color: string }]>)
-              .filter(([id]) => ['technology', 'financials', 'energy', 'healthcare', 'industrials', 'utilities', 'real-estate'].includes(id))
-              .map(([id, info]) => (
-                <button key={id} onClick={() => toggleSector(id)}
-                  className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
-                    sectors.includes(id) ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}>
-                  <span className="size-1.5 rounded-full" style={{ backgroundColor: info.color }} aria-hidden />
-                  {info.label}
-                </button>
-              ))}
+              .filter(([id]) => TILTABLE_SECTORS.includes(id))
+              .map(([id, info]) => {
+                const stance = sectorStance[id]
+                return (
+                  <button key={id} onClick={() => cycleSector(id)}
+                    aria-pressed={stance != null}
+                    className={clsx('flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors',
+                      stance === 'focus' ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
+                        : stance === 'exclude' ? 'bg-red-500/10 text-red-400 border-red-500/30 line-through'
+                        : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}>
+                    {stance === 'exclude'
+                      ? <Ban size={11} aria-hidden />
+                      : <span className="size-1.5 rounded-full" style={{ backgroundColor: info.color }} aria-hidden />}
+                    {info.label}
+                  </button>
+                )
+              })}
           </div>
+          {sectorsWhere('exclude').length > 0 && (
+            <p className="mt-2 text-[11px] text-amber-400/90 leading-relaxed">
+              Excluding a sector removes its tilt, but the broad core funds still hold those companies at index weight —
+              a true screen needs a screened fund, which this catalog doesn’t carry.
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -170,9 +205,10 @@ function BuilderContent() {
       {/* Result */}
       {result && (
         <>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
             <MetricCard title="Diversification" value={`${result.diversificationScore}/100`} subtitle={`${result.classMix.length} asset classes`} accentColor="#10b981" />
             <MetricCard title="Equity / Defensive" value={`${Math.round(result.classMix.filter(c => ['us-equity','intl-equity','sector-tilt','crypto'].includes(c.assetClass)).reduce((s,c)=>s+c.pct,0))} / ${Math.round(result.classMix.filter(c => ['bonds','inflation','cash'].includes(c.assetClass)).reduce((s,c)=>s+c.pct,0))}`} subtitle="growth vs stability split" accentColor="#3b82f6" />
+            <MetricCard title="Blended Cost" value={`${result.fees.blendedExpenseRatioPct.toFixed(2)}%`} subtitle={`${formatCurrency(result.fees.annualFeeUsd, 0)} a year`} accentColor="#06b6d4" />
             <MetricCard title="Rebalance Band" value={`±${result.driftBandPct}%`} subtitle="absolute drift per holding" accentColor="#f59e0b" />
             <MetricCard title="Review Cadence" value={`${result.reviewIntervalDays} days`} subtitle="suitability check reminder" accentColor="#8b5cf6" />
           </div>
@@ -213,6 +249,13 @@ function BuilderContent() {
                     <p className="mt-1 text-xs text-text-muted leading-snug">{h.rationale}</p>
                   </div>
                 ))}
+              </div>
+              <div className="px-4 py-2.5 border-t border-border text-[11px] text-text-muted leading-relaxed">
+                Weighted expense ratio {result.fees.blendedExpenseRatioPct.toFixed(3)}% —
+                about {formatCurrency(result.fees.annualFeeUsd, 0)} a year, and roughly{' '}
+                {formatCurrency(result.fees.horizonFeeDragUsd, 0)} of compounded cost over {result.horizonYears} years
+                versus a 0.03% benchmark, assuming 7% annual returns.
+                {result.fees.coveragePct < 99 && ` Costs are known for ${result.fees.coveragePct}% of the portfolio.`}
               </div>
             </div>
           </div>
@@ -257,30 +300,42 @@ function BuilderContent() {
           <div className="divide-y divide-border/60">
             {plans.map((p) => {
               const due = reviewDue(p)
+              const open = openPlanId === p.id
               return (
-                <div key={p.id} className="px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
-                  <div className="min-w-0 flex-1">
-                    <span className="font-medium text-text-primary">{p.name}</span>
-                    <span className="ml-2 text-xs text-text-muted">
-                      {p.plan.holdings.length} holdings · risk {p.plan.inputs.riskTolerance}/10 · first use in {p.plan.inputs.yearsToFirstUse}y
-                    </span>
-                    <p className="text-[11px] text-text-muted mt-0.5">
-                      Last reviewed {new Date(p.lastReviewedAt).toLocaleDateString()}
-                    </p>
+                <div key={p.id}>
+                  <div className="px-4 py-3 flex flex-wrap items-center gap-3 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <span className="font-medium text-text-primary">{p.name}</span>
+                      <span className="ml-2 text-xs text-text-muted">
+                        {p.plan.holdings.length} holdings · risk {p.plan.inputs.riskTolerance}/10 · first use in {p.plan.inputs.yearsToFirstUse}y
+                      </span>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        Last reviewed {new Date(p.lastReviewedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {due ? (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
+                        <BellRing size={11} aria-hidden /> Review due
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <CheckCircle2 size={11} aria-hidden /> Current
+                      </span>
+                    )}
+                    <button
+                      onClick={() => setOpenPlanId(open ? null : p.id)}
+                      aria-expanded={open}
+                      className="flex items-center gap-1 text-xs text-accent-blue hover:underline"
+                    >
+                      {open ? <ChevronUp size={13} aria-hidden /> : <ChevronDown size={13} aria-hidden />}
+                      Check drift
+                    </button>
+                    <button onClick={() => markReviewed(p.id)} className="text-xs text-accent-blue hover:underline">Mark reviewed</button>
+                    <button onClick={() => deletePlan(p.id)} className="text-text-muted hover:text-red-400 transition-colors" aria-label={`Delete ${p.name}`}>
+                      <Trash2 size={14} aria-hidden />
+                    </button>
                   </div>
-                  {due ? (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/30">
-                      <BellRing size={11} aria-hidden /> Review due
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      <CheckCircle2 size={11} aria-hidden /> Current
-                    </span>
-                  )}
-                  <button onClick={() => markReviewed(p.id)} className="text-xs text-accent-blue hover:underline">Mark reviewed</button>
-                  <button onClick={() => deletePlan(p.id)} className="text-text-muted hover:text-red-400 transition-colors" aria-label={`Delete ${p.name}`}>
-                    <Trash2 size={14} aria-hidden />
-                  </button>
+                  {open && <PlanMonitor saved={p} />}
                 </div>
               )
             })}
