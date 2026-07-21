@@ -239,7 +239,7 @@ Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (55 t
 - **Concentration is measured against the plan's own target**, not an absolute weight — a 55% total-market core is 3,500 companies held on purpose, and flagging it would train users to ignore the warning.
 - **`actualWeightsFromPortfolio(portfolio, prices)`** — bridges a `/portfolios` portfolio into symbol→weight. Positions with no live price are **excluded, never valued at cost**; `pricedPct` reports coverage so the UI can disclose it.
 - UI: `src/components/portfolio-builder/PlanMonitor.tsx` (expandable per saved plan) supports both a linked portfolio and manual weight entry.
-- **Plans persist to Postgres** (`builder_plans` table — jsonb snapshot of engine output, deliberately not normalized) via `/api/user/builder-plans` (+ `/[id]` PATCH/DELETE). Ownership via `getCurrentUserId()` (local-user mode while the auth wall is off). The page one-time-imports legacy `BUILDER_STORAGE_KEY` localStorage plans (timestamps preserved, key renamed `*:imported` so it can't run twice). `builder_plans.linked_portfolio_id` exists but the UI won't persist it until `/portfolios` itself is DB-backed (localStorage ids aren't UUIDs).
+- **Plans persist to Postgres** (`builder_plans` table — jsonb snapshot of engine output, deliberately not normalized) via `/api/user/builder-plans` (+ `/[id]` PATCH/DELETE). Ownership via `getCurrentUserId()` (local-user mode while the auth wall is off). The page one-time-imports legacy `BUILDER_STORAGE_KEY` localStorage plans (timestamps preserved, key renamed `*:imported` so it can't run twice). `builder_plans.linked_portfolio_id` persists which portfolio the drift monitor compares against (auto-selected on load; portfolios are DB-backed with UUID ids).
 - **⚠ New API routes with dynamic segments MUST live under `/api/user/`** — the `next.config.mjs` rewrite proxies other `/api/*` paths to the legacy backend, and dynamic routes lose to rewrites (see comment in next.config.mjs).
 
 ### Quote plumbing for both modules (`src/lib/api/live/marketData.ts`)
@@ -329,7 +329,7 @@ Risk/status color convention used across the app:
 | Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
 | Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data |
 | Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
-| Portfolios | `/portfolios` | 🟢 Live | Live prices + portfolio history (`/live-data/portfolio-*`) |
+| Portfolios | `/portfolios` | 🟢 Live | Live prices + history (`/live-data/portfolio-*`). **DB-backed** via `/api/user/portfolios` (+`/[id]` PUT/DELETE): store keeps its sync Zustand interface via optimistic mutations + client-UUID ids; consumers call `hydratePortfolios()` on mount; one-time localStorage import. Holdings resolve through the instrument layer (`lib/server/instrumentResolve.ts` — global rows, cgId round-trips via `instrument_crypto.coingecko_id`) |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
 | Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useId } from 'react'
+import { useEffect, useState, useMemo, useId } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { clsx } from 'clsx'
-import { usePortfolioStore } from '@/store/usePortfolioStore'
+import { hydratePortfolios, usePortfolioStore } from '@/store/usePortfolioStore'
 import {
   CATEGORY_META,
 } from '@/lib/data/portfolioCoins'
@@ -871,8 +871,10 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
 type View = 'list' | 'detail' | 'new' | 'edit'
 
 export default function PortfoliosPage() {
-  const { portfolios, activeId, createPortfolio, updatePortfolio, deletePortfolio, setActive, active } = usePortfolioStore()
+  const { portfolios, activeId, createPortfolio, updatePortfolio, deletePortfolio, setActive, active, hydrated, syncError } = usePortfolioStore()
   const [view, setView] = useState<View>(activeId ? 'detail' : 'list')
+
+  useEffect(() => { void hydratePortfolios() }, [])
 
   const currentPortfolio = active()
 
@@ -895,6 +897,18 @@ export default function PortfoliosPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {syncError && (
+        <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 flex items-start gap-3">
+          <AlertTriangle size={16} className="text-red-400 flex-shrink-0 mt-0.5" aria-hidden />
+          <div className="text-xs text-text-secondary leading-relaxed">
+            <span className="font-medium text-red-300">Portfolios are unavailable</span>
+            {' '}— {syncError}. Changes made now will not be saved.
+          </div>
+        </div>
+      )}
+      {!hydrated && !syncError && (
+        <p className="text-xs text-text-muted">Loading portfolios…</p>
+      )}
       {view === 'list' && (
         <>
           <div className="flex items-center justify-between gap-4">

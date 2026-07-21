@@ -1,10 +1,10 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { AlertTriangle, ArrowDownRight, ArrowUpRight, CheckCircle2, Info, Minus } from 'lucide-react'
-import { usePortfolioStore } from '@/store/usePortfolioStore'
+import { hydratePortfolios, usePortfolioStore } from '@/store/usePortfolioStore'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import {
@@ -26,16 +26,46 @@ function fmtUsd(n: number) {
 
 export function PlanMonitor({ saved }: { saved: SavedPlan }) {
   const portfolios = usePortfolioStore((s) => s.portfolios)
-  // The schema and PATCH API already support persisting which portfolio a
-  // plan is linked to (builder_plans.linked_portfolio_id) — but /portfolios
-  // itself still lives in localStorage with non-UUID ids the DB's FK check
-  // would rightly reject. Selection stays session-local until the portfolios
-  // migration lands; then this select persists through the existing API.
+  const queryClient = useQueryClient()
+  useEffect(() => { void hydratePortfolios() }, [])
+
+  // Portfolios are DB-backed with UUID ids, so a plan's comparison target
+  // persists server-side (builder_plans.linked_portfolio_id): a saved link
+  // wins over the default, and changing the select saves the new link.
   const linkedStillExists = portfolios.some((p) => p.id === saved.linkedPortfolioId)
   const [source, setSource] = useState<Source>(portfolios.length > 0 ? 'portfolio' : 'manual')
   const [portfolioId, setPortfolioId] = useState<string>(
     (linkedStillExists ? saved.linkedPortfolioId! : portfolios[0]?.id) ?? '')
   const [manual, setManual] = useState<Record<string, string>>({})
+
+  // Portfolios hydrate from the server after first render, so the initial
+  // state above may have been computed against an empty list. Once they
+  // arrive, adopt the persisted link (or first portfolio) and switch the
+  // source toggle over — unless the user has already made choices themselves.
+  const sourceTouched = useRef(false)
+  useEffect(() => {
+    if (portfolios.length === 0) return
+    if (!portfolioId) setPortfolioId(linkedStillExists ? saved.linkedPortfolioId! : portfolios[0].id)
+    if (!sourceTouched.current) setSource('portfolio')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [portfolios.length])
+
+  const linkMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/user/builder-plans/${saved.id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ linkedPortfolioId: id }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.ok) throw new Error(json.error ?? 'Link not saved')
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['builder-plans'] }),
+  })
+
+  const selectPortfolio = (id: string) => {
+    setPortfolioId(id)
+    linkMutation.mutate(id)
+  }
 
   const portfolio = portfolios.find((p) => p.id === portfolioId)
   const usingPortfolio = source === 'portfolio' && !!portfolio
@@ -81,7 +111,7 @@ export function PlanMonitor({ saved }: { saved: SavedPlan }) {
         <span className="text-xs text-text-muted uppercase tracking-wider">Compare against</span>
         <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
           <button
-            onClick={() => setSource('portfolio')}
+            onClick={() => { sourceTouched.current = true; setSource('portfolio') }}
             disabled={portfolios.length === 0}
             className={clsx('px-2.5 py-1 rounded text-xs font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed',
               source === 'portfolio' ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
@@ -89,7 +119,7 @@ export function PlanMonitor({ saved }: { saved: SavedPlan }) {
             A portfolio
           </button>
           <button
-            onClick={() => setSource('manual')}
+            onClick={() => { sourceTouched.current = true; setSource('manual') }}
             className={clsx('px-2.5 py-1 rounded text-xs font-medium transition-colors',
               source === 'manual' ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
           >
@@ -101,7 +131,7 @@ export function PlanMonitor({ saved }: { saved: SavedPlan }) {
           portfolios.length > 0 ? (
             <select
               value={portfolioId}
-              onChange={(e) => setPortfolioId(e.target.value)}
+              onChange={(e) => selectPortfolio(e.target.value)}
               className="rounded border border-border bg-bg-card px-2 py-1 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
             >
               {portfolios.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}

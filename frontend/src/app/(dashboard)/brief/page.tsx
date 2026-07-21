@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sunrise, RefreshCw, KeyRound } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { usePortfolioStore } from '@/store/usePortfolioStore'
+import { hydratePortfolios, usePortfolioStore } from '@/store/usePortfolioStore'
 import { INSTRUMENT_BY_KEY } from '@/lib/data/instruments'
 
 // AI Daily Brief — "your holdings, what moved, why, and what's ahead."
@@ -37,6 +37,7 @@ function collectContext(portfolios: ReturnType<typeof usePortfolioStore.getState
 
 export default function DailyBriefPage() {
   const { portfolios } = usePortfolioStore()
+  useEffect(() => { void hydratePortfolios() }, [])
   const [brief, setBrief] = useState<StoredBrief | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

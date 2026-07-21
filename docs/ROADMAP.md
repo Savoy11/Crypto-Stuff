@@ -118,10 +118,13 @@ Each phase leaves the app fully working and usable day-to-day.
 module registry.
 
 ### Phase 1 — Invest on real data
-> Progress (2026-07-21): **Portfolio Builder plans are DB-backed** —
-> `builder_plans` table (migration 0001), `/api/user/*` route namespace
-> (excluded from the legacy-backend rewrite), one-time localStorage import.
-> Portfolios / wallets / watchlist remain.
+> Progress (2026-07-21): **Portfolio Builder plans AND portfolios are
+> DB-backed** — `builder_plans` (migration 0001) + `portfolios`/`holdings`
+> through the instrument layer (global rows, cgId round-trip via
+> `instrument_crypto`). `/api/user/*` route namespace (excluded from the
+> legacy-backend rewrite), optimistic Zustand store with client-UUID ids,
+> one-time localStorage imports, plan→portfolio drift link persisted.
+> Wallets / watchlist remain.
 - Migrate portfolios / wallets / watchlist pages from localStorage & mocks to
   DB-backed API routes.
 - Trade transaction history (buy/sell/transfer) → cost basis, realized and
