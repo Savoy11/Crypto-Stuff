@@ -14,10 +14,44 @@ import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
 import {
   ASSET_CLASS_INFO, BUILDER_STORAGE_KEY, buildPortfolio, reviewDue,
   type BuiltPortfolio, type CryptoComfort, type SavedPlan,
+  type BuilderAssetClass, type SleeveAppetite,
 } from '@/lib/data/portfolioBuilder'
 import { formatCurrency } from '@/lib/utils/format'
 
 type SectorStance = 'focus' | 'exclude'
+
+/**
+ * Growth side of the Growth/Defensive metric. Complement is treated as
+ * defensive, so the two always sum to 100 — listing both sides independently
+ * would silently under-count the moment a new asset class lands.
+ */
+const GROWTH_SIDE: BuilderAssetClass[] = ['us-equity', 'intl-equity', 'sector-tilt', 'crypto', 'commodity']
+
+/**
+ * Opt-in sleeve selector. Every optional asset class uses the same three-step
+ * control so none of them reads as more "default" than the others — these are
+ * choices, not a ladder the user is expected to climb.
+ */
+function SleeveControl<T extends SleeveAppetite>({ label, value, onChange }: {
+  label: string
+  value: T
+  onChange: (v: T) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-text-muted uppercase tracking-wider">{label}</span>
+      <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
+        {(['none', 'small', 'moderate'] as const).map((v) => (
+          <button key={v} onClick={() => onChange(v as T)}
+            className={clsx('px-2.5 py-1 rounded text-xs font-medium capitalize transition-colors',
+              value === v ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}>
+            {v}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
 
 /** Sectors with a catalog ETF to tilt into. */
 const TILTABLE_SECTORS: SectorId[] = [
@@ -57,6 +91,9 @@ function BuilderContent() {
   const [yearsToFirstUse, setYearsToFirstUse] = useState(25)
   const [sectorStance, setSectorStance] = useState<Partial<Record<SectorId, SectorStance>>>({})
   const [cryptoComfort, setCryptoComfort] = useState<CryptoComfort>('small')
+  // Macro sleeves default off — they're deliberate additions, not opt-outs.
+  const [commodityComfort, setCommodityComfort] = useState<SleeveAppetite>('none')
+  const [currencyComfort, setCurrencyComfort] = useState<SleeveAppetite>('none')
   const [amount, setAmount] = useState(25_000)
   const [result, setResult] = useState<BuiltPortfolio | null>(null)
   const [planName, setPlanName] = useState('')
@@ -147,7 +184,7 @@ function BuilderContent() {
   const build = () => setResult(buildPortfolio({
     riskTolerance: risk, yearsToRetirement, yearsToFirstUse,
     sectorFocus: sectorsWhere('focus'), sectorExclude: sectorsWhere('exclude'),
-    cryptoComfort, amount,
+    cryptoComfort, commodityComfort, currencyComfort, amount,
   }))
 
   const savePlan = () => {
@@ -265,16 +302,9 @@ function BuilderContent() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <span className="text-xs text-text-muted uppercase tracking-wider">Crypto comfort:</span>
-          <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
-            {([['none', 'None'], ['small', 'Small sleeve'], ['moderate', 'Moderate']] as Array<[CryptoComfort, string]>).map(([v, label]) => (
-              <button key={v} onClick={() => setCryptoComfort(v)}
-                className={clsx('px-2.5 py-1 rounded text-xs font-medium transition-colors',
-                  cryptoComfort === v ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}>
-                {label}
-              </button>
-            ))}
-          </div>
+          <SleeveControl label="Crypto" value={cryptoComfort} onChange={setCryptoComfort} />
+          <SleeveControl label="Commodities" value={commodityComfort} onChange={setCommodityComfort} />
+          <SleeveControl label="Currency" value={currencyComfort} onChange={setCurrencyComfort} />
           <button onClick={build}
             className="ml-auto px-4 py-2 rounded-lg bg-accent-blue text-sm font-medium text-white hover:bg-blue-500 transition-colors">
             Build portfolio
@@ -287,7 +317,7 @@ function BuilderContent() {
         <>
           <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
             <MetricCard title="Diversification" value={`${result.diversificationScore}/100`} subtitle={`${result.classMix.length} asset classes`} accentColor="#10b981" />
-            <MetricCard title="Equity / Defensive" value={`${Math.round(result.classMix.filter(c => ['us-equity','intl-equity','sector-tilt','crypto'].includes(c.assetClass)).reduce((s,c)=>s+c.pct,0))} / ${Math.round(result.classMix.filter(c => ['bonds','inflation','cash'].includes(c.assetClass)).reduce((s,c)=>s+c.pct,0))}`} subtitle="growth vs stability split" accentColor="#3b82f6" />
+            <MetricCard title="Growth / Defensive" value={`${Math.round(result.classMix.filter(c => GROWTH_SIDE.includes(c.assetClass)).reduce((s,c)=>s+c.pct,0))} / ${Math.round(result.classMix.filter(c => !GROWTH_SIDE.includes(c.assetClass)).reduce((s,c)=>s+c.pct,0))}`} subtitle="growth vs stability split" accentColor="#3b82f6" />
             <MetricCard title="Blended Cost" value={`${result.fees.blendedExpenseRatioPct.toFixed(2)}%`} subtitle={`${formatCurrency(result.fees.annualFeeUsd, 0)} a year`} accentColor="#06b6d4" />
             <MetricCard title="Rebalance Band" value={`±${result.driftBandPct}%`} subtitle="absolute drift per holding" accentColor="#f59e0b" />
             <MetricCard title="Review Cadence" value={`${result.reviewIntervalDays} days`} subtitle="suitability check reminder" accentColor="#8b5cf6" />

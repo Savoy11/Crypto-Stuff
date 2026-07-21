@@ -175,6 +175,134 @@ describe('cash and crypto sleeves', () => {
   })
 })
 
+describe('optional macro sleeves', () => {
+  it('adds nothing when neither sleeve is opted into', () => {
+    const plan = build()
+    expect(plan.holdings.some((h) => h.assetClass === 'commodity')).toBe(false)
+    expect(plan.holdings.some((h) => h.assetClass === 'currency')).toBe(false)
+  })
+
+  it('treats a plan saved before these fields existed as opting out', () => {
+    // reviewPlan()'s aged rebuild replays stored inputs; a pre-existing plan
+    // has no commodityComfort key at all and must not sprout a sleeve.
+    const legacyInputs = { ...base }
+    delete (legacyInputs as Partial<BuilderInputs>).commodityComfort
+    delete (legacyInputs as Partial<BuilderInputs>).currencyComfort
+    const plan = buildPortfolio(legacyInputs)
+    expect(plan.classMix.some((c) => c.assetClass === 'commodity')).toBe(false)
+    expect(plan.classMix.some((c) => c.assetClass === 'currency')).toBe(false)
+    expect(sum(plan.holdings.map((h) => h.weightPct))).toBeCloseTo(100, 1)
+  })
+
+  it('holds gold alone at a small allocation and adds the basket at moderate', () => {
+    const small = build({ commodityComfort: 'small' })
+    expect(small.holdings.filter((h) => h.assetClass === 'commodity').map((h) => h.symbol)).toEqual(['GLDM'])
+
+    const moderate = build({ commodityComfort: 'moderate' })
+    const symbols = moderate.holdings.filter((h) => h.assetClass === 'commodity').map((h) => h.symbol)
+    expect(symbols).toContain('GLDM')
+    expect(symbols).toContain('PDBC')
+  })
+
+  it('does not scale commodities with risk tolerance — gold is not a growth asset', () => {
+    const timid = build({ commodityComfort: 'moderate', riskTolerance: 1, yearsToFirstUse: 20 })
+    const bold = build({ commodityComfort: 'moderate', riskTolerance: 10, yearsToFirstUse: 20 })
+    const pct = (p: BuiltPortfolio) => p.classMix.find((c) => c.assetClass === 'commodity')?.pct ?? 0
+    expect(pct(timid)).toBeCloseTo(pct(bold), 1)
+  })
+
+  it('trims the commodity sleeve when the spend date is close', () => {
+    const plan = build({ commodityComfort: 'moderate', yearsToFirstUse: 2 })
+    expect(plan.classMix.find((c) => c.assetClass === 'commodity')!.pct).toBeLessThanOrEqual(3)
+    expect(plan.notes.some((n) => n.level === 'warn' && /Commodity sleeve trimmed/.test(n.message))).toBe(true)
+  })
+
+  it('always discloses that foreign currency has no long-run expected return', () => {
+    const plan = build({ currencyComfort: 'small' })
+    expect(plan.holdings.filter((h) => h.assetClass === 'currency').map((h) => h.symbol)).toEqual(['FXE'])
+    expect(plan.notes.some((n) => n.level === 'warn' && /no long-run expected return/.test(n.message))).toBe(true)
+  })
+
+  it('splits the currency sleeve across two reserve currencies at moderate', () => {
+    const symbols = build({ currencyComfort: 'moderate' }).holdings
+      .filter((h) => h.assetClass === 'currency').map((h) => h.symbol)
+    expect(symbols).toEqual(['FXE', 'FXY'])
+  })
+
+  it('funds each sleeve from its own side, leaving the risk posture unchanged', () => {
+    const GROWTH = ['us-equity', 'intl-equity', 'sector-tilt', 'crypto', 'commodity']
+    const sideTotals = (p: BuiltPortfolio) => ({
+      growth: sum(p.classMix.filter((c) => GROWTH.includes(c.assetClass)).map((c) => c.pct)),
+      defensive: sum(p.classMix.filter((c) => !GROWTH.includes(c.assetClass)).map((c) => c.pct)),
+    })
+    const without = sideTotals(build({ yearsToFirstUse: 20 }))
+    const withSleeves = sideTotals(build({
+      yearsToFirstUse: 20, commodityComfort: 'moderate', currencyComfort: 'moderate',
+    }))
+    // Opting into diversifiers must not quietly change how much risk is taken.
+    expect(withSleeves.growth).toBeCloseTo(without.growth, 0)
+    expect(withSleeves.defensive).toBeCloseTo(without.defensive, 0)
+  })
+
+  it('funds commodities out of equity and currency out of the bond side', () => {
+    const cls = (p: BuiltPortfolio, c: string) => p.classMix.find((x) => x.assetClass === c)?.pct ?? 0
+    const without = build({ yearsToFirstUse: 20 })
+    const withCommodity = build({ yearsToFirstUse: 20, commodityComfort: 'moderate' })
+    const withCurrency = build({ yearsToFirstUse: 20, currencyComfort: 'moderate' })
+
+    // Gold displaces stocks, not bonds.
+    expect(cls(withCommodity, 'us-equity')).toBeLessThan(cls(without, 'us-equity'))
+    expect(cls(withCommodity, 'bonds')).toBeCloseTo(cls(without, 'bonds'), 0)
+    // Foreign cash displaces bonds, not stocks.
+    expect(cls(withCurrency, 'bonds')).toBeLessThan(cls(without, 'bonds'))
+    expect(cls(withCurrency, 'us-equity')).toBeCloseTo(cls(without, 'us-equity'), 0)
+  })
+
+  it('never emits an unbuyable sliver position with every sleeve enabled', () => {
+    // The residual after max-risk funding of every sleeve can be a fraction
+    // of a point; it must be absorbed, not shipped as a $200 bond fund.
+    for (const riskTolerance of [1, 5, 8, 10]) {
+      for (const yearsToFirstUse of [0, 2, 6, 20, 40]) {
+        const plan = build({
+          riskTolerance, yearsToFirstUse,
+          cryptoComfort: 'moderate', commodityComfort: 'moderate', currencyComfort: 'moderate',
+        })
+        for (const h of plan.holdings) {
+          expect(h.weightPct, `${h.symbol} @ risk ${riskTolerance}/${yearsToFirstUse}y`)
+            .toBeGreaterThanOrEqual(MIN_RUNG_PCT)
+        }
+      }
+    }
+  })
+
+  it('never exceeds 100% even at maximum risk with every sleeve enabled', () => {
+    // Regression: equity(95) + crypto(8) alone used to total 103% before the
+    // rounding pass silently shrank the core holding to compensate.
+    for (const riskTolerance of [1, 5, 10]) {
+      for (const yearsToFirstUse of [0, 2, 10, 40]) {
+        const plan = build({
+          riskTolerance, yearsToFirstUse,
+          cryptoComfort: 'moderate', commodityComfort: 'moderate', currencyComfort: 'moderate',
+        })
+        const total = sum(plan.holdings.map((h) => h.weightPct))
+        expect(Math.abs(total - 100), `risk ${riskTolerance} / ${yearsToFirstUse}y`).toBeLessThan(0.05)
+        for (const h of plan.holdings) expect(h.weightPct).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('counts commodities as growth but currency as defensive in risk drift', () => {
+    const plan = build({ yearsToFirstUse: 20, commodityComfort: 'moderate', currencyComfort: 'moderate' })
+    const onTarget = Object.fromEntries(plan.holdings.map((h) => [h.symbol, h.weightPct]))
+    const saved: SavedPlan = {
+      id: 'p', name: 'n', createdAt: new Date().toISOString(),
+      lastReviewedAt: new Date().toISOString(), plan,
+    }
+    // Held exactly on target — neither sleeve should register as drift.
+    expect(reviewPlan(saved, { weights: onTarget }).some((f) => f.id === 'risk-drift')).toBe(false)
+  })
+})
+
 describe('sector focus and exclusions', () => {
   it('applies at most three tilts and warns when more were asked for', () => {
     const focus: SectorId[] = ['technology', 'financials', 'energy', 'healthcare']

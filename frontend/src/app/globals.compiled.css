@@ -1563,6 +1563,10 @@ ul, ol {
   max-width: 220px;
 }
 
+.max-w-\[7rem\] {
+  max-width: 7rem;
+}
+
 .max-w-\[85\%\] {
   max-width: 85%;
 }

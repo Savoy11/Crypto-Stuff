@@ -13,6 +13,16 @@ import { computeHoldings, type Portfolio } from './portfolioUtils'
 
 export type CryptoComfort = 'none' | 'small' | 'moderate'
 
+/**
+ * Appetite for an optional macro sleeve (commodities, currencies).
+ *
+ * These are opt-in by design. They aren't "riskier assets you graduate into"
+ * the way crypto is — they're diversifiers, and a growth-focused investor may
+ * deliberately want none of them. Nothing here is sized off risk tolerance
+ * for that reason: a high-risk investor doesn't automatically want more gold.
+ */
+export type SleeveAppetite = 'none' | 'small' | 'moderate'
+
 export interface BuilderInputs {
   /** 1 (capital preservation) … 10 (maximum growth) */
   riskTolerance: number
@@ -25,6 +35,14 @@ export interface BuilderInputs {
   /** Sectors the user does not want tilted into. See the caveat in buildPortfolio. */
   sectorExclude: SectorId[]
   cryptoComfort: CryptoComfort
+  /**
+   * Optional macro sleeves. Both are `?` on purpose: plans saved before these
+   * existed replay through reviewPlan()'s aged rebuild with the field absent,
+   * and must rebuild identically rather than sprouting a sleeve the user
+   * never chose. Absent === 'none'.
+   */
+  commodityComfort?: SleeveAppetite
+  currencyComfort?: SleeveAppetite
   /** Investment amount in USD (for dollar figures in the output) */
   amount: number
 }
@@ -32,7 +50,8 @@ export interface BuilderInputs {
 // ─── Output ───────────────────────────────────────────────────────────────────
 
 export type BuilderAssetClass =
-  | 'us-equity' | 'intl-equity' | 'sector-tilt' | 'bonds' | 'inflation' | 'cash' | 'crypto'
+  | 'us-equity' | 'intl-equity' | 'sector-tilt' | 'bonds' | 'inflation' | 'cash'
+  | 'crypto' | 'commodity' | 'currency'
 
 export const ASSET_CLASS_INFO: Record<BuilderAssetClass, { label: string; color: string }> = {
   'us-equity':   { label: 'US Equity',            color: '#3b82f6' },
@@ -42,6 +61,8 @@ export const ASSET_CLASS_INFO: Record<BuilderAssetClass, { label: string; color:
   'inflation':   { label: 'Inflation Protection', color: '#f59e0b' },
   'cash':        { label: 'Cash & Short-Term',    color: '#22c55e' },
   'crypto':      { label: 'Crypto',               color: '#f97316' },
+  'commodity':   { label: 'Commodities',          color: '#a16207' },
+  'currency':    { label: 'Foreign Currency',     color: '#ec4899' },
 }
 
 export interface BuiltHolding {
@@ -187,7 +208,14 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
     equityPct = Math.min(equityPct, 100 - cashPct - 10)
   }
 
-  // 3. Crypto sleeve — capped hard by comfort, risk, and horizon
+  // 3. Alternative sleeves — crypto, commodities, foreign currency. All opt-in.
+  //
+  //    Each sleeve is funded from its OWN side of the growth/defensive split,
+  //    so opting in never changes how much risk the plan takes — only what
+  //    expresses it. Commodities are a growth-side diversifier and come out of
+  //    equity; foreign currency moves like cash and comes out of the bond
+  //    side. The glide path decided the risk posture from the horizon; a
+  //    diversification choice shouldn't silently override it.
   let cryptoPct = inputs.cryptoComfort === 'none' ? 0
     : inputs.cryptoComfort === 'small' ? clamp(inputs.riskTolerance * 0.5, 1, 4)
     : clamp(inputs.riskTolerance, 2, 8)
@@ -196,10 +224,43 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
     notes.push({ level: 'warn', message: 'Crypto sleeve capped at 2% — volatile assets fit poorly with a spend date under five years.' })
   }
 
+  // Commodities are deliberately NOT scaled by risk tolerance. Gold is a
+  // diversifier, not a growth asset — wanting more risk is not a reason to
+  // hold more of it, and an aggressive investor may rationally want none.
+  let commodityPct = inputs.commodityComfort === 'small' ? 5
+    : inputs.commodityComfort === 'moderate' ? 10
+    : 0
+  if (horizon < 3 && commodityPct > 0) {
+    commodityPct = Math.min(commodityPct, 3)
+    notes.push({ level: 'warn', message: 'Commodity sleeve trimmed to 3% — gold and broad commodities can fall 20%+ in a year, which a spend date this close cannot absorb.' })
+  }
+
+  const currencyPct = inputs.currencyComfort === 'small' ? 3
+    : inputs.currencyComfort === 'moderate' ? 6
+    : 0
+  if (currencyPct > 0) {
+    notes.push({ level: 'warn', message: 'Foreign currency holds no long-run expected return — it is a relative bet, not a productive asset, and these funds charge 0.40% a year to hold cash. International equity already carries unhedged currency exposure, so this sleeve mostly makes sense if the money will actually be spent in another currency.' })
+  }
+
   // 4. Bonds fill the remainder; part goes to TIPS on long horizons.
   //    A sleeve this small can't be subdivided — splitting 2% three ways buys
   //    $500 positions whose trading friction outweighs the diversification.
-  const bondsTotal = Math.max(0, 100 - equityPct - cashPct - cryptoPct)
+  //    Commodities are funded from equity (same side of the split); currency
+  //    and crypto fall out of the residual below. The final clamp is an
+  //    overflow guard: equity 95 + crypto 8 alone used to total 103%, which
+  //    the rounding pass then hid by silently shrinking the core holding.
+  equityPct = Math.max(0, equityPct - commodityPct)
+  const altsPct = cryptoPct + commodityPct + currencyPct
+  equityPct = clamp(equityPct, 0, Math.max(0, 100 - cashPct - altsPct))
+  let bondsTotal = Math.max(0, 100 - equityPct - cashPct - altsPct)
+  // What's left after a max-risk plan funds every sleeve can be a fraction of
+  // a point. That isn't a bond position, it's a rounding artifact — a 0.2%
+  // sleeve is $200 on a $100k plan. Hand it back to equity rather than emit a
+  // fund nobody can meaningfully buy.
+  if (bondsTotal > 0 && bondsTotal < MIN_RUNG_PCT) {
+    equityPct = round1(equityPct + bondsTotal)
+    bondsTotal = 0
+  }
   const splittable = bondsTotal >= MIN_SPLITTABLE_SLEEVE_PCT
   const inflationPct = splittable ? round1(bondsTotal * (horizon >= 10 ? 0.3 : 0.2)) : 0
   const bondsPct = round1(bondsTotal - inflationPct)
@@ -259,6 +320,30 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
   add('TIP', 'inflation', inflationPct, 'Inflation-protected Treasuries — guards purchasing power over the horizon.')
   add('SHY', 'cash', cashPct, 'Short-term Treasuries — near-cash for money needed soon.')
   if (cryptoPct > 0) add('IBIT', 'crypto', cryptoPct, 'Spot-Bitcoin ETF sleeve — sized so a full crypto drawdown cannot derail the plan.')
+
+  // Commodities: gold carries the crisis/monetary-hedge case, the broad basket
+  // carries the supply-shock-inflation case. Only split once the sleeve is big
+  // enough that both positions are worth holding (same rule as the bond ladder).
+  if (commodityPct > 0) {
+    const splitCommodities = commodityPct >= MIN_SPLITTABLE_SLEEVE_PCT * 2
+    if (splitCommodities) {
+      add('GLDM', 'commodity', round1(commodityPct * 0.6), 'Gold at 10bps — the diversifier with the longest record of holding up when equities and bonds fall together.')
+      add('PDBC', 'commodity', round1(commodityPct * 0.4), 'Broad commodity basket (energy, metals, agriculture) — hedges the supply-driven inflation gold alone can miss. Issues a 1099, not a K-1.')
+    } else {
+      add('GLDM', 'commodity', commodityPct, 'Gold at 10bps — the cheapest broad diversifier, sized small enough to steady the plan without dragging it.')
+    }
+  }
+
+  // Foreign currency: the two largest non-USD reserve currencies. Split only
+  // when the sleeve can carry two positions; otherwise the euro alone.
+  if (currencyPct > 0) {
+    if (currencyPct >= MIN_SPLITTABLE_SLEEVE_PCT) {
+      add('FXE', 'currency', round1(currencyPct / 2), 'Euro deposits — diversifies away from holding every asset in dollars.')
+      add('FXY', 'currency', round1(currencyPct / 2), 'Yen deposits — the other major reserve currency, and historically a risk-off haven.')
+    } else {
+      add('FXE', 'currency', currencyPct, 'Euro deposits — the largest non-dollar reserve currency; a single position keeps the sleeve tradeable.')
+    }
+  }
 
   // Normalize rounding drift into the largest holding
   const total = holdings.reduce((s, h) => s + h.weightPct, 0)
@@ -468,7 +553,11 @@ export interface ActualPosition {
   valueUsd?: number
 }
 
-const GROWTH_CLASSES: BuilderAssetClass[] = ['us-equity', 'intl-equity', 'sector-tilt', 'crypto']
+// What counts as "growth" for risk-drift purposes: anything that can lose a
+// third of its value in a bad year. Commodities belong here despite being
+// diversifiers — gold has had 30% drawdowns. Foreign currency does not: it
+// moves like cash, so it sits on the defensive side.
+const GROWTH_CLASSES: BuilderAssetClass[] = ['us-equity', 'intl-equity', 'sector-tilt', 'crypto', 'commodity']
 const sum = (ns: number[]) => ns.reduce((a, b) => a + b, 0)
 
 function growthSharePct(plan: BuiltPortfolio): number {
