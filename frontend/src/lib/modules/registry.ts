@@ -23,6 +23,10 @@ import {
   GitCompareArrows,
   CalendarDays,
   Sunrise,
+  Globe,
+  Gem,
+  Banknote,
+  Percent,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -38,7 +42,7 @@ import {
 //  2. Cross-module data flows through /live-data or /api/v1 routes, never
 //     through direct imports of another module's page code.
 
-export type ModuleId = 'core' | 'crypto' | 'equities' | 'funds' | 'builder'
+export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'builder'
 
 export interface ModuleNavItem {
   href: string
@@ -109,6 +113,21 @@ export const MODULES: SuiteModule[] = [
       { href: '/equities/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
       { href: '/equities/backtests', label: 'Backtests', icon: FlaskConical },
       { href: '/equities/calendar', label: 'Calendar', icon: CalendarDays },
+    ],
+  },
+  {
+    // Bonds/rates, commodities, and fiat — owner spec in docs/ROADMAP.md
+    // ("Macro Markets"). Scaffolded 2026-07 with a live overview page; the
+    // three per-area toolsets build out commodities → currencies → rates.
+    id: 'macro',
+    label: 'Macro Markets',
+    routePrefixes: ['/macro'],
+    optional: true,
+    navItems: [
+      { href: '/macro', label: 'Macro Overview', icon: Globe },
+      { href: '/macro/commodities', label: 'Commodities', icon: Gem },
+      { href: '/macro/currencies', label: 'Currencies', icon: Banknote },
+      { href: '/macro/rates', label: 'Rates & Bonds', icon: Percent },
     ],
   },
   {

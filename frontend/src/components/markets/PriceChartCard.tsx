@@ -33,9 +33,20 @@ export function useSecurityChart(symbol: string, range: ChartRange) {
   })
 }
 
-export function PriceChartCard({ symbol }: { symbol: string }) {
+export function PriceChartCard({ symbol, valueFormat = 'usd' }: {
+  symbol: string
+  /**
+   * 'usd' (default) renders $-prefixed axis/tooltip values — right for
+   * stocks and funds. 'plain' renders bare numbers — for FX rates and
+   * yield indices, where a dollar sign would mislabel the unit.
+   */
+  valueFormat?: 'usd' | 'plain'
+}) {
   const [range, setRange] = useState<ChartRange>('1y')
   const { data, isLoading } = useSecurityChart(symbol, range)
+  const fmt = (v: number, decimals?: number) => valueFormat === 'usd'
+    ? formatCurrency(v, decimals)
+    : v.toLocaleString(undefined, { maximumFractionDigits: decimals ?? (v >= 100 ? 2 : 4) })
 
   const points = (data?.chart?.points ?? []).map((p) => ({ t: p.t, close: p.close }))
   const first = points[0]?.close
@@ -76,14 +87,14 @@ export function PriceChartCard({ symbol }: { symbol: string }) {
             series={[{ key: 'close', label: symbol, color }]}
             xKey="t"
             xFormatter={xFormat}
-            yFormatter={(v) => formatCurrency(Number(v), Number(v) >= 1000 ? 0 : 2)}
-            tooltipFormatter={(v) => [formatCurrency(Number(v)), symbol]}
+            yFormatter={(v) => fmt(Number(v), Number(v) >= 1000 ? 0 : 2)}
+            tooltipFormatter={(v) => [fmt(Number(v)), symbol]}
             height={260}
             gradientId={`chart-${symbol}`}
           />
           {first != null && last != null && (
             <p className="mt-2 text-[11px] text-text-muted text-center font-mono">
-              {formatCurrency(first)} → {formatCurrency(last)}
+              {fmt(first)} → {fmt(last)}
               {' '}({positive ? '+' : ''}{(((last - first) / first) * 100).toFixed(2)}% over range)
             </p>
           )}

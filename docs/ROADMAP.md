@@ -153,9 +153,9 @@ with history and a credible 12-month projection.
   instrument core — that's the payoff of the Phase 0 design.
 
 ### Phase 5 — Commodities, Rates & Treasuries
-- Commodities: futures quotes + curated catalog (same pattern as transfer-fee
-  data). Rates & Treasuries: FRED (free). Corporate/muni bonds deferred —
-  gated by data licensing cost, not engineering.
+Superseded by the **Macro Markets module** owner spec below (2026-07-21) —
+same asset classes, now framed as one entitlement-gated module with three
+areas and a verified free-data story.
 
 ### Phase 6 — Productization
 - Deploy (Vercel + Neon/Supabase, or VPS Docker Compose; existing K8s/Terraform
@@ -166,6 +166,74 @@ with history and a credible 12-month projection.
 
 ---
 
+
+## Macro Markets (module — owner spec, 2026-07-21)
+
+One sidebar section (module id `macro`, one entitlement/SKU) sitting **above
+ETFs & Funds**, with three areas that mirror the Crypto and Equities toolsets:
+
+| Area | Coverage | Primary data (verified live 2026-07-21) |
+|------|----------|------------------------------------------|
+| **Commodities** | Metals, energy, agriculture futures + ETF proxies | Yahoo futures chain (`GC=F`, `CL=F`, `SI=F`, `NG=F`, `HG=F`, grains…) through the existing `security-quotes`/`security-chart`/`security-ohlcv` routes — all three probed working |
+| **Rates & Bonds** | Treasury yield curve, bond futures, bond ETFs | Yahoo yield indices (`^IRX ^FVX ^TNX ^TYX`) + futures (`ZB=F`, `ZN=F`) via existing routes; `fiscaldata.treasury.gov` (keyless) for official rates; bond ETFs already in `fundCatalog` |
+| **Currencies (fiat)** | Major/EM FX pairs, dollar index | Yahoo FX (`EURUSD=X`, `JPY=X`, `DX-Y.NYB`) intraday via existing routes; `frankfurter.dev` (keyless ECB reference) for daily crosses + conversion |
+
+**Honesty constraint (bonds):** individual corporate/muni bond quotes are
+licensed data with no free source. The area is deliberately "Rates & Bonds" —
+yield curve, treasury futures, bond ETFs — and must never imply CUSIP-level
+quotes. Live-only rules apply as everywhere: no free source → explicit
+"not available" notice.
+
+### What mirrors over for free (verified)
+The equity plumbing is symbol-agnostic where it matters: quotes, price
+charts, OHLCV candles (→ shared TA engine + backtests), and `sec:`-prefixed
+instrument keys (→ watchlist/portfolio/compare pricing) all already work for
+futures, FX pairs, and yield indices. **No new data routes are required for
+the core surfaces.**
+
+### What must be built
+1. **Catalogs** (`lib/data/`): `commodityCatalog.ts`, `ratesCatalog.ts`,
+   `currencyCatalog.ts` — curated symbol lists with reference metadata,
+   same pattern as `equityCatalog`/`fundCatalog`.
+2. **Pages** (`app/(dashboard)/macro/…`): per-area registry pages + detail
+   pages reusing `components/markets` shells (PriceChartCard etc.); shared
+   TA page parameterized over macro symbols; yield-curve view for rates;
+   converter widget for FX.
+3. **Union extensions** (mechanical): `ProviderMarket`, agent `market`
+   /`toolset`, tier categories gain `'macro'`; provider registry rows for
+   the new sources so the Integrations page shows utilization like the
+   other markets.
+4. **News**: macro/commodity RSS feeds added to the existing multi-provider
+   news architecture (new feed list, same route pattern).
+5. **AI agents** (same defaults system): `macro-research` +
+   `macro-screener`, toolset hitting the same `/live-data` routes the UI
+   reads (one-source-of-truth rule).
+6. **Instruments**: macro entries in `instruments.ts` so portfolios,
+   watchlists, Compare, and Portfolio Builder drift can hold them.
+
+### Build order (decided 2026-07-21)
+Commodities → Currencies → Rates & Bonds. Commodities first: richest free
+data, simplest catalog, most visual appeal. Rates last only because its UX
+needs the most careful honest-data framing, not for data availability.
+
+### Status (2026-07-21): all three areas SHIPPED
+- **Commodities** — `commodityCatalog.ts` (19 verified contracts, 5 categories,
+  `quoteBasis` so grains render ¢/bu not fake dollars), registry + detail pages.
+- **Currencies** — `currencyCatalog.ts` (18 pairs + DXY), `/live-data/fx-rates`
+  (frankfurter.dev ECB daily reference, keyless), registry + converter + detail.
+- **Rates & Bonds** — `ratesCatalog.ts` (4 yield indices + 4 CBOT futures),
+  `/live-data/treasury-yield-curve` (treasury.gov official 13-maturity par
+  curve + 2s10s/3m10y spreads + shape), curve chart with 1M/YTD lookbacks,
+  bond ETF shelf into /funds. CUSIP-honesty note on-page.
+- `PriceChartCard` gained `valueFormat: 'usd' | 'plain'` (default unchanged)
+  so FX/yields/cents contracts don't get $-mislabeled axes.
+
+Still open from "What must be built": provider-registry `market: 'macro'`
+union extensions + Integrations rows, macro news feeds, `macro-research` /
+`macro-screener` agents, instruments-layer entries (watchlist/portfolio
+support for macro symbols).
+
+---
 
 ## Portfolio Builder (paid module — owner spec, 2026-07-07)
 

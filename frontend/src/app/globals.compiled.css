@@ -1997,6 +1997,10 @@ ul, ol {
   border-color: rgb(30 36 51 / var(--tw-divide-opacity, 1));
 }
 
+.divide-border\/40 > :not([hidden]) ~ :not([hidden]) {
+  border-color: rgb(30 36 51 / 0.4);
+}
+
 .divide-border\/50 > :not([hidden]) ~ :not([hidden]) {
   border-color: rgb(30 36 51 / 0.5);
 }
@@ -2007,6 +2011,10 @@ ul, ol {
 
 .divide-slate-800\/60 > :not([hidden]) ~ :not([hidden]) {
   border-color: rgb(30 41 59 / 0.6);
+}
+
+.self-start {
+  align-self: flex-start;
 }
 
 .self-center {
@@ -2169,10 +2177,6 @@ ul, ol {
 .border-accent-blue {
   --tw-border-opacity: 1;
   border-color: rgb(59 130 246 / var(--tw-border-opacity, 1));
-}
-
-.border-accent-blue\/15 {
-  border-color: rgb(59 130 246 / 0.15);
 }
 
 .border-accent-blue\/20 {
@@ -3628,6 +3632,10 @@ ul, ol {
   color: rgb(16 185 129 / 0.7);
 }
 
+.text-emerald-500\/80 {
+  color: rgb(16 185 129 / 0.8);
+}
+
 .text-fuchsia-300 {
   --tw-text-opacity: 1;
   color: rgb(240 171 252 / var(--tw-text-opacity, 1));
@@ -4617,6 +4625,10 @@ ul, ol {
 
   .xl\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .xl\:grid-cols-5 {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
   .xl\:grid-cols-6 {

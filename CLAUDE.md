@@ -77,7 +77,9 @@ frontend/src/
 │       ├── stock-outliers/route.ts  # Sector-relative z-score outliers over the universe (cheap/expensive/highYield/high-lowBeta) — backs the Equity Screener agent
 │       ├── fund-holdings/route.ts   # Full ETF/fund portfolio: SEC N-PORT direct (keyless, authoritative) → FMP → Yahoo top-10 → catalog
 │       ├── fund-holdings-history/route.ts # Quarter-over-quarter holdings diff from N-PORT filings (EDGAR direct; FMP fallback)
-│       └── security-returns/route.ts # Batched trailing 1M/3M/YTD/1Y returns (Yahoo spark) — backs the fund screener Returns tab/filters
+│       ├── security-returns/route.ts # Batched trailing 1M/3M/YTD/1Y returns (Yahoo spark) — backs the fund screener Returns tab/filters
+│       ├── fx-rates/route.ts        # Daily ECB reference FX (frankfurter.dev, keyless) — Macro currency converter
+│       └── treasury-yield-curve/route.ts # Official 13-maturity daily par curve (treasury.gov XML, keyless) + spreads/shape
 │
 ├── components/
 │   ├── layout/
@@ -354,6 +356,18 @@ Caveats, all deliberate:
 | Equity TA | `/equities/technical-analysis` | 🟢 Derived | Shared candlestick engine, 18 indicators, patterns, screener |
 | Strategy Backtests | `/equities/backtests` | 🟢 Derived | `security-ohlcv` real history; SMA/RSI/MACD vs buy-and-hold |
 | Market Calendar | `/equities/calendar` | 🟡 Partial | FMP calendars (free key); earnings + US economic events |
+
+### Macro Markets module (`/macro`) — bonds/rates, commodities, fiat
+One module (`macro` entitlement), three areas. Owner spec + status: `docs/ROADMAP.md` ("Macro Markets"). **Zero new quote plumbing** — futures, FX pairs, and yield indices all price through the existing `security-quotes`/`security-chart`/`security-ohlcv` routes (verified). Catalogs carry **no reference prices** (futures/FX quotes stale in hours; unpriced = honest dash).
+
+| Feature | Route | Status | Source / Notes |
+|---------|-------|--------|----------------|
+| Macro Overview | `/macro` | 🟢 Live | Landing page; live quote strips per area |
+| Commodities | `/macro/commodities`, `/[slug]` | 🟢 Live | `commodityCatalog.ts` — 19 verified front-month contracts, 5 categories. `quoteBasis: 'usd'\|'cents'` renders each market's convention (472.75¢/bu, never "$472"). Detail: chart + facts + ETF proxies → /funds |
+| Currencies | `/macro/currencies`, `/[slug]` | 🟢 Live | `currencyCatalog.ts` — 18 pairs + DXY, per-pair `precision`. Converter (30 currencies) uses `/live-data/fx-rates` = frankfurter.dev ECB **daily reference** (keyless), labeled with publication date — indicative, not dealable |
+| Rates & Bonds | `/macro/rates`, `/[slug]` | 🟢 Live | `ratesCatalog.ts` — 4 CBOE yield indices + 4 CBOT futures. Curve chart from `/live-data/treasury-yield-curve` = **official** treasury.gov 13-maturity daily par curve (keyless XML, regex-parsed, 4h revalidate) + 2s10s/3m10y spreads + shape. Bond ETF shelf → /funds. **CUSIP-level bond quotes are licensed data — intentionally absent, stated on-page** |
+
+`PriceChartCard` takes `valueFormat: 'usd' | 'plain'` (default `'usd'`, existing pages unchanged) — use `'plain'` for FX, yields, and cents-quoted contracts so axes aren't $-mislabeled. Still open: `market: 'macro'` provider/agent/tier union extensions, macro news feeds, macro agents, instruments-layer entries (see ROADMAP status block).
 
 ### ETFs & Funds module (`/funds`)
 | Feature | Route | Status | Source / Notes |
