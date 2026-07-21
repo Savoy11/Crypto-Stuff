@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ASSET_CLASS_INFO, bondLadder, buildPortfolio, checkDrift, consolidateLadder, MIN_RUNG_PCT,
-  reviewPlan, actualWeightsFromPortfolio,
+  reviewPlan, actualWeightsFromPortfolio, applyBondStyle,
   type BuilderInputs, type BuiltPortfolio, type SavedPlan,
 } from '../portfolioBuilder'
 import type { Portfolio } from '../portfolioUtils'
@@ -194,14 +194,50 @@ describe('optional macro sleeves', () => {
     expect(sum(plan.holdings.map((h) => h.weightPct))).toBeCloseTo(100, 1)
   })
 
-  it('holds gold alone at a small allocation and adds the basket at moderate', () => {
-    const small = build({ commodityComfort: 'small' })
-    expect(small.holdings.filter((h) => h.assetClass === 'commodity').map((h) => h.symbol)).toEqual(['GLDM'])
+  it('honours the chosen commodity style rather than a fixed mix', () => {
+    const syms = (i: Partial<BuilderInputs>) =>
+      build(i).holdings.filter((h) => h.assetClass === 'commodity').map((h) => h.symbol)
+    // An explicit style is respected at every size that can carry its legs:
+    // picking "gold + basket" and silently getting only gold would ignore the
+    // user's choice, so both appear once each leg clears MIN_SLEEVE_LEG_PCT.
+    expect(syms({ commodityComfort: 'small', commodityStyle: 'balanced' })).toEqual(['GLDM', 'PDBC'])
+    expect(syms({ commodityComfort: 'moderate', commodityStyle: 'balanced' })).toEqual(['GLDM', 'PDBC'])
+    expect(syms({ commodityComfort: 'moderate', commodityStyle: 'gold' })).toEqual(['GLDM'])
+    expect(syms({ commodityComfort: 'moderate', commodityStyle: 'broad' })).toEqual(['PDBC'])
+    expect(syms({ commodityComfort: 'moderate', commodityStyle: 'precious' })).toEqual(['GLDM', 'SIVR'])
+  })
 
-    const moderate = build({ commodityComfort: 'moderate' })
-    const symbols = moderate.holdings.filter((h) => h.assetClass === 'commodity').map((h) => h.symbol)
-    expect(symbols).toContain('GLDM')
-    expect(symbols).toContain('PDBC')
+  it('collapses a sleeve to its largest leg when a split would be unbuyable', () => {
+    // 3% split two ways is 1.5% a side — below MIN_SLEEVE_LEG_PCT, so the
+    // sleeve holds one position instead of two token ones.
+    const plan = build({ currencyComfort: 'small', currencyStyle: 'reserve' })
+    expect(plan.holdings.filter((h) => h.assetClass === 'currency').map((h) => h.symbol)).toEqual(['FXE'])
+    // …and never silently: a dropped leg of the chosen style is disclosed.
+    expect(plan.notes.some((n) => /too small to split/.test(n.message))).toBe(true)
+  })
+
+  it('discloses when a style is collapsed rather than dropping legs in silence', () => {
+    // 6% crypto split 70/30 leaves Ethereum at 1.8% — under the floor.
+    const plan = build({ cryptoComfort: 'moderate', riskTolerance: 6, cryptoStyle: 'diversified' })
+    expect(plan.holdings.filter((h) => h.assetClass === 'crypto').map((h) => h.symbol)).toEqual(['IBIT'])
+    const note = plan.notes.find((n) => /too small to split/.test(n.message))
+    expect(note?.message).toContain('Bitcoin + Ethereum')
+    expect(note?.message).toContain('IBIT')
+  })
+
+  it('switches instruments with the crypto and currency styles', () => {
+    const crypto = build({ cryptoComfort: 'moderate', riskTolerance: 10, cryptoStyle: 'diversified' })
+      .holdings.filter((h) => h.assetClass === 'crypto').map((h) => h.symbol)
+    expect(crypto).toEqual(['IBIT', 'ETHA'])
+
+    const haven = build({ currencyComfort: 'moderate', currencyStyle: 'haven' })
+      .holdings.filter((h) => h.assetClass === 'currency').map((h) => h.symbol)
+    expect(haven).toEqual(['FXF', 'FXY'])
+
+    const commodityFx = build({ currencyComfort: 'moderate', currencyStyle: 'commodity' })
+    expect(commodityFx.holdings.filter((h) => h.assetClass === 'currency').map((h) => h.symbol)).toEqual(['FXA', 'FXC'])
+    // Pro-cyclical currencies diversify least when it matters — say so.
+    expect(commodityFx.notes.some((n) => n.level === 'warn' && /fall alongside equities/.test(n.message))).toBe(true)
   })
 
   it('does not scale commodities with risk tolerance — gold is not a growth asset', () => {
@@ -300,6 +336,53 @@ describe('optional macro sleeves', () => {
     }
     // Held exactly on target — neither sleeve should register as drift.
     expect(reviewPlan(saved, { weights: onTarget }).some((f) => f.id === 'risk-drift')).toBe(false)
+  })
+})
+
+describe('bond credit styles', () => {
+  const bondSyms = (i: Partial<BuilderInputs>) =>
+    build({ yearsToFirstUse: 20, ...i }).holdings.filter((h) => h.assetClass === 'bonds').map((h) => h.symbol)
+
+  it('defaults to the aggregate market, preserving pre-style behaviour', () => {
+    expect(bondSyms({})).toEqual(bondSyms({ bondStyle: 'aggregate' }))
+    expect(bondSyms({})).toContain('BND')
+  })
+
+  it('removes corporate and mortgage credit under the treasury style', () => {
+    const syms = bondSyms({ bondStyle: 'treasury' })
+    expect(syms).not.toContain('BND')
+    expect(syms.every((s) => ['SHY', 'IEI', 'IEF', 'TLT'].includes(s))).toBe(true)
+  })
+
+  it('adds investment-grade credit without displacing the ladder entirely', () => {
+    const syms = bondSyms({ bondStyle: 'corporate' })
+    expect(syms).toContain('LQD')
+    expect(syms.some((s) => ['SHY', 'IEI', 'IEF', 'BND', 'TLT'].includes(s))).toBe(true)
+  })
+
+  it('warns that high-yield behaves like equity exactly when bonds should not', () => {
+    const plan = build({ yearsToFirstUse: 20, bondStyle: 'high-yield' })
+    expect(plan.holdings.map((h) => h.symbol)).toContain('HYG')
+    expect(plan.notes.some((n) => n.level === 'warn' && /like equity/.test(n.message))).toBe(true)
+  })
+
+  it('keeps every credit style summing to 100 with no sliver positions', () => {
+    for (const bondStyle of ['treasury', 'aggregate', 'corporate', 'high-yield'] as const) {
+      for (const yearsToFirstUse of [1, 6, 20, 40]) {
+        const plan = build({ bondStyle, yearsToFirstUse })
+        expect(sum(plan.holdings.map((h) => h.weightPct)), `${bondStyle} @ ${yearsToFirstUse}y`).toBeCloseTo(100, 1)
+        for (const h of plan.holdings) expect(h.weightPct).toBeGreaterThanOrEqual(MIN_RUNG_PCT)
+      }
+    }
+  })
+
+  it('applyBondStyle always preserves total share', () => {
+    for (const style of ['treasury', 'aggregate', 'corporate', 'high-yield'] as const) {
+      for (const horizon of [1, 5, 10, 30]) {
+        const shares = applyBondStyle(bondLadder(horizon), style).reduce((s, r) => s + r.share, 0)
+        expect(shares, `${style} @ ${horizon}y`).toBeCloseTo(1, 6)
+      }
+    }
   })
 })
 

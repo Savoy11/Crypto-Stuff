@@ -13,8 +13,10 @@ import { PlanMonitor } from '@/components/portfolio-builder/PlanMonitor'
 import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
 import {
   ASSET_CLASS_INFO, BUILDER_STORAGE_KEY, buildPortfolio, reviewDue,
+  CRYPTO_STYLES, COMMODITY_STYLES, CURRENCY_STYLES, BOND_STYLES,
   type BuiltPortfolio, type CryptoComfort, type SavedPlan,
   type BuilderAssetClass, type SleeveAppetite,
+  type CryptoStyle, type CommodityStyle, type CurrencyStyle, type BondStyle,
 } from '@/lib/data/portfolioBuilder'
 import { formatCurrency } from '@/lib/utils/format'
 
@@ -32,26 +34,53 @@ const GROWTH_SIDE: BuilderAssetClass[] = ['us-equity', 'intl-equity', 'sector-ti
  * control so none of them reads as more "default" than the others — these are
  * choices, not a ladder the user is expected to climb.
  */
-function SleeveControl<T extends SleeveAppetite>({ label, value, onChange }: {
+function SleeveRow({ label, appetite, onAppetite, styleValue, onStyle, styleOptions, note }: {
   label: string
-  value: T
-  onChange: (v: T) => void
+  /** Omitted for bonds, which are always held — style only, no size choice. */
+  appetite?: SleeveAppetite
+  onAppetite?: (v: SleeveAppetite) => void
+  styleValue: string
+  onStyle: (v: string) => void
+  styleOptions: Array<[string, string]>
+  note: string
 }) {
+  const off = appetite === 'none'
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-xs text-text-muted uppercase tracking-wider">{label}</span>
-      <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
-        {(['none', 'small', 'moderate'] as const).map((v) => (
-          <button key={v} onClick={() => onChange(v as T)}
-            className={clsx('px-2.5 py-1 rounded text-xs font-medium capitalize transition-colors',
-              value === v ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}>
-            {v}
-          </button>
-        ))}
+    <div className="py-2 border-b border-border/40 last:border-0">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-text-muted uppercase tracking-wider w-24">{label}</span>
+        {appetite !== undefined && onAppetite ? (
+          <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
+            {(['none', 'small', 'moderate'] as const).map((v) => (
+              <button key={v} onClick={() => onAppetite(v)}
+                className={clsx('px-2.5 py-1 rounded text-xs font-medium capitalize transition-colors',
+                  appetite === v ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}>
+                {v}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="text-[11px] text-text-muted italic">always held</span>
+        )}
+        <select
+          value={styleValue}
+          onChange={(e) => onStyle(e.target.value)}
+          disabled={off}
+          aria-label={`${label} style`}
+          className="rounded border border-border bg-bg-elevated px-2 py-1.5 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none disabled:opacity-40"
+        >
+          {styleOptions.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
       </div>
+      {/* The risk profile of the chosen style, stated where the choice is made
+          rather than buried in the result. */}
+      {!off && <p className="mt-1 ml-24 pl-2 text-[11px] text-text-muted leading-relaxed">{note}</p>}
     </div>
   )
 }
+
+const styleOptions = (t: Record<string, { label: string }>): Array<[string, string]> =>
+  Object.entries(t).map(([v, { label }]) => [v, label])
 
 /** Sectors with a catalog ETF to tilt into. */
 const TILTABLE_SECTORS: SectorId[] = [
@@ -94,6 +123,12 @@ function BuilderContent() {
   // Macro sleeves default off — they're deliberate additions, not opt-outs.
   const [commodityComfort, setCommodityComfort] = useState<SleeveAppetite>('none')
   const [currencyComfort, setCurrencyComfort] = useState<SleeveAppetite>('none')
+  // Style defaults mirror the engine's, so an untouched form builds the same
+  // plan the engine would produce from bare inputs.
+  const [cryptoStyle, setCryptoStyle] = useState<CryptoStyle>('bitcoin')
+  const [commodityStyle, setCommodityStyle] = useState<CommodityStyle>('balanced')
+  const [currencyStyle, setCurrencyStyle] = useState<CurrencyStyle>('reserve')
+  const [bondStyle, setBondStyle] = useState<BondStyle>('aggregate')
   const [amount, setAmount] = useState(25_000)
   const [result, setResult] = useState<BuiltPortfolio | null>(null)
   const [planName, setPlanName] = useState('')
@@ -184,7 +219,9 @@ function BuilderContent() {
   const build = () => setResult(buildPortfolio({
     riskTolerance: risk, yearsToRetirement, yearsToFirstUse,
     sectorFocus: sectorsWhere('focus'), sectorExclude: sectorsWhere('exclude'),
-    cryptoComfort, commodityComfort, currencyComfort, amount,
+    cryptoComfort, commodityComfort, currencyComfort,
+    cryptoStyle, commodityStyle, currencyStyle, bondStyle,
+    amount,
   }))
 
   const savePlan = () => {
@@ -301,10 +338,33 @@ function BuilderContent() {
           )}
         </div>
 
+        <div>
+          <p className="text-xs text-text-muted uppercase tracking-wider mb-1">
+            Sleeves <span className="normal-case">(how much, and what kind — risk varies as much inside an asset class as between them)</span>
+          </p>
+          <SleeveRow
+            label="Crypto" appetite={cryptoComfort} onAppetite={(v) => setCryptoComfort(v as CryptoComfort)}
+            styleValue={cryptoStyle} onStyle={(v) => setCryptoStyle(v as CryptoStyle)}
+            styleOptions={styleOptions(CRYPTO_STYLES)} note={CRYPTO_STYLES[cryptoStyle].note}
+          />
+          <SleeveRow
+            label="Commodities" appetite={commodityComfort} onAppetite={setCommodityComfort}
+            styleValue={commodityStyle} onStyle={(v) => setCommodityStyle(v as CommodityStyle)}
+            styleOptions={styleOptions(COMMODITY_STYLES)} note={COMMODITY_STYLES[commodityStyle].note}
+          />
+          <SleeveRow
+            label="Currency" appetite={currencyComfort} onAppetite={setCurrencyComfort}
+            styleValue={currencyStyle} onStyle={(v) => setCurrencyStyle(v as CurrencyStyle)}
+            styleOptions={styleOptions(CURRENCY_STYLES)} note={CURRENCY_STYLES[currencyStyle].note}
+          />
+          <SleeveRow
+            label="Bonds"
+            styleValue={bondStyle} onStyle={(v) => setBondStyle(v as BondStyle)}
+            styleOptions={styleOptions(BOND_STYLES)} note={BOND_STYLES[bondStyle].note}
+          />
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
-          <SleeveControl label="Crypto" value={cryptoComfort} onChange={setCryptoComfort} />
-          <SleeveControl label="Commodities" value={commodityComfort} onChange={setCommodityComfort} />
-          <SleeveControl label="Currency" value={currencyComfort} onChange={setCurrencyComfort} />
           <button onClick={build}
             className="ml-auto px-4 py-2 rounded-lg bg-accent-blue text-sm font-medium text-white hover:bg-blue-500 transition-colors">
             Build portfolio

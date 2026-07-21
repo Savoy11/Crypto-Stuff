@@ -23,6 +23,108 @@ export type CryptoComfort = 'none' | 'small' | 'moderate'
  */
 export type SleeveAppetite = 'none' | 'small' | 'moderate'
 
+// ─── Sleeve styles ────────────────────────────────────────────────────────────
+//
+// Appetite decides HOW MUCH; style decides WHAT KIND. The distinction matters
+// because risk varies as much *within* an asset class as between them: silver
+// is roughly twice as volatile as gold, high-yield credit behaves like equity
+// in a crisis while Treasuries rally, and a commodity currency moves *with*
+// risk assets rather than against them.
+//
+// Every style is optional and every default reproduces the behaviour that
+// existed before styles were added, so saved plans replay unchanged.
+
+export type CryptoStyle = 'bitcoin' | 'diversified'
+export type CommodityStyle = 'gold' | 'balanced' | 'precious' | 'broad'
+export type CurrencyStyle = 'reserve' | 'haven' | 'commodity'
+export type BondStyle = 'treasury' | 'aggregate' | 'corporate' | 'high-yield'
+
+/** One instrument inside a sleeve. `share` is a fraction of that sleeve. */
+export interface SleeveHolding {
+  symbol: string
+  share: number
+  rationale: string
+}
+
+export const CRYPTO_STYLES: Record<CryptoStyle, { label: string; note: string; mix: SleeveHolding[] }> = {
+  bitcoin: {
+    label: 'Bitcoin only',
+    note: 'The longest track record and the lower volatility of the two — the conservative way to hold crypto.',
+    mix: [{ symbol: 'IBIT', share: 1, rationale: 'Spot-Bitcoin ETF sleeve — sized so a full crypto drawdown cannot derail the plan.' }],
+  },
+  diversified: {
+    label: 'Bitcoin + Ethereum',
+    note: 'Adds Ethereum: a different technology bet with higher volatility than Bitcoin, weighted smaller for that reason.',
+    mix: [
+      { symbol: 'IBIT', share: 0.7, rationale: 'Spot-Bitcoin ETF — the larger, less volatile leg of the crypto sleeve.' },
+      { symbol: 'ETHA', share: 0.3, rationale: 'Spot-Ether ETF — separate technology and adoption risk from Bitcoin, held smaller because it swings harder.' },
+    ],
+  },
+}
+
+export const COMMODITY_STYLES: Record<CommodityStyle, { label: string; note: string; mix: SleeveHolding[] }> = {
+  gold: {
+    label: 'Gold only',
+    note: 'The lowest-volatility commodity and the one with the longest record of holding up when equities and bonds fall together.',
+    mix: [{ symbol: 'GLDM', share: 1, rationale: 'Gold at 10bps — the cheapest broad diversifier, sized to steady the plan without dragging it.' }],
+  },
+  balanced: {
+    label: 'Gold + broad basket',
+    note: 'Gold carries the crisis hedge; the basket carries the supply-shock inflation case gold alone can miss.',
+    mix: [
+      { symbol: 'GLDM', share: 0.6, rationale: 'Gold at 10bps — the diversifier with the longest record of holding up when equities and bonds fall together.' },
+      { symbol: 'PDBC', share: 0.4, rationale: 'Broad commodity basket (energy, metals, agriculture) — hedges supply-driven inflation. Issues a 1099, not a K-1.' },
+    ],
+  },
+  precious: {
+    label: 'Precious metals',
+    note: 'Adds silver — roughly twice gold’s volatility, because industrial demand ties it to the economic cycle in a way gold isn’t.',
+    mix: [
+      { symbol: 'GLDM', share: 0.65, rationale: 'Gold at 10bps — the stable anchor of a precious-metals sleeve.' },
+      { symbol: 'SIVR', share: 0.35, rationale: 'Silver at 30bps — part monetary metal, part industrial input; swings harder than gold in both directions.' },
+    ],
+  },
+  broad: {
+    label: 'Broad basket only',
+    note: 'Energy-weighted, so it tracks inflation more directly than gold — and falls harder when growth slows.',
+    mix: [{ symbol: 'PDBC', share: 1, rationale: 'Broad commodity basket (energy, metals, agriculture) — the most direct inflation hedge here, and the most volatile. Issues a 1099, not a K-1.' }],
+  },
+}
+
+export const CURRENCY_STYLES: Record<CurrencyStyle, { label: string; note: string; mix: SleeveHolding[] }> = {
+  reserve: {
+    label: 'Major reserve',
+    note: 'The two largest non-dollar reserve currencies — the plainest way to not hold every asset in dollars.',
+    mix: [
+      { symbol: 'FXE', share: 0.5, rationale: 'Euro deposits — the largest non-dollar reserve currency.' },
+      { symbol: 'FXY', share: 0.5, rationale: 'Yen deposits — the other major reserve currency, and historically a risk-off haven.' },
+    ],
+  },
+  haven: {
+    label: 'Safe haven',
+    note: 'Franc and yen both tend to appreciate during crises, which is when a diversifier has to earn its place.',
+    mix: [
+      { symbol: 'FXF', share: 0.5, rationale: 'Swiss franc deposits — the classic crisis currency, backed by a persistent current-account surplus.' },
+      { symbol: 'FXY', share: 0.5, rationale: 'Yen deposits — strengthens when carry trades unwind, which is usually when equities are falling.' },
+    ],
+  },
+  commodity: {
+    label: 'Commodity currencies',
+    note: 'Australian and Canadian dollars track commodity demand — they tend to fall WITH equities, so they diversify least when it matters most.',
+    mix: [
+      { symbol: 'FXA', share: 0.5, rationale: 'Australian dollar deposits — a currency proxy for Chinese demand and metals prices.' },
+      { symbol: 'FXC', share: 0.5, rationale: 'Canadian dollar deposits — tracks oil as much as rate differentials.' },
+    ],
+  },
+}
+
+export const BOND_STYLES: Record<BondStyle, { label: string; note: string }> = {
+  treasury:     { label: 'Treasuries only',   note: 'Government-backed throughout — no corporate default risk, and the assets that rally hardest in a flight to safety.' },
+  aggregate:    { label: 'Aggregate market',  note: 'The whole investment-grade market: government, high-quality corporate, and mortgage debt.' },
+  corporate:    { label: 'Corporate tilt',    note: 'Adds investment-grade corporate credit for extra yield, accepting modest default and spread risk.' },
+  'high-yield': { label: 'High-yield tilt',   note: 'Adds below-investment-grade debt. The yield is real, and so is the risk: high-yield falls with equities in a crisis, exactly when bonds are supposed to hold.' },
+}
+
 export interface BuilderInputs {
   /** 1 (capital preservation) … 10 (maximum growth) */
   riskTolerance: number
@@ -43,6 +145,16 @@ export interface BuilderInputs {
    */
   commodityComfort?: SleeveAppetite
   currencyComfort?: SleeveAppetite
+  /**
+   * What kind of exposure inside each sleeve. Optional for the same reason
+   * the appetites are: every default reproduces pre-style behaviour, so a
+   * saved plan rebuilds identically instead of silently changing holdings.
+   */
+  cryptoStyle?: CryptoStyle
+  commodityStyle?: CommodityStyle
+  currencyStyle?: CurrencyStyle
+  /** Bonds are always held, so this is a style with no appetite selector. */
+  bondStyle?: BondStyle
   /** Investment amount in USD (for dollar figures in the output) */
   amount: number
 }
@@ -136,12 +248,12 @@ const round1 = (v: number) => Math.round(v * 10) / 10
 // moment can lose more than the equity it was meant to stabilise, so the sleeve
 // shortens as the money comes due. Shares are fractions of the bond sleeve.
 
-interface LadderRung {
-  symbol: string
-  /** Share of the bond sleeve, 0–1 */
-  share: number
-  rationale: string
-}
+/**
+ * A bond-ladder rung is just a sleeve holding, so the two share a type — which
+ * means consolidateLadder()'s sliver protection applies to every sleeve, not
+ * only bonds.
+ */
+type LadderRung = SleeveHolding
 
 /** Below this, the defensive sleeve is held as one fund instead of split. */
 export const MIN_SPLITTABLE_SLEEVE_PCT = 5
@@ -149,13 +261,50 @@ export const MIN_SPLITTABLE_SLEEVE_PCT = 5
 export const MIN_RUNG_PCT = 1
 
 /**
+ * A leg of an optional sleeve needs more weight than a bond rung to justify
+ * itself: bond rungs are duration slices of one allocation, whereas a sleeve
+ * leg is a distinct position the user has to buy, hold and rebalance. Below
+ * this, the sleeve collapses to its largest leg instead.
+ */
+export const MIN_SLEEVE_LEG_PCT = 2
+
+/**
  * Drop rungs too small to be worth trading and re-spread their share over the
  * survivors, so a thin sleeve becomes one or two real positions rather than a
  * handful of slivers. Always returns at least one rung.
  */
-export function consolidateLadder(rungs: LadderRung[], sleevePct: number): LadderRung[] {
+/**
+ * Rewrite a duration ladder for a credit posture. Duration (which maturities)
+ * stays the horizon's decision; this only changes credit quality.
+ *
+ * 'treasury' swaps the aggregate fund — which holds corporate and mortgage
+ * debt — for its Treasury equivalent; the duplicate IEF rungs that produces
+ * merge downstream in add(). The credit tilts scale the government ladder down
+ * and append the credit fund, so shares still total 1.
+ */
+export function applyBondStyle(rungs: LadderRung[], style: BondStyle): LadderRung[] {
+  if (style === 'aggregate') return rungs
+  if (style === 'treasury') {
+    return rungs.map((r) => r.symbol === 'BND'
+      ? { ...r, symbol: 'IEF', rationale: 'Intermediate Treasuries in place of the aggregate market — government-backed, with no corporate or mortgage credit risk.' }
+      : r)
+  }
+  const credit = style === 'corporate'
+    ? { symbol: 'LQD', share: 0.3, rationale: 'Investment-grade corporate bonds — extra yield over Treasuries in exchange for modest default and spread risk.' }
+    : { symbol: 'HYG', share: 0.2, rationale: 'High-yield corporate bonds — the highest income here, and the one bond holding that falls alongside equities in a crisis.' }
+  return [
+    ...rungs.map((r) => ({ ...r, share: r.share * (1 - credit.share) })),
+    credit,
+  ]
+}
+
+export function consolidateLadder(
+  rungs: LadderRung[],
+  sleevePct: number,
+  minLegPct: number = MIN_RUNG_PCT,
+): LadderRung[] {
   if (sleevePct <= 0) return []
-  const kept = rungs.filter((r) => sleevePct * r.share >= MIN_RUNG_PCT)
+  const kept = rungs.filter((r) => sleevePct * r.share >= minLegPct)
   // Everything is a sliver: keep the single largest rung and give it the sleeve.
   if (kept.length === 0) {
     const biggest = rungs.reduce((a, b) => (a.share >= b.share ? a : b))
@@ -189,6 +338,12 @@ export function bondLadder(horizon: number): LadderRung[] {
 
 export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
   const notes: SuitabilityNote[] = []
+  // Style defaults reproduce pre-style behaviour exactly, so plans saved
+  // before styles existed rebuild with identical holdings.
+  const cryptoStyle = inputs.cryptoStyle ?? 'bitcoin'
+  const commodityStyle = inputs.commodityStyle ?? 'balanced'
+  const currencyStyle = inputs.currencyStyle ?? 'reserve'
+  const bondStyle = inputs.bondStyle ?? 'aggregate'
   // The binding horizon is when the money is actually used, not retirement.
   const horizon = Math.max(0, Math.min(inputs.yearsToFirstUse, inputs.yearsToRetirement + 30))
   if (inputs.yearsToFirstUse < inputs.yearsToRetirement) {
@@ -240,6 +395,30 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
     : 0
   if (currencyPct > 0) {
     notes.push({ level: 'warn', message: 'Foreign currency holds no long-run expected return — it is a relative bet, not a productive asset, and these funds charge 0.40% a year to hold cash. International equity already carries unhedged currency exposure, so this sleeve mostly makes sense if the money will actually be spent in another currency.' })
+  }
+
+  // Style-specific risk disclosure: each of these picks a materially riskier
+  // profile inside its asset class, and the reason belongs on the plan.
+  if (cryptoPct > 0 && cryptoStyle === 'diversified') {
+    notes.push({ level: 'info', message: 'Crypto sleeve splits 70/30 Bitcoin to Ethereum — Ethereum carries separate technology and adoption risk and swings harder, so it is held at the smaller weight.' })
+  }
+  if (commodityPct > 0 && commodityStyle === 'precious') {
+    notes.push({ level: 'info', message: 'Silver is roughly twice as volatile as gold: industrial demand ties it to the economic cycle, so it diversifies less in exactly the recessions gold is held for.' })
+  }
+  if (commodityPct > 0 && commodityStyle === 'broad') {
+    notes.push({ level: 'info', message: 'A broad basket is energy-weighted, so it tracks inflation more directly than gold — and falls harder when growth slows.' })
+  }
+  if (currencyPct > 0 && currencyStyle === 'commodity') {
+    notes.push({ level: 'warn', message: 'Commodity currencies fall alongside equities when growth expectations drop — they diversify least in the drawdowns a diversifier is meant for. Safe-haven currencies behave the opposite way.' })
+  }
+  if (bondStyle === 'high-yield') {
+    notes.push({ level: 'warn', message: 'High-yield bonds default in recessions and fell over 30% in 2008 — they behave like equity precisely when the bond sleeve is supposed to be holding the plan steady. The extra yield is compensation for that, not a free lunch.' })
+  }
+  if (bondStyle === 'corporate') {
+    notes.push({ level: 'info', message: 'Investment-grade corporate credit adds yield over Treasuries, with modest default risk and spreads that widen when equities fall.' })
+  }
+  if (bondStyle === 'treasury') {
+    notes.push({ level: 'info', message: 'Treasuries only — no corporate default risk, and the asset most likely to rally in a flight to safety. The trade-off is a lower yield than the aggregate market.' })
   }
 
   // 4. Bonds fill the remainder; part goes to TIPS on long horizons.
@@ -314,36 +493,35 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
   add('VTI', 'us-equity', usCorePct, 'Total US market at 3bps — the diversified growth core.')
   add('VXUS', 'intl-equity', intlPct, 'All non-US markets — geographic diversification the US core cannot provide.')
   for (const s of tilts) add(SECTOR_ETF[s]!, 'sector-tilt', tiltEach, `${SECTOR_INFO[s].label} tilt you selected — capped to stay diversified.`)
-  for (const rung of consolidateLadder(bondLadder(horizon), bondsPct)) {
+  for (const rung of consolidateLadder(applyBondStyle(bondLadder(horizon), bondStyle), bondsPct)) {
     add(rung.symbol, 'bonds', bondsPct * rung.share, rung.rationale)
   }
   add('TIP', 'inflation', inflationPct, 'Inflation-protected Treasuries — guards purchasing power over the horizon.')
   add('SHY', 'cash', cashPct, 'Short-term Treasuries — near-cash for money needed soon.')
-  if (cryptoPct > 0) add('IBIT', 'crypto', cryptoPct, 'Spot-Bitcoin ETF sleeve — sized so a full crypto drawdown cannot derail the plan.')
-
-  // Commodities: gold carries the crisis/monetary-hedge case, the broad basket
-  // carries the supply-shock-inflation case. Only split once the sleeve is big
-  // enough that both positions are worth holding (same rule as the bond ladder).
-  if (commodityPct > 0) {
-    const splitCommodities = commodityPct >= MIN_SPLITTABLE_SLEEVE_PCT * 2
-    if (splitCommodities) {
-      add('GLDM', 'commodity', round1(commodityPct * 0.6), 'Gold at 10bps — the diversifier with the longest record of holding up when equities and bonds fall together.')
-      add('PDBC', 'commodity', round1(commodityPct * 0.4), 'Broad commodity basket (energy, metals, agriculture) — hedges the supply-driven inflation gold alone can miss. Issues a 1099, not a K-1.')
-    } else {
-      add('GLDM', 'commodity', commodityPct, 'Gold at 10bps — the cheapest broad diversifier, sized small enough to steady the plan without dragging it.')
+  // Each optional sleeve maps through its chosen style, then through the same
+  // sliver guard the bond ladder uses — so a small sleeve collapses to its
+  // largest leg rather than emitting two unbuyable positions.
+  const addSleeve = (
+    pct: number, assetClass: BuilderAssetClass, mix: SleeveHolding[], styleLabel: string,
+  ) => {
+    if (pct <= 0) return
+    const legs = consolidateLadder(mix, pct, MIN_SLEEVE_LEG_PCT)
+    // Never drop a leg of the user's chosen style in silence. If the sleeve is
+    // too small to carry every position, say so and say what to do about it —
+    // otherwise picking "Bitcoin + Ethereum" and receiving only Bitcoin looks
+    // like the tool ignored the choice.
+    if (legs.length < mix.length) {
+      notes.push({
+        level: 'info',
+        message: `A ${round1(pct)}% ${ASSET_CLASS_INFO[assetClass].label.toLowerCase()} sleeve is too small to split "${styleLabel}" into positions worth holding separately, so it is held as ${legs.map((l) => l.symbol).join(' + ')} alone. Raising the sleeve size would split it.`,
+      })
     }
+    for (const leg of legs) add(leg.symbol, assetClass, pct * leg.share, leg.rationale)
   }
 
-  // Foreign currency: the two largest non-USD reserve currencies. Split only
-  // when the sleeve can carry two positions; otherwise the euro alone.
-  if (currencyPct > 0) {
-    if (currencyPct >= MIN_SPLITTABLE_SLEEVE_PCT) {
-      add('FXE', 'currency', round1(currencyPct / 2), 'Euro deposits — diversifies away from holding every asset in dollars.')
-      add('FXY', 'currency', round1(currencyPct / 2), 'Yen deposits — the other major reserve currency, and historically a risk-off haven.')
-    } else {
-      add('FXE', 'currency', currencyPct, 'Euro deposits — the largest non-dollar reserve currency; a single position keeps the sleeve tradeable.')
-    }
-  }
+  addSleeve(cryptoPct, 'crypto', CRYPTO_STYLES[cryptoStyle].mix, CRYPTO_STYLES[cryptoStyle].label)
+  addSleeve(commodityPct, 'commodity', COMMODITY_STYLES[commodityStyle].mix, COMMODITY_STYLES[commodityStyle].label)
+  addSleeve(currencyPct, 'currency', CURRENCY_STYLES[currencyStyle].mix, CURRENCY_STYLES[currencyStyle].label)
 
   // Normalize rounding drift into the largest holding
   const total = holdings.reduce((s, h) => s + h.weightPct, 0)
