@@ -34,7 +34,20 @@ export interface CommodityEntry {
   /** Human unit the quote is per, e.g. 'oz t', 'bbl', 'bu'. */
   unit: string
   description: string
-  /** ETF proxies that exist in FUND_CATALOG (linkable to /funds/[symbol]). */
+  /**
+   * ETF proxies that give exposure to THIS specific commodity, not a broad
+   * multi-commodity basket. Every symbol here exists in FUND_CATALOG
+   * (linkable to /funds/[symbol]) and was confirmed actively trading as of
+   * 2026-07-21 (5-day trading history, not just a cached last price).
+   *
+   * Deliberately empty for heating oil, coffee, cocoa, cotton, live cattle,
+   * and lean hogs: single-commodity ETFs/ETNs used to exist for all six
+   * (UHN, JO, NIB, BAL, COW), but every one was confirmed DELISTED (last
+   * trade 2019–2023) during that same check. There is currently no honest
+   * single-commodity vehicle for these — don't backfill with a broad basket
+   * fund (e.g. DBC) just to avoid an empty list; that overstates specificity
+   * the same way the original DBC-everywhere version of this file did.
+   */
   etfProxies: string[]
 }
 
@@ -42,31 +55,31 @@ export const COMMODITY_CATALOG: CommodityEntry[] = [
   // ── Precious metals ──────────────────────────────────────────────────────
   { slug: 'gold',        symbol: 'GC=F', name: 'Gold',            category: 'precious-metals', exchange: 'COMEX', quoteBasis: 'usd',   unit: 'oz t',   etfProxies: ['GLD', 'IAU'], description: 'COMEX gold futures — the world’s reference price for bullion; the classic monetary hedge.' },
   { slug: 'silver',      symbol: 'SI=F', name: 'Silver',          category: 'precious-metals', exchange: 'COMEX', quoteBasis: 'usd',   unit: 'oz t',   etfProxies: ['SLV'],        description: 'COMEX silver futures — part monetary metal, part industrial input (solar, electronics).' },
-  { slug: 'platinum',    symbol: 'PL=F', name: 'Platinum',        category: 'precious-metals', exchange: 'NYMEX', quoteBasis: 'usd',   unit: 'oz t',   etfProxies: [],             description: 'NYMEX platinum futures — autocatalysts and jewellery drive demand; supply concentrated in South Africa.' },
-  { slug: 'palladium',   symbol: 'PA=F', name: 'Palladium',       category: 'precious-metals', exchange: 'NYMEX', quoteBasis: 'usd',   unit: 'oz t',   etfProxies: [],             description: 'NYMEX palladium futures — gasoline-engine autocatalysts; historically violent supply squeezes.' },
+  { slug: 'platinum',    symbol: 'PL=F', name: 'Platinum',        category: 'precious-metals', exchange: 'NYMEX', quoteBasis: 'usd',   unit: 'oz t',   etfProxies: ['PPLT'],       description: 'NYMEX platinum futures — autocatalysts and jewellery drive demand; supply concentrated in South Africa.' },
+  { slug: 'palladium',   symbol: 'PA=F', name: 'Palladium',       category: 'precious-metals', exchange: 'NYMEX', quoteBasis: 'usd',   unit: 'oz t',   etfProxies: ['PALL'],       description: 'NYMEX palladium futures — gasoline-engine autocatalysts; historically violent supply squeezes.' },
 
   // ── Energy ───────────────────────────────────────────────────────────────
-  { slug: 'wti-crude',   symbol: 'CL=F', name: 'WTI Crude Oil',   category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'bbl',   etfProxies: ['DBC'], description: 'NYMEX West Texas Intermediate — the US crude benchmark, delivered Cushing, Oklahoma.' },
-  { slug: 'brent-crude', symbol: 'BZ=F', name: 'Brent Crude Oil', category: 'energy', exchange: 'ICE',   quoteBasis: 'usd', unit: 'bbl',   etfProxies: ['DBC'], description: 'ICE Brent — the global seaborne crude benchmark; most world trade prices off it.' },
-  { slug: 'natural-gas', symbol: 'NG=F', name: 'Natural Gas',     category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'MMBtu', etfProxies: ['DBC'], description: 'NYMEX Henry Hub natural gas — notoriously volatile; weather-driven ("the widow-maker").' },
-  { slug: 'gasoline',    symbol: 'RB=F', name: 'RBOB Gasoline',   category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'gal',   etfProxies: ['DBC'], description: 'NYMEX RBOB gasoline futures — the wholesale benchmark behind US pump prices.' },
-  { slug: 'heating-oil', symbol: 'HO=F', name: 'Heating Oil',     category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'gal',   etfProxies: ['DBC'], description: 'NYMEX heating oil (ULSD) — distillate benchmark tracking diesel and jet-fuel economics.' },
+  { slug: 'wti-crude',   symbol: 'CL=F', name: 'WTI Crude Oil',   category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'bbl',   etfProxies: ['USO'], description: 'NYMEX West Texas Intermediate — the US crude benchmark, delivered Cushing, Oklahoma.' },
+  { slug: 'brent-crude', symbol: 'BZ=F', name: 'Brent Crude Oil', category: 'energy', exchange: 'ICE',   quoteBasis: 'usd', unit: 'bbl',   etfProxies: ['BNO'], description: 'ICE Brent — the global seaborne crude benchmark; most world trade prices off it.' },
+  { slug: 'natural-gas', symbol: 'NG=F', name: 'Natural Gas',     category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'MMBtu', etfProxies: ['UNG'], description: 'NYMEX Henry Hub natural gas — notoriously volatile; weather-driven ("the widow-maker").' },
+  { slug: 'gasoline',    symbol: 'RB=F', name: 'RBOB Gasoline',   category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'gal',   etfProxies: ['UGA'], description: 'NYMEX RBOB gasoline futures — the wholesale benchmark behind US pump prices.' },
+  { slug: 'heating-oil', symbol: 'HO=F', name: 'Heating Oil',     category: 'energy', exchange: 'NYMEX', quoteBasis: 'usd', unit: 'gal',   etfProxies: [],      description: 'NYMEX heating oil (ULSD) — distillate benchmark tracking diesel and jet-fuel economics. The single-commodity fund that used to track this (UHN) was delisted in 2019; no live replacement exists.' },
 
   // ── Industrial metals ────────────────────────────────────────────────────
-  { slug: 'copper',      symbol: 'HG=F', name: 'Copper',          category: 'industrial-metals', exchange: 'COMEX', quoteBasis: 'usd', unit: 'lb', etfProxies: ['DBC'], description: 'COMEX copper — "Dr. Copper", the metal with a PhD in economics; a global growth barometer.' },
+  { slug: 'copper',      symbol: 'HG=F', name: 'Copper',          category: 'industrial-metals', exchange: 'COMEX', quoteBasis: 'usd', unit: 'lb', etfProxies: ['CPER'], description: 'COMEX copper — "Dr. Copper", the metal with a PhD in economics; a global growth barometer.' },
 
   // ── Agriculture ──────────────────────────────────────────────────────────
-  { slug: 'corn',        symbol: 'ZC=F', name: 'Corn',            category: 'agriculture', exchange: 'CBOT', quoteBasis: 'cents', unit: 'bu',   etfProxies: ['DBC'], description: 'CBOT corn futures — feed, ethanol, and export demand against US Midwest weather.' },
-  { slug: 'wheat',       symbol: 'ZW=F', name: 'Wheat',           category: 'agriculture', exchange: 'CBOT', quoteBasis: 'cents', unit: 'bu',   etfProxies: ['DBC'], description: 'CBOT soft red winter wheat — the global food-price bellwether, sensitive to geopolitics.' },
-  { slug: 'soybeans',    symbol: 'ZS=F', name: 'Soybeans',        category: 'agriculture', exchange: 'CBOT', quoteBasis: 'cents', unit: 'bu',   etfProxies: ['DBC'], description: 'CBOT soybeans — crush demand (meal, oil) and the US–China trade relationship in one contract.' },
-  { slug: 'coffee',      symbol: 'KC=F', name: 'Coffee',          category: 'agriculture', exchange: 'ICE',  quoteBasis: 'cents', unit: 'lb',   etfProxies: [],      description: 'ICE arabica coffee — Brazilian frost and drought risk make it one of the wildest softs.' },
-  { slug: 'sugar',       symbol: 'SB=F', name: 'Sugar',           category: 'agriculture', exchange: 'ICE',  quoteBasis: 'cents', unit: 'lb',   etfProxies: [],      description: 'ICE Sugar No. 11 — world raw sugar; Brazil’s cane harvest and ethanol economics set the tone.' },
-  { slug: 'cocoa',       symbol: 'CC=F', name: 'Cocoa',           category: 'agriculture', exchange: 'ICE',  quoteBasis: 'usd',   unit: 't',    etfProxies: [],      description: 'ICE cocoa — West African supply concentration produces spectacular squeezes.' },
-  { slug: 'cotton',      symbol: 'CT=F', name: 'Cotton',          category: 'agriculture', exchange: 'ICE',  quoteBasis: 'cents', unit: 'lb',   etfProxies: [],      description: 'ICE cotton No. 2 — apparel demand vs US, Indian, and Brazilian growing conditions.' },
+  { slug: 'corn',        symbol: 'ZC=F', name: 'Corn',            category: 'agriculture', exchange: 'CBOT', quoteBasis: 'cents', unit: 'bu',   etfProxies: ['CORN'], description: 'CBOT corn futures — feed, ethanol, and export demand against US Midwest weather.' },
+  { slug: 'wheat',       symbol: 'ZW=F', name: 'Wheat',           category: 'agriculture', exchange: 'CBOT', quoteBasis: 'cents', unit: 'bu',   etfProxies: ['WEAT'], description: 'CBOT soft red winter wheat — the global food-price bellwether, sensitive to geopolitics.' },
+  { slug: 'soybeans',    symbol: 'ZS=F', name: 'Soybeans',        category: 'agriculture', exchange: 'CBOT', quoteBasis: 'cents', unit: 'bu',   etfProxies: ['SOYB'], description: 'CBOT soybeans — crush demand (meal, oil) and the US–China trade relationship in one contract.' },
+  { slug: 'coffee',      symbol: 'KC=F', name: 'Coffee',          category: 'agriculture', exchange: 'ICE',  quoteBasis: 'cents', unit: 'lb',   etfProxies: [],      description: 'ICE arabica coffee — Brazilian frost and drought risk make it one of the wildest softs. The single-commodity ETN that used to track this (JO) was delisted in 2023; no live replacement exists.' },
+  { slug: 'sugar',       symbol: 'SB=F', name: 'Sugar',           category: 'agriculture', exchange: 'ICE',  quoteBasis: 'cents', unit: 'lb',   etfProxies: ['CANE'], description: 'ICE Sugar No. 11 — world raw sugar; Brazil’s cane harvest and ethanol economics set the tone.' },
+  { slug: 'cocoa',       symbol: 'CC=F', name: 'Cocoa',           category: 'agriculture', exchange: 'ICE',  quoteBasis: 'usd',   unit: 't',    etfProxies: [],      description: 'ICE cocoa — West African supply concentration produces spectacular squeezes. The single-commodity ETN that used to track this (NIB) was delisted in 2023; no live replacement exists.' },
+  { slug: 'cotton',      symbol: 'CT=F', name: 'Cotton',          category: 'agriculture', exchange: 'ICE',  quoteBasis: 'cents', unit: 'lb',   etfProxies: [],      description: 'ICE cotton No. 2 — apparel demand vs US, Indian, and Brazilian growing conditions. The single-commodity ETN that used to track this (BAL) was delisted in 2023; no live replacement exists.' },
 
   // ── Livestock ────────────────────────────────────────────────────────────
-  { slug: 'live-cattle', symbol: 'LE=F', name: 'Live Cattle',     category: 'livestock', exchange: 'CME', quoteBasis: 'cents', unit: 'lb', etfProxies: [], description: 'CME live cattle — herd cycles run years, so supply shocks persist.' },
-  { slug: 'lean-hogs',   symbol: 'HE=F', name: 'Lean Hogs',       category: 'livestock', exchange: 'CME', quoteBasis: 'cents', unit: 'lb', etfProxies: [], description: 'CME lean hogs — disease outbreaks and export swings drive sharp repricings.' },
+  { slug: 'live-cattle', symbol: 'LE=F', name: 'Live Cattle',     category: 'livestock', exchange: 'CME', quoteBasis: 'cents', unit: 'lb', etfProxies: [], description: 'CME live cattle — herd cycles run years, so supply shocks persist. The livestock ETN that used to give exposure here (COW) is no longer actively traded; no live replacement exists.' },
+  { slug: 'lean-hogs',   symbol: 'HE=F', name: 'Lean Hogs',       category: 'livestock', exchange: 'CME', quoteBasis: 'cents', unit: 'lb', etfProxies: [], description: 'CME lean hogs — disease outbreaks and export swings drive sharp repricings. No single-commodity fund has ever tracked lean hogs specifically.' },
 ]
 
 export const COMMODITY_BY_SLUG: Record<string, CommodityEntry> = Object.fromEntries(
