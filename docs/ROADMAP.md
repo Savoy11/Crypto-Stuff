@@ -240,10 +240,21 @@ needs the most careful honest-data framing, not for data availability.
   dropped), 14-day staleness cutoff, future-pubDate clamp, balanced
   per-pillar merge. Area label renamed "Rates & Bonds" → "Bonds & Rates".
 
-Still open from "What must be built": provider-registry `market: 'macro'`
-union extensions + Integrations rows, `macro-research` / `macro-screener`
-agents, instruments-layer entries (watchlist/portfolio support for macro
-symbols).
+- **Cross-cutting integration** (2026-07-21) — everything from "What must be
+  built" is now SHIPPED:
+  - `market: 'macro'` across the provider registry (11 built-in rows: 3 data
+    sources + 8 news feeds), tier categories (informational rows in the
+    TopBar TierSwitch), and Integrations page sections (with custom macro
+    news feeds supported); macro-news / fx-rates / fx-rates-extended /
+    treasury-yield-curve routes are registry-driven and record utilization.
+  - `macro-research` + `macro-screener` agents (toolset `'macro'`: 6 tools —
+    search_macro_instruments, get_macro_quote, get_macro_price_history,
+    get_yield_curve, get_fx_rates, get_macro_news). Research page has a
+    Macro selector; App Assistant sees macro tools via toolset `'all'`.
+  - Instruments layer: all 46 macro instruments (19 commodities, 18 FX +
+    DXY, 8 rates) are `sec:`-keyed entries in `instruments.ts` with classes
+    `commodity`/`currency`/`rate` and `detailPath` slug routing, resolvable
+    to DB rows — watchlists, portfolios, and Compare can hold them.
 
 ---
 
