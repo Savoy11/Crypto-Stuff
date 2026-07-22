@@ -11,7 +11,7 @@ interface LiveProviderInfo {
   id: string
   name: string
   category: string
-  market?: 'crypto' | 'equities'
+  market?: 'crypto' | 'equities' | 'macro'
   config: { enabled: boolean }
 }
 
@@ -69,6 +69,7 @@ export function TierSwitch() {
 
   const cryptoCats = Object.entries(TIER_CATEGORIES).filter(([, c]) => (c.market ?? 'crypto') === 'crypto')
   const equityCats = Object.entries(TIER_CATEGORIES).filter(([, c]) => c.market === 'equities')
+  const macroCats = Object.entries(TIER_CATEGORIES).filter(([, c]) => c.market === 'macro')
 
   function renderRow(key: string, cat: TierCategory) {
     // Equity rows are informational — they reflect the live registry rather
@@ -247,6 +248,14 @@ export function TierSwitch() {
               </div>
             )}
             {equityCats.map(([key, cat]) => renderRow(key, cat))}
+
+            {macroCats.length > 0 && (
+              <div className="px-4 py-1.5 bg-bg-elevated/60 border-y border-border/60">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">Macro</p>
+                <p className="text-[10px] text-text-muted/70">Sourced from the registry — manage on Settings → Integrations</p>
+              </div>
+            )}
+            {macroCats.map(([key, cat]) => renderRow(key, cat))}
           </div>
 
           {/* Footer */}

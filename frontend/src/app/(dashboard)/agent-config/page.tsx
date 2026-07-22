@@ -57,8 +57,9 @@ interface ProviderOption { id: ProviderId; label: string; hint: string; envVar: 
 type TabId =
   | 'app-assistant' | 'research-analyst' | 'data-scraper' | 'pump-report'
   | 'equity-research' | 'equity-scraper' | 'equity-diligence' | 'equity-screener'
+  | 'macro-research' | 'macro-screener'
 
-const TABS: Array<{ id: TabId; label: string; icon: React.ElementType; agentIds: string[]; group: 'shared' | 'crypto' | 'equities' }> = [
+const TABS: Array<{ id: TabId; label: string; icon: React.ElementType; agentIds: string[]; group: 'shared' | 'crypto' | 'equities' | 'macro' }> = [
   { id: 'app-assistant',    label: 'App Assistant',       icon: AppWindow,    group: 'shared',   agentIds: ['app-assistant']                              },
   { id: 'research-analyst', label: 'Research & Analysis', icon: FlaskConical, group: 'crypto',   agentIds: ['research-analyst']                           },
   { id: 'data-scraper',     label: 'Data Scraper',        icon: DatabaseZap,  group: 'crypto',   agentIds: ['data-scraper']                               },
@@ -67,6 +68,8 @@ const TABS: Array<{ id: TabId; label: string; icon: React.ElementType; agentIds:
   { id: 'equity-screener',  label: 'Equity Screener',     icon: LineChart,    group: 'equities', agentIds: ['equity-screener']                            },
   { id: 'equity-scraper',   label: 'Equity Scraper',      icon: DatabaseZap,  group: 'equities', agentIds: ['equity-data-scraper']                        },
   { id: 'equity-diligence', label: 'Equity Diligence',    icon: TrendingDown, group: 'equities', agentIds: ['equity-diligence']                           },
+  { id: 'macro-research',   label: 'Macro Research',      icon: FlaskConical, group: 'macro',    agentIds: ['macro-research']                             },
+  { id: 'macro-screener',   label: 'Macro Screener',      icon: LineChart,    group: 'macro',    agentIds: ['macro-screener']                             },
 ]
 
 // ─── Agent card ───────────────────────────────────────────────────────────────
@@ -372,6 +375,8 @@ export default function AgentConfigPage() {
             {activeTab === 'equity-screener'  && 'The Equity Screener scans the whole universe for sector-relative statistical outliers (cheap/expensive, high-yield, high/low-beta) and explains opportunities vs traps. Run it from the “AI Outlier Scan” panel on the Stock Registry.'}
             {activeTab === 'equity-scraper'   && 'The Equity Data Scraper runs autonomously to find upcoming earnings, analyst rating changes, IPOs, and index changes.'}
             {activeTab === 'equity-diligence' && 'The Equity Due Diligence agent investigates a stock for red flags — accounting quality, litigation, SEC actions, short-seller reports, and governance.'}
+            {activeTab === 'macro-research'   && 'The Macro Research Agent analyzes commodities, currencies, and bonds/rates using live futures/FX quotes, the official treasury yield curve, and macro news. Launch it from the Research page.'}
+            {activeTab === 'macro-screener'   && 'The Macro Screener sweeps every macro instrument for the biggest moves and regime signals (dollar, curve shape, energy/gold tone) and explains the drivers.'}
           </p>
 
           {tabAgents.length === 0 ? (

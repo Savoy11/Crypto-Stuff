@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { decodeEntities, stripCdata } from '@/lib/utils/html'
 import { COMMODITY_CATALOG } from '@/lib/data/commodityCatalog'
+import { getMacroProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
+import { fetchCustomUrl, findArray, pickDate, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
 
 // Macro Markets news — commodities, currencies, and bonds/rates ONLY.
 //   GET /live-data/macro-news                    → all three pillars merged
@@ -13,8 +15,8 @@ import { COMMODITY_CATALOG } from '@/lib/data/commodityCatalog'
 // falling back to the feed's default; articles from general feeds that match
 // no pillar are DROPPED — this route never serves off-topic filler.
 //
-// Provider-registry integration (toggles, custom feeds) arrives with the
-// `market: 'macro'` union extension — see docs/ROADMAP.md open items.
+// Registry-driven: each feed below is a `market: 'macro'` provider row, so
+// the Integrations page can toggle sources and shows per-feed utilization.
 
 export const dynamic = 'force-dynamic'
 
@@ -52,18 +54,18 @@ export interface MacroNewsResponse {
 // Order matters twice over: topic feeds run before general ones so dropped
 // duplicates credit the topical source, and the bonds feed runs before forex
 // because Investing.com cross-posts rates stories to both.
-const FEEDS: Array<{ url: string; source: string; defaultPillar: MacroPillar | null }> = [
-  { url: 'https://www.investing.com/rss/news_11.rss',              source: 'Investing.com Commodities', defaultPillar: 'commodities' },
-  { url: 'https://oilprice.com/rss/main',                          source: 'OilPrice',                  defaultPillar: 'commodities' },
-  { url: 'https://www.investing.com/rss/bonds_Fundamental.rss',    source: 'Investing.com Bonds',       defaultPillar: 'bonds' },
-  { url: 'https://www.investing.com/rss/news_1.rss',               source: 'Investing.com Forex',       defaultPillar: 'currencies' },
-  { url: 'https://www.fxstreet.com/rss/news',                      source: 'FXStreet',                  defaultPillar: 'currencies' },
+const FEEDS: Array<{ providerId: string; url: string; source: string; defaultPillar: MacroPillar | null }> = [
+  { providerId: 'investing-commodities', url: 'https://www.investing.com/rss/news_11.rss',           source: 'Investing.com Commodities', defaultPillar: 'commodities' },
+  { providerId: 'oilprice',              url: 'https://oilprice.com/rss/main',                       source: 'OilPrice',                  defaultPillar: 'commodities' },
+  { providerId: 'investing-bonds',       url: 'https://www.investing.com/rss/bonds_Fundamental.rss', source: 'Investing.com Bonds',       defaultPillar: 'bonds' },
+  { providerId: 'investing-forex',       url: 'https://www.investing.com/rss/news_1.rss',            source: 'Investing.com Forex',       defaultPillar: 'currencies' },
+  { providerId: 'fxstreet',              url: 'https://www.fxstreet.com/rss/news',                   source: 'FXStreet',                  defaultPillar: 'currencies' },
   // General feeds: kept only when an article classifies into a pillar.
   // CNBC Economy is here mainly to feed the bonds pillar — the dedicated
   // Investing.com bonds feed publishes op-eds every few weeks, not news.
-  { url: 'https://feeds.content.dowjones.io/public/rss/mw_bulletins', source: 'MarketWatch', defaultPillar: null },
-  { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664', source: 'CNBC', defaultPillar: null },
-  { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258', source: 'CNBC Economy', defaultPillar: null },
+  { providerId: 'marketwatch-macro', url: 'https://feeds.content.dowjones.io/public/rss/mw_bulletins', source: 'MarketWatch', defaultPillar: null },
+  { providerId: 'cnbc-macro',        url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=10000664', source: 'CNBC', defaultPillar: null },
+  { providerId: 'cnbc-economy',      url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=20910258', source: 'CNBC Economy', defaultPillar: null },
 ]
 
 /** Articles older than this are dropped — stale filler is worse than fewer stories. */
@@ -184,32 +186,80 @@ function detectRelated(text: string): MacroRelated[] {
 
 // ─── Route ───────────────────────────────────────────────────────────────────
 
+function parseJsonNews(payload: unknown, provider: ActiveCustom): RawArticle[] {
+  const entries = findArray(payload, provider.jsonArrayPath)
+  const map = provider.jsonFieldMap ?? {}
+  const out: RawArticle[] = []
+  for (const entry of entries.slice(0, 40)) {
+    const title = pickString(entry, map.headline ?? map.title, ['title', 'headline', 'name'])
+    const url = pickString(entry, map.url, ['url', 'link', 'article_url'])
+    if (!title || !url) continue
+    out.push({
+      id: `${provider.id}:${url}`.slice(0, 200),
+      title,
+      url,
+      source: provider.name,
+      publishedAt: pickDate(entry, map.publishedAt, ['publishedAt', 'published_at', 'date', 'pubDate', 'datetime', 'created_at']) ?? new Date().toISOString(),
+      summary: (pickString(entry, map.summary, ['summary', 'description', 'excerpt', 'text']) ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 280),
+    })
+  }
+  return out
+}
+
+async function fetchCustomMacroNews(provider: ActiveCustom): Promise<RawArticle[]> {
+  const res = await fetchCustomUrl(provider, provider.url)
+  if (provider.format === 'json-news') return parseJsonNews(await res.json(), provider)
+  return parseRss(await res.text(), provider.name) // rss / atom
+}
+
 export async function GET(request: NextRequest) {
   const pillarParam = request.nextUrl.searchParams.get('pillar') as MacroPillar | null
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '40', 10) || 40, 80)
 
-  const results = await Promise.allSettled(
-    FEEDS.map(async (feed) => {
+  // Only feeds whose provider row is enabled run; a fresh install has every
+  // built-in active, so default behaviour is unchanged. Custom macro feeds
+  // are classifier-gated like the general wires (defaultPillar null).
+  const active = getMacroProviders('news')
+  const activeIds = new Set(active.map((p) => p.id))
+  const customs = active.filter((p): p is AnyActiveProvider & ActiveCustom =>
+    !!p.isCustom && ['rss', 'atom', 'json-news'].includes(p.format))
+
+  type FeedTask = { providerId: string; defaultPillar: MacroPillar | null; run: () => Promise<RawArticle[]> }
+  const tasks: FeedTask[] = FEEDS.filter((f) => activeIds.has(f.providerId)).map((feed) => ({
+    providerId: feed.providerId,
+    defaultPillar: feed.defaultPillar,
+    run: async () => {
       const res = await fetch(feed.url, {
         next: { revalidate: 300 },
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)', Accept: 'application/rss+xml, application/xml, text/xml' },
       })
       if (!res.ok) throw new Error(`${feed.source} ${res.status}`)
-      return { feed, raw: parseRss(await res.text(), feed.source) }
-    }),
-  )
+      return parseRss(await res.text(), feed.source)
+    },
+  }))
+  for (const p of customs) {
+    tasks.push({ providerId: p.id, defaultPillar: null, run: () => fetchCustomMacroNews(p) })
+  }
+
+  const results = await Promise.allSettled(tasks.map((t) => t.run()))
+  results.forEach((result, i) => {
+    recordProviderFetch(tasks[i].providerId, result.status === 'fulfilled'
+      ? { count: result.value.length }
+      : { error: result.reason instanceof Error ? result.reason.message : String(result.reason) })
+  })
 
   const now = Date.now()
   const seenTitles = new Set<string>()
   const articles: MacroNewsArticle[] = []
 
-  for (const r of results) {
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i]
     if (r.status !== 'fulfilled') continue
-    for (const raw of r.value.raw) {
+    for (const raw of r.value) {
       if (now - new Date(raw.publishedAt).getTime() > MAX_AGE_MS) continue
       const text = `${raw.title} ${raw.summary}`
-      const pillar = classifyPillar(text, r.value.feed.defaultPillar)
-      if (!pillar) continue // general-feed article about neither pillar — drop
+      const pillar = classifyPillar(text, tasks[i].defaultPillar)
+      if (!pillar) continue // article about no pillar — drop
       // Dedupe near-identical stories syndicated across feeds.
       const titleKey = raw.title.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().slice(0, 80)
       if (seenTitles.has(titleKey)) continue

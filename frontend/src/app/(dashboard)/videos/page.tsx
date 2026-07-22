@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineChart, Sparkles, Youtube, AlertCircle, ArrowUpDown } from 'lucide-react'
+import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineChart, Globe2, Sparkles, Youtube, AlertCircle, ArrowUpDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
@@ -30,6 +30,14 @@ const MARKET_META: Record<ProviderMarket, { label: string; icon: typeof Coins; b
     icon: LineChart,
     badge: 'text-violet-400 bg-violet-400/10 border-violet-500/25',
     accent: 'text-violet-400',
+  },
+  // No macro video channels ship yet — this entry exists so a future macro
+  // video provider renders sensibly instead of crashing the meta lookup.
+  macro: {
+    label: 'Macro',
+    icon: Globe2,
+    badge: 'text-amber-400 bg-amber-400/10 border-amber-500/25',
+    accent: 'text-amber-400',
   },
 }
 

@@ -11,8 +11,11 @@
 import { PORTFOLIO_COINS, type CoinCategory } from './portfolioCoins'
 import { EQUITY_CATALOG } from './equityCatalog'
 import { FUND_CATALOG } from './fundCatalog'
+import { COMMODITY_CATALOG, COMMODITY_CATEGORY_INFO } from './commodityCatalog'
+import { CURRENCY_CATALOG, CURRENCY_CATEGORY_INFO } from './currencyCatalog'
+import { RATES_CATALOG, RATES_CATEGORY_INFO } from './ratesCatalog'
 
-export type InstrumentClass = 'crypto' | 'equity' | 'etf' | 'mutual'
+export type InstrumentClass = 'crypto' | 'equity' | 'etf' | 'mutual' | 'commodity' | 'currency' | 'rate'
 
 export interface Instrument {
   /** Storage key — also exposed as `cgId` for portfolio back-compat */
@@ -24,6 +27,13 @@ export interface Instrument {
   category: CoinCategory
   riskTier: number
   color: string
+  /**
+   * Where this instrument's detail page lives, when it isn't derivable from
+   * class + symbol (macro instruments route by catalog slug — '/macro/…').
+   * Absent for crypto/equity/fund instruments, whose consumers already know
+   * their routes.
+   */
+  detailPath?: string
 }
 
 export const SEC_PREFIX = 'sec:'
@@ -70,6 +80,35 @@ export const INSTRUMENTS: Instrument[] = [
     category: fundCategory(f.category),
     riskTier: fundRiskTier(f.category), color: f.category === 'bond' ? '#64748b' : '#14b8a6',
   })),
+  // Macro instruments (ROADMAP "instruments" open item). All quote through
+  // the same security routes as stocks/funds, so the sec: key works as-is;
+  // detailPath carries the slug-based macro route the symbol can't encode.
+  // Risk tiers are coarse class-level placements on the same 1–10 scale:
+  // futures around single-stock territory, FX below equities, yields lowest.
+  ...COMMODITY_CATALOG.map((c) => ({
+    key: `${SEC_PREFIX}${c.symbol}`, cgId: `${SEC_PREFIX}${c.symbol}`,
+    symbol: c.symbol, name: `${c.name} Futures`,
+    class: 'commodity' as const, category: 'unknown' as CoinCategory,
+    riskTier: c.category === 'energy' ? 6 : 5,
+    color: COMMODITY_CATEGORY_INFO[c.category].color,
+    detailPath: `/macro/commodities/${c.slug}`,
+  })),
+  ...CURRENCY_CATALOG.map((c) => ({
+    key: `${SEC_PREFIX}${c.symbol}`, cgId: `${SEC_PREFIX}${c.symbol}`,
+    symbol: c.symbol, name: c.name,
+    class: 'currency' as const, category: 'unknown' as CoinCategory,
+    riskTier: c.category === 'emerging' ? 4 : 3,
+    color: CURRENCY_CATEGORY_INFO[c.category].color,
+    detailPath: `/macro/currencies/${c.slug}`,
+  })),
+  ...RATES_CATALOG.map((r) => ({
+    key: `${SEC_PREFIX}${r.symbol}`, cgId: `${SEC_PREFIX}${r.symbol}`,
+    symbol: r.symbol, name: r.name,
+    class: 'rate' as const, category: 'unknown' as CoinCategory,
+    riskTier: 2,
+    color: RATES_CATEGORY_INFO[r.category].color,
+    detailPath: `/macro/rates/${r.slug}`,
+  })),
 ]
 
 export const INSTRUMENT_BY_KEY: Record<string, Instrument> = Object.fromEntries(
@@ -81,4 +120,7 @@ export const CLASS_LABELS: Record<InstrumentClass, string> = {
   equity: 'Stock',
   etf: 'ETF',
   mutual: 'Mutual fund',
+  commodity: 'Commodity',
+  currency: 'Currency',
+  rate: 'Rate',
 }

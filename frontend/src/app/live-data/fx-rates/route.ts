@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { recordProviderFetch } from '@/lib/api/live/providers'
 
 // Daily ECB reference FX rates via frankfurter.dev (keyless, no auth).
 // Backs the Macro Markets currency converter. Rates are published once per
@@ -28,6 +29,7 @@ export async function GET(): Promise<NextResponse<FxRatesResponse>> {
     const data: { date?: string; rates?: Record<string, number> } = await res.json()
     if (!data.rates || !data.date) throw new Error('malformed frankfurter response')
 
+    recordProviderFetch('frankfurter', { count: Object.keys(data.rates).length + 1 })
     return NextResponse.json({
       ok: true,
       date: data.date,
@@ -36,6 +38,7 @@ export async function GET(): Promise<NextResponse<FxRatesResponse>> {
       source: 'frankfurter-ecb',
     })
   } catch (err) {
+    recordProviderFetch('frankfurter', { error: err instanceof Error ? err.message : 'fetch failed' })
     return NextResponse.json({
       ok: false,
       error: err instanceof Error ? err.message : 'fx reference rates unavailable',

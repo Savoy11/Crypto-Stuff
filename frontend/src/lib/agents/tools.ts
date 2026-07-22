@@ -1,6 +1,9 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { EQUITY_CATALOG, SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { FUND_CATALOG, FUND_CATEGORY_INFO } from '@/lib/data/fundCatalog'
+import { COMMODITY_CATALOG, COMMODITY_CATEGORY_INFO } from '@/lib/data/commodityCatalog'
+import { CURRENCY_CATALOG, CURRENCY_CATEGORY_INFO } from '@/lib/data/currencyCatalog'
+import { RATES_CATALOG, RATES_CATEGORY_INFO } from '@/lib/data/ratesCatalog'
 
 // ─── Agent tool registry ──────────────────────────────────────────────────────
 //
@@ -10,9 +13,9 @@ import { FUND_CATALOG, FUND_CATEGORY_INFO } from '@/lib/data/fundCatalog'
 // truth. The executor fetches against the app's own origin (passed in from the
 // route handler), avoiding any external hop or duplicated data logic.
 
-export type ToolMarket = 'crypto' | 'equities'
-/** Which tool set an agent may call. 'all' exposes both markets (App Assistant). */
-export type ToolSet = 'crypto' | 'equities' | 'all'
+export type ToolMarket = 'crypto' | 'equities' | 'macro'
+/** Which tool set an agent may call. 'all' exposes every market (App Assistant). */
+export type ToolSet = 'crypto' | 'equities' | 'macro' | 'all'
 
 interface RegisteredTool {
   market: ToolMarket
@@ -281,9 +284,90 @@ const TOOL_REGISTRY: RegisteredTool[] = [
       },
     },
   },
+
+  // ── Macro (commodities, currencies, bonds/rates) ────────────────────────────
+  {
+    market: 'macro',
+    tool: {
+      name: 'search_macro_instruments',
+      description: 'Search the macro catalogs — 19 commodity futures, 18 FX pairs + dollar index, and 8 treasury yield indices/bond futures — by name, symbol, or category. Returns the Yahoo symbol (usable with get_macro_quote / get_macro_price_history), quote convention, and ETF proxies. Use FIRST to find the right symbol.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Name or symbol substring, e.g. "gold", "EURUSD", "10-year"' },
+          area: { type: 'string', enum: ['commodities', 'currencies', 'rates'], description: 'Optional: restrict to one area' },
+        },
+      },
+    },
+  },
+  {
+    market: 'macro',
+    tool: {
+      name: 'get_macro_quote',
+      description: 'Get live prices for macro symbols: commodity futures (GC=F, CL=F), FX pairs (EURUSD=X, JPY=X), the dollar index (DX-Y.NYB), treasury yield indices (^TNX quotes the yield ×10), and bond futures (ZN=F). Mind each market\'s quote convention from search_macro_instruments (grains quote in cents).',
+      input_schema: {
+        type: 'object',
+        properties: {
+          symbols: { type: 'array', items: { type: 'string' }, description: 'Yahoo symbols, e.g. ["GC=F","EURUSD=X","^TNX"]' },
+        },
+        required: ['symbols'],
+      },
+    },
+  },
+  {
+    market: 'macro',
+    tool: {
+      name: 'get_macro_price_history',
+      description: 'Get OHLC history summary for a macro symbol (futures contract, FX pair, or yield index) over a range: first/last, high, low, and percent change.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          symbol: { type: 'string', description: 'Yahoo symbol, e.g. "CL=F" or "EURUSD=X"' },
+          range: { type: 'string', enum: ['1M', '3M', '6M', '1Y', '5Y', 'MAX'], description: 'Time range (default 1Y)' },
+        },
+        required: ['symbol'],
+      },
+    },
+  },
+  {
+    market: 'macro',
+    tool: {
+      name: 'get_yield_curve',
+      description: 'Get the official US Treasury par yield curve (13 maturities, treasury.gov daily data) with 2s10s and 3m10y spreads, curve shape (normal/flat/inverted), and month-ago / year-start snapshots for comparison. The authoritative rates tool — prefer it over quoting ^TNX for curve questions.',
+      input_schema: { type: 'object', properties: {} },
+    },
+  },
+  {
+    market: 'macro',
+    tool: {
+      name: 'get_fx_rates',
+      description: 'Get daily USD-based FX reference rates: 30 currencies from the ECB (official tier) and, when include_extended is true, 127 more community-sourced currencies (labeled non-official). For intraday pair quotes use get_macro_quote instead.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          currencies: { type: 'array', items: { type: 'string' }, description: 'Optional ISO codes to filter, e.g. ["EUR","JPY","MXN"]' },
+          include_extended: { type: 'boolean', description: 'Also fetch the extended community tier (default false)' },
+        },
+      },
+    },
+  },
+  {
+    market: 'macro',
+    tool: {
+      name: 'get_macro_news',
+      description: 'Get recent macro-market news classified into pillars — commodities, currencies, bonds — with sentiment and detected instruments. Use for "what is moving oil/FX/rates" questions.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          pillar: { type: 'string', enum: ['commodities', 'currencies', 'bonds'], description: 'Optional: one pillar only' },
+          limit: { type: 'number', description: 'Max articles (default 10, max 25)' },
+        },
+      },
+    },
+  },
 ]
 
-/** All tool definitions (both markets). */
+/** All tool definitions (every market). */
 export const AGENT_TOOLS: Anthropic.Tool[] = TOOL_REGISTRY.map((r) => r.tool)
 
 /** Tool definitions exposed to an agent, filtered by its toolset. */
@@ -545,6 +629,121 @@ export async function runTool(
           sectorsEvaluated: data.sectorsEvaluated, peCoverage: data.peCoverage,
           coverageNote: data.note, categories: data.categories,
         }
+      }
+      // ── Macro tools ───────────────────────────────────────────────────────────
+      case 'search_macro_instruments': {
+        const query = String(input.query ?? '').trim().toLowerCase()
+        const area = input.area ? String(input.area) : undefined
+        const match = (...hay: string[]) => !query || hay.some((h) => h.toLowerCase().includes(query))
+        const commodities = (area && area !== 'commodities') ? [] : COMMODITY_CATALOG
+          .filter((c) => match(c.name, c.symbol, c.category))
+          .map((c) => ({
+            symbol: c.symbol, name: c.name, area: 'commodities' as const,
+            category: COMMODITY_CATEGORY_INFO[c.category].label, exchange: c.exchange,
+            quotesIn: c.quoteBasis === 'cents' ? `US cents per ${c.unit}` : `USD per ${c.unit}`,
+            etfProxies: c.etfProxies,
+          }))
+        const currencies = (area && area !== 'currencies') ? [] : CURRENCY_CATALOG
+          .filter((c) => match(c.name, c.symbol, c.base, c.quote))
+          .map((c) => ({
+            symbol: c.symbol, name: c.name, area: 'currencies' as const,
+            category: CURRENCY_CATEGORY_INFO[c.category].label,
+            pair: `1 ${c.base} = X ${c.quote}`,
+            etfProxies: c.etfProxies,
+          }))
+        const rates = (area && area !== 'rates') ? [] : RATES_CATALOG
+          .filter((r) => match(r.name, r.symbol))
+          .map((r) => ({
+            symbol: r.symbol, name: r.name, area: 'rates' as const,
+            category: RATES_CATEGORY_INFO[r.category].label,
+            quotesIn: r.quoteBasis === 'pct' ? 'yield in percent (^TNX shows yield ×10)' : 'points of par',
+            etfProxies: r.etfProxies,
+          }))
+        if (commodities.length + currencies.length + rates.length === 0) {
+          return { commodities, currencies, rates, note: 'No catalog matches — the symbol may still be quotable via get_macro_quote.' }
+        }
+        return { commodities, currencies, rates }
+      }
+      case 'get_macro_quote': {
+        const symbols = (input.symbols as string[] | undefined)?.map((s) => s.toUpperCase()).join(',') ?? ''
+        const data = (await getJson(origin, `/live-data/security-quotes?symbols=${encodeURIComponent(symbols)}`)) as {
+          source?: string; quotes?: Record<string, { price: number; changePercent: number | null; volume: number | null; reference?: boolean }>
+        }
+        return { source: data.source, quotes: data.quotes ?? {} }
+      }
+      case 'get_macro_price_history': {
+        const symbol = String(input.symbol ?? '').toUpperCase()
+        const range = String(input.range ?? '1Y')
+        const data = (await getJson(origin, `/live-data/security-ohlcv?symbol=${encodeURIComponent(symbol)}&range=${range}`)) as {
+          ok?: boolean; candles?: { time: number; open: number; high: number; low: number; close: number }[]; source?: string
+        }
+        const candles = data.candles ?? []
+        if (!data.ok || candles.length === 0) return { error: 'no candle data available', symbol, range }
+        const first = candles[0], last = candles[candles.length - 1]
+        const high = Math.max(...candles.map((c) => c.high))
+        const low = Math.min(...candles.map((c) => c.low))
+        const changePct = ((last.close - first.open) / first.open) * 100
+        // Compact summary — never dump hundreds of candles into context.
+        return {
+          symbol, range, source: data.source, candleCount: candles.length,
+          firstClose: first.close, lastClose: last.close,
+          periodHigh: high, periodLow: low,
+          changePct: Number(changePct.toFixed(2)),
+        }
+      }
+      case 'get_yield_curve': {
+        const data = (await getJson(origin, `/live-data/treasury-yield-curve`)) as {
+          ok?: boolean; error?: string; latest?: unknown; monthAgo?: unknown; yearStart?: unknown
+          spread2s10s?: number; spread3m10y?: number; shape?: string
+        }
+        if (!data.ok) return { error: data.error ?? 'yield curve unavailable' }
+        return {
+          latest: data.latest, monthAgo: data.monthAgo, yearStart: data.yearStart,
+          spread2s10s: data.spread2s10s, spread3m10y: data.spread3m10y, shape: data.shape,
+          source: 'treasury.gov official daily par curve',
+        }
+      }
+      case 'get_fx_rates': {
+        const wanted = (input.currencies as string[] | undefined)?.map((c) => c.toUpperCase())
+        const pick = (rates: Record<string, number>) =>
+          wanted?.length ? Object.fromEntries(Object.entries(rates).filter(([k]) => wanted.includes(k))) : rates
+        const official = (await getJson(origin, `/live-data/fx-rates`)) as {
+          ok?: boolean; error?: string; date?: string; rates?: Record<string, number>
+        }
+        const out: Record<string, unknown> = official.ok
+          ? { officialDate: official.date, officialSource: 'ECB reference rates', officialRates: pick(official.rates ?? {}) }
+          : { officialError: official.error ?? 'official rates unavailable' }
+        if (input.include_extended === true) {
+          const ext = (await getJson(origin, `/live-data/fx-rates-extended`)) as {
+            ok?: boolean; error?: string; date?: string; rates?: Record<string, number>
+          }
+          if (ext.ok) {
+            out.extendedDate = ext.date
+            out.extendedSource = 'community currency-api — NOT official; always attribute as community-sourced'
+            out.extendedRates = pick(ext.rates ?? {})
+          } else {
+            out.extendedError = ext.error ?? 'extended rates unavailable'
+          }
+        }
+        out.base = 'USD'
+        return out
+      }
+      case 'get_macro_news': {
+        const limit = Math.min(Number(input.limit ?? 10) || 10, 25)
+        const p = new URLSearchParams({ limit: String(limit) })
+        if (input.pillar) p.set('pillar', String(input.pillar))
+        const data = (await getJson(origin, `/live-data/macro-news?${p.toString()}`)) as {
+          ok?: boolean
+          articles?: { title: string; url: string; source: string; publishedAt: string; summary: string; sentiment: string; pillar: string; related: { label: string }[] }[]
+        }
+        const articles = (data.articles ?? []).slice(0, limit).map((a) => ({
+          title: a.title, source: a.source, publishedAt: a.publishedAt,
+          sentiment: a.sentiment, pillar: a.pillar,
+          relatedInstruments: a.related.map((r) => r.label),
+          summary: a.summary.length > 200 ? `${a.summary.slice(0, 200)}…` : a.summary,
+          url: a.url,
+        }))
+        return { count: articles.length, articles }
       }
       default:
         return { error: `Unknown tool: ${name}` }

@@ -8,7 +8,7 @@ export const maxDuration = 120
 
 // Research/scan agents the user may target. Whitelisted so the client can't
 // invoke an arbitrary agent id.
-const RESEARCH_AGENTS = new Set(['research-analyst', 'equity-research', 'equity-screener'])
+const RESEARCH_AGENTS = new Set(['research-analyst', 'equity-research', 'equity-screener', 'macro-research', 'macro-screener'])
 
 // POST /api/agents/research
 //   { task: string }

@@ -149,7 +149,7 @@ interface AgentToggleInfo {
   id: string
   name: string
   description: string
-  market?: 'crypto' | 'equities'
+  market?: 'crypto' | 'equities' | 'macro'
   provider: string
   model: string
   enabled?: boolean
@@ -184,6 +184,7 @@ function AiAgentsPanel() {
     { label: 'Shared', items: agents.filter((a) => !a.market) },
     { label: 'Crypto', items: agents.filter((a) => a.market === 'crypto') },
     { label: 'Equities', items: agents.filter((a) => a.market === 'equities') },
+    { label: 'Macro', items: agents.filter((a) => a.market === 'macro') },
   ]
 
   return (
@@ -322,7 +323,7 @@ function SubredditPanel() {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ProviderCategory = 'price' | 'news' | 'social' | 'video' | 'llm'
-type ProviderMarket = 'crypto' | 'equities'
+type ProviderMarket = 'crypto' | 'equities' | 'macro'
 type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
 type FeedFormat = 'rss' | 'atom' | 'youtube' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
@@ -1020,10 +1021,10 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
         <div className="col-span-2">
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">
             Endpoint URL * <span className="normal-case font-normal text-slate-600">
-              {market === 'equities' ? <>(use {'{symbol}'} per-symbol or {'{symbols}'} for batch)</> : <>(use {'{asset}'} as placeholder for asset ID)</>}
+              {market === 'equities' ? <>(use {'{symbol}'} per-symbol or {'{symbols}'} for batch)</> : market === 'macro' ? <>(plain feed URL — articles are pillar-classified automatically)</> : <>(use {'{asset}'} as placeholder for asset ID)</>}
             </span>
           </label>
-          <input value={form.url} onChange={(e) => set('url', e.target.value)} placeholder={market === 'equities' ? 'https://example.com/api/quote/{symbol}' : 'https://example.com/api/news?q={asset}'} required className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-accent-blue/60 focus:outline-none font-mono" />
+          <input value={form.url} onChange={(e) => set('url', e.target.value)} placeholder={market === 'equities' ? 'https://example.com/api/quote/{symbol}' : market === 'macro' ? 'https://example.com/rss' : 'https://example.com/api/news?q={asset}'} required className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-200 placeholder-slate-600 focus:border-accent-blue/60 focus:outline-none font-mono" />
         </div>
         <div className="col-span-2">
           <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-500 mb-1">Description</label>
@@ -1117,6 +1118,9 @@ export default function SettingsPage() {
   const customCryptoVideoProviders = customProviders.filter((p) => p.category === 'video' && marketOf(p) === 'crypto')
   const equityVideoProviders = builtinProviders.filter((p) => p.category === 'video' && marketOf(p) === 'equities')
   const customEquityVideoProviders = customProviders.filter((p) => p.category === 'video' && marketOf(p) === 'equities')
+  const macroDataProviders = builtinProviders.filter((p) => p.category === 'price' && marketOf(p) === 'macro')
+  const macroNewsProviders = builtinProviders.filter((p) => p.category === 'news' && marketOf(p) === 'macro')
+  const customMacroNewsProviders = customProviders.filter((p) => p.category === 'news' && marketOf(p) === 'macro')
   const llmProviders = builtinProviders.filter((p) => p.category === 'llm')
 
   const activeCount = providers.filter((p) => {
@@ -1223,6 +1227,38 @@ export default function SettingsPage() {
                 <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
               ))}
               <AddCustomSourceForm category="social" market="equities" onAdd={fetchProviders} />
+            </div>
+          </section>
+
+          {/* Macro data */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <PlugZap size={15} className="text-amber-400" />
+              <h2 className="text-sm font-semibold text-slate-300">Macro Data Sources</h2>
+              <span className="text-xs text-slate-500">— FX reference tables and the official yield curve; futures/FX quotes use the equity quote ladder above</span>
+            </div>
+            <div className="space-y-2">
+              {macroDataProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+            </div>
+          </section>
+
+          {/* Macro news */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Rss size={15} className="text-amber-400" />
+              <h2 className="text-sm font-semibold text-slate-300">Macro News</h2>
+              <span className="text-xs text-slate-500">— commodities, FX, and bonds feeds; general wires are kept only when an article classifies into a pillar</span>
+            </div>
+            <div className="space-y-2">
+              {macroNewsProviders.map((p) => (
+                <ProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              {customMacroNewsProviders.map((p) => (
+                <CustomProviderCard key={p.id} provider={p} onUpdate={fetchProviders} />
+              ))}
+              <AddCustomSourceForm category="news" market="macro" onAdd={fetchProviders} />
             </div>
           </section>
 

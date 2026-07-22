@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { recordProviderFetch } from '@/lib/api/live/providers'
 
 // Official US Treasury daily par yield curve (home.treasury.gov XML, keyless).
 // Returns the latest curve plus two lookback snapshots (~1 month, start of
@@ -107,6 +108,7 @@ export async function GET(): Promise<NextResponse<YieldCurveResponse>> {
     const shape = spread2s10s == null ? undefined
       : spread2s10s > 0.25 ? 'normal' : spread2s10s < -0.1 ? 'inverted' : 'flat'
 
+    recordProviderFetch('treasury-gov', { count: snapshots.length })
     return NextResponse.json({
       ok: true,
       latest,
@@ -118,6 +120,7 @@ export async function GET(): Promise<NextResponse<YieldCurveResponse>> {
       source: 'treasury-gov',
     })
   } catch (err) {
+    recordProviderFetch('treasury-gov', { error: err instanceof Error ? err.message : 'fetch failed' })
     return NextResponse.json({
       ok: false,
       error: err instanceof Error ? err.message : 'treasury yield curve unavailable',

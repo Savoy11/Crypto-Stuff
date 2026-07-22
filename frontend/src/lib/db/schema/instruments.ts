@@ -14,7 +14,9 @@ import { users } from './auth'
 // module lands. Adding commodities later is a new extension table, not a
 // migration of every personal-finance table.
 
-export const ASSET_CLASSES = ['crypto', 'equity', 'etf', 'mutual', 'commodity', 'bond', 'cash', 'manual'] as const
+// 'commodity'/'currency'/'rate' cover macro instruments (futures, FX pairs,
+// yield indices) — text column, so extending this union needs no migration.
+export const ASSET_CLASSES = ['crypto', 'equity', 'etf', 'mutual', 'commodity', 'currency', 'rate', 'bond', 'cash', 'manual'] as const
 export type AssetClass = (typeof ASSET_CLASSES)[number]
 
 // Which live-data route can price this instrument. 'manual' means the user

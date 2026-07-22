@@ -5,7 +5,7 @@ import path from 'path'
 
 export type ProviderCategory = 'price' | 'news' | 'social' | 'video' | 'llm'
 /** Which side of the suite a provider feeds. Absent = 'crypto' (back-compat with stored configs). */
-export type ProviderMarket = 'crypto' | 'equities'
+export type ProviderMarket = 'crypto' | 'equities' | 'macro'
 export type ProviderStatus = 'active' | 'error' | 'unconfigured' | 'disabled'
 export type AuthMethod = 'none' | 'header' | 'query' | 'bearer'
 export type FeedFormat = 'rss' | 'atom' | 'youtube' | 'json-news' | 'json-price' | 'json-social' | 'json-quote' | 'json-ohlcv' | 'graphql' | 'websocket' | 'native'
@@ -293,6 +293,146 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     freeTierLabel: 'Keyless — already active',
     keyUrl: 'https://www.cnbc.com/markets/',
     priority: 3,
+  },
+
+  // ── Macro data (market: 'macro', category: 'price') ── keyless official/
+  // community sources behind the FX converter and yield curve. Quotes for
+  // futures/FX pairs/yield indices ride the EQUITY quote ladder (Yahoo et al),
+  // so there is deliberately no macro quote ladder here.
+  {
+    id: 'frankfurter',
+    name: 'ECB FX Reference (frankfurter.dev)',
+    category: 'price',
+    market: 'macro',
+    description: 'Official ECB daily reference rates for 30 currencies — the converter\'s "official" tier.',
+    features: ['ECB reference rates', '30 currencies', 'Daily fixings', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://frankfurter.dev',
+    priority: 1,
+  },
+  {
+    id: 'currency-api-extended',
+    name: 'Community FX (extended tier)',
+    category: 'price',
+    market: 'macro',
+    description: 'Community-sourced daily rates for 127 additional currencies beyond the ECB set. Always labeled as non-official in the converter.',
+    features: ['127 extra currencies', 'Daily rates', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://github.com/fawazahmed0/exchange-api',
+    priority: 2,
+  },
+  {
+    id: 'treasury-gov',
+    name: 'US Treasury (treasury.gov)',
+    category: 'price',
+    market: 'macro',
+    description: 'Official daily Treasury par yield curve — 13 maturities, plus derived 2s10s/3m10y spreads.',
+    features: ['Official yield curve', '13 maturities', 'Curve spreads', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://home.treasury.gov/interest-rates-data-csv-archive',
+    priority: 3,
+  },
+
+  // ── Macro news (market: 'macro') ── one row per feed in the macro-news
+  // route; all keyless RSS, merged in parallel like equity news.
+  {
+    id: 'investing-commodities',
+    name: 'Investing.com Commodities',
+    category: 'news',
+    market: 'macro',
+    description: 'Investing.com commodities desk — metals, energy, and agriculture coverage.',
+    features: ['Commodities coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.investing.com/commodities/',
+    priority: 1,
+  },
+  {
+    id: 'oilprice',
+    name: 'OilPrice',
+    category: 'news',
+    market: 'macro',
+    description: 'Energy-market news — oil, gas, and the geopolitics around them.',
+    features: ['Energy coverage', 'Geopolitics', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://oilprice.com',
+    priority: 2,
+  },
+  {
+    id: 'investing-bonds',
+    name: 'Investing.com Bonds',
+    category: 'news',
+    market: 'macro',
+    description: 'Investing.com bonds desk — rates and fixed-income commentary.',
+    features: ['Bonds & rates coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.investing.com/rates-bonds/',
+    priority: 3,
+  },
+  {
+    id: 'investing-forex',
+    name: 'Investing.com Forex',
+    category: 'news',
+    market: 'macro',
+    description: 'Investing.com FX desk — currency-market news.',
+    features: ['FX coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.investing.com/currencies/',
+    priority: 4,
+  },
+  {
+    id: 'fxstreet',
+    name: 'FXStreet',
+    category: 'news',
+    market: 'macro',
+    description: 'Dedicated FX news and analysis wire.',
+    features: ['FX coverage', 'Central-bank watch', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.fxstreet.com',
+    priority: 5,
+  },
+  {
+    id: 'marketwatch-macro',
+    name: 'MarketWatch (macro filter)',
+    category: 'news',
+    market: 'macro',
+    description: 'MarketWatch bulletins, kept only when an article classifies into a macro pillar.',
+    features: ['General wire', 'Classifier-gated', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.marketwatch.com',
+    priority: 6,
+  },
+  {
+    id: 'cnbc-macro',
+    name: 'CNBC (macro filter)',
+    category: 'news',
+    market: 'macro',
+    description: 'CNBC markets wire, kept only when an article classifies into a macro pillar.',
+    features: ['General wire', 'Classifier-gated', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.cnbc.com/markets/',
+    priority: 7,
+  },
+  {
+    id: 'cnbc-economy',
+    name: 'CNBC Economy',
+    category: 'news',
+    market: 'macro',
+    description: 'CNBC economy desk — feeds the bonds pillar between sparse dedicated bonds stories.',
+    features: ['Economy coverage', 'Classifier-gated', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.cnbc.com/economy/',
+    priority: 8,
   },
 
   // ── Video (category: 'video') ── keyless YouTube channel feeds
@@ -823,6 +963,13 @@ export function getVideoProviders(market: ProviderMarket): AnyActiveProvider[] {
 export function getEquityProviders(category: ProviderCategory): AnyActiveProvider[] {
   return getAllProviders()
     .filter((p) => p.category === category && marketOf(p) === 'equities' && p.status === 'active')
+    .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
+}
+
+/** All active macro providers for a category — same contract as getEquityProviders. */
+export function getMacroProviders(category: ProviderCategory): AnyActiveProvider[] {
+  return getAllProviders()
+    .filter((p) => p.category === category && marketOf(p) === 'macro' && p.status === 'active')
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 

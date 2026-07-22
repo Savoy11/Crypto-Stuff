@@ -11,7 +11,7 @@ export interface TierCategory {
   label: string
   description: string
   /** Which side of the suite this category belongs to. Default 'crypto'. */
-  market?: 'crypto' | 'equities'
+  market?: 'crypto' | 'equities' | 'macro'
   freeSource: string
   freeSourceLabel: string
   paidSource: string
@@ -147,6 +147,34 @@ export const TIER_CATEGORIES: Record<string, TierCategory> = {
     paidSourceLabel: 'All enabled providers (merged)',
     queryParam: 'source',
     providerCategory: 'social',
+    informational: true,
+  },
+
+  // ── Macro ── informational, like equities: futures/FX/yield-index QUOTES
+  // ride the equity quote ladder above; these rows cover the macro-only
+  // sources (FX reference tables, official yield curve, macro news feeds).
+  macroData: {
+    label: 'FX Reference & Yield Curve',
+    description: 'ECB/community FX reference rates and the official Treasury par curve',
+    market: 'macro',
+    freeSource: 'frankfurter',
+    freeSourceLabel: 'Official/keyless sources',
+    paidSource: 'frankfurter',
+    paidSourceLabel: 'Official/keyless sources',
+    queryParam: 'source',
+    providerCategory: 'price',
+    informational: true,
+  },
+  macroNews: {
+    label: 'Macro News',
+    description: 'Commodities, FX, and bonds/rates news feeds',
+    market: 'macro',
+    freeSource: 'rss',
+    freeSourceLabel: 'All enabled feeds (merged)',
+    paidSource: 'rss',
+    paidSourceLabel: 'All enabled feeds (merged)',
+    queryParam: 'providers',
+    providerCategory: 'news',
     informational: true,
   },
 }

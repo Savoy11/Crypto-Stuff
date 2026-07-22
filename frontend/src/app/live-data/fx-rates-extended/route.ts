@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { recordProviderFetch } from '@/lib/api/live/providers'
 
 // Extended-tier daily FX rates via the community-maintained
 // fawazahmed0/currency-api (keyless, CDN-distributed, updates daily).
@@ -81,6 +82,7 @@ export async function GET(): Promise<NextResponse<FxRatesExtendedResponse>> {
     }
     if (Object.keys(rates).length === 0) throw new Error('no extended-tier rates resolved')
 
+    recordProviderFetch('currency-api-extended', { count: Object.keys(rates).length })
     return NextResponse.json({
       ok: true,
       date: data.date,
@@ -89,6 +91,7 @@ export async function GET(): Promise<NextResponse<FxRatesExtendedResponse>> {
       source: 'community-currency-api',
     })
   } catch (err) {
+    recordProviderFetch('currency-api-extended', { error: err instanceof Error ? err.message : 'fetch failed' })
     return NextResponse.json({
       ok: false,
       error: err instanceof Error ? err.message : 'extended fx rates unavailable',

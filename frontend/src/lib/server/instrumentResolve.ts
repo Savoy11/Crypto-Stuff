@@ -26,7 +26,11 @@ function classify(key: string, symbol: string, name: string): {
 } {
   const catalog = INSTRUMENT_BY_KEY[key]
   if (isSecurityKey(key)) {
-    const cls = catalog?.class === 'etf' ? 'etf' : catalog?.class === 'mutual' ? 'mutual' : 'equity'
+    // Funds and macro instruments keep their catalog class; anything the
+    // catalog doesn't know defaults to equity (a bare quotable ticker).
+    const cls = catalog?.class === 'etf' || catalog?.class === 'mutual'
+      || catalog?.class === 'commodity' || catalog?.class === 'currency' || catalog?.class === 'rate'
+      ? catalog.class : 'equity'
     return { assetClass: cls, priceSource: 'yahoo', symbol: securitySymbol(key).toUpperCase(), name: catalog?.name ?? name, coingeckoId: null }
   }
   // Everything else is a CoinGecko id. The symbol column stores the ticker

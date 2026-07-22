@@ -3,15 +3,16 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
-import { Microscope, Loader2, Wrench, Sparkles, AlertCircle, Bitcoin, LineChart } from 'lucide-react'
+import { Microscope, Loader2, Wrench, Sparkles, AlertCircle, Bitcoin, LineChart, Globe2 } from 'lucide-react'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
 import { agentWatchlistPayload } from '@/lib/watchlist/bias'
 
-type Market = 'crypto' | 'equities'
+type Market = 'crypto' | 'equities' | 'macro'
 
 const RESEARCH_AGENT: Record<Market, string> = {
   crypto: 'research-analyst',
   equities: 'equity-research',
+  macro: 'macro-research',
 }
 
 const EXAMPLES: Record<Market, string[]> = {
@@ -27,6 +28,12 @@ const EXAMPLES: Record<Market, string[]> = {
     'Review the latest 8-K filings and news for JPM and flag anything material.',
     'Is TSLA cheap or expensive right now? Walk through the valuation multiples and what justifies them.',
   ],
+  macro: [
+    'Analyze gold: current level vs the 1Y range, what is driving it, and the trade-offs between the ETF proxies.',
+    'Read the treasury yield curve today — shape, 2s10s and 3m10y spreads, and what changed vs a month ago.',
+    'What is moving oil right now? Pull the latest quotes and commodities news and explain the drivers.',
+    'Assess EUR/USD: trend, rate-differential story, and what the next central-bank meetings could change.',
+  ],
 }
 
 interface ReportResult {
@@ -36,7 +43,10 @@ interface ReportResult {
 
 function ResearchInner() {
   const params = useSearchParams()
-  const initialMarket: Market = params.get('agent') === 'equity-research' || params.get('market') === 'equities' ? 'equities' : 'crypto'
+  const initialMarket: Market =
+    params.get('agent') === 'macro-research' || params.get('market') === 'macro' ? 'macro'
+    : params.get('agent') === 'equity-research' || params.get('market') === 'equities' ? 'equities'
+    : 'crypto'
 
   const [market, setMarket] = useState<Market>(initialMarket)
   const [task, setTask] = useState('')
@@ -86,6 +96,7 @@ function ResearchInner() {
   const markets: Array<{ id: Market; label: string; icon: React.ElementType }> = [
     { id: 'crypto', label: 'Crypto', icon: Bitcoin },
     { id: 'equities', label: 'Equities', icon: LineChart },
+    { id: 'macro', label: 'Macro', icon: Globe2 },
   ]
 
   return (
@@ -126,12 +137,14 @@ function ResearchInner() {
           rows={4}
           placeholder={market === 'equities'
             ? 'e.g. Analyze MSFT: financial health, valuation vs history and peers, growth drivers, and key risks.'
+            : market === 'macro'
+            ? 'e.g. Analyze gold: level vs the 1Y range, drivers, and how the ETF proxies compare.'
             : 'e.g. Compare the risk-adjusted staking yield of ETH vs SOL and recommend which fits a conservative holder.'}
           className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2.5 text-sm text-slate-200 placeholder-slate-600 focus:border-violet-500/60 focus:outline-none resize-y leading-relaxed"
         />
         <div className="flex items-center justify-between">
           <p className="text-[11px] text-slate-600">
-            {market === 'equities' ? 'Equity Research Agent' : 'Crypto Research Agent'} · reports can take 20–60s.
+            {market === 'equities' ? 'Equity Research Agent' : market === 'macro' ? 'Macro Research Agent' : 'Crypto Research Agent'} · reports can take 20–60s.
           </p>
           <button
             onClick={() => run(task)}

@@ -38,7 +38,8 @@ export async function fetchInstrumentPrices(keys: string[]): Promise<InstrumentP
   }
   if (symbols.length > 0) {
     tasks.push(
-      fetch(`/live-data/security-quotes?symbols=${symbols.join(',')}`)
+      // Encode: macro symbols carry '=' and '^' (GC=F, ^TNX)
+      fetch(`/live-data/security-quotes?symbols=${encodeURIComponent(symbols.join(','))}`)
         .then((r) => r.json())
         .then((d: { quotes?: Record<string, { price: number; reference?: boolean }>; source?: string }) => {
           anyFetched = true
