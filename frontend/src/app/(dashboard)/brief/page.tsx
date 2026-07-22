@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Sunrise, RefreshCw, KeyRound } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { hydratePortfolios, usePortfolioStore } from '@/store/usePortfolioStore'
+import { hydrateWatchlists, useWatchlistStore, type WatchList } from '@/store/useWatchlistStore'
 import { INSTRUMENT_BY_KEY } from '@/lib/data/instruments'
 
 // AI Daily Brief — "your holdings, what moved, why, and what's ahead."
@@ -15,7 +16,10 @@ const LAST_BRIEF_KEY = 'caep:daily-brief:v1'
 
 interface StoredBrief { text: string; generatedAt: string }
 
-function collectContext(portfolios: ReturnType<typeof usePortfolioStore.getState>['portfolios']): string[] {
+function collectContext(
+  portfolios: ReturnType<typeof usePortfolioStore.getState>['portfolios'],
+  watchlists: WatchList[],
+): string[] {
   const symbols = new Set<string>()
   for (const p of portfolios) {
     for (const h of p.holdings) {
@@ -23,21 +27,19 @@ function collectContext(portfolios: ReturnType<typeof usePortfolioStore.getState
       if (inst) symbols.add(`${inst.symbol} (${inst.class})`)
     }
   }
-  try {
-    const wl = JSON.parse(localStorage.getItem('caep:watchlists:v2') ?? 'null') as { lists?: Array<{ keys: string[] }> } | null
-    for (const list of wl?.lists ?? []) {
-      for (const key of list.keys) {
-        const inst = INSTRUMENT_BY_KEY[key]
-        if (inst) symbols.add(`${inst.symbol} (${inst.class})`)
-      }
+  for (const list of watchlists) {
+    for (const key of list.keys) {
+      const inst = INSTRUMENT_BY_KEY[key]
+      if (inst) symbols.add(`${inst.symbol} (${inst.class})`)
     }
-  } catch { /* ignore */ }
+  }
   return Array.from(symbols).slice(0, 30)
 }
 
 export default function DailyBriefPage() {
   const { portfolios } = usePortfolioStore()
-  useEffect(() => { void hydratePortfolios() }, [])
+  const watchlists = useWatchlistStore((s) => s.lists)
+  useEffect(() => { void hydratePortfolios(); void hydrateWatchlists() }, [])
   const [brief, setBrief] = useState<StoredBrief | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +52,7 @@ export default function DailyBriefPage() {
     } catch { /* ignore */ }
   }, [])
 
-  const symbols = useMemo(() => collectContext(portfolios), [portfolios])
+  const symbols = useMemo(() => collectContext(portfolios, watchlists), [portfolios, watchlists])
 
   const generate = async () => {
     setLoading(true); setError(null); setNeedsKey(false)

@@ -1,5 +1,6 @@
 import { INSTRUMENT_BY_KEY, SEC_PREFIX } from '@/lib/data/instruments'
 import { ASSET_ID_BY_COINGECKO } from '@/lib/api/live/coingeckoIds'
+import { useWatchlistStore } from '@/store/useWatchlistStore'
 
 // Watchlist-driven feed bias.
 //
@@ -8,12 +9,10 @@ import { ASSET_ID_BY_COINGECKO } from '@/lib/api/live/coingeckoIds'
 //   symbols   — equity tickers ('AAPL'), matched against MarketArticle.relatedSymbols
 //   terms     — names and symbols, used as free-text search and for video titles
 //
-// The watchlist lives in localStorage rather than a store (see the watchlist
-// page), so this is client-only and every consumer reads through here instead of
-// re-parsing the blob — the Daily Brief already hand-rolled its own copy of that
+// The watchlist lives in useWatchlistStore (DB-backed), so this is client-only
+// and every consumer reads through here instead of touching the store shape —
+// the Daily Brief already hand-rolled its own copy of the old localStorage
 // parsing, and a third and fourth would drift.
-
-const STORE_KEY = 'caep:watchlists:v2'
 
 export interface WatchlistBias {
   /** Crypto asset ids, lowercase. */
@@ -28,26 +27,18 @@ export interface WatchlistBias {
 
 export const EMPTY_BIAS: WatchlistBias = { assetIds: [], symbols: [], terms: [], isEmpty: true }
 
-interface StoredWatchlists {
-  lists?: Array<{ keys?: string[] }>
-}
-
 /**
  * Read the watchlist and derive matchable identifiers.
  *
- * Returns EMPTY_BIAS on the server and on any parse failure — biasing is an
- * enhancement, and a corrupt blob must never cost the user their feed.
+ * Returns EMPTY_BIAS on the server and before the store hydrates — biasing is
+ * an enhancement, and an unavailable watchlist must never cost the user their
+ * feed. Callers who need freshness should trigger hydrateWatchlists() and
+ * re-read on store changes (useWatchlistBias does both).
  */
 export function readWatchlistBias(): WatchlistBias {
   if (typeof window === 'undefined') return EMPTY_BIAS
 
-  let keys: string[] = []
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORE_KEY) ?? 'null') as StoredWatchlists | null
-    keys = (stored?.lists ?? []).flatMap((l) => l.keys ?? [])
-  } catch {
-    return EMPTY_BIAS
-  }
+  const keys = useWatchlistStore.getState().lists.flatMap((l) => l.keys)
   if (keys.length === 0) return EMPTY_BIAS
 
   const assetIds = new Set<string>()
