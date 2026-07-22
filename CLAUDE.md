@@ -148,7 +148,10 @@ frontend/src/
    - Always add `export const dynamic = 'force-dynamic'` (prevents static caching)
    - Use `next: { revalidate: N }` on individual `fetch()` calls (N in seconds)
    - Return `NextResponse.json(...)` with a typed interface exported from the route
-   - Always use `Promise.allSettled` for multiple external fetches — never let one failure crash the route
+   - Every multi-fetch needs a **failure boundary that preserves partial results** — never let one upstream
+     failure crash the route. `Promise.allSettled` when the fetches are genuinely independent; per-leg
+     try/catch when they are a sequential fallback ladder (see the pattern note below — parallelising a
+     ladder is a regression, not a fix)
 
 4. **If you need static data:** `src/lib/data/your-data.ts`
    - Export typed interfaces, constants, and helper functions
@@ -518,12 +521,23 @@ claude mcp add caep node C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff/mcp-server
 
 ## Common Patterns
 
-### Resilient multi-fetch (use this for all live-data routes)
+### Resilient multi-fetch — pick the boundary that matches the shape
+
+**Independent fetches** (all results wanted, order irrelevant) → `Promise.allSettled`:
 ```typescript
 const [res1, res2] = await Promise.allSettled([fetch(url1), fetch(url2)])
 if (res1.status === 'fulfilled' && res1.value.ok) { /* use it */ }
 // always fall through to static defaults if fetch fails
 ```
+
+**Sequential fallback ladder** (try A, else B, else C — `markets`, `portfolio-prices`, `cbdc-data`) → per-leg
+try/catch, returning on first success. **Do not "upgrade" these to `allSettled`**: it fires every provider in
+parallel, burning rate limit on exactly the calls the ladder exists to avoid. The 2026-07-22 pass found 7 of 8
+routes flagged for "missing allSettled" were already correct for this reason.
+
+**Sequential accumulate-until-satisfied** (walk pages until you have enough — `sec-filings` archives) → try/catch
+*inside* the loop, `break` on failure and report the range as incomplete. The bug this fixed: a thrown page fetch
+propagated out and 503'd the route, throwing away filings already collected.
 
 ### Adding a coin to the transfer fee calculator
 1. Add to `CoinId` union type in `transferFees.ts`

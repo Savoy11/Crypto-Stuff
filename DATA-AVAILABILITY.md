@@ -176,11 +176,26 @@ Project convention (CLAUDE.md): every `/live-data` route needs `export const dyn
 
 - ✅ **`force-dynamic`** — all 51 route files comply (`chart` was the sole exception; fixed 2026-07-20).
 - ✅ **`revalidate`** — present on every outbound fetch in all routes that fetch.
-- ⚠️ **`Promise.allSettled`** — several multi-fetch routes still use bare `Promise.all` or sequential awaits:
-  `markets` (3 fetches), `company-profile` (3), `sec-filings` (2), `stock-universe` (2), `portfolio-prices` (2),
-  `cbdc-data` (2), `wallet/exchange` (3), `config` (19). Most are internally try/caught so a failure degrades
-  rather than 500s, but they do not match the stated convention. Not fixed here — flagged for a follow-up pass,
-  since changing failure semantics on 8 routes is beyond an audit's blast radius.
+- ✅ **`Promise.allSettled`** — resolved 2026-07-22. The earlier flag listed 8 routes found by grepping for
+  multi-fetch without `allSettled`; reading them showed **7 were already correct and 1 had a real bug that
+  `allSettled` would not have fixed**:
+  - `markets`, `portfolio-prices`, `cbdc-data` — deliberate **sequential fallback ladders** (try provider A,
+    fall back to B, then C), each leg try/caught. `allSettled` would be actively **wrong** here: it fires every
+    provider in parallel, burning rate limit on calls the ladder exists to avoid.
+  - `company-profile` — `Promise.all([SEC, wiki])` is safe because `fetchWikiSummary` is fail-silent (returns
+    `null`). Only the SEC leg can reject, and that *should* fail the route: it is the primary data.
+  - `stock-universe` — already has an explicit inner boundary so a SEC hiccup costs the P/E column, not the
+    response. `wallet/exchange` and `config` are **not multi-fetch at all** — one exchange / one provider test
+    per request, each try/caught.
+  - `sec-filings` — **the one genuine bug.** Its archive-page walk is sequential by design (it stops as soon as
+    `limit` is satisfied, so parallel fetching would request pages nobody asked for). A non-`ok` response broke
+    the loop gracefully, but a *thrown* fetch propagated to the outer handler and **503'd the whole route,
+    discarding the filings already collected from `recent`**. Now per-page try/catch: partial results return with
+    `hasMore: true`. Verified by fault injection — old code 503 / 0 filings, new code 200 / 11 filings.
+
+  Conclusion: the convention as stated ("`Promise.allSettled` for any multi-fetch") is too blunt. A sequential
+  fallback ladder is a multi-fetch that must *not* be parallelised. What every multi-fetch actually needs is a
+  **failure boundary that preserves partial results** — sometimes `allSettled`, sometimes try/catch per leg.
 
 ---
 
@@ -229,7 +244,9 @@ minimum** for free-tier polling without hitting 429.
 9. ⏳ **Get a paid FMP plan or a different universe source** — `stock-universe` and `stock-outliers` are the largest remaining fallback surface.
 10. ⏳ **Fix Reddit starvation in `stock-social`** — blend by provider quota, not pure recency, or Reddit stays invisible at normal page limits.
 11. ⏳ **Paginate `fund-universe`** — 14 MB in one response.
-12. ⏳ Bring the 8 bare-`Promise.all` routes onto `Promise.allSettled`.
+12. ✅ ~~Bring the 8 bare-`Promise.all` routes onto `Promise.allSettled`.~~ Done 2026-07-22 — 7 were already
+    correct (sequential fallback ladders that must not be parallelised, or not multi-fetch at all); the real
+    bug was `sec-filings` discarding collected filings when an archive page threw. See the conventions audit above.
 
 ## Validation
 

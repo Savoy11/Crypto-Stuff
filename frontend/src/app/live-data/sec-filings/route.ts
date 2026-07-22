@@ -138,19 +138,30 @@ export async function GET(req: NextRequest) {
     const collected: SecFiling[] = []
     collectMatches(recent, formPrefixes, cikNum, collected, wanted)
 
-    // Walk older archive pages (immutable, newest-first) until satisfied
+    // Walk older archive pages (immutable, newest-first) until satisfied.
+    // Sequential on purpose — we stop as soon as `wanted` is reached, so
+    // fetching every archive in parallel would burn SEC requests on pages
+    // nobody asked for. That makes Promise.allSettled the wrong tool here;
+    // what this needs is a per-page boundary.
     const archives = data.filings?.files ?? []
     let archivesRemaining = archives.length
     for (const file of archives) {
       if (collected.length >= wanted) break
-      const archiveRes = await fetch(`https://data.sec.gov/submissions/${file.name}`, {
-        headers: EDGAR_HEADERS,
-        next: { revalidate: 86_400 },
-      })
+      // A failing archive page must not discard the filings already collected
+      // from `recent`. Stop walking and return what we have; archivesRemaining
+      // stays counted, so hasMore correctly reports the range as incomplete.
+      try {
+        const archiveRes = await fetch(`https://data.sec.gov/submissions/${file.name}`, {
+          headers: EDGAR_HEADERS,
+          next: { revalidate: 86_400 },
+        })
+        if (!archiveRes.ok) break
+        const block = await archiveRes.json() as FilingBlock
+        if (Array.isArray(block.form)) collectMatches(block, formPrefixes, cikNum, collected, wanted)
+      } catch {
+        break
+      }
       archivesRemaining--
-      if (!archiveRes.ok) break
-      const block = await archiveRes.json() as FilingBlock
-      if (Array.isArray(block.form)) collectMatches(block, formPrefixes, cikNum, collected, wanted)
     }
 
     return NextResponse.json({
