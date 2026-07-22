@@ -1,7 +1,7 @@
 import { LineStyle } from 'lightweight-charts'
 import {
   ema, sma, wma, hma, dema, tema, kama, mcginleyDynamic, linearRegression,
-  bollingerBands, keltnerChannels, donchianChannels, vwap, parabolicSar, ichimoku,
+  bollingerBands, keltnerChannels, donchianChannels, vwap, rollingVwap, isIntradaySeries, parabolicSar, ichimoku,
   rsi, macd, stochasticRsi, williamsr, cci, roc, momentum, cmo, ultimateOscillator,
   adx, aroon, trix, kst, dpo,
   obv, mfi, cmf, accDistLine, volumeOscillator, forceIndex, easeOfMovement, elderRay,
@@ -125,7 +125,20 @@ export const INDICATOR_RENDER: Record<string, RenderFn> = {
       { data: d.lower,  color: 'rgba(168,85,247,0.5)', lineWidth: 1 },
     ] }
   },
-  vwap: (candles) => ({ kind: 'overlay', title: 'VWAP', lines: [{ data: vwap(candles), color: C.orange, lineWidth: 1, lineStyle: LineStyle.Dotted }] }),
+  // Session VWAP only means something on intraday bars; on daily-and-coarser
+  // series it collapses to (H+L+C)/3 and carries no volume information, so
+  // switch to the rolling variant and SAY which one is drawn.
+  vwap: (candles) => {
+    const intraday = isIntradaySeries(candles)
+    return {
+      kind: 'overlay',
+      title: intraday ? 'VWAP (session)' : 'VWAP (rolling 20)',
+      lines: [{
+        data: intraday ? vwap(candles) : rollingVwap(candles, 20),
+        color: C.orange, lineWidth: 1, lineStyle: LineStyle.Dotted,
+      }],
+    }
+  },
   psar: (candles) => ({ kind: 'overlay', title: 'Parabolic SAR', lines: [{ data: parabolicSar(candles), color: C.amber, dotted: true }] }),
   ichimoku: (candles) => {
     const ich = ichimoku(candles)

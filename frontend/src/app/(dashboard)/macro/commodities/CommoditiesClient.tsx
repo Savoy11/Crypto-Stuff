@@ -16,7 +16,8 @@ import { STALE_TIME_SHORT } from '@/lib/constants'
 // Commodities registry — Macro Markets module. Live front-month futures
 // quotes over the curated catalog; layout mirrors the other registry pages.
 
-type SortKey = 'name' | 'category' | 'exchange' | 'price' | 'change'
+// No 'price': raw prices are not comparable across contracts (different units).
+type SortKey = 'name' | 'category' | 'exchange' | 'change'
 
 interface Quote { price: number | null; changePercent: number | null }
 interface QuotesResponse { ok: boolean; quotes?: Record<string, Quote> }
@@ -52,7 +53,12 @@ export function CommoditiesClient() {
       if (sortKey === 'category') return (a.category.localeCompare(b.category) || a.name.localeCompare(b.name)) * dir
       if (sortKey === 'exchange') return a.exchange.localeCompare(b.exchange) * dir
       const qa = quotes?.[a.symbol], qb = quotes?.[b.symbol]
-      if (sortKey === 'price') return ((qa?.price ?? -Infinity) - (qb?.price ?? -Infinity)) * dir
+      // No 'price' case: the Price column is deliberately not sortable. These
+      // contracts quote in different units (gold $/oz, corn ¢/bu), so ordering
+      // the raw numbers ranks cocoa above gold and means nothing. Converting to
+      // a common unit would be worse — it implies a comparability that does not
+      // exist between a bushel and a troy ounce. Percent change IS comparable
+      // across contracts, so that is the sortable one.
       return ((qa?.changePercent ?? -Infinity) - (qb?.changePercent ?? -Infinity)) * dir
     })
   }, [category, search, sortKey, sortAsc, quotes])
@@ -64,7 +70,17 @@ export function CommoditiesClient() {
       .filter((x): x is { c: CommodityEntry; q: Quote } => x.q?.changePercent != null)
     if (priced.length === 0) return null
     const sorted = [...priced].sort((a, b) => b.q.changePercent! - a.q.changePercent!)
-    return { up: sorted[0], down: sorted[sorted.length - 1], pricedCount: priced.length }
+    const best = sorted[0]
+    const worst = sorted[sorted.length - 1]
+    // The extremes are only *labelled* gainer/decliner when they actually are
+    // one. On a broad rally the bottom of a descending sort is still positive,
+    // and a card headed "Biggest Decline" reading "+0.12% today" is a
+    // contradiction the reader has to squint at to catch.
+    return {
+      up: best.q.changePercent! > 0 ? best : null,
+      down: worst.q.changePercent! < 0 ? worst : null,
+      pricedCount: priced.length,
+    }
   }, [quotes])
 
   const setSort = (key: SortKey) => {
@@ -100,15 +116,23 @@ export function CommoditiesClient() {
         <MetricCard title="Contracts" value={String(COMMODITY_CATALOG.length)} subtitle={`${movers?.pricedCount ?? 0} priced live`} accentColor="#f59e0b" />
         <MetricCard title="Categories" value={String(Object.keys(COMMODITY_CATEGORY_INFO).length)} subtitle="metals to livestock" accentColor="#3b82f6" />
         <MetricCard
-          title="Top Mover"
-          value={movers ? `${movers.up.c.name}` : '—'}
-          subtitle={movers ? `${movers.up.q.changePercent! >= 0 ? '+' : ''}${movers.up.q.changePercent!.toFixed(2)}% today` : 'no live data'}
+          title="Top Gainer"
+          value={movers?.up ? movers.up.c.name : '—'}
+          subtitle={
+            movers?.up ? `+${movers.up.q.changePercent!.toFixed(2)}% today`
+            : movers ? 'nothing up today'
+            : 'no live data'
+          }
           accentColor="#10b981"
         />
         <MetricCard
           title="Biggest Decline"
-          value={movers ? `${movers.down.c.name}` : '—'}
-          subtitle={movers ? `${movers.down.q.changePercent! >= 0 ? '+' : ''}${movers.down.q.changePercent!.toFixed(2)}% today` : 'no live data'}
+          value={movers?.down ? movers.down.c.name : '—'}
+          subtitle={
+            movers?.down ? `${movers.down.q.changePercent!.toFixed(2)}% today`
+            : movers ? 'nothing down today'
+            : 'no live data'
+          }
           accentColor="#ef4444"
         />
       </div>
@@ -152,7 +176,10 @@ export function CommoditiesClient() {
                 <SortHeader label="Contract" k="name" />
                 <SortHeader label="Category" k="category" />
                 <SortHeader label="Exchange" k="exchange" />
-                <SortHeader label="Price" k="price" right />
+                {/* Not sortable on purpose — see the sort comment above. */}
+                <th className="font-medium py-2 px-3 text-right" title="Contracts quote in different units (gold $/oz, corn ¢/bu), so ranking raw prices is meaningless. Sort by Change instead.">
+                  Price
+                </th>
                 <SortHeader label="Day" k="change" right />
               </tr>
             </thead>

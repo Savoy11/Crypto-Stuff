@@ -77,8 +77,7 @@ export function rsi(values: number[], period = 14): (number | null)[] {
   avgGain /= period
   avgLoss /= period
 
-  const rs0 = avgLoss === 0 ? Infinity : avgGain / avgLoss
-  result[period] = 100 - 100 / (1 + rs0)
+  result[period] = rsiFrom(avgGain, avgLoss)
 
   for (let i = period + 1; i < values.length; i++) {
     const diff = values[i] - values[i - 1]
@@ -86,10 +85,27 @@ export function rsi(values: number[], period = 14): (number | null)[] {
     const loss = diff < 0 ? Math.abs(diff) : 0
     avgGain = (avgGain * (period - 1) + gain) / period
     avgLoss = (avgLoss * (period - 1) + loss) / period
-    const rs = avgLoss === 0 ? Infinity : avgGain / avgLoss
-    result[i] = 100 - 100 / (1 + rs)
+    result[i] = rsiFrom(avgGain, avgLoss)
   }
   return result
+}
+
+/**
+ * RSI from smoothed average gain/loss, handling both degenerate cases.
+ *
+ * `avgLoss === 0` alone is NOT enough to mean "100". It is only overbought
+ * when there were gains and no losses; when there is NO movement at all
+ * (avgGain and avgLoss both zero) the ratio is 0/0 — undefined, not extreme.
+ * The old code returned 100 for both, so any run of identical closes (a pegged
+ * stablecoin, a halted or low-precision feed) read as maximally overbought and
+ * drove the whole signal summary to "Sell" on a motionless price.
+ *
+ * 50 is the neutral convention already used elsewhere in this file for a
+ * degenerate range — williamsr returns −50, stochasticOscillator 50, cmo 0.
+ */
+function rsiFrom(avgGain: number, avgLoss: number): number {
+  if (avgLoss === 0) return avgGain === 0 ? 50 : 100
+  return 100 - 100 / (1 + avgGain / avgLoss)
 }
 
 // ─── MACD ─────────────────────────────────────────────────────────────────────
@@ -218,7 +234,46 @@ export function obv(candles: OhlcvCandle[]): number[] {
 }
 
 // ─── VWAP (Volume Weighted Average Price) ─────────────────────────────────────
-// Resets daily (groups by UTC date)
+// Session VWAP: resets daily (groups by UTC date). ONLY meaningful on intraday
+// candles — see isIntradaySeries below.
+
+/**
+ * Are these candles finer than one day?
+ *
+ * Session VWAP resets on each UTC date, so on daily-or-coarser bars every bar
+ * is its own session, the accumulator resets every bar, and VWAP collapses to
+ * (H+L+C)/3 — a line labelled "VWAP" carrying no volume information at all,
+ * because volume cancels out of a one-bar average. Callers must branch on this
+ * rather than draw a meaningless line.
+ */
+export function isIntradaySeries(candles: OhlcvCandle[]): boolean {
+  if (candles.length < 3) return false
+  // Median spacing, so one gap (a weekend, a halt) can't flip the verdict.
+  const gaps = candles.slice(1).map((c, i) => c.time - candles[i].time).filter((g) => g > 0).sort((a, b) => a - b)
+  if (gaps.length === 0) return false
+  return gaps[Math.floor(gaps.length / 2)] < 86_400
+}
+
+/**
+ * Rolling volume-weighted average price over the last `period` bars.
+ *
+ * The meaningful VWAP variant for daily-and-coarser series, where a session
+ * anchor does not exist. Unlike the session version this genuinely weights by
+ * volume at every bar.
+ */
+export function rollingVwap(candles: OhlcvCandle[], period = 20): (number | null)[] {
+  return candles.map((_, i) => {
+    if (i < period - 1) return null
+    let pv = 0; let vol = 0
+    for (let j = i - period + 1; j <= i; j++) {
+      const c = candles[j]
+      const typical = (c.high + c.low + c.close) / 3
+      pv += typical * c.volume
+      vol += c.volume
+    }
+    return vol > 0 ? pv / vol : null
+  })
+}
 
 export function vwap(candles: OhlcvCandle[]): (number | null)[] {
   const result: (number | null)[] = []
@@ -262,12 +317,29 @@ export function ichimoku(candles: OhlcvCandle[]): IchimokuResult {
 
   const tenkan = candles.map((_, i) => donchianMid(closes, highs, lows, i, 9))
   const kijun = candles.map((_, i) => donchianMid(closes, highs, lows, i, 26))
-  const senkouA = candles.map((_, i) => {
+  // The cloud is DISPLACED 26 bars FORWARD — that displacement is the whole
+  // point of Ichimoku, and consumers plot every array at candles[i].time, so
+  // the shift has to live in the data. Returning the value at the bar that
+  // produced it drew the cloud 26 bars early: on a rising series the chart
+  // read 168.75 where the correct plot is 142.75, an 18% error that flips the
+  // price-above/below-Kumo verdict at every crossover. backtest.ts's
+  // ichimokuCloud already shifted correctly, so chart and backtest disagreed
+  // about the same indicator on the same candles.
+  const SHIFT = 26
+  const senkouA: (number | null)[] = Array(n).fill(null)
+  const senkouB: (number | null)[] = Array(n).fill(null)
+  for (let i = 0; i < n; i++) {
+    const target = i + SHIFT
+    if (target >= n) break
     const t = tenkan[i]; const k = kijun[i]
-    return t !== null && k !== null ? (t + k) / 2 : null
-  })
-  const senkouB = candles.map((_, i) => donchianMid(closes, highs, lows, i, 52))
-  const chikou: (number | null)[] = candles.map((c, i) => i + 26 < n ? closes[i] : null)
+    senkouA[target] = t !== null && k !== null ? (t + k) / 2 : null
+    senkouB[target] = donchianMid(closes, highs, lows, i, 52)
+  }
+
+  // Chikou is the mirror image: today's close plotted 26 bars BACK, so the
+  // value at index i is the close 26 bars ahead of it. The old version copied
+  // closes[i] verbatim — zero lag, which is not a lagging span at all.
+  const chikou: (number | null)[] = candles.map((_, i) => i + SHIFT < n ? closes[i + SHIFT] : null)
 
   return { tenkan, kijun, senkouA, senkouB, chikou }
 }
@@ -612,7 +684,10 @@ export function mfi(candles: OhlcvCandle[], period = 14): (number | null)[] {
       if (tp[j] > tp[j - 1]) pos += mf[j]
       else if (tp[j] < tp[j - 1]) neg += mf[j]
     }
-    result[i] = neg === 0 ? 100 : 100 - 100 / (1 + pos / neg)
+    // Same degenerate case as RSI: no negative flow means 100 only if there
+    // WAS positive flow. A flat window has neither and is neutral, not
+    // maximally overbought.
+    result[i] = neg === 0 ? (pos === 0 ? 50 : 100) : 100 - 100 / (1 + pos / neg)
   }
   return result
 }
@@ -1115,7 +1190,12 @@ export function computeSignalSummary(candles: OhlcvCandle[]): SignalSummary {
   const bb = bollingerBands(closes, 20, 2)
   const bbUpper = bb.upper[n - 1]; const bbLower = bb.lower[n - 1]; const bbMid = bb.middle[n - 1]
   if (bbUpper !== null && bbLower !== null && bbMid !== null) {
-    const pct = (last - bbLower) / (bbUpper - bbLower)
+    // A zero-width band (a flat series) makes this 0/0. bollingerPercentB()
+    // already guards the same division; this one did not, and `description` is
+    // rendered verbatim on both TA pages — so users saw the literal text
+    // "NaN% of band".
+    const bandWidth = bbUpper - bbLower
+    const pct = bandWidth === 0 ? 0.5 : (last - bbLower) / bandWidth
     const sig: Signal = pct < 0.1 ? 'strong_buy' : pct < 0.3 ? 'buy' : pct > 0.9 ? 'strong_sell' : pct > 0.7 ? 'sell' : 'neutral'
     signals.push({ name: 'Bollinger Bands (20,2)', value: pct * 100, signal: sig, description: `${(pct * 100).toFixed(0)}% of band — ${pct < 0.2 ? 'Near lower band' : pct > 0.8 ? 'Near upper band' : 'Mid-band'}` })
   }
@@ -1232,7 +1312,16 @@ export function computeSignalSummary(candles: OhlcvCandle[]): SignalSummary {
   const bullP = elderResult.bullPower[n - 1]
   const bearP = elderResult.bearPower[n - 1]
   if (bullP !== null && bearP !== null) {
-    const sig: Signal = bullP > 0 && bearP > 0 ? 'strong_buy' : bullP > 0 ? 'buy' : bearP < 0 && bullP < 0 ? 'strong_sell' : 'sell'
+    // Compare against an epsilon, not 0: on a flat series EMA rounding leaves
+    // both powers at about −8.9e-16, which is mathematically zero but tripped
+    // the "both negative" branch and reported strong_sell on a motionless
+    // price.
+    const EPS = 1e-9
+    const sig: Signal = bullP > EPS && bearP > EPS ? 'strong_buy'
+      : bullP > EPS ? 'buy'
+      : bearP < -EPS && bullP < -EPS ? 'strong_sell'
+      : Math.abs(bullP) <= EPS && Math.abs(bearP) <= EPS ? 'neutral'
+      : 'sell'
     signals.push({ name: 'Elder Ray (13)', value: bullP, signal: sig, description: `Bull Power ${bullP > 0 ? '+' : ''}${bullP.toFixed(2)}, Bear Power ${bearP.toFixed(2)}` })
   }
 
@@ -1273,9 +1362,16 @@ export function computeSignalSummary(candles: OhlcvCandle[]): SignalSummary {
   const fisherVals = fisherTransform(candles, 9)
   const fisherNow = fisherVals[n - 1]; const fisherPrev = fisherVals[n - 2]
   if (fisherNow !== null && fisherPrev !== null) {
+    // The /100 and the ±200 thresholds were left over from a pre-rewrite
+    // implementation (see the corrective note on fisherTransform). The current
+    // Ehlers version clamps Value1 to ±0.999, which bounds Fisher at about
+    // ±7.6 — so the value was reported at 1/100 of its true size (7.60 shown
+    // as "0.08") and BOTH reversal branches were unreachable, collapsing the
+    // signal to a bare sign test. ±2.5 is the conventional extreme for this
+    // scale.
     const rising = fisherNow > fisherPrev
-    const sig: Signal = fisherNow > 200 && !rising ? 'sell' : fisherNow < -200 && rising ? 'buy' : fisherNow > 0 ? 'buy' : 'sell'
-    signals.push({ name: 'Fisher Transform (9)', value: fisherNow / 100, signal: sig, description: `${(fisherNow / 100).toFixed(2)} — ${rising ? 'Rising (bullish)' : 'Falling (bearish)'}` })
+    const sig: Signal = fisherNow > 2.5 && !rising ? 'sell' : fisherNow < -2.5 && rising ? 'buy' : fisherNow > 0 ? 'buy' : 'sell'
+    signals.push({ name: 'Fisher Transform (9)', value: fisherNow, signal: sig, description: `${fisherNow.toFixed(2)} — ${rising ? 'Rising (bullish)' : 'Falling (bearish)'}` })
   }
 
   // Balance of Power
