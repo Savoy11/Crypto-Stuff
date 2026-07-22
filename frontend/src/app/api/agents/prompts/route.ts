@@ -8,7 +8,16 @@ export const dynamic = 'force-dynamic'
 export { options as OPTIONS }
 
 // GET — returns all agent configs (defaults merged with overrides) + provider/model options
-export async function GET() {
+//
+// GUARDED, like POST. This is agent configuration — every agent's full system
+// prompt, provider and model — and it was previously readable with no guard at
+// all AND served with `Access-Control-Allow-Origin: *`, so any page the user
+// happened to visit could fetch the lot cross-origin. No API keys are exposed,
+// but CLAUDE.md's rule is that provider/agent config is token-gated off
+// localhost, and read access is what makes the config worth stealing.
+export async function GET(req: NextRequest) {
+  const denied = guardSensitiveRoute(req, 'agents-prompts', 30)
+  if (denied) return denied
   try {
     const agents = loadAllAgentConfigs()
     return NextResponse.json({ agents, providers: PROVIDERS, providerModels: PROVIDER_MODELS }, { headers: CORS })

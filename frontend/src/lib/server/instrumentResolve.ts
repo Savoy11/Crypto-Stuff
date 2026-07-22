@@ -36,10 +36,17 @@ function classify(key: string, symbol: string, name: string): {
   // Everything else is a CoinGecko id. The symbol column stores the ticker
   // (BTC); the coingecko id ('bitcoin') goes to the extension table because
   // that's what the price routes query by.
+  //
+  // The symbol is taken from the CATALOG, or failing that from the key itself —
+  // never from the caller. Instrument rows are GLOBAL (user_id IS NULL, unique
+  // on (asset_class, symbol)), so trusting a client-supplied symbol let a
+  // request claiming `{ cgId: 'pepe', symbol: 'BTC' }` resolve onto the shared
+  // BTC row. Deriving it from the key keeps a request's blast radius to its own
+  // instrument.
   return {
     assetClass: 'crypto',
     priceSource: 'coingecko',
-    symbol: (catalog?.symbol ?? symbol ?? key).toUpperCase(),
+    symbol: (catalog?.symbol ?? key).toUpperCase(),
     name: catalog?.name ?? name,
     coingeckoId: key,
   }
@@ -77,12 +84,13 @@ export async function resolveInstruments(
     if (!row) throw new Error(`Could not resolve instrument for ${entry.key}`)
 
     if (meta.coingeckoId) {
+      // doNothing, NOT doUpdate: the mapping is established once, when the
+      // instrument is first created. Re-writing it on every resolve let one
+      // request repoint a SHARED catalog row's coingecko id, which would then
+      // price that instrument wrongly for every user in the install.
       await db.insert(instrumentCrypto)
         .values({ instrumentId: row.id, coingeckoId: meta.coingeckoId })
-        .onConflictDoUpdate({
-          target: instrumentCrypto.instrumentId,
-          set: { coingeckoId: meta.coingeckoId },
-        })
+        .onConflictDoNothing({ target: instrumentCrypto.instrumentId })
     }
     out.set(entry.key, row.id)
   }

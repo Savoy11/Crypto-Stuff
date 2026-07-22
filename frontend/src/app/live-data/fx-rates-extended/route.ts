@@ -48,7 +48,13 @@ export interface FxRatesExtendedResponse {
  */
 const EXTENDED_CURRENCIES = [
   'aed', 'afn', 'all', 'amd', 'ang', 'aoa', 'ars', 'awg', 'azn', 'bam', 'bbd',
-  'bdt', 'bgn', 'bhd', 'bif', 'bmd', 'bnd', 'bob', 'bsd', 'btn', 'bwp', 'byn',
+  // 'bgn' removed 2026-07-22: Bulgaria adopted the euro on 2026-01-01, so the
+  // lev no longer circulates. The ECB dropped it from its reference set (29
+  // currencies today, BGN absent — verified against the live feed), but the
+  // community feed still carries it at the frozen legacy peg, which would have
+  // offered users a live-looking conversion for a retired currency. Same
+  // exclusion rule this list already applies to the other pre-euro legacies.
+  'bdt', 'bhd', 'bif', 'bmd', 'bnd', 'bob', 'bsd', 'btn', 'bwp', 'byn',
   'bzd', 'cdf', 'clp', 'cop', 'crc', 'cup', 'cve', 'djf', 'dop', 'dzd', 'egp',
   'ern', 'etb', 'fjd', 'fkp', 'gel', 'ggp', 'ghs', 'gip', 'gmd', 'gnf', 'gtq',
   'gyd', 'hnl', 'htg', 'imp', 'iqd', 'irr', 'jep', 'jmd', 'jod', 'kes', 'kgs',

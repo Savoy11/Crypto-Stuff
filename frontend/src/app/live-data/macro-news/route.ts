@@ -87,6 +87,34 @@ function extractTag(item: string, tag: string): string {
   return match ? decodeEntities(stripCdata(match[1])) : ''
 }
 
+/** `2026-07-22 13:16:28` or `2026-07-22T13:16:28` with no trailing zone. */
+const TZLESS_DATETIME = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$/
+
+/**
+ * Parse an RSS pubDate to an epoch, defaulting a missing timezone to UTC.
+ *
+ * Investing.com (3 of the 8 feeds) emits `<pubDate>2026-07-22 13:16:28</pubDate>`
+ * with no zone, and `new Date()` reads a zone-less string as LOCAL time. On a
+ * UTC−4 host that stamps every article 4 hours in the FUTURE — so the previous
+ * clamp-to-now pinned the whole block to the fetch instant, which made every
+ * one of them render as "just now", flagged them all Breaking (`now - published
+ * < 1h` is trivially true after clamping), and floated them above genuinely
+ * newer stories from the other feeds. It also meant the same feed produced
+ * different timestamps depending on the server's timezone.
+ *
+ * Treating a zone-less stamp as UTC fixes the offset at the source. The clamp
+ * stays as a backstop for feeds that really are ahead, but it should now be
+ * rare rather than routine.
+ */
+export function parsePubDate(raw: string, now: number): number {
+  const s = raw.trim()
+  if (!s) return now
+  const normalized = TZLESS_DATETIME.test(s) ? `${s.replace(' ', 'T')}Z` : s
+  const t = new Date(normalized).getTime()
+  if (!Number.isFinite(t)) return now
+  return Math.min(t, now)
+}
+
 function parseRss(xml: string, source: string): RawArticle[] {
   const items = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? []
   const now = Date.now()
@@ -98,12 +126,7 @@ function parseRss(xml: string, source: string): RawArticle[] {
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
       .trim()
-    // Some feeds (Investing.com) omit the timezone from pubDate, so JS parses
-    // their ahead-of-UTC wall clock as local time and the article lands hours
-    // in the future — which read as "in 4 hours" and flagged everything
-    // Breaking. A news item cannot postdate the request; clamp to now.
-    const parsed = pubDate ? new Date(pubDate).getTime() : now
-    const publishedAt = new Date(Number.isFinite(parsed) ? Math.min(parsed, now) : now).toISOString()
+    const publishedAt = new Date(parsePubDate(pubDate, now)).toISOString()
     return {
       id: `${source}:${url || title}`.slice(0, 200),
       title,

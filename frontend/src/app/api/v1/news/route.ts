@@ -8,7 +8,11 @@ export { options as OPTIONS }
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
   const coin      = searchParams.get('coin')?.toLowerCase()
-  const limit     = Math.min(parseInt(searchParams.get('limit') ?? '20'), 50)
+  // Clamped at BOTH ends: a negative limit made slice(0, -n) silently drop the
+  // last n articles, and a non-numeric one made it NaN and returned nothing —
+  // both at HTTP 200, indistinguishable from "no news".
+  const rawLimit  = parseInt(searchParams.get('limit') ?? '20', 10)
+  const limit     = Math.min(Math.max(Number.isFinite(rawLimit) ? rawLimit : 20, 1), 50)
   const sentiment = searchParams.get('sentiment') // positive | negative | neutral
   // Watchlist bias, forwarded from the caller. OR-matched: an article is kept
   // if it mentions ANY of these. Without this an agent answering "what's in the
@@ -22,10 +26,13 @@ export async function GET(req: NextRequest) {
   if (watchlist) internalUrl.searchParams.set('any', watchlist)
 
   let articles: object[] = []
+  let upstreamError: string | null = null
   try {
     const res = await fetch(internalUrl.toString(), { next: { revalidate: 300 } })
+    if (!res.ok) upstreamError = `news feed upstream returned HTTP ${res.status}`
     if (res.ok) {
       const data = await res.json() as {
+        ok?: boolean
         articles?: Array<{
           id: string
           headline: string
@@ -38,6 +45,11 @@ export async function GET(req: NextRequest) {
           summary?: string
         }>
       }
+      // The internal route signals a total provider failure as HTTP 200 with
+      // ok:false — checking only res.ok would let that through as "no news",
+      // which is the exact confusion this route is trying to remove. Caught by
+      // probing during a real outage, not by reading.
+      if (data.ok === false) upstreamError = 'all news providers failed upstream'
       articles = (data.articles ?? [])
         .filter(a => !sentiment || a.sentiment === sentiment)
         .slice(0, limit)
@@ -53,7 +65,19 @@ export async function GET(req: NextRequest) {
           summary:       a.summary ?? null,
         }))
     }
-  } catch { /* return empty */ }
+  } catch (e) {
+    upstreamError = e instanceof Error ? e.message : 'news feed unreachable'
+  }
+
+  // A feed outage must not look like "no news for this coin" — that is a
+  // confident wrong answer once an agent relays it. 502 makes the two
+  // distinguishable; an empty-but-healthy feed still returns 200.
+  if (upstreamError) {
+    return NextResponse.json(
+      { articles: [], total: 0, error: upstreamError, updatedAt: new Date().toISOString() },
+      { status: 502, headers: CORS },
+    )
+  }
 
   return NextResponse.json({
     articles,

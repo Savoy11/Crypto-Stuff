@@ -99,6 +99,8 @@ const SPEC = {
           { name: 'min_safety',    in: 'query', description: 'Minimum canonical safety score floor (0–100, HIGHER = SAFER). Only opportunities scoring at or above this are returned. Preferred over the deprecated max_risk.', schema: { type: 'number', example: 60 } },
           { name: 'max_risk',      in: 'query', description: 'DEPRECATED (use min_safety). Maximum legacy composite risk score (1–10, higher = riskier). Default 10 (all providers).', deprecated: true, schema: { type: 'number', example: 5 } },
           { name: 'include_defunct', in: 'query', description: 'Include defunct providers like Celsius as cautionary examples.',       schema: { type: 'boolean', default: false } },
+          { name: 'yield_type',    in: 'query', description: 'Filter by how the yield is produced (staking vs lending vs governance-token rewards).', schema: { type: 'string' } },
+          { name: 'include_adjacent', in: 'query', description: 'Include yield that is NOT protocol staking — lending and governance-token rewards. DEFAULTS TO FALSE, so the unfiltered response is narrower than the platform UI shows; set true to match it.', schema: { type: 'boolean', default: false } },
         ],
         responses: {
           '200': {
@@ -208,21 +210,24 @@ const SPEC = {
                 network:          { type: 'string', nullable: true },
                 totalFeeUsd:      { type: 'number' },
                 feePercent:       { type: 'number' },
-                estimatedTimeMin: { type: 'number', nullable: true },
+                estimatedTime:    { type: 'string', nullable: true, description: 'Human-readable, e.g. "~2–5 min" — not a number.' },
                 hops: {
                   type: 'array',
                   items: {
                     type: 'object',
                     properties: {
-                      type:            { type: 'string', enum: ['withdraw', 'deposit', 'network'] },
-                      from:            { type: 'string' },
-                      to:              { type: 'string' },
-                      network:         { type: 'string', nullable: true },
-                      feeCoin:         { type: 'string', nullable: true },
-                      feeNative:       { type: 'number', nullable: true },
-                      feeUsd:          { type: 'number' },
-                      networkName:     { type: 'string', nullable: true },
-                      confirmationMin: { type: 'number', nullable: true },
+                      from:        { type: 'string' },
+                      to:          { type: 'string' },
+                      network:     { type: 'string', nullable: true },
+                      exchangeFee: { type: 'number', description: 'Exchange withdrawal fee in USD.' },
+                      networkFee:  { type: 'number', description: 'On-chain gas in USD.' },
+                      totalFeeUsd: {
+                        type: 'number',
+                        description: 'Hop total in USD. NOT always exchangeFee + networkFee: when a CEX withdrawal fee already covers gas, only the exchange fee counts, so hop totals sum to the route total.',
+                      },
+                      nativeToken: { type: 'string', nullable: true },
+                      networkName: { type: 'string', nullable: true },
+                      note:        { type: 'string', nullable: true },
                     },
                   },
                 },
@@ -231,8 +236,13 @@ const SPEC = {
                   items: {
                     type: 'object',
                     properties: {
-                      level:   { type: 'string', enum: ['danger', 'warning', 'info'] },
-                      message: { type: 'string' },
+                      severity: {
+                        type: 'string',
+                        enum: ['danger', 'warning', 'info'],
+                        description: 'Read this field, not "level". "danger" carries the address-collision warnings for EVM networks — do not drop it.',
+                      },
+                      title:    { type: 'string' },
+                      message:  { type: 'string' },
                     },
                   },
                 },

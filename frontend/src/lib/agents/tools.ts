@@ -378,10 +378,44 @@ export function toolsForAgent(toolset: ToolSet = 'crypto'): Anthropic.Tool[] {
 
 // ─── Executor ───────────────────────────────────────────────────────────────
 
+/**
+ * Fetch an internal route as JSON.
+ *
+ * On a non-OK status this throws the ROUTE'S OWN error message when it has
+ * one. It used to throw a bare `HTTP 404 for /live-data/company-facts?…`,
+ * which discarded exactly the diagnosis the agent needed — the routes already
+ * return things like "No SEC registrant found for ticker XOM", and every
+ * `if (!data.ok) return { error: data.error }` branch downstream was
+ * unreachable because this threw first.
+ */
 async function getJson(origin: string, path: string): Promise<unknown> {
   const res = await fetch(origin + path, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${path}`)
-  return res.json()
+  const body = await res.json().catch(() => null)
+  if (!res.ok) {
+    const detail = body && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string'
+      ? (body as { error: string }).error
+      : `HTTP ${res.status}`
+    throw new Error(`${detail} (${path})`)
+  }
+  return body
+}
+
+/**
+ * Did an internal route report failure in its body?
+ *
+ * Several routes answer HTTP 200 with `ok: false` — a deliberate "reachable
+ * but degraded" signal. Tools that read only the data array turn that into
+ * "there is no news" / "no earnings scheduled", which the model then states as
+ * fact. An upstream outage must never be indistinguishable from an empty
+ * result, so tools call this and return an explicit error instead.
+ */
+function routeFailed(data: unknown): string | null {
+  if (!data || typeof data !== 'object') return 'upstream returned no data'
+  const d = data as { ok?: unknown; error?: unknown }
+  if (d.ok === false) {
+    return typeof d.error === 'string' ? d.error : 'upstream reported a failure'
+  }
+  return null
 }
 
 type ToolInput = Record<string, unknown>
@@ -443,7 +477,7 @@ export async function runTool(
       case 'get_price_history': {
         const coin = String(input.coin ?? '')
         const range = String(input.range ?? '1Y')
-        const data = (await getJson(origin, `/live-data/ohlcv?id=${coin}&range=${range}`)) as {
+        const data = (await getJson(origin, `/live-data/ohlcv?id=${encodeURIComponent(coin)}&range=${encodeURIComponent(range)}`)) as {
           ok?: boolean; candles?: { time: number; open: number; high: number; low: number; close: number }[]; source?: string
         }
         const candles = data.candles ?? []
@@ -543,8 +577,10 @@ export async function runTool(
         const data = (await getJson(origin, `/live-data/market-news?symbol=${encodeURIComponent(symbol)}&limit=${limit}`)) as {
           ok?: boolean; articles?: Array<{ title: string; source: string; publishedAt: string; sentiment: string; category: string; url: string }>
         }
+        const failure = routeFailed(data)
+        if (failure) return { error: `news feeds unavailable for ${symbol}: ${failure}`, symbol }
         const articles = (data.articles ?? []).map((a) => ({ title: a.title, source: a.source, publishedAt: a.publishedAt, sentiment: a.sentiment, category: a.category, url: a.url }))
-        if (articles.length === 0) return { symbol, articles: [], note: 'no recent articles found' }
+        if (articles.length === 0) return { symbol, articles: [], note: 'feeds reachable, but no recent articles matched this symbol' }
         return { symbol, articles }
       }
       case 'get_stock_social': {
@@ -554,6 +590,8 @@ export async function runTool(
           ok?: boolean; summaries?: unknown; providers?: Array<{ name: string }>
           signals?: Array<{ platform: string; title: string; sentiment: string; score: number; url: string }>
         }
+        const failure = routeFailed(data)
+        if (failure) return { error: `social providers unavailable for ${symbol}: ${failure}`, symbol }
         return {
           symbol,
           providers: (data.providers ?? []).map((p) => p.name),
@@ -595,6 +633,8 @@ export async function runTool(
           ok?: boolean
           articles?: { title: string; url: string; source: string; publishedAt: string; summary: string; sentiment: string; category: string; relatedSymbols: string[] }[]
         }
+        const failure = routeFailed(data)
+        if (failure) return { error: `market news feeds unavailable: ${failure}` }
         const articles = (data.articles ?? []).slice(0, limit).map((a) => ({
           title: a.title, source: a.source, publishedAt: a.publishedAt,
           sentiment: a.sentiment, category: a.category, relatedSymbols: a.relatedSymbols,
@@ -611,6 +651,12 @@ export async function runTool(
         if (data.configured === false) {
           return { error: 'Market calendar requires an FMP API key (FMP_API_KEY) — not configured on this instance.' }
         }
+        // Configured but both upstream legs failed: the route answers 200 with
+        // ok:false and empty arrays. Returning those verbatim reads as "no
+        // earnings scheduled", which is a confident wrong answer to "when does
+        // NVDA report?".
+        const failure = routeFailed(data)
+        if (failure) return { error: `calendar upstream unavailable: ${failure}` }
         return {
           from: data.from, to: data.to,
           earnings: (data.earnings ?? []).slice(0, 40),
@@ -662,7 +708,16 @@ export async function runTool(
         if (commodities.length + currencies.length + rates.length === 0) {
           return { commodities, currencies, rates, note: 'No catalog matches — the symbol may still be quotable via get_macro_quote.' }
         }
-        return { commodities, currencies, rates }
+        // Capped like search_securities: an empty query would otherwise dump
+        // all 46 catalog entries with their etfProxies arrays into context.
+        return {
+          commodities: commodities.slice(0, 15),
+          currencies: currencies.slice(0, 15),
+          rates: rates.slice(0, 15),
+          ...(commodities.length + currencies.length + rates.length > 45
+            ? { note: 'Results capped at 15 per area — narrow the query for more specific matches.' }
+            : {}),
+        }
       }
       case 'get_macro_quote': {
         const symbols = (input.symbols as string[] | undefined)?.map((s) => s.toUpperCase()).join(',') ?? ''
@@ -736,6 +791,8 @@ export async function runTool(
           ok?: boolean
           articles?: { title: string; url: string; source: string; publishedAt: string; summary: string; sentiment: string; pillar: string; related: { label: string }[] }[]
         }
+        const failure = routeFailed(data)
+        if (failure) return { error: `macro news feeds unavailable: ${failure}` }
         const articles = (data.articles ?? []).slice(0, limit).map((a) => ({
           title: a.title, source: a.source, publishedAt: a.publishedAt,
           sentiment: a.sentiment, pillar: a.pillar,
