@@ -242,7 +242,15 @@ minimum** for free-tier polling without hitting 429.
 7. ✅ **Audit harness classifies real vs fallback data** (`npm run audit`). Replaces the old pass/fail smoke test, which reported 43/43 green while two routes served static catalogs.
 8. ⏳ Surface this report in-app at `/live-data/availability` so it stays accurate automatically.
 9. ⏳ **Get a paid FMP plan or a different universe source** — `stock-universe` and `stock-outliers` are the largest remaining fallback surface.
-10. ⏳ **Fix Reddit starvation in `stock-social`** — blend by provider quota, not pure recency, or Reddit stays invisible at normal page limits.
+10. ✅ ~~**Fix Reddit starvation in `stock-social`**~~ Done 2026-07-22 — `lib/server/socialBlend.ts` allocates the
+    response budget round-robin per provider (newest-first within each), then re-sorts by recency for display, so
+    the feed still reads chronologically. Unused share flows to other providers, so one active source still fills
+    the limit. Measured before → after at `limit=20`: **20/0 → 10/10** StockTwits/Reddit; at `limit=40`: 30/10 →
+    20/20. `providers` now lists only sources that actually placed a signal in the response — previously it named
+    Reddit at limit=20 while showing zero Reddit posts, which is what hid the starvation. 7 unit tests.
+    ⚠ Separately: the `/equities/social` **page** currently never issues its query (stuck on "Fetching social
+    signals…" while the app reports Offline/DISCONNECTED). Pre-existing and unrelated — the route and a direct
+    fetch from that page both work; tracked separately.
 11. ⏳ **Paginate `fund-universe`** — 14 MB in one response.
 12. ✅ ~~Bring the 8 bare-`Promise.all` routes onto `Promise.allSettled`.~~ Done 2026-07-22 — 7 were already
     correct (sequential fallback ladders that must not be parallelised, or not multi-fetch at all); the real

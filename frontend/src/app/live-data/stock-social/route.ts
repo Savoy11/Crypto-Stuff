@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import { getEquityProviders, recordProviderFetch } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickDate, pickNumber, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
+import { blendByProvider } from '@/lib/server/socialBlend'
 
 // Social signals for the equities module. REGISTRY-DRIVEN: Reddit Finance and
 // StockTwits are toggleable built-ins on the Integrations page, and user-added
@@ -292,25 +293,38 @@ export async function GET(request: NextRequest) {
     recordProviderFetch(id, agg.count > 0 ? { count: agg.count } : { error: agg.error ?? 'no posts returned' })
   }
 
-  const providers: Array<{ id: string; name: string }> = []
-  const signals: StockSocialSignal[] = []
+  // Group by PROVIDER, not by platform: Reddit spans several subreddit fetches
+  // that must share one quota, or it would out-weight StockTwits 4:1 rather
+  // than being starved by it.
+  const byProvider = new Map<string, StockSocialSignal[]>()
+  const seen = new Set<string>()
   results.forEach((result, i) => {
     if (result.status !== 'fulfilled') return
-    signals.push(...result.value)
     const id = tasks[i].providerId
-    if (!providers.some((p) => p.id === id)) {
-      const name = id === 'reddit-stocks' ? `Reddit (${subs.map((s) => `r/${s}`).join(', ')})`
-        : id === 'stocktwits' ? 'StockTwits'
-        : customs.find((c) => c.id === id)?.name ?? id
-      providers.push({ id, name })
+    const bucket = byProvider.get(id) ?? []
+    for (const s of result.value) {
+      if (seen.has(s.id)) continue
+      seen.add(s.id)
+      bucket.push(s)
     }
+    byProvider.set(id, bucket)
   })
 
-  const seen = new Set<string>()
-  const deduped = signals
-    .filter((s) => (seen.has(s.id) ? false : (seen.add(s.id), true)))
-    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
-    .slice(0, limit)
+  // Fair share per provider, not pure recency — see socialBlend for why.
+  const { items: deduped, contributed } = blendByProvider(byProvider, limit)
+
+  // Attribution reflects what is actually in `signals`. Listing a provider that
+  // contributed nothing to the returned set is what made the old starvation
+  // invisible: at limit=20 this claimed Reddit as a source while showing zero
+  // Reddit posts.
+  const providers: Array<{ id: string; name: string }> = []
+  for (const id of byProvider.keys()) {
+    if (!contributed.has(id) || providers.some((p) => p.id === id)) continue
+    const name = id === 'reddit-stocks' ? `Reddit (${subs.map((s) => `r/${s}`).join(', ')})`
+      : id === 'stocktwits' ? 'StockTwits'
+      : customs.find((c) => c.id === id)?.name ?? id
+    providers.push({ id, name })
+  }
 
   return NextResponse.json({
     ok: deduped.length > 0,
