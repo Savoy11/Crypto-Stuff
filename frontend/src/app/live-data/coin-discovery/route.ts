@@ -3,6 +3,7 @@ import {
   CAEP_TRACKED_IDS, UTILITY_MAP, CATEGORY_INFO, SCORING_CONFIG,
   getRecommendationLevel, type RecommendationLevel,
 } from '@/lib/data/coinCatalog'
+import { fetchCoinGeckoPages } from '@/lib/server/coingeckoPages'
 import { tenPointSafetyToCanonical } from '@/lib/risk/normalize'
 import { bandForScore } from '@/lib/risk/engine'
 import type { RiskBand } from '@/lib/risk/types'
@@ -162,24 +163,18 @@ export async function GET(req: Request) {
   const limit = Math.min(750, Math.max(50, parseInt(url.searchParams.get('limit') ?? '250', 10)))
   const pages = Math.ceil(limit / 250)
 
-  const upstreamErrors: string[] = []
-
-  const fetches = Array.from({ length: pages }, (_, i) =>
-    fetch(
+  // Sequential, throttle-aware paging. Issuing these pages in parallel 429'd
+  // every one of them on CoinGecko's free tier, turning a partial result into a
+  // total 503 (verified 2026-07-22). See lib/server/coingeckoPages.
+  const { pages: pageRows, errors: upstreamErrors } = await fetchCoinGeckoPages<RawCoin>(
+    pages,
+    (page) =>
       'https://api.coingecko.com/api/v3/coins/markets' +
-      `?vs_currency=usd&order=market_cap_desc&per_page=250&page=${i + 1}` +
+      `?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}` +
       '&sparkline=false&price_change_percentage=7d',
-      { headers: { Accept: 'application/json' }, next: { revalidate: 900 } }
-    ).then(
-      r => {
-        if (!r.ok) { upstreamErrors.push(`page ${i + 1}: HTTP ${r.status}`); return [] as RawCoin[] }
-        return r.json() as Promise<RawCoin[]>
-      },
-      err => { upstreamErrors.push(`page ${i + 1}: ${String(err)}`); return [] as RawCoin[] }
-    )
+    { revalidate: 900 },
   )
-  const pagesData = await Promise.all(fetches)
-  const rawCoins: RawCoin[] = pagesData.flat().slice(0, limit)
+  const rawCoins: RawCoin[] = pageRows.flat().slice(0, limit)
 
   // Upstream failed entirely — say so instead of returning an empty-but-ok payload
   if (rawCoins.length === 0) {

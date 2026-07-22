@@ -6,10 +6,9 @@ import { clsx } from 'clsx'
 import { Plus, Search, Star, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, isSecurityKey, securitySymbol } from '@/lib/data/instruments'
+import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, isSecurityKey, securitySymbol, formatInstrumentQuote } from '@/lib/data/instruments'
 import { ASSET_ID_BY_COINGECKO } from '@/lib/api/live/coingeckoIds'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
-import { formatCurrency } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import { hydrateWatchlists, useWatchlistStore } from '@/store/useWatchlistStore'
 
@@ -185,7 +184,7 @@ export default function WatchlistPage() {
                   </Link>
                   <span className="text-xs text-slate-400">{inst ? CLASS_LABELS[inst.class] : '—'}</span>
                   <span className="col-span-2 text-right font-mono text-slate-300 tabular-nums">
-                    {price != null ? formatCurrency(price, price < 1 ? 4 : 2) : <span className="text-slate-600">—</span>}
+                    {formatInstrumentQuote(inst, price) ?? <span className="text-slate-600">—</span>}
                   </span>
                   <div className="col-span-2 flex justify-end">
                     <button onClick={() => active && removeKey(active.id, key)} className="text-slate-500 hover:text-red-400 transition-colors" aria-label={`Remove ${inst?.symbol ?? key}`}>

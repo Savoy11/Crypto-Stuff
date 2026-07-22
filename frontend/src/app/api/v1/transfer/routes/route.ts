@@ -8,11 +8,18 @@ import {
 export const dynamic = 'force-dynamic'
 export { options as OPTIONS }
 
+// Last-resort prices used only to keep the fee MODEL computable when CoinGecko
+// is unreachable. These are stale constants, not quotes — every response that
+// touches them must say so via `priceSource`, because the whole payload
+// (amountUsd, feeUsd, feePercent) is derived from them. Reporting these as
+// live prices is the one thing this route must never do.
 const FALLBACK_PRICES: CoinPriceMap = {
   btc: 95000, eth: 3200, usdt: 1.0, usdc: 1.0, bnb: 600, sol: 160,
   dai: 1.0, xrp: 2.20, ltc: 90, trx: 0.14, doge: 0.18, matic: 0.60,
   avax: 28, ada: 0.45, dot: 7.0, atom: 5.50,
 }
+
+export type PriceSource = 'live' | 'fallback'
 
 const STATIC_GAS: Record<string, { native: number; token: keyof CoinPriceMap }> = {
   erc20:     { native: 0.002,    token: 'eth'  },
@@ -33,15 +40,15 @@ const STATIC_GAS: Record<string, { native: number; token: keyof CoinPriceMap }> 
   cosmos:    { native: 0.01,     token: 'atom' },
 }
 
-async function getLivePrices(): Promise<CoinPriceMap> {
+async function getLivePrices(): Promise<{ prices: CoinPriceMap; source: PriceSource }> {
   try {
     const res = await fetch(
       'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin,binancecoin,solana,dai,tron,matic-network,avalanche-2,ripple,litecoin,dogecoin,cardano,polkadot,cosmos&vs_currencies=usd',
       { next: { revalidate: 120 } }
     )
-    if (!res.ok) return FALLBACK_PRICES
+    if (!res.ok) return { prices: FALLBACK_PRICES, source: 'fallback' }
     const data = await res.json() as Record<string, { usd: number }>
-    return {
+    const prices: CoinPriceMap = {
       btc:   data['bitcoin']?.usd        ?? FALLBACK_PRICES.btc,
       eth:   data['ethereum']?.usd       ?? FALLBACK_PRICES.eth,
       usdt:  data['tether']?.usd         ?? 1.0,
@@ -59,8 +66,12 @@ async function getLivePrices(): Promise<CoinPriceMap> {
       dot:   data['polkadot']?.usd       ?? FALLBACK_PRICES.dot,
       atom:  data['cosmos']?.usd         ?? FALLBACK_PRICES.atom,
     }
+    // A 200 that carried no usable price for the coins driving gas costs is a
+    // failure wearing a success status — treat it as fallback, not live.
+    const live = data['bitcoin']?.usd != null && data['ethereum']?.usd != null
+    return { prices, source: live ? 'live' : 'fallback' }
   } catch {
-    return FALLBACK_PRICES
+    return { prices: FALLBACK_PRICES, source: 'fallback' }
   }
 }
 
@@ -95,7 +106,7 @@ export async function GET(req: NextRequest) {
   if (!Object.keys(COIN_INFO).includes(coin)) return NextResponse.json({ error: `Unknown coin: "${coin}". Supported: ${Object.keys(COIN_INFO).join(', ')}` }, { status: 400, headers: CORS })
   if (from === to) return NextResponse.json({ error: 'from and to must be different.' }, { status: 400, headers: CORS })
 
-  const coinPrices  = await getLivePrices()
+  const { prices: coinPrices, source: priceSource } = await getLivePrices()
   const networkFees = buildNetworkFees(coinPrices)
   const coinInfo    = COIN_INFO[coin]
   const transferAmount = amount > 0 ? amount : coinInfo.defaultAmount
@@ -147,7 +158,14 @@ export async function GET(req: NextRequest) {
       cheapestFeePercent: best?.feePercent ?? null,
     },
     routes,
-    priceSource: 'live',
+    priceSource,
+    // Every USD figure above is derived from `priceSource`. On 'fallback' the
+    // coin prices are stale constants, so amountUsd/feeUsd/feePercent are
+    // order-of-magnitude guidance only — say so rather than letting a consumer
+    // (or an agent) present them as quotes.
+    ...(priceSource === 'fallback'
+      ? { warning: 'CoinGecko unavailable — USD amounts are derived from stale fallback prices, not live quotes. Native-token fee amounts are unaffected.' }
+      : {}),
     updatedAt: new Date().toISOString(),
   }, { headers: CORS })
 }

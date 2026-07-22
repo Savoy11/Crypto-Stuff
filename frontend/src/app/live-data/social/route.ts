@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ASSET_LIST } from '@/lib/data/assetList'
 import { getSocialProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
+import { blendByProvider } from '@/lib/server/socialBlend'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,19 +71,23 @@ export async function GET(req: NextRequest) {
     providers.map((p) => fetchFromProvider(p, assetFilter, limit, extraSubs))
   )
 
-  const allSignals: SocialSignal[] = []
+  // Group per provider so the response budget can be shared fairly rather than
+  // handed entirely to whichever source posts most often — the same starvation
+  // that made Reddit invisible on /live-data/stock-social. See socialBlend.
+  const byProvider = new Map<string, SocialSignal[]>()
   const seenIds = new Set<string>()
 
   results.forEach((result, i) => {
     const providerId = providers[i].id
     if (result.status === 'fulfilled') {
       recordProviderFetch(providerId, { count: result.value.length })
+      const bucket = byProvider.get(providerId) ?? []
       for (const signal of result.value) {
-        if (!seenIds.has(signal.id)) {
-          seenIds.add(signal.id)
-          allSignals.push(signal)
-        }
+        if (seenIds.has(signal.id)) continue
+        seenIds.add(signal.id)
+        bucket.push(signal)
       }
+      byProvider.set(providerId, bucket)
     } else {
       // Surface the failure on the Integrations page instead of swallowing it.
       recordProviderFetch(providerId, {
@@ -91,7 +96,12 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  allSignals.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+  const { items: pagedSignals, contributed } = blendByProvider(byProvider, limit)
+  // Summaries stay over the FULL collected sample, not the paged slice — a
+  // sentiment ratio is a statistic and gets better with more observations,
+  // while the signal list is a feed and has to fit the page.
+  const allSignals = Array.from(byProvider.values()).flat()
+    .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
   // Compute per-asset sentiment summaries from collected signals
   const summaryMap = new Map<string, AssetSentiment>()
@@ -118,9 +128,12 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    signals: allSignals.slice(0, limit),
+    signals: pagedSignals,
     summaries: [...summaryMap.values()],
-    providers: providers.map((p) => ({ id: p.id, name: p.name })),
+    // Only providers that actually placed a signal in `signals`. This used to
+    // list every CONFIGURED provider — including ones whose fetch rejected — so
+    // the UI credited sources the reader could not find anywhere in the feed.
+    providers: providers.filter((p) => contributed.has(p.id)).map((p) => ({ id: p.id, name: p.name })),
   })
 }
 

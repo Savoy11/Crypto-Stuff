@@ -129,10 +129,20 @@ export function validatePortfolio(p: IncomingPortfolio): ValidatedPortfolio | { 
 
 // ─── Writes ──────────────────────────────────────────────────────────────────
 
-async function insertHoldings(userId: string, portfolioId: string, list: ValidatedPortfolio['holdings']) {
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+async function insertHoldings(
+  userId: string,
+  portfolioId: string,
+  list: ValidatedPortfolio['holdings'],
+  tx: Tx | typeof db = db,
+) {
   if (list.length === 0) return
+  // Instrument resolution upserts GLOBAL catalog rows, so it deliberately runs
+  // outside the caller's transaction: rolling a user's failed save back must
+  // not also roll back a catalog row another request may already be using.
   const keyToId = await resolveInstruments(list.map((h) => ({ key: h.key, symbol: h.symbol, name: h.name })))
-  await db.insert(holdings).values(list.map((h) => ({
+  await tx.insert(holdings).values(list.map((h) => ({
     userId,
     portfolioId,
     instrumentId: keyToId.get(h.key)!,
@@ -160,22 +170,31 @@ export async function insertPortfolio(userId: string, v: ValidatedPortfolio): Pr
  * Full-document update: fields merge, holdings replace wholesale. The UI's
  * editor edits the entire holding set at once, so replace-all is the
  * semantics that cannot drift — no diffing, no orphans.
+ *
+ * TRANSACTIONAL, and it has to be: replace-all means DELETE-then-INSERT, so a
+ * failing insert (an out-of-range numeric, a transient DB error, an instrument
+ * that won't resolve) would otherwise leave the delete committed and the
+ * portfolio holding-less. The client reports that as "Changes not saved" and
+ * then re-hydrates the empty set over the user's positions — data loss
+ * reported as a no-op. Rolling back means a failed save changes nothing.
  */
 export async function replacePortfolio(userId: string, portfolioId: string, v: ValidatedPortfolio): Promise<boolean> {
-  // Ownership lives in the WHERE, not a check afterwards — the update must
-  // never touch a row that turns out to belong to someone else.
-  const [updated] = await db.update(portfolios)
-    .set({
-      name: v.name,
-      description: v.description,
-      startingCapital: v.startingCapital,
-      updatedAt: new Date(),
-    })
-    .where(and(eq(portfolios.id, portfolioId), eq(portfolios.userId, userId)))
-    .returning({ id: portfolios.id })
-  if (!updated) return false
+  return db.transaction(async (tx) => {
+    // Ownership lives in the WHERE, not a check afterwards — the update must
+    // never touch a row that turns out to belong to someone else.
+    const [updated] = await tx.update(portfolios)
+      .set({
+        name: v.name,
+        description: v.description,
+        startingCapital: v.startingCapital,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(portfolios.id, portfolioId), eq(portfolios.userId, userId)))
+      .returning({ id: portfolios.id })
+    if (!updated) return false
 
-  await db.delete(holdings).where(and(eq(holdings.portfolioId, portfolioId), eq(holdings.userId, userId)))
-  await insertHoldings(userId, portfolioId, v.holdings)
-  return true
+    await tx.delete(holdings).where(and(eq(holdings.portfolioId, portfolioId), eq(holdings.userId, userId)))
+    await insertHoldings(userId, portfolioId, v.holdings, tx)
+    return true
+  })
 }

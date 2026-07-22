@@ -34,6 +34,22 @@ export interface Instrument {
    * their routes.
    */
   detailPath?: string
+  /**
+   * How this instrument's quote must be rendered. Absent means "USD price",
+   * which is right for crypto, equities and funds.
+   *
+   * Macro instruments are NOT dollar prices and formatting them as such is a
+   * real error, not a cosmetic one: corn quotes in US cents per bushel, so
+   * `$482.25` overstates it by ~100×; ^TNX is a yield in percent, not a price;
+   * DXY is an index level; bond futures are points of par. Any surface that
+   * shows a price for an arbitrary instrument must go through
+   * formatInstrumentQuote() rather than assuming dollars.
+   */
+  quoteKind?: 'usd' | 'cents' | 'percent' | 'index' | 'points'
+  /** Unit the quote is per ('oz t', 'bu'), for tooltips/detail copy. */
+  unit?: string
+  /** Decimal places this market conventionally quotes at. */
+  precision?: number
 }
 
 export const SEC_PREFIX = 'sec:'
@@ -92,6 +108,8 @@ export const INSTRUMENTS: Instrument[] = [
     riskTier: c.category === 'energy' ? 6 : 5,
     color: COMMODITY_CATEGORY_INFO[c.category].color,
     detailPath: `/macro/commodities/${c.slug}`,
+    quoteKind: c.quoteBasis === 'cents' ? ('cents' as const) : ('usd' as const),
+    unit: c.unit,
   })),
   ...CURRENCY_CATALOG.map((c) => ({
     key: `${SEC_PREFIX}${c.symbol}`, cgId: `${SEC_PREFIX}${c.symbol}`,
@@ -100,6 +118,10 @@ export const INSTRUMENTS: Instrument[] = [
     riskTier: c.category === 'emerging' ? 4 : 3,
     color: CURRENCY_CATEGORY_INFO[c.category].color,
     detailPath: `/macro/currencies/${c.slug}`,
+    // The dollar index is a level, not a price in any currency; every other
+    // row is an exchange rate quoted in its own `quote` currency.
+    quoteKind: c.category === 'index' ? ('index' as const) : ('usd' as const),
+    precision: c.precision,
   })),
   ...RATES_CATALOG.map((r) => ({
     key: `${SEC_PREFIX}${r.symbol}`, cgId: `${SEC_PREFIX}${r.symbol}`,
@@ -108,8 +130,29 @@ export const INSTRUMENTS: Instrument[] = [
     riskTier: 2,
     color: RATES_CATEGORY_INFO[r.category].color,
     detailPath: `/macro/rates/${r.slug}`,
+    quoteKind: r.quoteBasis === 'pct' ? ('percent' as const) : ('points' as const),
   })),
 ]
+
+/**
+ * Render a quote for ANY instrument, honouring its market's convention.
+ *
+ * Cross-module surfaces (watchlist, portfolios, compare) hold a mixed bag of
+ * instruments and cannot assume a USD price — see `quoteKind`. Returns null
+ * for a missing price so callers render their own placeholder.
+ */
+export function formatInstrumentQuote(inst: Instrument | undefined, price: number | null | undefined): string | null {
+  if (price == null || !Number.isFinite(price)) return null
+  const dp = inst?.precision ?? (Math.abs(price) < 1 ? 4 : 2)
+  const n = (d: number) => price.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })
+  switch (inst?.quoteKind) {
+    case 'cents':   return `${n(2)}¢${inst.unit ? `/${inst.unit}` : ''}`
+    case 'percent': return `${n(2)}%`
+    case 'index':   return n(2)
+    case 'points':  return n(2)
+    default:        return `$${n(dp)}`
+  }
+}
 
 export const INSTRUMENT_BY_KEY: Record<string, Instrument> = Object.fromEntries(
   INSTRUMENTS.map((i) => [i.key, i])

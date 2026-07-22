@@ -451,10 +451,35 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
   const conflicted = inputs.sectorFocus.filter((s) => excluded.has(s))
   const wanted = inputs.sectorFocus.filter((s) => SECTOR_ETF[s] && !excluded.has(s))
   const tilts = wanted.slice(0, 3)
-  const tiltEach = tilts.length > 0 ? round1(clamp(equityPct * 0.06, 3, 6)) : 0
+  // The 3% floor exists so a tilt is a real position rather than a sliver, but
+  // it must not outrun the equity sleeve it comes out of. On a defensive plan
+  // (equity 10%: 3 intl + 3 tilts × 3%) the old unclamped arithmetic drove the
+  // US core NEGATIVE, `add()` silently dropped it, and the plan shipped with
+  // VTI at 0% — three single-sector ETFs and no diversified core, under a note
+  // promising the tilts "can't dominate a diversified core". Cap the tilt
+  // budget so the core always keeps the larger half of what's left after
+  // international.
+  const tiltBudget = Math.max(0, round1((equityPct - intlPct) * 0.5))
+  const idealEach = round1(clamp(equityPct * 0.06, 3, 6))
+  // Floor, not round, when the budget is the binding constraint: rounding the
+  // per-tilt share UP can push the combined tilts past half the sleeve and
+  // leave the core the smaller position — the exact inversion this cap exists
+  // to prevent.
+  const rawTiltEach = tilts.length > 0
+    ? Math.min(idealEach, Math.floor((tiltBudget / tilts.length) * 10) / 10)
+    : 0
+  // Below the sliver threshold the tilts are dropped, so their budget returns
+  // to the core rather than vanishing into the rounding normalizer.
+  const tiltEach = rawTiltEach >= MIN_SLEEVE_LEG_PCT ? rawTiltEach : 0
   const tiltTotal = round1(tiltEach * tilts.length)
   const usCorePct = round1(equityPct - intlPct - tiltTotal)
-  if (tilts.length > 0) {
+  if (tilts.length > 0 && tiltEach === 0) {
+    // Below the sliver threshold the honest answer is no tilt at all.
+    notes.push({
+      level: 'warn',
+      message: `A ${round1(equityPct)}% equity sleeve is too small to carry ${tilts.length} sector tilt${tilts.length > 1 ? 's' : ''} worth holding — the plan stays in the diversified core instead. Raising risk tolerance or the time horizon would make room.`,
+    })
+  } else if (tilts.length > 0) {
     notes.push({ level: 'info', message: `Sector tilts are capped at ${tiltEach}% each so a theme can't dominate a diversified core.` })
   }
   if (wanted.length > 3) {
@@ -492,7 +517,11 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
 
   add('VTI', 'us-equity', usCorePct, 'Total US market at 3bps — the diversified growth core.')
   add('VXUS', 'intl-equity', intlPct, 'All non-US markets — geographic diversification the US core cannot provide.')
-  for (const s of tilts) add(SECTOR_ETF[s]!, 'sector-tilt', tiltEach, `${SECTOR_INFO[s].label} tilt you selected — capped to stay diversified.`)
+  // Skipped entirely when the budget can't fund a real position — the note
+  // above says so rather than emitting unbuyable slivers.
+  if (tiltEach > 0) {
+    for (const s of tilts) add(SECTOR_ETF[s]!, 'sector-tilt', tiltEach, `${SECTOR_INFO[s].label} tilt you selected — capped to stay diversified.`)
+  }
   for (const rung of consolidateLadder(applyBondStyle(bondLadder(horizon), bondStyle), bondsPct)) {
     add(rung.symbol, 'bonds', bondsPct * rung.share, rung.rationale)
   }

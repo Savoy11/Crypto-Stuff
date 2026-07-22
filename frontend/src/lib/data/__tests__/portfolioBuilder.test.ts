@@ -453,6 +453,48 @@ describe('fees', () => {
   })
 })
 
+describe('sector tilts never cannibalise the diversified core', () => {
+  // Regression: tiltEach had a hard 3% floor that ignored how small the equity
+  // sleeve was, so a defensive plan with 3 tilts drove the US core negative and
+  // add() silently dropped it — shipping VTI at 0% under a note promising the
+  // tilts could not dominate a diversified core.
+  const THREE = ['technology', 'financials', 'energy'] as SectorId[]
+
+  it('never emits a plan with sector tilts but no US core', () => {
+    for (const inputs of SWEEP) {
+      const p = build({ ...inputs, sectorFocus: THREE })
+      const tiltPct = sum(p.holdings.filter((h) => h.assetClass === 'sector-tilt').map((h) => h.weightPct))
+      if (tiltPct > 0) {
+        expect(weightOf(p, 'VTI'), `VTI missing for ${JSON.stringify(inputs)}`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('keeps the core larger than the combined tilts', () => {
+    for (const inputs of SWEEP) {
+      const p = build({ ...inputs, sectorFocus: THREE })
+      const tiltPct = sum(p.holdings.filter((h) => h.assetClass === 'sector-tilt').map((h) => h.weightPct))
+      // 0.01 absorbs float error from summing one-decimal weights; the two are
+      // allowed to tie exactly (equity 12% → core 6, tilts 3×2).
+      if (tiltPct > 0) expect(weightOf(p, 'VTI')).toBeGreaterThanOrEqual(tiltPct - 0.01)
+    }
+  })
+
+  it('drops tilts entirely — and says so — when the equity sleeve is too small', () => {
+    const p = build({ riskTolerance: 1, yearsToFirstUse: 0, sectorFocus: THREE })
+    expect(p.holdings.filter((h) => h.assetClass === 'sector-tilt')).toHaveLength(0)
+    expect(p.notes.some((n) => /too small to carry .* sector tilt/.test(n.message))).toBe(true)
+    // The dropped budget returns to the core rather than vanishing.
+    expect(weightOf(p, 'VTI')).toBeGreaterThan(0)
+  })
+
+  it('still applies real tilts on a growth plan', () => {
+    const p = build({ riskTolerance: 8, yearsToFirstUse: 30, sectorFocus: ['technology'] })
+    expect(weightOf(p, 'XLK')).toBeGreaterThanOrEqual(3)
+    expect(weightOf(p, 'VTI')).toBeGreaterThan(weightOf(p, 'XLK'))
+  })
+})
+
 describe('diversification score', () => {
   it('stays within 0–100 across the sweep', () => {
     for (const inputs of SWEEP) {

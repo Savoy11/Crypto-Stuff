@@ -1,27 +1,29 @@
 import { NextResponse } from 'next/server'
 import type { CoinListEntry, CoinListResponse } from '@/lib/types/coinList'
+import { fetchCoinGeckoPages } from '@/lib/server/coingeckoPages'
 
 export type { CoinListEntry, CoinListResponse }
 
 export const dynamic = 'force-dynamic'
 
-// Fetch multiple pages from CoinGecko to get a broad coin list.
-// Free tier allows ~30 req/min; we batch 3 pages × 250 = 750 coins.
-async function fetchCoinGeckoPage(page: number): Promise<CoinListEntry[]> {
-  const url =
-    'https://api.coingecko.com/api/v3/coins/markets' +
-    `?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}` +
-    '&sparkline=false&locale=en'
-  const res = await fetch(url, {
-    headers: { Accept: 'application/json' },
-    next: { revalidate: 300 },
-  })
-  if (!res.ok) throw new Error(`CoinGecko page ${page} failed: ${res.status}`)
-  const data = await res.json() as Array<{
-    id: string; symbol: string; name: string
-    current_price: number; market_cap: number; market_cap_rank: number; image: string
-  }>
-  return data.map(c => ({
+// Broad coin list: 3 pages × 250 = 750 coins from CoinGecko.
+//
+// Fetched SEQUENTIALLY — these three pages used to be issued in parallel, which
+// tripped the free tier's burst limit and 429'd all three, so the route
+// answered 503 even though any one page would have succeeded on its own
+// (verified 2026-07-22). See lib/server/coingeckoPages.
+interface CoinGeckoMarketRow {
+  id: string; symbol: string; name: string
+  current_price: number; market_cap: number; market_cap_rank: number; image: string
+}
+
+const marketsUrl = (page: number) =>
+  'https://api.coingecko.com/api/v3/coins/markets' +
+  `?vs_currency=usd&order=market_cap_desc&per_page=250&page=${page}` +
+  '&sparkline=false&locale=en'
+
+function toEntry(c: CoinGeckoMarketRow): CoinListEntry {
+  return {
     id: c.id,
     symbol: c.symbol.toUpperCase(),
     name: c.name,
@@ -29,7 +31,7 @@ async function fetchCoinGeckoPage(page: number): Promise<CoinListEntry[]> {
     marketCap: c.market_cap ?? 0,
     rank: c.market_cap_rank ?? 9999,
     image: c.image ?? '',
-  }))
+  }
 }
 
 // Binance.US public exchange info as a fallback/supplement symbol list
@@ -49,30 +51,25 @@ async function fetchBinanceSymbols(): Promise<string[]> {
 
 export async function GET() {
   try {
-    // Fetch top 750 coins from CoinGecko (3 pages × 250)
-    const [page1, page2, page3] = await Promise.allSettled([
-      fetchCoinGeckoPage(1),
-      fetchCoinGeckoPage(2),
-      fetchCoinGeckoPage(3),
-    ])
+    const { pages, errors } = await fetchCoinGeckoPages<CoinGeckoMarketRow>(3, marketsUrl)
 
     const coins: CoinListEntry[] = []
     const seen = new Set<string>()
-
-    for (const result of [page1, page2, page3]) {
-      if (result.status === 'fulfilled') {
-        for (const coin of result.value) {
-          if (!seen.has(coin.id)) {
-            seen.add(coin.id)
-            coins.push(coin)
-          }
-        }
+    for (const rows of pages) {
+      for (const row of rows) {
+        const coin = toEntry(row)
+        if (seen.has(coin.id)) continue
+        seen.add(coin.id)
+        coins.push(coin)
       }
     }
 
     if (coins.length === 0) {
       return NextResponse.json(
-        { ok: false, coins: [], updatedAt: new Date().toISOString(), source: 'none' },
+        {
+          ok: false, coins: [], updatedAt: new Date().toISOString(), source: 'none',
+          error: errors.join('; ') || 'CoinGecko returned no coins',
+        },
         { status: 503 }
       )
     }
@@ -94,6 +91,7 @@ export async function GET() {
       coins: sorted,
       updatedAt: new Date().toISOString(),
       source: 'coingecko',
+      ...(errors.length > 0 ? { partial: true, error: errors.join('; ') } : {}),
     } satisfies CoinListResponse)
   } catch (err) {
     return NextResponse.json(

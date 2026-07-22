@@ -22,7 +22,7 @@ import {
   type Portfolio, type PortfolioHolding,
 } from '@/lib/data/portfolioUtils'
 import type { PortfolioPricesResponse } from '@/app/live-data/portfolio-prices/route'
-import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, isSecurityKey, securitySymbol, type Instrument } from '@/lib/data/instruments'
+import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, isSecurityKey, securitySymbol, formatInstrumentQuote, type Instrument } from '@/lib/data/instruments'
 import { getEquity } from '@/lib/data/equityCatalog'
 import { getFund } from '@/lib/data/fundCatalog'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
@@ -752,7 +752,8 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
                 <div className="col-span-2 text-right font-mono text-text-secondary">{h.targetAlloc.toFixed(1)}%</div>
                 <div className="col-span-2 text-right font-mono text-text-secondary">{fmt$(h.targetValue)}</div>
                 <div className="col-span-2 text-right font-mono text-text-secondary">
-                  {h.currentPrice != null ? `$${h.currentPrice < 1 ? h.currentPrice.toFixed(4) : h.currentPrice.toLocaleString()}` : '—'}
+                  {/* Not always USD — macro instruments quote in cents/percent/points. */}
+                  {formatInstrumentQuote(INSTRUMENT_BY_KEY[h.cgId], h.currentPrice) ?? '—'}
                 </div>
                 <div className="col-span-2 text-right font-mono text-text-secondary">
                   {h.entryPrice != null ? `$${h.entryPrice < 1 ? h.entryPrice.toFixed(4) : h.entryPrice.toLocaleString()}` : <span className="text-text-muted">not set</span>}

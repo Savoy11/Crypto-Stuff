@@ -89,7 +89,9 @@ export function validateWatchlist(w: IncomingWatchlist): ValidatedWatchlist | { 
 
 // ─── Writes ──────────────────────────────────────────────────────────────────
 
-async function insertItems(userId: string, watchlistId: string, keys: string[]) {
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+async function insertItems(userId: string, watchlistId: string, keys: string[], tx: Tx | typeof db = db) {
   if (keys.length === 0) return
   // The catalog carries symbol/name for every key the UI can add; the key
   // itself is a safe fallback for anything it can't (classify() prefers the
@@ -98,7 +100,7 @@ async function insertItems(userId: string, watchlistId: string, keys: string[]) 
     const inst = INSTRUMENT_BY_KEY[key]
     return { key, symbol: inst?.symbol ?? key, name: inst?.name ?? key }
   }))
-  await db.insert(watchlistItems).values(keys.map((key, i) => ({
+  await tx.insert(watchlistItems).values(keys.map((key, i) => ({
     userId,
     watchlistId,
     instrumentId: keyToId.get(key)!,
@@ -123,16 +125,21 @@ export async function insertWatchlist(userId: string, v: ValidatedWatchlist, sor
  * cannot drift — no diffing, no orphans.
  */
 export async function replaceWatchlist(userId: string, watchlistId: string, v: ValidatedWatchlist): Promise<boolean> {
-  // Ownership lives in the WHERE, not a check afterwards — the update must
-  // never touch a row that turns out to belong to someone else.
-  const [updated] = await db.update(watchlists)
-    .set({ name: v.name })
-    .where(and(eq(watchlists.id, watchlistId), eq(watchlists.userId, userId)))
-    .returning({ id: watchlists.id })
-  if (!updated) return false
+  // Transactional for the same reason replacePortfolio is: replace-all means
+  // DELETE-then-INSERT, and a failing insert would otherwise leave the delete
+  // committed and the list empty while the client reports "not saved".
+  return db.transaction(async (tx) => {
+    // Ownership lives in the WHERE, not a check afterwards — the update must
+    // never touch a row that turns out to belong to someone else.
+    const [updated] = await tx.update(watchlists)
+      .set({ name: v.name })
+      .where(and(eq(watchlists.id, watchlistId), eq(watchlists.userId, userId)))
+      .returning({ id: watchlists.id })
+    if (!updated) return false
 
-  await db.delete(watchlistItems)
-    .where(and(eq(watchlistItems.watchlistId, watchlistId), eq(watchlistItems.userId, userId)))
-  await insertItems(userId, watchlistId, v.keys)
-  return true
+    await tx.delete(watchlistItems)
+      .where(and(eq(watchlistItems.watchlistId, watchlistId), eq(watchlistItems.userId, userId)))
+    await insertItems(userId, watchlistId, v.keys, tx)
+    return true
+  })
 }
