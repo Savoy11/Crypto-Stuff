@@ -467,6 +467,20 @@ describe('diversification score', () => {
     const concentrated = build({ yearsToFirstUse: 45, riskTolerance: 10 })
     expect(spread.diversificationScore).toBeGreaterThan(concentrated.diversificationScore)
   })
+
+  it('discriminates instead of saturating — no plan pins the ceiling', () => {
+    // The count-based formula this replaced scored most multi-class plans at
+    // exactly 100. The Gini–Simpson form must keep separating them.
+    const scores = SWEEP.map((i) => build(i).diversificationScore)
+    expect(Math.max(...scores)).toBeLessThan(100)
+    expect(new Set(scores).size).toBeGreaterThan(10)
+  })
+
+  it('rewards adding a sleeve to an otherwise identical plan', () => {
+    const without = build({ yearsToFirstUse: 20, cryptoComfort: 'none' })
+    const withCrypto = build({ yearsToFirstUse: 20, cryptoComfort: 'small' })
+    expect(withCrypto.diversificationScore).toBeGreaterThan(without.diversificationScore)
+  })
 })
 
 describe('actualWeightsFromPortfolio', () => {

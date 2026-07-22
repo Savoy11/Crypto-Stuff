@@ -562,11 +562,18 @@ export function buildPortfolio(inputs: BuilderInputs): BuiltPortfolio {
   // warning about would be unreachable. Fee creep is a real risk in the portfolio
   // the user actually holds — it is checked there, in reviewPlan().
 
-  // 8. Diversification score: breadth of classes + no class dominance + intl presence
-  const classCount = classMix.length
-  const largestClass = classMix[0]?.pct ?? 100
+  // 8. Diversification score — Gini–Simpson diversity (1 − Σwᵢ²) over the
+  //    class mix, worth 90 points, plus up to 10 for international equity
+  //    reaching a fifth of the plan. The old count-based formula pinned every
+  //    reasonable multi-class plan at exactly 100 — it stopped discriminating
+  //    exactly where the well-diversified plans live. This one uses the full
+  //    weight distribution: adding a class always helps, balancing weights
+  //    always helps, and 100 needs a perfectly even split across every class
+  //    the builder has plus a real international sleeve — unreachable by an
+  //    actual plan, so the top of the scale keeps its meaning.
+  const hhi = classMix.reduce((s, c) => s + (c.pct / 100) ** 2, 0)
   const diversificationScore = Math.round(clamp(
-    classCount * 12 + (100 - largestClass) * 0.45 + (intlPct > 0 ? 10 : 0), 0, 100))
+    90 * (1 - hhi) + 10 * Math.min(intlPct / 20, 1), 0, 100))
 
   if (inputs.riskTolerance >= 8 && horizon < 5) {
     notes.push({ level: 'warn', message: 'High risk tolerance with a short horizon — the horizon wins. Appetite for risk does not extend a spend date.' })
