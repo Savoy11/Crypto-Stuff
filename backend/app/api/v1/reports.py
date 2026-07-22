@@ -4,8 +4,7 @@ Institutional reporting endpoints: portfolio summary, peer comparison, and expor
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, date, datetime, timedelta
-from typing import Any
+from datetime import UTC, datetime, timedelta
 
 import structlog
 from fastapi import APIRouter, Query
@@ -13,8 +12,6 @@ from sqlalchemy import desc, func, select
 
 from app.dependencies import CurrentUser, DBSession
 from app.models.asset import Asset, AssetType
-from app.models.market_data import MarketData
-from app.models.reserve_attestation import ReserveAttestation
 from app.models.risk_score import RiskBand, RiskScore
 
 logger = structlog.get_logger(__name__)
@@ -57,7 +54,7 @@ async def get_portfolio_summary(
             (latest_subq.c.asset_id == RiskScore.asset_id)
             & (latest_subq.c.latest == RiskScore.score_date),
         )
-        .where(Asset.is_active == True)
+        .where(Asset.is_active.is_(True))
     )
     if asset_type:
         query = query.where(Asset.asset_type == asset_type)
@@ -85,15 +82,17 @@ async def get_portfolio_summary(
     ]
     at_risk.sort(key=lambda x: x["score"])
 
-    return _envelope({
-        "total_assets": len(rows),
-        "average_score": round(avg_score, 2),
-        "min_score": round(min_score, 2),
-        "max_score": round(max_score, 2),
-        "risk_band_distribution": bands,
-        "assets_at_risk": at_risk[:10],
-        "report_date": today.isoformat(),
-    })
+    return _envelope(
+        {
+            "total_assets": len(rows),
+            "average_score": round(avg_score, 2),
+            "min_score": round(min_score, 2),
+            "max_score": round(max_score, 2),
+            "risk_band_distribution": bands,
+            "assets_at_risk": at_risk[:10],
+            "report_date": today.isoformat(),
+        }
+    )
 
 
 @router.get("/peer-comparison", response_model=dict, summary="Peer group comparison")
@@ -121,34 +120,38 @@ async def peer_comparison(
             (latest_subq.c.asset_id == RiskScore.asset_id)
             & (latest_subq.c.latest == RiskScore.score_date),
         )
-        .where(Asset.is_active == True, Asset.asset_type == asset_type)
+        .where(Asset.is_active.is_(True), Asset.asset_type == asset_type)
         .order_by(desc(RiskScore.overall_score))
     )
     rows = result.all()
 
     peer_list = []
     for rank, (rs, asset) in enumerate(rows, start=1):
-        peer_list.append({
-            "rank": rank,
-            "asset_id": str(asset.id),
-            "symbol": asset.symbol,
-            "name": asset.name,
-            "overall_score": float(rs.overall_score),
-            "risk_band": rs.risk_band.value,
-            "reserve_score": float(rs.reserve_score) if rs.reserve_score else None,
-            "peg_score": float(rs.peg_score) if rs.peg_score else None,
-            "network_score": float(rs.network_score) if rs.network_score else None,
-            "security_score": float(rs.security_score) if rs.security_score else None,
-            "confidence": float(rs.confidence),
-            "percentile_rank": float(rs.percentile_rank) if rs.percentile_rank else None,
-        })
+        peer_list.append(
+            {
+                "rank": rank,
+                "asset_id": str(asset.id),
+                "symbol": asset.symbol,
+                "name": asset.name,
+                "overall_score": float(rs.overall_score),
+                "risk_band": rs.risk_band.value,
+                "reserve_score": float(rs.reserve_score) if rs.reserve_score else None,
+                "peg_score": float(rs.peg_score) if rs.peg_score else None,
+                "network_score": float(rs.network_score) if rs.network_score else None,
+                "security_score": float(rs.security_score) if rs.security_score else None,
+                "confidence": float(rs.confidence),
+                "percentile_rank": float(rs.percentile_rank) if rs.percentile_rank else None,
+            }
+        )
 
-    return _envelope({
-        "asset_type": asset_type.value,
-        "peer_count": len(peer_list),
-        "report_date": today.isoformat(),
-        "rankings": peer_list,
-    })
+    return _envelope(
+        {
+            "asset_type": asset_type.value,
+            "peer_count": len(peer_list),
+            "report_date": today.isoformat(),
+            "rankings": peer_list,
+        }
+    )
 
 
 @router.get("/risk-trend", response_model=dict, summary="Risk score trend over time")
@@ -172,7 +175,7 @@ async def get_risk_trend(
         query = (
             select(RiskScore.score_date, func.avg(RiskScore.overall_score).label("avg_score"))
             .join(Asset, Asset.id == RiskScore.asset_id)
-            .where(Asset.is_active == True, RiskScore.score_date >= since)
+            .where(Asset.is_active.is_(True), RiskScore.score_date >= since)
             .group_by(RiskScore.score_date)
             .order_by(RiskScore.score_date)
         )
@@ -185,9 +188,11 @@ async def get_risk_trend(
         for row in rows
     ]
 
-    return _envelope({
-        "asset_id": str(asset_id) if asset_id else None,
-        "period_days": days,
-        "data_points": len(trend),
-        "trend": trend,
-    })
+    return _envelope(
+        {
+            "asset_id": str(asset_id) if asset_id else None,
+            "period_days": days,
+            "data_points": len(trend),
+            "trend": trend,
+        }
+    )

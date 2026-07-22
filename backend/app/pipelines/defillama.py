@@ -3,7 +3,6 @@ DefiLlama ingestion pipeline: stablecoin circulating supply, TVL, and peg prices
 """
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
@@ -96,9 +95,7 @@ class DefiLlamaPipeline(BasePipeline):
         )
         return data
 
-    def _map_stablecoin_to_supply(
-        self, asset: Asset, row: dict[str, Any]
-    ) -> dict[str, Any] | None:
+    def _map_stablecoin_to_supply(self, asset: Asset, row: dict[str, Any]) -> dict[str, Any] | None:
         """
         Extract circulating supply figures from a DefiLlama stablecoin row.
 
@@ -109,11 +106,7 @@ class DefiLlamaPipeline(BasePipeline):
         peg_mechanism = row.get("pegMechanism", "")
 
         # Prefer USD-denominated peg values
-        usd_circulating = (
-            circulating.get("peggedUSD")
-            or circulating.get("peggedEUR")
-            or 0.0
-        )
+        usd_circulating = circulating.get("peggedUSD") or circulating.get("peggedEUR") or 0.0
 
         if usd_circulating == 0:
             return None
@@ -155,7 +148,6 @@ class DefiLlamaPipeline(BasePipeline):
         for sc in stablecoins:
             sc_symbol = sc.get("symbol", "").upper()
             sc_id = str(sc.get("id", ""))
-            sc_name = sc.get("name", "").lower()
 
             for asset in assets:
                 # Try explicit defillama_id first
@@ -188,7 +180,7 @@ class DefiLlamaPipeline(BasePipeline):
         id_map = self._build_defillama_id_map(assets, all_stablecoins)
         records: list[dict[str, Any]] = []
 
-        for sc_id, (asset, sc_row) in id_map.items():
+        for _sc_id, (asset, sc_row) in id_map.items():
             record = self._map_stablecoin_to_supply(asset, sc_row)
             if record:
                 records.append(record)
@@ -229,7 +221,6 @@ class DefiLlamaPipeline(BasePipeline):
             return []
 
         tokens = detail.get("tokens", [])
-        peg_target = float((asset.asset_metadata or {}).get("peg_target", 1.0))
         records: list[dict[str, Any]] = []
 
         for entry in tokens:
@@ -244,16 +235,16 @@ class DefiLlamaPipeline(BasePipeline):
             except (ValueError, TypeError):
                 continue
 
-            usd_supply = float(
-                supply_data.get("peggedUSD") or supply_data.get("peggedEUR") or 0.0
-            )
+            usd_supply = float(supply_data.get("peggedUSD") or supply_data.get("peggedEUR") or 0.0)
 
-            records.append({
-                "asset_id": str(asset.id),
-                "timestamp": ts,
-                "market_cap": usd_supply,
-                "source": "defillama_historical",
-            })
+            records.append(
+                {
+                    "asset_id": str(asset.id),
+                    "timestamp": ts,
+                    "market_cap": usd_supply,
+                    "source": "defillama_historical",
+                }
+            )
 
         deduped = self.deduplicate_records(records, key_fields=["asset_id", "timestamp"])
         logger.info(

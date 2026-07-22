@@ -16,9 +16,9 @@ from app.pipelines.base import BasePipeline
 logger = structlog.get_logger(__name__)
 
 # ERC-20 function selectors
-TOTAL_SUPPLY_SELECTOR = "0x18160ddd"   # totalSupply()
-BALANCE_OF_SELECTOR = "0x70a08231"    # balanceOf(address)
-DECIMALS_SELECTOR = "0x313ce567"       # decimals()
+TOTAL_SUPPLY_SELECTOR = "0x18160ddd"  # totalSupply()
+BALANCE_OF_SELECTOR = "0x70a08231"  # balanceOf(address)
+DECIMALS_SELECTOR = "0x313ce567"  # decimals()
 
 
 class OnChainPipeline(BasePipeline):
@@ -96,7 +96,7 @@ class OnChainPipeline(BasePipeline):
             return None
         try:
             raw = int(result, 16)
-            return raw / (10 ** decimals)
+            return raw / (10**decimals)
         except (ValueError, TypeError) as exc:
             logger.error("total_supply_parse_error", error=str(exc))
             return None

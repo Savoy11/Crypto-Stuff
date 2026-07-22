@@ -4,8 +4,8 @@ oracle dependency, and code audit scoring.
 """
 from __future__ import annotations
 
+from datetime import UTC
 from typing import Any
-
 
 # Audit firm quality scores (0-100)
 AUDIT_FIRM_QUALITY: dict[str, float] = {
@@ -26,13 +26,13 @@ AUDIT_FIRM_QUALITY: dict[str, float] = {
 
 # Upgrade mechanism risk levels
 UPGRADE_RISK: dict[str, float] = {
-    "immutable": 100.0,          # No upgradability — most secure
-    "timelock_48h": 85.0,        # 48h timelock before upgrade
-    "timelock_24h": 70.0,        # 24h timelock
-    "timelock_12h": 55.0,        # 12h timelock
-    "multisig_proxy": 60.0,      # Multisig-controlled upgradeable proxy
+    "immutable": 100.0,  # No upgradability — most secure
+    "timelock_48h": 85.0,  # 48h timelock before upgrade
+    "timelock_24h": 70.0,  # 24h timelock
+    "timelock_12h": 55.0,  # 12h timelock
+    "multisig_proxy": 60.0,  # Multisig-controlled upgradeable proxy
     "single_admin_proxy": 20.0,  # Single admin upgradeable proxy
-    "transparent_proxy": 50.0,   # Standard transparent proxy without timelock
+    "transparent_proxy": 50.0,  # Standard transparent proxy without timelock
     "unknown": 10.0,
 }
 
@@ -54,8 +54,9 @@ def score_audit_coverage(
     if not audits:
         return 0.0
 
-    from datetime import date, datetime, timezone
-    today = datetime.now(timezone.utc).date()
+    from datetime import date, datetime
+
+    today = datetime.now(UTC).date()
 
     best_score = 0.0
     for audit in audits:
@@ -73,7 +74,7 @@ def score_audit_coverage(
         freshness_multiplier = 1.0
         if audit_date:
             days_old = (today - audit_date).days
-            if days_old > 730:   # >2 years
+            if days_old > 730:  # >2 years
                 freshness_multiplier = 0.5
             elif days_old > 365:  # >1 year
                 freshness_multiplier = 0.75
@@ -224,16 +225,9 @@ def composite_smart_contract_score(
     admin_score = score_admin_key_risk(
         is_multisig, signer_count, threshold, has_timelock, timelock_hours
     )
-    oracle_score = score_oracle_dependency(
-        oracle_count, oracle_types or [], has_circuit_breaker
-    )
+    oracle_score = score_oracle_dependency(oracle_count, oracle_types or [], has_circuit_breaker)
 
-    composite = (
-        audit_score * 0.35
-        + upgrade_score * 0.25
-        + admin_score * 0.25
-        + oracle_score * 0.15
-    )
+    composite = audit_score * 0.35 + upgrade_score * 0.25 + admin_score * 0.25 + oracle_score * 0.15
 
     return {
         "audit_score": round(audit_score, 2),

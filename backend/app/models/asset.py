@@ -3,16 +3,13 @@ Asset model — represents a digital asset (stablecoin, tokenized asset, CBDC, D
 """
 from __future__ import annotations
 
-import uuid
-from datetime import datetime
+import enum
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, Text, func
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Boolean, Enum, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
-
-import enum
 
 
 class AssetType(str, enum.Enum):
@@ -45,25 +42,25 @@ class Asset(Base, UUIDMixin, TimestampMixin):
     )
 
     # ── Relationships ────────────────────────────────────────────────────────
-    market_data: Mapped[list["MarketData"]] = relationship(  # noqa: F821
+    market_data: Mapped[list[MarketData]] = relationship(  # noqa: F821
         "MarketData", back_populates="asset", lazy="noload"
     )
-    risk_scores: Mapped[list["RiskScore"]] = relationship(  # noqa: F821
+    risk_scores: Mapped[list[RiskScore]] = relationship(  # noqa: F821
         "RiskScore", back_populates="asset", lazy="noload"
     )
-    reserve_attestations: Mapped[list["ReserveAttestation"]] = relationship(  # noqa: F821
+    reserve_attestations: Mapped[list[ReserveAttestation]] = relationship(  # noqa: F821
         "ReserveAttestation", back_populates="asset", lazy="noload"
     )
-    liquidity_metrics: Mapped[list["LiquidityMetric"]] = relationship(  # noqa: F821
+    liquidity_metrics: Mapped[list[LiquidityMetric]] = relationship(  # noqa: F821
         "LiquidityMetric", back_populates="asset", lazy="noload"
     )
-    blockchain_metrics: Mapped[list["BlockchainMetric"]] = relationship(  # noqa: F821
+    blockchain_metrics: Mapped[list[BlockchainMetric]] = relationship(  # noqa: F821
         "BlockchainMetric", back_populates="asset", lazy="noload"
     )
-    wallet_concentrations: Mapped[list["WalletConcentration"]] = relationship(  # noqa: F821
+    wallet_concentrations: Mapped[list[WalletConcentration]] = relationship(  # noqa: F821
         "WalletConcentration", back_populates="asset", lazy="noload"
     )
-    alerts: Mapped[list["Alert"]] = relationship(  # noqa: F821
+    alerts: Mapped[list[Alert]] = relationship(  # noqa: F821
         "Alert", back_populates="asset", lazy="noload"
     )
 

@@ -24,7 +24,11 @@ class TestLoginEndpoint:
                 "/api/v1/auth/login",
                 json={"email": "analyst@caep.io", "password": "SecurePass123!"},
             )
-        assert resp.status_code in (200, 422, 500)  # 200 when wired, others are acceptable in unit test
+        assert resp.status_code in (
+            200,
+            422,
+            500,
+        )  # 200 when wired, others are acceptable in unit test
 
     @pytest.mark.asyncio
     async def test_login_missing_fields_422(self, client):

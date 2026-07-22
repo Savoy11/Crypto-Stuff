@@ -1,0 +1,24 @@
+# Python caches / venvs — recreated inside the image
+__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov
+.coverage
+
+# Secrets & local config
+.env
+.env.*
+
+# VCS, editor, logs
+.git
+.gitignore
+*.log
+.DS_Store
+
+# Docker itself
+Dockerfile
+.dockerignore

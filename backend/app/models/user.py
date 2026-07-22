@@ -4,11 +4,9 @@ User model with RBAC roles and optional MFA.
 from __future__ import annotations
 
 import enum
-import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, Enum, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin, UUIDMixin
@@ -49,16 +47,16 @@ class User(Base, UUIDMixin, TimestampMixin):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # ── Relationships ────────────────────────────────────────────────────────
-    watchlists: Mapped[list["Watchlist"]] = relationship(  # noqa: F821
+    watchlists: Mapped[list[Watchlist]] = relationship(  # noqa: F821
         "Watchlist", back_populates="user", lazy="noload"
     )
-    api_keys: Mapped[list["APIKey"]] = relationship(  # noqa: F821
+    api_keys: Mapped[list[APIKey]] = relationship(  # noqa: F821
         "APIKey", back_populates="user", lazy="noload"
     )
-    alerts: Mapped[list["Alert"]] = relationship(  # noqa: F821
+    alerts: Mapped[list[Alert]] = relationship(  # noqa: F821
         "Alert", back_populates="user", lazy="noload"
     )
-    audit_logs: Mapped[list["AuditLog"]] = relationship(  # noqa: F821
+    audit_logs: Mapped[list[AuditLog]] = relationship(  # noqa: F821
         "AuditLog", back_populates="user", lazy="noload"
     )
 

@@ -15,8 +15,7 @@ from faker import Faker
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from app.config import settings
-from app.core.security import create_access_token, get_password_hash
+from app.core.security import create_access_token
 from app.main import app
 from app.models.base import Base
 
@@ -52,15 +51,14 @@ async def db_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 @pytest_asyncio.fixture
 async def client() -> AsyncGenerator[AsyncClient, None]:
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
 
 # ------------------------------------------------------------------ #
 # User fixtures
 # ------------------------------------------------------------------ #
+
 
 def _make_token(user_id: str, role: str = "viewer") -> str:
     return create_access_token(subject=user_id, extra_claims={"role": role})
@@ -95,6 +93,7 @@ def auth_headers_admin(admin_token) -> dict[str, str]:
 # Asset fixtures
 # ------------------------------------------------------------------ #
 
+
 @pytest.fixture
 def sample_usdc_data() -> dict[str, Any]:
     return {
@@ -115,6 +114,7 @@ def sample_usdc_data() -> dict[str, Any]:
 def sample_price_series_stable() -> list[float]:
     """Stable price series — tiny deviations around $1.00."""
     import random
+
     random.seed(42)
     return [1.0 + random.uniform(-0.0005, 0.0005) for _ in range(168)]  # 7 days hourly
 
@@ -142,6 +142,7 @@ def sample_reserve_composition() -> dict[str, float]:
 # ------------------------------------------------------------------ #
 # Mock Redis
 # ------------------------------------------------------------------ #
+
 
 @pytest.fixture
 def mock_redis():

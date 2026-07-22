@@ -5,8 +5,7 @@ identifying outliers in time-series metric data.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Any
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -192,7 +191,8 @@ def detect_metric_anomalies(
     combined_indices = sorted(z_indices | iqr_indices)
 
     # Rolling Z-scores
-    rolling_z = rolling_z_score(metric_history, rolling_window)
+    # TODO: surface these via AnomalyReport for trending analysis (see docstring).
+    rolling_z = rolling_z_score(metric_history, rolling_window)  # noqa: F841
 
     # Global Z-scores for reporting
     global_z: list[float] = []
@@ -205,7 +205,9 @@ def detect_metric_anomalies(
     flagged_pct = len(combined_indices) / len(metric_history) * 100.0
 
     # Severity classification
-    if flagged_pct > 10.0 or (combined_indices and max(global_z[i] for i in combined_indices) > 5.0):
+    if flagged_pct > 10.0 or (
+        combined_indices and max(global_z[i] for i in combined_indices) > 5.0
+    ):
         severity = "critical"
     elif flagged_pct > 5.0:
         severity = "high"

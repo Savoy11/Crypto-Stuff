@@ -6,8 +6,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
-
 
 def calculate_velocity(
     transfer_volume: float | None,
@@ -131,6 +129,7 @@ def score_transfer_count(transfer_count_24h: int | None) -> float:
         return 0.0
 
     import math
+
     log_score = math.log10(transfer_count_24h + 1)
     # log10(1M) = 6.0 → score 100
     score = min(100.0, log_score / 6.0 * 100.0)

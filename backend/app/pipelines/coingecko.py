@@ -4,17 +4,14 @@ Respects the free-tier rate limit of 30 req/min (2s between requests).
 """
 from __future__ import annotations
 
-import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.asset import Asset
-from app.models.market_data import MarketData
 from app.pipelines.base import BasePipeline
 
 logger = structlog.get_logger(__name__)
@@ -172,8 +169,8 @@ class CoinGeckoPipeline(BasePipeline):
     ) -> list[dict[str, Any]]:
         """Transform CoinGecko market chart data into MarketData insert dicts."""
         prices = chart_data.get("prices", [])
-        market_caps = {ts: cap for ts, cap in chart_data.get("market_caps", [])}
-        volumes = {ts: vol for ts, vol in chart_data.get("total_volumes", [])}
+        market_caps = dict(chart_data.get("market_caps", []))
+        volumes = dict(chart_data.get("total_volumes", []))
 
         peg_target = float((asset.asset_metadata or {}).get("peg_target", 1.0))
         records = []
@@ -186,16 +183,18 @@ class CoinGeckoPipeline(BasePipeline):
                 peg_dev_pct = (price - peg_target) / peg_target * 100.0
                 peg_dev_bps = peg_dev_pct * 100.0
 
-            records.append({
-                "asset_id": str(asset.id),
-                "timestamp": ts,
-                "price_usd": price,
-                "market_cap": market_caps.get(ts_ms),
-                "volume_24h": volumes.get(ts_ms),
-                "peg_target": peg_target,
-                "peg_deviation_pct": peg_dev_pct,
-                "peg_deviation_bps": peg_dev_bps,
-            })
+            records.append(
+                {
+                    "asset_id": str(asset.id),
+                    "timestamp": ts,
+                    "price_usd": price,
+                    "market_cap": market_caps.get(ts_ms),
+                    "volume_24h": volumes.get(ts_ms),
+                    "peg_target": peg_target,
+                    "peg_deviation_pct": peg_dev_pct,
+                    "peg_deviation_bps": peg_dev_bps,
+                }
+            )
 
         return records
 
@@ -275,9 +274,7 @@ class CoinGeckoPipeline(BasePipeline):
                 interval="hourly" if days <= 90 else "daily",
             )
             records = self._map_chart_to_records(asset, chart)
-            deduplicated = self.deduplicate_records(
-                records, key_fields=["asset_id", "timestamp"]
-            )
+            deduplicated = self.deduplicate_records(records, key_fields=["asset_id", "timestamp"])
 
             logger.info(
                 "coingecko_historical_fetched",

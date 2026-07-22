@@ -3,13 +3,11 @@ Unit tests for the CoinGecko data pipeline.
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from app.pipelines.coingecko import CoinGeckoPipeline
-
 
 MOCK_COINGECKO_MARKET_RESPONSE = [
     {
@@ -66,6 +64,7 @@ class TestCoinGeckoPipeline:
         with patch.object(self.pipeline, "_raw_fetch", new=flaky):
             result = await self.pipeline.fetch_with_retry("/coins/markets", max_retries=3)
         assert call_count == 3
+        assert result == MOCK_COINGECKO_MARKET_RESPONSE
 
     def test_map_market_item_to_internal(self):
         raw = MOCK_COINGECKO_MARKET_RESPONSE[0]

@@ -10,7 +10,6 @@ from datetime import UTC, datetime
 import structlog
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import desc, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import http_404
 from app.dependencies import CurrentUser, DBSession, Pagination, require_role
@@ -18,9 +17,6 @@ from app.models.asset import Asset, AssetType
 from app.models.risk_score import RiskBand, RiskScore
 from app.schemas.risk_score import (
     RecalculateRequest,
-    RecalculateResponse,
-    RiskScoreLatest,
-    RiskScoreResponse,
 )
 from app.scoring.engine import ScoringEngine
 
@@ -49,7 +45,6 @@ async def list_risk_scores(
     score_date: str | None = Query(None, description="ISO date string YYYY-MM-DD"),
 ) -> dict:
     """Paginated list of latest risk scores across all assets."""
-    today = datetime.now(UTC).date()
 
     # Subquery for latest score date per asset
     latest_subq = (
@@ -141,24 +136,26 @@ async def get_latest_score(
     if not rs:
         raise http_404("Risk score", str(asset_id))
 
-    return _envelope({
-        "id": str(rs.id),
-        "asset_id": str(rs.asset_id),
-        "asset_symbol": asset.symbol,
-        "asset_name": asset.name,
-        "score_date": rs.score_date.isoformat(),
-        "overall_score": float(rs.overall_score),
-        "risk_band": rs.risk_band.value,
-        "reserve_score": float(rs.reserve_score) if rs.reserve_score else None,
-        "peg_score": float(rs.peg_score) if rs.peg_score else None,
-        "network_score": float(rs.network_score) if rs.network_score else None,
-        "security_score": float(rs.security_score) if rs.security_score else None,
-        "confidence": float(rs.confidence),
-        "percentile_rank": float(rs.percentile_rank) if rs.percentile_rank else None,
-        "score_breakdown": rs.score_breakdown,
-        "model_version": rs.model_version,
-        "created_at": rs.created_at.isoformat(),
-    })
+    return _envelope(
+        {
+            "id": str(rs.id),
+            "asset_id": str(rs.asset_id),
+            "asset_symbol": asset.symbol,
+            "asset_name": asset.name,
+            "score_date": rs.score_date.isoformat(),
+            "overall_score": float(rs.overall_score),
+            "risk_band": rs.risk_band.value,
+            "reserve_score": float(rs.reserve_score) if rs.reserve_score else None,
+            "peg_score": float(rs.peg_score) if rs.peg_score else None,
+            "network_score": float(rs.network_score) if rs.network_score else None,
+            "security_score": float(rs.security_score) if rs.security_score else None,
+            "confidence": float(rs.confidence),
+            "percentile_rank": float(rs.percentile_rank) if rs.percentile_rank else None,
+            "score_breakdown": rs.score_breakdown,
+            "model_version": rs.model_version,
+            "created_at": rs.created_at.isoformat(),
+        }
+    )
 
 
 @router.get("/{asset_id}/history", response_model=dict, summary="Risk score history for an asset")
@@ -173,9 +170,7 @@ async def get_score_history(
     if not asset_result.scalar_one_or_none():
         raise http_404("Asset", str(asset_id))
 
-    total_result = await db.execute(
-        select(func.count()).where(RiskScore.asset_id == asset_id)
-    )
+    total_result = await db.execute(select(func.count()).where(RiskScore.asset_id == asset_id))
     total = total_result.scalar_one()
 
     rs_result = await db.execute(
@@ -247,18 +242,19 @@ async def recalculate_score(
     engine = ScoringEngine()
     result = await engine.score_asset(asset_id, db, persist=True)
 
-    from app.schemas.risk_score import ComponentScores as CS
-    return _envelope({
-        "asset_id": str(asset_id),
-        "previous_score": prev_score,
-        "new_score": result.overall_score,
-        "risk_band": result.risk_band.value,
-        "recalculated_at": result.scored_at.isoformat(),
-        "components": {
-            "reserve_transparency": round(result.components.reserve_transparency, 2),
-            "peg_liquidity": round(result.components.peg_liquidity, 2),
-            "network_velocity": round(result.components.network_velocity, 2),
-            "security_compliance": round(result.components.security_compliance, 2),
-        },
-        "confidence": result.confidence,
-    })
+    return _envelope(
+        {
+            "asset_id": str(asset_id),
+            "previous_score": prev_score,
+            "new_score": result.overall_score,
+            "risk_band": result.risk_band.value,
+            "recalculated_at": result.scored_at.isoformat(),
+            "components": {
+                "reserve_transparency": round(result.components.reserve_transparency, 2),
+                "peg_liquidity": round(result.components.peg_liquidity, 2),
+                "network_velocity": round(result.components.network_velocity, 2),
+                "security_compliance": round(result.components.security_compliance, 2),
+            },
+            "confidence": result.confidence,
+        }
+    )

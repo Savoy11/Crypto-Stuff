@@ -22,9 +22,7 @@ class WalletConcentration(Base, UUIDMixin):
         nullable=False,
         index=True,
     )
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     # Top-N holder share (percentage of total supply)
     top_10_pct: Mapped[float | None] = mapped_column(Numeric(6, 3), nullable=True)
@@ -39,12 +37,10 @@ class WalletConcentration(Base, UUIDMixin):
     hhi_score: Mapped[float | None] = mapped_column(Numeric(10, 4), nullable=True)
 
     # ── Indexes ──────────────────────────────────────────────────────────────
-    __table_args__ = (
-        Index("ix_wallet_conc_asset_ts", "asset_id", "timestamp"),
-    )
+    __table_args__ = (Index("ix_wallet_conc_asset_ts", "asset_id", "timestamp"),)
 
     # ── Relationships ────────────────────────────────────────────────────────
-    asset: Mapped["Asset"] = relationship(  # noqa: F821
+    asset: Mapped[Asset] = relationship(  # noqa: F821
         "Asset", back_populates="wallet_concentrations"
     )
 

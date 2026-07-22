@@ -6,7 +6,6 @@ Create Date: 2026-06-14
 """
 from __future__ import annotations
 
-import sqlalchemy as sa
 from alembic import op
 
 revision = "002"
@@ -18,8 +17,7 @@ depends_on = None
 def upgrade() -> None:
     # Fix score_date column type (was DateTime, must be Date)
     op.execute(
-        "ALTER TABLE risk_scores ALTER COLUMN score_date TYPE date "
-        "USING score_date::date"
+        "ALTER TABLE risk_scores ALTER COLUMN score_date TYPE date " "USING score_date::date"
     )
 
     # Add model_version column if not present
@@ -46,7 +44,11 @@ def upgrade() -> None:
         """
     )
 
-    # Add UNIQUE constraint
+    # Add UNIQUE constraint. 001 now also creates this constraint inline, so
+    # drop-then-add keeps this migration idempotent on both a fresh schema
+    # (001 already made it) and a legacy schema (001 predated it). Matches the
+    # IF EXISTS / IF NOT EXISTS guarding used by every other statement here.
+    op.execute("ALTER TABLE risk_scores DROP CONSTRAINT IF EXISTS uq_risk_score_asset_date")
     op.execute(
         "ALTER TABLE risk_scores "
         "ADD CONSTRAINT uq_risk_score_asset_date UNIQUE (asset_id, score_date)"
@@ -59,41 +61,27 @@ def upgrade() -> None:
     )
 
     # Add failed_login_attempts and locked_until columns to users if not present
-    op.execute(
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)"
-    )
-    op.execute(
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS organization VARCHAR(255)"
-    )
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255)")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS organization VARCHAR(255)")
     op.execute(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_verified BOOLEAN NOT NULL DEFAULT false"
     )
     op.execute(
         "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0"
     )
-    op.execute(
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP WITH TIME ZONE"
-    )
-    op.execute(
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(45)"
-    )
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP WITH TIME ZONE")
+    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_ip VARCHAR(45)")
 
     # Add request_id and success columns to audit_logs
-    op.execute(
-        "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(64)"
-    )
+    op.execute("ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS request_id VARCHAR(64)")
     op.execute(
         "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS success BOOLEAN NOT NULL DEFAULT true"
     )
 
 
 def downgrade() -> None:
-    op.execute(
-        "ALTER TABLE risk_scores DROP CONSTRAINT IF EXISTS uq_risk_score_asset_date"
-    )
-    op.execute(
-        "DROP INDEX IF EXISTS ix_risk_scores_date_score"
-    )
+    op.execute("ALTER TABLE risk_scores DROP CONSTRAINT IF EXISTS uq_risk_score_asset_date")
+    op.execute("DROP INDEX IF EXISTS ix_risk_scores_date_score")
     op.execute(
         "ALTER TABLE risk_scores ALTER COLUMN score_date TYPE timestamp with time zone "
         "USING score_date::timestamp with time zone"

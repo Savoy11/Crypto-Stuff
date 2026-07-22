@@ -48,9 +48,7 @@ async def list_alerts(
 
     # Non-admin users only see their own alerts or asset-level alerts with no user
     if str(current_user.role) != "admin":
-        query = query.where(
-            (Alert.user_id == current_user.id) | (Alert.user_id.is_(None))
-        )
+        query = query.where((Alert.user_id == current_user.id) | (Alert.user_id.is_(None)))
 
     if asset_id:
         query = query.where(Alert.asset_id == asset_id)
@@ -73,7 +71,7 @@ async def list_alerts(
             func.count().label("cnt"),
             func.sum(func.cast(~Alert.is_read, func.Integer())).label("unread"),
         )
-        .where(Alert.is_resolved == False)
+        .where(Alert.is_resolved.is_(False))
         .group_by(Alert.severity)
     )
 
@@ -183,6 +181,7 @@ async def create_alert(
 
     # Broadcast via WebSocket
     from app.streaming.manager import connection_manager
+
     await connection_manager.broadcast_alert(
         alert_id=str(alert.id),
         asset_id=str(alert.asset_id),
@@ -206,7 +205,7 @@ async def mark_all_read(
     """Mark all unread alerts for the current user as read."""
     stmt = (
         update(Alert)
-        .where(Alert.user_id == current_user.id, Alert.is_read == False)
+        .where(Alert.user_id == current_user.id, Alert.is_read.is_(False))
         .values(is_read=True)
     )
     result = await db.execute(stmt)

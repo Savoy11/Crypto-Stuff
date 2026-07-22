@@ -28,11 +28,23 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-COPY --from=builder /app/public ./public
+# This repo has no public/ directory (Next doesn't require one). The standalone
+# server serves ./public when present, so create an empty one; switch back to
+# `COPY --from=builder /app/public ./public` if the directory is ever added.
+RUN mkdir ./public
 
 # Leverage output standalone traces for minimal image
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+# The app persists runtime config (.provider-config.json, .agent-prompts.json,
+# .exchange-credentials.json) into the app root at request time. /app itself is
+# created root-owned by WORKDIR, so the non-root user gets EACCES on every
+# write (observed live: /live-data/markets logging EACCES). Non-recursive chown
+# of the directory entry is enough for nextjs to create files in it. NOTE:
+# writes to the container filesystem are ephemeral — mount a volume over these
+# files for any deployment that should keep UI-saved keys across restarts.
+RUN chown nextjs:nodejs /app
 
 USER nextjs
 

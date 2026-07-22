@@ -72,7 +72,11 @@ class ChainlinkPipeline(BasePipeline):
 
     def __init__(self) -> None:
         super().__init__()
-        self.rpc_url = settings.CHAINLINK_RPC_URL if hasattr(settings, "CHAINLINK_RPC_URL") else settings.ETHEREUM_RPC_URL
+        self.rpc_url = (
+            settings.CHAINLINK_RPC_URL
+            if hasattr(settings, "CHAINLINK_RPC_URL")
+            else settings.ETHEREUM_RPC_URL
+        )
         self._web3 = None
 
     async def _get_web3(self):
@@ -81,6 +85,7 @@ class ChainlinkPipeline(BasePipeline):
             return self._web3
         try:
             from web3 import AsyncWeb3
+
             self._web3 = AsyncWeb3(AsyncWeb3.AsyncHTTPProvider(self.rpc_url))
             return self._web3
         except ImportError:
@@ -115,7 +120,7 @@ class ChainlinkPipeline(BasePipeline):
             decimals = await contract.functions.decimals().call()
 
             _, answer, _, updated_at, _ = round_data
-            price = float(answer) / (10 ** decimals)
+            price = float(answer) / (10**decimals)
             ts = datetime.fromtimestamp(updated_at, tz=UTC)
 
             return {

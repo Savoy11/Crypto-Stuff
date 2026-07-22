@@ -56,6 +56,7 @@ class UserResponse(BaseModel):
 
 class UserProfile(UserResponse):
     """Extended profile for /auth/me endpoint."""
+
     failed_login_attempts: int
 
 

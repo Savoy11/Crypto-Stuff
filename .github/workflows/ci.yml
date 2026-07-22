@@ -262,7 +262,9 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          target: production
+          # Must match the Dockerfile's final stage name — there is no
+          # "production" stage (F-C root cause).
+          target: runtime
           push: false
           tags: caep-backend:ci-test
           cache-from: type=gha,scope=backend
@@ -276,14 +278,18 @@ jobs:
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          target: production
+          # Must match the Dockerfile's final stage name — there is no
+          # "production" stage (F-C root cause).
+          target: runner
           push: false
           tags: caep-frontend:ci-test
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
-          build-args: |
-            NEXT_PUBLIC_API_URL: http://localhost:8000
-            NEXT_TELEMETRY_DISABLED: 1
+          # build-args removed: the previous block used invalid "KEY: value"
+          # mapping syntax (build-push-action requires KEY=value lines), and the
+          # frontend Dockerfile declares no ARGs, so the values were unconsumed
+          # anyway. This bug was unreachable while the target mismatch failed
+          # the build first.
 
       - name: Run container structure test (backend)
         uses: plexsystems/container-structure-test-action@v0.3.0
@@ -346,7 +352,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: '1.6.6'
+          terraform_version: '1.9.8'
 
       - name: Terraform Format Check
         run: |

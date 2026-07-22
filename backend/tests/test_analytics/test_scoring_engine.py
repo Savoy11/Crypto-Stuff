@@ -3,19 +3,18 @@ Unit tests for the risk scoring engine.
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from uuid import uuid4
-
 import pytest
 
-from app.scoring.engine import ComponentScores, RiskScoreResult, ScoringEngine
+from app.scoring.engine import ComponentScores, ScoringEngine
 from app.scoring.weights import DEFAULT_WEIGHTS, ScoringWeights
 
 
 class TestScoringWeights:
     def test_default_weights_sum_to_one(self):
         w = DEFAULT_WEIGHTS
-        total = w.reserve_transparency + w.peg_liquidity + w.network_velocity + w.security_compliance
+        total = (
+            w.reserve_transparency + w.peg_liquidity + w.network_velocity + w.security_compliance
+        )
         assert total == pytest.approx(1.0, abs=1e-9)
 
     def test_custom_weights_must_sum_to_one(self):
@@ -84,10 +83,10 @@ class TestScoringEngineApplyWeights:
 
     def test_weighted_average_correctness(self):
         cs = ComponentScores(
-            reserve_transparency=80.0,   # * 0.35 = 28
-            peg_liquidity=60.0,          # * 0.30 = 18
-            network_velocity=100.0,      # * 0.20 = 20
-            security_compliance=80.0,    # * 0.15 = 12
+            reserve_transparency=80.0,  # * 0.35 = 28
+            peg_liquidity=60.0,  # * 0.30 = 18
+            network_velocity=100.0,  # * 0.20 = 20
+            security_compliance=80.0,  # * 0.15 = 12
         )
         result = self.engine.apply_weights(cs)
         expected = 80.0 * 0.35 + 60.0 * 0.30 + 100.0 * 0.20 + 80.0 * 0.15

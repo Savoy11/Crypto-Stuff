@@ -1,5 +1,5 @@
 # Scoring component modules
-from app.scoring.components.reserve_transparency import compute_reserve_transparency_score
-from app.scoring.components.peg_liquidity import compute_peg_liquidity_score
 from app.scoring.components.network_velocity import compute_network_velocity_score
+from app.scoring.components.peg_liquidity import compute_peg_liquidity_score
+from app.scoring.components.reserve_transparency import compute_reserve_transparency_score
 from app.scoring.components.security_compliance import compute_security_compliance_score

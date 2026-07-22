@@ -10,12 +10,12 @@ from typing import Any
 @dataclass
 class RedemptionStressResult:
     scenario: str
-    redemption_pct: float        # % of supply redeemed
+    redemption_pct: float  # % of supply redeemed
     redemption_usd: float
     reserves_remaining_usd: float
     is_solvent: bool
     remaining_ratio: float
-    stress_score: float          # 0-100
+    stress_score: float  # 0-100
 
 
 def assess_redemption_solvency(
@@ -43,9 +43,9 @@ def assess_redemption_solvency(
 
     # Stress scenarios
     scenarios = [
-        ("mild_stress", 0.10),     # 10% simultaneous redemption
-        ("moderate_stress", 0.25), # 25% simultaneous redemption
-        ("severe_stress", 0.50),   # 50% simultaneous redemption
+        ("mild_stress", 0.10),  # 10% simultaneous redemption
+        ("moderate_stress", 0.25),  # 25% simultaneous redemption
+        ("severe_stress", 0.50),  # 50% simultaneous redemption
         ("extreme_stress", 0.75),  # 75% simultaneous redemption
     ]
 

@@ -4,7 +4,7 @@ AuditLog model — immutable audit trail for all significant operations.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, Index, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -54,7 +54,7 @@ class AuditLog(Base, UUIDMixin):
     )
 
     # ── Relationships ────────────────────────────────────────────────────────
-    user: Mapped["User | None"] = relationship("User", back_populates="audit_logs")  # noqa: F821
+    user: Mapped[User | None] = relationship("User", back_populates="audit_logs")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<AuditLog action={self.action} resource={self.resource_type}/{self.resource_id}>"

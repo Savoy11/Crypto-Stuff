@@ -8,7 +8,7 @@ import secrets
 from functools import lru_cache
 from typing import Any
 
-from pydantic import AnyHttpUrl, Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,9 +61,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     # CORS
     # ------------------------------------------------------------------ #
-    CORS_ORIGINS: list[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8080"]
-    )
+    CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000", "http://localhost:8080"])
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: list[str] = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
     CORS_ALLOW_HEADERS: list[str] = [

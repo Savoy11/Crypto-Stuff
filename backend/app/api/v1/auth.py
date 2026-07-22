@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.core.exceptions import http_401, http_409
 from app.core.rate_limiter import get_redis
 from app.core.security import (
@@ -25,7 +26,7 @@ from app.core.security import (
 )
 from app.dependencies import CurrentUser, DBSession, require_role
 from app.models.audit_log import AuditLog
-from app.models.user import User, UserRole
+from app.models.user import User
 from app.schemas.auth import (
     LoginRequest,
     LogoutRequest,
@@ -38,9 +39,7 @@ from app.schemas.user import (
     ChangePasswordRequest,
     MFASetupResponse,
     MFAVerifyRequest,
-    UserProfile,
 )
-from app.config import settings
 
 # Maximum failed attempts before account lockout
 _MAX_FAILED_ATTEMPTS = 5
@@ -104,10 +103,7 @@ async def login(
     user = result.scalar_one_or_none()
 
     # Validate credentials — do not reveal whether email exists
-    credential_valid = (
-        user is not None
-        and verify_password(body.password, user.hashed_password)
-    )
+    credential_valid = user is not None and verify_password(body.password, user.hashed_password)
 
     if not credential_valid:
         if user is not None:
@@ -122,8 +118,13 @@ async def login(
                 )
             await db.execute(update(User).where(User.id == user.id).values(**updates))
         await _log_audit(
-            db, user.id if user else None, "login_failed", "auth", request,
-            success=False, details={"email": body.email, "reason": "invalid_credentials"},
+            db,
+            user.id if user else None,
+            "login_failed",
+            "auth",
+            request,
+            success=False,
+            details={"email": body.email, "reason": "invalid_credentials"},
         )
         raise http_401("Invalid email or password")
 
@@ -146,8 +147,15 @@ async def login(
                 headers={"X-MFA-Required": "true"},
             )
         if not user.mfa_secret or not verify_mfa_code(user.mfa_secret, body.mfa_code):
-            await _log_audit(db, user.id, "login_failed", "auth", request, success=False,
-                             details={"reason": "invalid_mfa"})
+            await _log_audit(
+                db,
+                user.id,
+                "login_failed",
+                "auth",
+                request,
+                success=False,
+                details={"reason": "invalid_mfa"},
+            )
             raise http_401("Invalid MFA code")
 
     # Update last login
@@ -165,7 +173,9 @@ async def login(
     access_token = create_access_token(str(user.id), str(user.role))
     refresh_token = create_refresh_token(str(user.id))
 
-    await _log_audit(db, user.id, "login_success", "auth", request, details={"role": str(user.role)})
+    await _log_audit(
+        db, user.id, "login_success", "auth", request, details={"role": str(user.role)}
+    )
 
     token_data = TokenResponse(
         access_token=access_token,
@@ -187,7 +197,7 @@ async def refresh_token(
     try:
         payload = verify_token(body.refresh_token, expected_type="refresh")
     except Exception:
-        raise http_401("Invalid or expired refresh token")
+        raise http_401("Invalid or expired refresh token") from None
 
     user_id_str = payload.get("sub")
     if not user_id_str:
@@ -267,9 +277,14 @@ async def register(
     await db.flush()
 
     from app.schemas.user import UserResponse
+
     await _log_audit(
-        db, user.id, "user_registered", "user", request,
-        details={"email": body.email, "role": str(body.role)}
+        db,
+        user.id,
+        "user_registered",
+        "user",
+        request,
+        details={"email": body.email, "role": str(body.role)},
     )
 
     return _build_response(UserResponse.model_validate(user).model_dump())
@@ -279,6 +294,7 @@ async def register(
 async def get_me(current_user: CurrentUser) -> dict:
     """Return the authenticated user's profile."""
     from app.schemas.user import UserProfile
+
     return _build_response(UserProfile.model_validate(current_user).model_dump())
 
 
@@ -292,9 +308,7 @@ async def setup_mfa(
     uri = get_mfa_uri(secret, current_user.email)
 
     # Store secret temporarily (not yet enabled until verified)
-    await db.execute(
-        update(User).where(User.id == current_user.id).values(mfa_secret=secret)
-    )
+    await db.execute(update(User).where(User.id == current_user.id).values(mfa_secret=secret))
 
     return _build_response(
         MFASetupResponse(
@@ -318,9 +332,7 @@ async def verify_mfa(
     if not verify_mfa_code(current_user.mfa_secret, body.code):
         raise HTTPException(status_code=400, detail="Invalid MFA code")
 
-    await db.execute(
-        update(User).where(User.id == current_user.id).values(mfa_enabled=True)
-    )
+    await db.execute(update(User).where(User.id == current_user.id).values(mfa_enabled=True))
 
     return _build_response({"message": "MFA enabled successfully", "mfa_enabled": True})
 

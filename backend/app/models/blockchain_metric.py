@@ -22,9 +22,7 @@ class BlockchainMetric(Base, UUIDMixin):
         nullable=False,
         index=True,
     )
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
-    )
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
 
     # Supply
     total_supply: Mapped[float | None] = mapped_column(Numeric(30, 8), nullable=True)
@@ -45,12 +43,10 @@ class BlockchainMetric(Base, UUIDMixin):
     velocity: Mapped[float | None] = mapped_column(Numeric(10, 6), nullable=True)
 
     # ── Indexes ──────────────────────────────────────────────────────────────
-    __table_args__ = (
-        Index("ix_blockchain_metric_asset_ts", "asset_id", "timestamp"),
-    )
+    __table_args__ = (Index("ix_blockchain_metric_asset_ts", "asset_id", "timestamp"),)
 
     # ── Relationships ────────────────────────────────────────────────────────
-    asset: Mapped["Asset"] = relationship(  # noqa: F821
+    asset: Mapped[Asset] = relationship(  # noqa: F821
         "Asset", back_populates="blockchain_metrics"
     )
 

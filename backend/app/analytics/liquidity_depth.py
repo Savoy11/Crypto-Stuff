@@ -4,10 +4,7 @@ slippage scoring, and composite liquidity metrics.
 """
 from __future__ import annotations
 
-import math
 from typing import Any
-
-import numpy as np
 
 
 def calculate_market_depth_score(
@@ -95,7 +92,7 @@ def assess_venue_concentration(venues: list[dict[str, Any]]) -> float:
     normalised = [s / total for s in shares]
 
     # HHI: sum of squared market shares (as fractions), scaled to 0–10000
-    hhi = sum(s ** 2 for s in normalised) * 10_000.0
+    hhi = sum(s**2 for s in normalised) * 10_000.0
 
     # HHI interpretation:
     # < 1000 → unconcentrated (diverse)    → high score
@@ -189,10 +186,7 @@ def composite_liquidity_score(
     venue_score = assess_venue_concentration(venues or [])
 
     composite = (
-        depth_score * 0.40
-        + slippage_score * 0.30
-        + spread_score * 0.20
-        + venue_score * 0.10
+        depth_score * 0.40 + slippage_score * 0.30 + spread_score * 0.20 + venue_score * 0.10
     )
 
     return {

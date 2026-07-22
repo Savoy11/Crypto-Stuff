@@ -5,7 +5,7 @@
 ###############################################################################
 
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.9.0"
 
   required_providers {
     aws = {
@@ -316,7 +316,9 @@ resource "aws_wafv2_web_acl" "caep" {
   rule {
     name     = "AWSManagedRulesCommonRuleSet"
     priority = 1
-    override_action { none {} }
+    override_action {
+      none {}
+    }
     statement {
       managed_rule_group_statement {
         name        = "AWSManagedRulesCommonRuleSet"
@@ -333,7 +335,9 @@ resource "aws_wafv2_web_acl" "caep" {
   rule {
     name     = "AWSManagedRulesKnownBadInputsRuleSet"
     priority = 2
-    override_action { none {} }
+    override_action {
+      none {}
+    }
     statement {
       managed_rule_group_statement {
         name        = "AWSManagedRulesKnownBadInputsRuleSet"
@@ -351,7 +355,9 @@ resource "aws_wafv2_web_acl" "caep" {
   rule {
     name     = "RateLimitRule"
     priority = 10
-    action { block {} }
+    action {
+      block {}
+    }
     statement {
       rate_based_statement {
         limit              = 2000

@@ -57,7 +57,7 @@ resource "aws_iam_role_policy_attachment" "cloudwatch_agent" {
 
 data "aws_iam_policy_document" "backend_assume_role" {
   statement {
-    effect = "Allow"
+    effect  = "Allow"
     actions = ["sts:AssumeRoleWithWebIdentity"]
 
     principals {
@@ -156,9 +156,9 @@ resource "aws_iam_policy" "backend_s3" {
         ]
       },
       {
-        Sid    = "DecryptS3"
-        Effect = "Allow"
-        Action = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Sid      = "DecryptS3"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
         Resource = [aws_kms_key.caep.arn]
       }
     ]
@@ -176,9 +176,9 @@ resource "aws_iam_policy" "backend_cloudwatch" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "PutMetrics"
-        Effect = "Allow"
-        Action = ["cloudwatch:PutMetricData"]
+        Sid      = "PutMetrics"
+        Effect   = "Allow"
+        Action   = ["cloudwatch:PutMetricData"]
         Resource = "*"
         Condition = {
           StringEquals = {
@@ -487,9 +487,9 @@ resource "aws_iam_policy" "cicd_deploy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ECRAuthentication"
-        Effect = "Allow"
-        Action = ["ecr:GetAuthorizationToken"]
+        Sid      = "ECRAuthentication"
+        Effect   = "Allow"
+        Action   = ["ecr:GetAuthorizationToken"]
         Resource = "*"
       },
       {
@@ -521,9 +521,9 @@ resource "aws_iam_policy" "cicd_deploy" {
         Resource = "arn:aws:eks:${var.aws_region}:${local.account_id}:cluster/${local.name_prefix}-eks"
       },
       {
-        Sid    = "STSForKubeconfig"
-        Effect = "Allow"
-        Action = ["sts:GetCallerIdentity"]
+        Sid      = "STSForKubeconfig"
+        Effect   = "Allow"
+        Action   = ["sts:GetCallerIdentity"]
         Resource = "*"
       }
     ]

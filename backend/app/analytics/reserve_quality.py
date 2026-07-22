@@ -4,27 +4,26 @@ attestation freshness, and composite reserve scoring.
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from typing import Any
-
 
 # Quality weights for reserve composition types.
 # Higher is better (safer, more liquid).
 COMPOSITION_QUALITY_WEIGHTS: dict[str, float] = {
-    "cash": 1.00,           # Bank deposits, money market funds
-    "tbills": 0.95,         # US Treasury bills (<90 days)
-    "treasuries": 0.85,     # US Treasuries (longer duration)
-    "repo": 0.80,           # Reverse repurchase agreements
-    "agency": 0.75,         # Agency MBS / GSE debt
-    "mmf": 0.90,            # Money market funds (prime)
-    "corporate": 0.55,      # Investment-grade corporate bonds
-    "municipal": 0.60,      # Municipal bonds
-    "crypto": 0.20,         # Crypto assets (BTC, ETH, etc.)
-    "stablecoin": 0.30,     # Algorithmic or partially-backed stablecoins
-    "equity": 0.40,         # Equities / stocks
-    "real_estate": 0.35,    # Real estate / property
-    "commodities": 0.50,    # Gold, silver, etc.
-    "other": 0.30,          # Uncategorised assets
+    "cash": 1.00,  # Bank deposits, money market funds
+    "tbills": 0.95,  # US Treasury bills (<90 days)
+    "treasuries": 0.85,  # US Treasuries (longer duration)
+    "repo": 0.80,  # Reverse repurchase agreements
+    "agency": 0.75,  # Agency MBS / GSE debt
+    "mmf": 0.90,  # Money market funds (prime)
+    "corporate": 0.55,  # Investment-grade corporate bonds
+    "municipal": 0.60,  # Municipal bonds
+    "crypto": 0.20,  # Crypto assets (BTC, ETH, etc.)
+    "stablecoin": 0.30,  # Algorithmic or partially-backed stablecoins
+    "equity": 0.40,  # Equities / stocks
+    "real_estate": 0.35,  # Real estate / property
+    "commodities": 0.50,  # Gold, silver, etc.
+    "other": 0.30,  # Uncategorised assets
 }
 
 
@@ -48,7 +47,7 @@ def score_reserve_composition(composition: dict[str, Any]) -> float:
     for asset_class, details in composition.items():
         if isinstance(details, dict):
             pct = float(details.get("pct", details.get("percentage", 0.0)))
-        elif isinstance(details, (int, float)):
+        elif isinstance(details, int | float):
             pct = float(details)
         else:
             continue
@@ -65,10 +64,10 @@ def score_reserve_composition(composition: dict[str, Any]) -> float:
 
     # Apply a penalty if composition is heavily concentrated (>80% single asset)
     max_pct = 0.0
-    for asset_class, details in composition.items():
+    for _asset_class, details in composition.items():
         if isinstance(details, dict):
             pct = float(details.get("pct", details.get("percentage", 0.0)))
-        elif isinstance(details, (int, float)):
+        elif isinstance(details, int | float):
             pct = float(details)
         else:
             continue
@@ -130,7 +129,7 @@ def assess_attestation_freshness(last_date: date | datetime | None) -> float:
     if isinstance(last_date, datetime):
         last_date = last_date.date()
 
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     days_ago = (today - last_date).days
 
     if days_ago <= 1:
@@ -193,11 +192,14 @@ def composite_reserve_score(
         "composite_score": round(float(max(0.0, min(100.0, composite))), 2),
         "collateralization_ratio": collateralization_ratio,
         "days_since_attestation": (
-            (datetime.now(timezone.utc).date() - (
-                last_attestation_date.date()
-                if isinstance(last_attestation_date, datetime)
-                else last_attestation_date
-            )).days
+            (
+                datetime.now(UTC).date()
+                - (
+                    last_attestation_date.date()
+                    if isinstance(last_attestation_date, datetime)
+                    else last_attestation_date
+                )
+            ).days
             if last_attestation_date is not None
             else None
         ),
@@ -207,11 +209,11 @@ def composite_reserve_score(
 def _score_attester_quality(attester_type: str) -> float:
     """Score the credibility of the attestation source."""
     quality_map = {
-        "big4": 100.0,         # Big-4 auditors (Deloitte, PwC, KPMG, EY)
-        "independent": 75.0,   # Reputable independent auditors
-        "regulator": 90.0,     # Regulatory attestation
-        "internal": 25.0,      # Self-reported
-        "unknown": 10.0,       # Unverified
+        "big4": 100.0,  # Big-4 auditors (Deloitte, PwC, KPMG, EY)
+        "independent": 75.0,  # Reputable independent auditors
+        "regulator": 90.0,  # Regulatory attestation
+        "internal": 25.0,  # Self-reported
+        "unknown": 10.0,  # Unverified
     }
     return quality_map.get(attester_type.lower(), 10.0)
 
@@ -244,7 +246,7 @@ def identify_reserve_risk_flags(
         if key.lower() in ("crypto", "stablecoin", "equity"):
             if isinstance(val, dict):
                 crypto_pct += float(val.get("pct", val.get("percentage", 0.0)))
-            elif isinstance(val, (int, float)):
+            elif isinstance(val, int | float):
                 crypto_pct += float(val)
 
     if crypto_pct > 50.0:

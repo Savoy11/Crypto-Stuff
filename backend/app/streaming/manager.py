@@ -5,14 +5,12 @@ connection lifecycle management, and broadcast helpers.
 from __future__ import annotations
 
 import asyncio
-import json
 import uuid
 from collections import defaultdict
-from datetime import UTC, datetime
 from typing import Any
 
 import structlog
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket
 from starlette.websockets import WebSocketState
 
 from app.streaming.events import (
@@ -20,7 +18,6 @@ from app.streaming.events import (
     BaseEvent,
     MetricUpdateEvent,
     PriceUpdateEvent,
-    RiskScoreUpdateEvent,
     SystemStatusEvent,
 )
 
@@ -113,9 +110,7 @@ class ConnectionManager:
             self.asset_subscriptions[asset_id].discard(user_id)
             self.user_assets[user_id].discard(asset_id)
 
-    async def _send_to_websocket(
-        self, websocket: WebSocket, message: str
-    ) -> bool:
+    async def _send_to_websocket(self, websocket: WebSocket, message: str) -> bool:
         """
         Send a text message to a single WebSocket.
 
@@ -285,7 +280,7 @@ class ConnectionManager:
         message_str = event.model_dump_json()
         total_sent = 0
 
-        for user_id, connections in list(self.connection_registry.items()):
+        for _user_id, connections in list(self.connection_registry.items()):
             for ws in connections:
                 if await self._send_to_websocket(ws, message_str):
                     total_sent += 1

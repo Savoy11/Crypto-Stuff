@@ -10,29 +10,24 @@ from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select, desc, asc
+from sqlalchemy import asc, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.analytics.peg_stability import compute_peg_analytics_summary
 from app.analytics.anomaly_detection import detect_metric_anomalies
+from app.analytics.peg_stability import compute_peg_analytics_summary
 from app.core.exceptions import http_404
 from app.dependencies import CurrentUser, DBSession, Pagination, require_role
 from app.models.asset import Asset, AssetType
-from app.models.market_data import MarketData
-from app.models.risk_score import RiskScore, RiskBand
-from app.models.reserve_attestation import ReserveAttestation
 from app.models.blockchain_metric import BlockchainMetric
 from app.models.liquidity_metric import LiquidityMetric
+from app.models.market_data import MarketData
+from app.models.reserve_attestation import ReserveAttestation
+from app.models.risk_score import RiskBand, RiskScore
 from app.models.wallet_concentration import WalletConcentration
 from app.schemas.asset import (
-    AssetAnalyticsBundle,
-    AssetComparisonResponse,
     AssetCreate,
-    AssetDetailResponse,
     AssetResponse,
     AssetSummary,
-    LatestMetrics,
-    PaginatedAssets,
 )
 
 logger = structlog.get_logger(__name__)
@@ -74,9 +69,7 @@ async def list_assets(
         query = query.where(Asset.blockchain.ilike(f"%{blockchain}%"))
     if search:
         pattern = f"%{search.upper()}%"
-        query = query.where(
-            Asset.symbol.ilike(pattern) | Asset.name.ilike(f"%{search}%")
-        )
+        query = query.where(Asset.symbol.ilike(pattern) | Asset.name.ilike(f"%{search}%"))
 
     # Count total
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
@@ -216,9 +209,12 @@ async def get_asset_analytics(
     reserve_summary = None
     if ra:
         from app.analytics.reserve_quality import composite_reserve_score
+
         reserve_summary = composite_reserve_score(
             composition=ra.reserve_composition or {},
-            collateralization_ratio=float(ra.collateralization_ratio) if ra.collateralization_ratio else None,
+            collateralization_ratio=float(ra.collateralization_ratio)
+            if ra.collateralization_ratio
+            else None,
             last_attestation_date=ra.attestation_date,
             attester_quality=ra.attester_type or "unknown",
         )
@@ -236,6 +232,7 @@ async def get_asset_analytics(
     liquidity_summary = None
     if liq:
         from app.analytics.liquidity_depth import composite_liquidity_score
+
         mc = float(latest_md.market_cap) if latest_md and latest_md.market_cap else None
         liquidity_summary = composite_liquidity_score(
             depth_1pct=float(liq.depth_1pct_usd) if liq.depth_1pct_usd else None,
@@ -245,8 +242,12 @@ async def get_asset_analytics(
             spread_bps=float(liq.bid_ask_spread_bps) if liq.bid_ask_spread_bps else None,
             venues=liq.top_venues,
         )
-        liquidity_summary["dex_liquidity_usd"] = float(liq.dex_liquidity_usd) if liq.dex_liquidity_usd else None
-        liquidity_summary["cex_liquidity_usd"] = float(liq.cex_liquidity_usd) if liq.cex_liquidity_usd else None
+        liquidity_summary["dex_liquidity_usd"] = (
+            float(liq.dex_liquidity_usd) if liq.dex_liquidity_usd else None
+        )
+        liquidity_summary["cex_liquidity_usd"] = (
+            float(liq.cex_liquidity_usd) if liq.cex_liquidity_usd else None
+        )
 
     # Network summary
     bm_result = await db.execute(
@@ -259,6 +260,7 @@ async def get_asset_analytics(
     network_summary = None
     if bm:
         from app.analytics.velocity_metrics import composite_network_score
+
         network_summary = composite_network_score(
             velocity=float(bm.velocity) if bm.velocity else None,
             active_addresses_24h=bm.active_addresses_24h,
@@ -267,7 +269,9 @@ async def get_asset_analytics(
             asset_type=str(asset.asset_type.value),
         )
         network_summary["holder_count"] = bm.holder_count
-        network_summary["circulating_supply"] = float(bm.circulating_supply) if bm.circulating_supply else None
+        network_summary["circulating_supply"] = (
+            float(bm.circulating_supply) if bm.circulating_supply else None
+        )
 
     # Wallet concentration
     wc_result = await db.execute(
@@ -280,6 +284,7 @@ async def get_asset_analytics(
     wallet_concentration = None
     if wc:
         from app.analytics.wallet_concentration import concentration_score
+
         c_score = concentration_score(
             gini=float(wc.gini_coefficient) if wc.gini_coefficient else None,
             hhi=float(wc.hhi_score) if wc.hhi_score else None,
@@ -297,8 +302,7 @@ async def get_asset_analytics(
     # Risk score summary
     today = datetime.now(UTC).date()
     rs_result = await db.execute(
-        select(RiskScore)
-        .where(RiskScore.asset_id == asset_id, RiskScore.score_date == today)
+        select(RiskScore).where(RiskScore.asset_id == asset_id, RiskScore.score_date == today)
     )
     rs = rs_result.scalar_one_or_none()
     risk_score_summary = None
@@ -320,13 +324,15 @@ async def get_asset_analytics(
     if prices and len(prices) > 10:
         report = detect_metric_anomalies(prices, "price_usd")
         if report.anomaly_count > 0:
-            anomaly_flags.append({
-                "metric": "price_usd",
-                "anomaly_count": report.anomaly_count,
-                "severity": report.severity,
-                "flagged_pct": report.flagged_pct,
-                "anomaly_indices": report.anomaly_indices[:10],
-            })
+            anomaly_flags.append(
+                {
+                    "metric": "price_usd",
+                    "anomaly_count": report.anomaly_count,
+                    "severity": report.severity,
+                    "flagged_pct": report.flagged_pct,
+                    "anomaly_indices": report.anomaly_indices[:10],
+                }
+            )
 
     bundle = {
         "asset": AssetResponse.model_validate(asset).model_dump(),
@@ -408,9 +414,7 @@ async def get_risk_history(
     if not result.scalar_one_or_none():
         raise http_404("Asset", str(asset_id))
 
-    total_result = await db.execute(
-        select(func.count()).where(RiskScore.asset_id == asset_id)
-    )
+    total_result = await db.execute(select(func.count()).where(RiskScore.asset_id == asset_id))
     total = total_result.scalar_one()
 
     rs_result = await db.execute(
@@ -460,6 +464,7 @@ async def create_asset(
 ) -> dict:
     """Create a new asset. Requires admin role."""
     from sqlalchemy.exc import IntegrityError
+
     asset = Asset(
         symbol=body.symbol.upper(),
         name=body.name,
@@ -477,11 +482,11 @@ async def create_asset(
     db.add(asset)
     try:
         await db.flush()
-    except IntegrityError:
+    except IntegrityError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Asset with symbol '{body.symbol}' already exists",
-        )
+        ) from err
 
     return _envelope(AssetResponse.model_validate(asset).model_dump())
 
@@ -515,19 +520,27 @@ async def _build_asset_detail(
 
     latest_metrics: dict = {}
     if latest_md:
-        latest_metrics.update({
-            "price_usd": float(latest_md.price_usd) if latest_md.price_usd else None,
-            "market_cap": float(latest_md.market_cap) if latest_md.market_cap else None,
-            "volume_24h": float(latest_md.volume_24h) if latest_md.volume_24h else None,
-            "peg_deviation_bps": float(latest_md.peg_deviation_bps) if latest_md.peg_deviation_bps else None,
-            "liquidity_depth_1pct": float(latest_md.liquidity_depth_1pct) if latest_md.liquidity_depth_1pct else None,
-            "data_as_of": latest_md.timestamp.isoformat(),
-        })
+        latest_metrics.update(
+            {
+                "price_usd": float(latest_md.price_usd) if latest_md.price_usd else None,
+                "market_cap": float(latest_md.market_cap) if latest_md.market_cap else None,
+                "volume_24h": float(latest_md.volume_24h) if latest_md.volume_24h else None,
+                "peg_deviation_bps": float(latest_md.peg_deviation_bps)
+                if latest_md.peg_deviation_bps
+                else None,
+                "liquidity_depth_1pct": float(latest_md.liquidity_depth_1pct)
+                if latest_md.liquidity_depth_1pct
+                else None,
+                "data_as_of": latest_md.timestamp.isoformat(),
+            }
+        )
     if latest_rs:
-        latest_metrics.update({
-            "risk_score": float(latest_rs.overall_score),
-            "risk_band": latest_rs.risk_band.value,
-        })
+        latest_metrics.update(
+            {
+                "risk_score": float(latest_rs.overall_score),
+                "risk_band": latest_rs.risk_band.value,
+            }
+        )
 
     asset_dict = AssetResponse.model_validate(asset).model_dump()
     asset_dict["latest_metrics"] = latest_metrics

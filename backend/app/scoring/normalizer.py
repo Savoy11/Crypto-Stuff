@@ -84,18 +84,14 @@ def normalize_series(
     if method == "minmax":
         lo, hi = arr.min(), arr.max()
         return [
-            min_max_normalize(v, float(lo), float(hi))
-            if not math.isnan(v)
-            else float("nan")
+            min_max_normalize(v, float(lo), float(hi)) if not math.isnan(v) else float("nan")
             for v in series
         ]
     elif method == "zscore":
         mean = float(arr.mean())
         std = float(arr.std(ddof=1)) if len(arr) > 1 else 1.0
         return [
-            z_score_normalize(v, mean, std, clip_sigma)
-            if not math.isnan(v)
-            else float("nan")
+            z_score_normalize(v, mean, std, clip_sigma) if not math.isnan(v) else float("nan")
             for v in series
         ]
     else:

@@ -7,7 +7,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import BigInteger, DateTime, Float, ForeignKey, Index, Numeric, func
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -61,7 +61,7 @@ class MarketData(Base, UUIDMixin):
     )
 
     # ── Relationships ────────────────────────────────────────────────────────
-    asset: Mapped["Asset"] = relationship("Asset", back_populates="market_data")  # noqa: F821
+    asset: Mapped[Asset] = relationship("Asset", back_populates="market_data")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<MarketData asset={self.asset_id} ts={self.timestamp}>"

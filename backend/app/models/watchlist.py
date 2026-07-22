@@ -28,12 +28,10 @@ class Watchlist(Base, UUIDMixin, TimestampMixin):
     is_default: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # ── Constraints ──────────────────────────────────────────────────────────
-    __table_args__ = (
-        UniqueConstraint("user_id", "name", name="uq_watchlist_user_name"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_watchlist_user_name"),)
 
     # ── Relationships ────────────────────────────────────────────────────────
-    user: Mapped["User"] = relationship("User", back_populates="watchlists")  # noqa: F821
+    user: Mapped[User] = relationship("User", back_populates="watchlists")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<Watchlist '{self.name}' user={self.user_id}>"

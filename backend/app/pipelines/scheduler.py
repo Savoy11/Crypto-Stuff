@@ -3,8 +3,6 @@ APScheduler job orchestration for all data ingestion pipelines.
 """
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import structlog
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -37,9 +35,7 @@ async def _load_active_assets() -> list[Asset]:
     """Load all active assets from the database."""
     factory = get_session_factory()
     async with factory() as session:
-        result = await session.execute(
-            select(Asset).where(Asset.is_active == True)
-        )
+        result = await session.execute(select(Asset).where(Asset.is_active.is_(True)))
         return list(result.scalars().all())
 
 
@@ -75,7 +71,9 @@ async def _upsert_blockchain_metrics(records: list[dict]) -> int:
         for record in records:
             record.pop("source", None)
             record.pop("decimals", None)
-            row = BlockchainMetric(**{k: v for k, v in record.items() if hasattr(BlockchainMetric, k)})
+            row = BlockchainMetric(
+                **{k: v for k, v in record.items() if hasattr(BlockchainMetric, k)}
+            )
             session.add(row)
             inserted += 1
         await session.commit()

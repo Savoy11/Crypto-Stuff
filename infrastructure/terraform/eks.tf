@@ -4,7 +4,7 @@
 
 module "eks" {
   source  = "terraform-aws-modules/eks/aws"
-  version = "~> 20.4"
+  version = "~> 19.21"
 
   cluster_name    = "${local.name_prefix}-eks"
   cluster_version = var.eks_cluster_version
@@ -164,14 +164,14 @@ module "eks" {
       # Metadata options — enforce IMDSv2 for security
       metadata_options = {
         http_endpoint               = "enabled"
-        http_tokens                 = "required"  # IMDSv2 only
+        http_tokens                 = "required" # IMDSv2 only
         http_put_response_hop_limit = 2
         instance_metadata_tags      = "disabled"
       }
 
       iam_role_additional_policies = {
-        AmazonSSMManagedInstanceCore   = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
-        CloudWatchAgentServerPolicy    = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+        AmazonSSMManagedInstanceCore = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+        CloudWatchAgentServerPolicy  = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
       }
 
       update_config = {
@@ -179,7 +179,7 @@ module "eks" {
       }
 
       tags = merge(local.common_tags, {
-        Name                                                  = "${local.name_prefix}-node"
+        Name                                                 = "${local.name_prefix}-node"
         "k8s.io/cluster-autoscaler/${local.name_prefix}-eks" = "owned"
         "k8s.io/cluster-autoscaler/enabled"                  = "true"
       })
@@ -379,10 +379,10 @@ resource "kubernetes_storage_class" "gp3_encrypted" {
   allow_volume_expansion = true
 
   parameters = {
-    type      = "gp3"
-    encrypted = "true"
-    kmsKeyId  = aws_kms_key.caep.arn
-    iops      = "3000"
+    type       = "gp3"
+    encrypted  = "true"
+    kmsKeyId   = aws_kms_key.caep.arn
+    iops       = "3000"
     throughput = "125"
   }
 

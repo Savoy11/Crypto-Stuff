@@ -44,6 +44,17 @@ venv/
 # Docker
 *.log
 
+# Terraform (local init artifacts; do not commit)
+**/.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+
+# Ruff cache
+.ruff_cache/
+**/.ruff_cache/
+
 # Claude Code config (machine-specific)
 .claude/
 **/.claude/

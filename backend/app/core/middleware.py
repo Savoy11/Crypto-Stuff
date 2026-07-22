@@ -149,6 +149,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
     def _normalize_path(path: str) -> str:
         """Replace UUID-like segments with {id} placeholder for metric cardinality."""
         import re
+
         return re.sub(
             r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
             "{id}",

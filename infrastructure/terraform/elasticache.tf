@@ -110,8 +110,8 @@ resource "aws_elasticache_subnet_group" "caep" {
 ###############################################################################
 
 resource "random_password" "redis_auth" {
-  length           = 32
-  special          = false  # Redis auth tokens cannot contain special chars
+  length  = 32
+  special = false # Redis auth tokens cannot contain special chars
 }
 
 ###############################################################################
@@ -139,10 +139,10 @@ resource "aws_elasticache_replication_group" "caep" {
   security_group_ids = [aws_security_group.redis.id]
 
   # Encryption
-  at_rest_encryption_enabled  = true
-  transit_encryption_enabled  = true
-  kms_key_id                  = aws_kms_key.caep.arn
-  auth_token                  = random_password.redis_auth.result
+  at_rest_encryption_enabled = true
+  transit_encryption_enabled = true
+  kms_key_id                 = aws_kms_key.caep.arn
+  auth_token                 = random_password.redis_auth.result
 
   # Backups
   snapshot_retention_limit = 7

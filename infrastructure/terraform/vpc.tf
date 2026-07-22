@@ -9,10 +9,10 @@ module "vpc" {
   name = "${local.name_prefix}-vpc"
   cidr = var.vpc_cidr
 
-  azs                   = local.azs
-  private_subnets       = var.private_subnet_cidrs
-  public_subnets        = var.public_subnet_cidrs
-  database_subnets      = var.database_subnet_cidrs
+  azs              = local.azs
+  private_subnets  = var.private_subnet_cidrs
+  public_subnets   = var.public_subnet_cidrs
+  database_subnets = var.database_subnet_cidrs
 
   # Internet Gateway
   create_igw = true
@@ -29,26 +29,26 @@ module "vpc" {
   # Database subnet group for RDS
   create_database_subnet_group           = true
   create_database_subnet_route_table     = true
-  create_database_internet_gateway_route = false  # Database subnets are isolated
+  create_database_internet_gateway_route = false # Database subnets are isolated
 
   # Flow Logs
-  enable_flow_log                      = true
-  create_flow_log_cloudwatch_iam_role  = true
-  create_flow_log_cloudwatch_log_group = true
-  flow_log_cloudwatch_log_group_name_prefix = "/aws/vpc-flow-logs/${local.name_prefix}"
+  enable_flow_log                                 = true
+  create_flow_log_cloudwatch_iam_role             = true
+  create_flow_log_cloudwatch_log_group            = true
+  flow_log_cloudwatch_log_group_name_prefix       = "/aws/vpc-flow-logs/${local.name_prefix}"
   flow_log_cloudwatch_log_group_retention_in_days = 30
-  flow_log_traffic_type = "ALL"
+  flow_log_traffic_type                           = "ALL"
 
   # Subnet tags required for EKS + ALB Controller
   private_subnet_tags = {
     "kubernetes.io/cluster/${local.name_prefix}-eks" = "shared"
-    "kubernetes.io/role/internal-elb"                 = "1"
-    "karpenter.sh/discovery"                          = "${local.name_prefix}-eks"
+    "kubernetes.io/role/internal-elb"                = "1"
+    "karpenter.sh/discovery"                         = "${local.name_prefix}-eks"
   }
 
   public_subnet_tags = {
     "kubernetes.io/cluster/${local.name_prefix}-eks" = "shared"
-    "kubernetes.io/role/elb"                          = "1"
+    "kubernetes.io/role/elb"                         = "1"
   }
 
   database_subnet_tags = {
@@ -124,7 +124,7 @@ resource "aws_security_group" "eks_nodes" {
   }
 
   tags = merge(local.common_tags, {
-    Name = "${local.name_prefix}-eks-nodes-sg"
+    Name                                             = "${local.name_prefix}-eks-nodes-sg"
     "kubernetes.io/cluster/${local.name_prefix}-eks" = "owned"
   })
 }
