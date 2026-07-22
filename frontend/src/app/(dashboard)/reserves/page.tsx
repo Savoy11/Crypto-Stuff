@@ -41,27 +41,33 @@ function CollateralizationBar({ ratio }: { ratio: number | null }) {
 }
 
 function PegMechBadge({ mech }: { mech: string }) {
+  // DefiLlama emits hyphens ('fiat-backed'), and so does the rest of this
+  // codebase. Keying on underscores meant every fiat- and crypto-backed row
+  // — 8 of the 9 monitored coins — missed its colour and printed the raw
+  // string; only 'algorithmic' happened to match. Normalised so either
+  // separator resolves.
+  const key = mech.replace(/_/g, '-').toLowerCase()
   const styles: Record<string, string> = {
-    fiat_backed:    'text-emerald-400 bg-emerald-400/10 border-emerald-500/20',
-    crypto_backed:  'text-blue-400 bg-blue-400/10 border-blue-500/20',
-    algorithmic:    'text-red-400 bg-red-400/10 border-red-500/20',
-    hybrid:         'text-violet-400 bg-violet-400/10 border-violet-500/20',
+    'fiat-backed':    'text-emerald-400 bg-emerald-400/10 border-emerald-500/20',
+    'crypto-backed':  'text-blue-400 bg-blue-400/10 border-blue-500/20',
+    'algorithmic':    'text-red-400 bg-red-400/10 border-red-500/20',
+    'hybrid':         'text-violet-400 bg-violet-400/10 border-violet-500/20',
   }
   const label: Record<string, string> = {
-    fiat_backed: 'Fiat-backed', crypto_backed: 'Crypto-backed',
-    algorithmic: 'Algorithmic', hybrid: 'Hybrid',
+    'fiat-backed': 'Fiat-backed', 'crypto-backed': 'Crypto-backed',
+    'algorithmic': 'Algorithmic', 'hybrid': 'Hybrid',
   }
-  const style = styles[mech] ?? 'text-slate-400 bg-slate-400/10 border-slate-500/20'
+  const style = styles[key] ?? 'text-slate-400 bg-slate-400/10 border-slate-500/20'
   return (
     <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium border ${style}`}>
-      {label[mech] ?? mech}
+      {label[key] ?? mech}
     </span>
   )
 }
 
 // ─── Live fetch ───────────────────────────────────────────────────────────────
 
-async function fetchLiveReserves(): Promise<{ assets: LiveReserveAsset[]; updatedAt: string }> {
+async function fetchLiveReserves(): Promise<{ assets: LiveReserveAsset[]; updatedAt: string; metaAsOf: string }> {
   const res = await fetch('/live-data/reserves')
   if (!res.ok) throw new Error('Failed to fetch reserve data')
   return res.json()
@@ -114,8 +120,13 @@ export default function ReservesPage() {
           <div>
             <PageHeader
               title="Reserve Transparency Monitor"
+              // Only SUPPLY is live here. Attester, attestation date and
+              // collateralization ratio all come from a curated snapshot
+              // (metaAsOf), and the old subtitle claimed the whole lot was
+              // "Live … attestation data via DefiLlama" under a fresh
+              // timestamp — the single most misleading string on the page.
               subtitle={LIVE_DATA && liveData
-                ? `Live supply & attestation data via DefiLlama · updated ${new Date(liveData.updatedAt).toLocaleTimeString()}`
+                ? `Live supply via DefiLlama (updated ${new Date(liveData.updatedAt).toLocaleTimeString()}) · attestation & collateral figures from a curated snapshot dated ${liveData.metaAsOf}`
                 : 'Attestation records, composition breakdowns, and collateralization health'}
               description="The Reserve Transparency Monitor compares circulating supply and collateralization ratios across all tracked stablecoins side-by-side. In live mode it pulls real-time data from DefiLlama, including chain distribution, peg mechanism, and attestation frequency."
               details={[
@@ -161,8 +172,13 @@ export default function ReservesPage() {
           <div className="grid grid-cols-3 gap-4">
             {[
               { label: 'Total Monitored Supply', value: formatCompact(totalReserves), sub: `${reserves.length} assets via DefiLlama` },
-              { label: 'Fully Collateralized', value: `${fullyCollateralized}/${reserves.length}`, sub: 'assets ≥ 100%' },
-              { label: 'Verified Attestations', value: `${verifiedCount}/${reserves.length}`, sub: 'by third-party auditor' },
+              { label: 'Fully Collateralized', value: `${fullyCollateralized}/${reserves.length}`, sub: 'assets ≥ 100% (as disclosed)' },
+              // `verified` means "we hold a disclosed ratio for this asset",
+              // NOT that anything was independently verified — every monitored
+              // symbol has one, so labelling it "Verified Attestations" made a
+              // KPI that could only ever read N/N and implied third-party
+              // assurance the app never performed.
+              { label: 'Attestation on File', value: `${verifiedCount}/${reserves.length}`, sub: 'issuer-disclosed, not independently verified' },
             ].map(({ label, value, sub }) => (
               <div key={label} className="rounded-xl border border-slate-800 bg-slate-900/50 p-4 min-w-0">
                 <p className="text-xs text-slate-400 uppercase tracking-wider truncate">{label}</p>

@@ -48,6 +48,16 @@ export interface RiskScoresResponse {
   ok: boolean
   updatedAt: string
   metaAsOf: string
+  /** Age of the curated metadata snapshot in days. */
+  metaAgeDays: number
+  /**
+   * True when that snapshot is old enough to be dragging reserve scores down
+   * on its own. The attestation-age penalty is real and correctly applied —
+   * we genuinely hold no newer attestation — but the cause is our refresh
+   * cadence, not necessarily the issuer's, and the UI must say so rather than
+   * implying an issuer stopped attesting.
+   */
+  metaStale: boolean
   profileVersions: { stablecoin: string; cryptoAsset: string }
   sources: { defillama: boolean; coingecko: boolean; news: boolean }
   stablecoins: ScoredAsset[]
@@ -157,6 +167,11 @@ function daysBetween(a: string, b: string): number {
   return Math.round(Math.abs(new Date(a).getTime() - new Date(b).getTime()) / 86_400_000)
 }
 
+const todayIso = () => new Date().toISOString().slice(0, 10)
+
+/** How stale the curated metadata snapshot itself is, in days. */
+const metaAgeDays = () => daysBetween(META_AS_OF, todayIso())
+
 export async function GET(req: Request) {
   const [llamaRes, cgRes, newsRes] = await Promise.allSettled([
     fetchLlamaStables(),
@@ -170,6 +185,10 @@ export async function GET(req: Request) {
   const base: Omit<RiskScoresResponse, 'stablecoins' | 'majors' | 'ok'> = {
     updatedAt: new Date().toISOString(),
     metaAsOf: META_AS_OF,
+    metaAgeDays: metaAgeDays(),
+    // 120d is the same cutoff scoreReserve uses for a stale attestation: past
+    // it, the snapshot alone can push every issuer into the ×0.6 tier.
+    metaStale: metaAgeDays() > 120,
     profileVersions: { stablecoin: STABLECOIN_RISK_PROFILE.version, cryptoAsset: CRYPTO_ASSET_RISK_PROFILE.version },
     sources: {
       defillama: llamaRes.status === 'fulfilled',
@@ -200,7 +219,20 @@ export async function GET(req: Request) {
         composition: COMPOSITION_MAP[symbol] ?? [],
         collateralizationRatio: meta?.collateralizationRatio ?? null,
         pegMechanism: mechanism,
-        attestationAgeDays: meta?.lastAttestedDate ? daysBetween(meta.lastAttestedDate, META_AS_OF) : null,
+        // Measured against TODAY, not against META_AS_OF. Comparing two
+        // hardcoded dates froze this at whatever the age was on the snapshot
+        // date, so the >120d "stale attestation ×0.6" tier was unreachable for
+        // the entire dataset — permanently, not just today. Every monitored
+        // issuer's last attestation on file is now 590–660 days old and was
+        // being scored as if it were under 62.
+        //
+        // "The most recent attestation we hold is N days old" is a true and
+        // risk-relevant statement even when the issuer has attested since —
+        // an unverifiable reserve claim is exactly what this dimension exists
+        // to penalise. The response flags metaStale so the UI can say the
+        // number improves with a metadata refresh rather than implying the
+        // issuer went quiet.
+        attestationAgeDays: meta?.lastAttestedDate ? daysBetween(meta.lastAttestedDate, todayIso()) : null,
       }),
       scorePeg({
         price: coin?.price ?? cgRow?.current_price ?? null,

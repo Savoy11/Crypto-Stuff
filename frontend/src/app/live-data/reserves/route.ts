@@ -73,10 +73,19 @@ export async function GET() {
       const rawComposition = COMPOSITION_MAP[sym] ?? []
       const circulatingUsd = coin.circulating?.peggedUSD ?? 0
 
+      // Composition percentages are shares of the RESERVE POOL, not of
+      // circulating supply, so the dollar figures have to scale by the
+      // collateralization ratio. Multiplying circulating supply alone is only
+      // right at a 1.0 ratio: DAI is disclosed at 1.5, so every leg was
+      // understated by a third (~$1.51B shown for ETH collateral against
+      // ~$2.27B disclosed) while the centre of the same donut read
+      // "150.0% Collat." — one chart contradicting itself. LUSD (1.1) had the
+      // same defect.
+      const reservePoolUsd = circulatingUsd * (meta?.collateralizationRatio ?? 1)
       const composition = rawComposition.map((c) => ({
         category: c.category,
         percentage: c.percentage,
-        amount: circulatingUsd * (c.percentage / 100),
+        amount: reservePoolUsd * (c.percentage / 100),
         description: '',
       }))
 

@@ -36,10 +36,18 @@ export const STABLECOIN_RISK_PROFILE: RiskProfileSpec = {
 
 // ─── Reserve Quality ─────────────────────────────────────────────────────────
 
-/** Safety weight per disclosed reserve category (1 = as good as cash). */
+/**
+ * Safety weight per disclosed reserve category (1 = as good as cash).
+ *
+ * ORDER IS SIGNIFICANT — categoryWeight returns the first match. Keep the more
+ * specific patterns above the general ones: `rwa` sits above `treasur` because
+ * the only RWA row in the data is DAI's "RWA (Treasuries)", which the broad
+ * cash/treasury pattern would otherwise claim first and score as good as cash,
+ * making this 0.85 entry dead code.
+ */
 const CATEGORY_WEIGHTS: ReadonlyArray<readonly [RegExp, number]> = [
-  [/cash|deposit|treasur/i, 1.0],
   [/rwa/i, 0.85],
+  [/cash|deposit|treasur/i, 1.0],
   [/usdc|stablecoin collateral/i, 0.8],
   [/eth|crypto/i, 0.55],
   [/corporate bond/i, 0.5],
