@@ -8,11 +8,11 @@ import uuid
 from datetime import UTC, datetime
 
 import structlog
-from fastapi import APIRouter, Query
-from sqlalchemy import desc, func, select, update
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import Integer, cast, desc, func, select, update
 
 from app.core.exceptions import http_404
-from app.dependencies import CurrentUser, DBSession, Pagination
+from app.dependencies import CurrentUser, DBSession, Pagination, require_role
 from app.models.alert import Alert, AlertSeverity, AlertType
 from app.models.asset import Asset
 from app.schemas.alert import AlertCreate, AlertResponse, AlertSummary, AlertUpdate
@@ -64,16 +64,27 @@ async def list_alerts(
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
 
-    # Summary counts
-    summary_result = await db.execute(
+    # Summary counts. Scoped to the SAME visibility as the list above — a
+    # non-admin must not see system-wide severity/unread totals alongside their
+    # own paginated items (it both returns wrong numbers and discloses other
+    # users' alert volume).
+    summary_query = (
         select(
             Alert.severity,
             func.count().label("cnt"),
-            func.sum(func.cast(~Alert.is_read, func.Integer())).label("unread"),
+            # sqlalchemy.cast(expr, Integer) — NOT func.cast/func.Integer,
+            # which render as invalid SQL ("cast(NOT is_read, Integer())") and
+            # 500'd every call to this endpoint.
+            func.sum(cast(~Alert.is_read, Integer)).label("unread"),
         )
         .where(Alert.is_resolved.is_(False))
         .group_by(Alert.severity)
     )
+    if str(current_user.role) != "admin":
+        summary_query = summary_query.where(
+            (Alert.user_id == current_user.id) | (Alert.user_id.is_(None))
+        )
+    summary_result = await db.execute(summary_query)
 
     severity_counts: dict[str, int] = {"info": 0, "warning": 0, "critical": 0}
     total_unread = 0
@@ -158,9 +169,14 @@ async def update_alert(
 async def create_alert(
     body: AlertCreate,
     db: DBSession,
-    current_user: CurrentUser,
+    # ADMIN-ONLY. AlertCreate carries an arbitrary `user_id` written straight
+    # through, so with only CurrentUser any authenticated account — including a
+    # viewer — could inject forged alerts ("USDC reserves failed attestation")
+    # into a named target user's feed. This endpoint is documented "internal
+    # pipeline triggers"; gate it accordingly.
+    _: object = Depends(require_role("admin")),
 ) -> dict:
-    """Create a new alert record. Used by internal pipeline triggers."""
+    """Create a new alert record. Used by internal pipeline triggers (admin/system only)."""
     asset_result = await db.execute(select(Asset).where(Asset.id == body.asset_id))
     if not asset_result.scalar_one_or_none():
         raise http_404("Asset", str(body.asset_id))

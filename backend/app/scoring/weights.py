@@ -46,3 +46,42 @@ CONFIDENCE_THRESHOLDS: dict[str, float] = {
     "blockchain_data": 0.20,  # 20% weight
     "security_data": 0.20,  # 20% weight
 }
+
+
+# Per-asset-type weight calibration.
+#
+# app/scoring/engine.py has imported this symbol since it was written, but it
+# was never defined — so `app.scoring.engine` raised ImportError on import,
+# and because api/v1/risk_scores.py imports ScoringEngine at module level and
+# router.py imports risk_scores, THE WHOLE FASTAPI APP FAILED TO START. Not
+# just the test suite (which died at collection and so was blamed for it):
+# `uvicorn app.main:app` never came up either.
+#
+# Restored as an identity mapping on purpose. The four asset types plausibly
+# deserve different weightings — a CBDC has no meaningful reserve attestation
+# in the sense a fiat-backed stablecoin does, and a DeFi token's risk is
+# mostly contract and liquidity — but choosing those numbers is a risk-model
+# calibration decision with real consequences for what the product tells
+# users, and it belongs to the scoring owner, not to whoever unblocked the
+# import. Returning DEFAULT_WEIGHTS reproduces exactly the behaviour the rest
+# of the engine already assumes, so nothing silently changes meaning.
+#
+# To calibrate: add an entry here per type. `validate()` enforces the sum.
+_WEIGHTS_BY_ASSET_TYPE: dict[str, ScoringWeights] = {
+    "stablecoin": DEFAULT_WEIGHTS,
+    "tokenized": DEFAULT_WEIGHTS,
+    "cbdc": DEFAULT_WEIGHTS,
+    "defi": DEFAULT_WEIGHTS,
+}
+
+
+def get_weights_for_asset_type(asset_type: str | None) -> ScoringWeights:
+    """Return the scoring weights calibrated for an asset type.
+
+    Falls back to DEFAULT_WEIGHTS for an unknown or missing type rather than
+    raising: an unrecognised asset should still get a score, and the caller
+    (engine.score_asset) has no path to handle an exception here.
+    """
+    if not asset_type:
+        return DEFAULT_WEIGHTS
+    return _WEIGHTS_BY_ASSET_TYPE.get(str(asset_type).lower(), DEFAULT_WEIGHTS)

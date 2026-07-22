@@ -112,7 +112,7 @@ class BasePipeline(ABC):
                 raise ExternalAPIError(
                     service=self.name,
                     message=f"HTTP {response.status_code}: {response.text[:200]}",
-                    status_code=response.status_code,
+                    upstream_status=response.status_code,
                 )
 
             except httpx.TimeoutException as exc:

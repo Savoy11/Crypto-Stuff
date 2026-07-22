@@ -22,7 +22,7 @@ from app.models.blockchain_metric import BlockchainMetric
 from app.models.liquidity_metric import LiquidityMetric
 from app.models.market_data import MarketData
 from app.models.reserve_attestation import ReserveAttestation
-from app.models.risk_score import RiskBand, RiskScore
+from app.models.risk_score import RiskScore
 from app.models.wallet_concentration import WalletConcentration
 from app.schemas.asset import (
     AssetCreate,
@@ -50,14 +50,22 @@ async def list_assets(
     pagination: Pagination,
     asset_type: AssetType | None = Query(None, description="Filter by asset type"),
     blockchain: str | None = Query(None, description="Filter by blockchain"),
-    risk_band: RiskBand | None = Query(None, description="Filter by current risk band"),
     is_active: bool = Query(True, description="Filter by active status"),
     search: str | None = Query(None, description="Search by symbol or name"),
-    sort_by: str = Query("market_cap", description="Sort field: market_cap, symbol, risk_score"),
+    sort_by: str = Query("symbol", description="Sort field: symbol, name, created_at"),
     sort_dir: str = Query("desc", description="Sort direction: asc or desc"),
 ) -> dict:
     """
     List assets with optional filtering, search, sorting, and pagination.
+
+    NOTE: `risk_band` filtering and `market_cap`/`risk_score` sorting are not
+    offered here because both require joining each asset to its LATEST risk/
+    market snapshot. They were previously DECLARED (a risk_band query param, a
+    sort_by default of "market_cap") but silently ignored — the query never
+    applied risk_band and sorted only by symbol or created_at regardless of
+    sort_by, so `sort_by=market_cap` returned creation order. Rather than
+    accept parameters that do nothing, this endpoint now only advertises what
+    it actually implements; the snapshot-join versions are a separate change.
     """
     query = select(Asset)
 
@@ -75,11 +83,11 @@ async def list_assets(
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
 
-    # Sort
-    if sort_dir == "asc":
-        query = query.order_by(asc(Asset.symbol))
-    else:
-        query = query.order_by(desc(Asset.created_at))
+    # Sort over real Asset columns only. Unknown sort_by falls back to symbol
+    # rather than being silently ignored.
+    sort_columns = {"symbol": Asset.symbol, "name": Asset.name, "created_at": Asset.created_at}
+    sort_col = sort_columns.get(sort_by, Asset.symbol)
+    query = query.order_by(asc(sort_col) if sort_dir == "asc" else desc(sort_col))
 
     query = query.offset(pagination.offset).limit(pagination.page_size)
     result = await db.execute(query)

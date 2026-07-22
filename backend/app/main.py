@@ -108,8 +108,11 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------ #
     @app.exception_handler(CAEPError)
     async def caep_exception_handler(request, exc: CAEPError) -> JSONResponse:  # type: ignore[type-arg]
-        logger.warning("caep_exception", detail=exc.detail, code=exc.status_code)
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+        # CAEPError exposes `message`/`code`/`status_code` — NOT `detail`. The
+        # old handler read `.detail`, which raised AttributeError inside itself
+        # and turned every domain error into a bare 500.
+        logger.warning("caep_exception", message=exc.message, code=exc.code, status=exc.status_code)
+        return JSONResponse(status_code=exc.status_code, content={"detail": exc.message, "code": exc.code})
 
     return app
 

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 
 import structlog
 from fastapi import APIRouter, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.core.exceptions import http_404, http_409
 from app.dependencies import CurrentUser, DBSession
@@ -77,8 +77,6 @@ async def create_watchlist(
 
     # If setting as default, clear existing defaults
     if body.is_default:
-        from sqlalchemy import update
-
         await db.execute(
             update(Watchlist)
             .where(Watchlist.user_id == current_user.id, Watchlist.is_default.is_(True))
@@ -133,6 +131,19 @@ async def update_watchlist(
     if body.asset_ids is not None:
         wl.asset_ids = [str(a) for a in body.asset_ids]
     if body.is_default is not None:
+        # Promoting this list to default must demote the others, exactly as the
+        # create path does — otherwise a user accumulates several "default"
+        # watchlists and whatever reads the default gets a nondeterministic one.
+        if body.is_default:
+            await db.execute(
+                update(Watchlist)
+                .where(
+                    Watchlist.user_id == current_user.id,
+                    Watchlist.id != wl.id,
+                    Watchlist.is_default.is_(True),
+                )
+                .values(is_default=False)
+            )
         wl.is_default = body.is_default
 
     await db.flush()
