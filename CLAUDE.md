@@ -65,7 +65,7 @@ frontend/src/
 │       ├── config/route.ts
 │       ├── network-fees/route.ts   # Live BTC fees + all 16-network gas prices
 │       ├── staking-rates/route.ts  # Live APR from Lido, Marinade, Jito
-│       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→Yahoo→Stooq→reference)
+│       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→…→Yahoo→reference)
 │       ├── security-chart/route.ts  # Price history for any Yahoo-quotable symbol
 │       ├── security-ohlcv/route.ts  # Full OHLCV candles for stocks (Yahoo→FMP)
 │       ├── market-news/route.ts     # Stock-market RSS news: sentiment, category, ticker tags
@@ -220,7 +220,7 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 
 ### `src/lib/data/equityCatalog.ts` (Equities module)
 - **`EQUITY_CATALOG`** — ~70 large-cap US stocks with sector (11 GICS sectors in `SECTOR_INFO`), industry, and approximate reference values (price, market cap, P/E, dividend yield, beta). Reference values are fallbacks — live quotes override price/change.
-- Symbols use Yahoo notation (`BRK-B`, not `BRK.B`) so one string works across Yahoo/Stooq/FMP.
+- Symbols use Yahoo notation (`BRK-B`, not `BRK.B`) so one string works across Yahoo and FMP.
 - To add a stock: append to `EQUITY_CATALOG`; the registry table, detail route, and quote universe pick it up automatically.
 
 ### `src/lib/data/fundCatalog.ts` (Funds module)
@@ -250,7 +250,7 @@ Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (55 t
 ### Quote plumbing for both modules (`src/lib/api/live/marketData.ts`)
 **All four equity data surfaces are registry-driven** (same provider system as crypto — `src/lib/api/live/providers.ts`, configured on the Integrations page, persisted to `.provider-config.json`; providers carry `market: 'crypto' | 'equities'` so the two sides never cross). Every surface records per-provider utilization, supports toggling/reordering built-ins, and accepts user-added custom feeds (SSRF-validated, auth via header/query/bearer, tolerant JSON field extraction in `src/lib/server/customFeeds.ts`):
 
-- **Quotes** (`fetchSecurityQuotes` → `getEquityQuoteProviders()`): custom `json-quote` feeds first, then FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage (key-gated) → Yahoo spark → Stooq → catalog reference prices. `{symbol}` (per-symbol) or `{symbols}` (batch) placeholders.
+- **Quotes** (`fetchSecurityQuotes` → `getEquityQuoteProviders()`): custom `json-quote` feeds first, then FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage (key-gated) → Yahoo spark → catalog reference prices. `{symbol}` (per-symbol) or `{symbols}` (batch) placeholders. **Stooq used to be the last live rung and is gone** — it 404s on every variant (confirmed in the 2026-07-19 audit) and has been removed from the registry and the quote path; catalog reference is the real last resort. The only remnant is the legacy `'stooq'` value in `PRICE_SOURCES` (db/schema/instruments.ts), which is inert. Don't re-add it as a fallback.
 - **News** (`/live-data/market-news` → `getEquityProviders('news')`): built-ins Yahoo Finance News / MarketWatch / CNBC plus custom `rss`/`atom`/`json-news` feeds, all active sources merged in parallel.
 - **Social** (`/live-data/stock-social` → `getEquityProviders('social')`): built-ins Reddit Finance / StockTwits plus custom `json-social` feeds. (Reddit 403s from datacenter IPs without OAuth — expect StockTwits-only in server/CI environments.)
 - **OHLCV / TA / backtests** (`/live-data/security-ohlcv` → `getEquityOhlcvProviders()`): custom `json-ohlcv` feeds first, then Yahoo Finance → Tiingo → FMP.
@@ -279,6 +279,30 @@ CAEP_ADMIN_TOKEN=...                        # Optional — sensitive endpoints (
 references connections by id via `/live-data/wallet/exchange-connections`).
 
 CAEP runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
+
+---
+
+## Testing the Live Data Layer
+
+```bash
+npm run smoke   # quick subset (CI)
+npm run audit   # full audit; also audit:strict and audit:json
+```
+
+Both run `scripts/test-live-data.mjs` (the old `scripts/smoke.mjs` was folded into it —
+`smoke` is now just `--quick`). Run `npm run audit` before trusting any route, and read its
+**REAL vs FALLBACK** classification rather than the HTTP status: a 200 carrying fallback data
+is the failure mode that misdirects debugging to the UI layer. An earlier harness reported
+43/43 PASS while several routes were quietly serving static catalogs.
+
+This matters when judging AI agent output too — agent tools read the same `/live-data/*` routes
+the UI does, so an agent giving vague answers off a FALLBACK route is a data problem, not a
+prompt problem. Don't tune a prompt to compensate for a degraded feed.
+
+**⚠ Data-availability results are IP-dependent — audits MUST run on the owner's machine.**
+Binance.com is geo-blocked here (451), and Reddit and LunarCrush block datacenter IPs, so a
+cloud or CI run produces a systematically wrong baseline of "which sources work." Code reading,
+design, and spec work are fine remotely; "which data sources actually work" is not.
 
 ---
 
