@@ -144,6 +144,20 @@ function ProviderCard({
             </p>
           </div>
 
+          {/* Direct call-to-action to the provider's actual staking page */}
+          {provider.website && !provider.defunct && (
+            <a
+              href={provider.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-accent-blue/40 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 hover:border-accent-blue/60 transition-colors"
+              title={`Open ${provider.name}'s staking page`}
+            >
+              {provider.category === 'cefi' ? 'Stake' : provider.category === 'wallet' ? 'Open wallet' : 'Open app'}
+              <ExternalLink size={12} className="shrink-0" />
+            </a>
+          )}
+
         </div>
       </div>
 
