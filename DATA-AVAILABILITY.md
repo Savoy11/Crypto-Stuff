@@ -6,6 +6,11 @@ authoritative record of **what data in CAEP is live, what is partially live, and
 no free real-time source**. It exists so that a walk-through of the app surfaces exactly
 what is — and is not — backed by real data, with no fabricated figures presented as real._
 
+> **Companion doc:** [`DATA-SOURCES.md`](./DATA-SOURCES.md) is the "**where does each surface's data come
+> from**" inventory — generated from `frontend/src/lib/data/dataSources.ts` (`npm run data-sources`), the same
+> registry that powers the in-app **/data-sources** page and per-page source badges. This file tracks *whether*
+> a surface is live; that one tracks *who* provides it.
+>
 > **Reproduce this report:** `npm run audit` in `frontend/` with the app running.
 > The harness (`scripts/test-live-data.mjs`) classifies every route as
 > REAL / FALLBACK / UNCONFIGURED / EMPTY / FAIL rather than just pass/fail.
@@ -240,7 +245,10 @@ minimum** for free-tier polling without hitting 429.
 5. ✅ Provenance primitive (`DataBadge`) wired into the transfer-fees page; fees carry `lastVerified` + staleness warning.
 6. ✅ Network fee-feed **infrastructure** built (`FeeProvider` + `FEE_PROVIDERS` + BTC reference provider). Live EVM gas providers remain the next step to flip more 🟡 chains to 🟢.
 7. ✅ **Audit harness classifies real vs fallback data** (`npm run audit`). Replaces the old pass/fail smoke test, which reported 43/43 green while two routes served static catalogs.
-8. ⏳ Surface this report in-app at `/live-data/availability` so it stays accurate automatically.
+8. ✅ Surface data provenance in-app. Done — a canonical registry (`src/lib/data/dataSources.ts`) now powers the
+   **/data-sources** page (in-app catalog), per-page `<SourceLine/>` badges, and the generated
+   [`DATA-SOURCES.md`](./DATA-SOURCES.md). `npm run data-sources -- --verify` fails if a route fetches a host the
+   registry doesn't name, so the docs/app can't silently drift from the code.
 9. ⏳ **Get a paid FMP plan or a different universe source** — `stock-universe` and `stock-outliers` are the largest remaining fallback surface.
 10. ✅ ~~**Fix Reddit starvation in `stock-social`**~~ Done 2026-07-22 — `lib/server/socialBlend.ts` allocates the
     response budget round-robin per provider (newest-first within each), then re-sorts by recency for display, so

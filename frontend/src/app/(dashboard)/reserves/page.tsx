@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Vault, CheckCircle, AlertTriangle, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { ReserveComposition } from '@/components/analytics/ReserveComposition'
 import { formatCurrency, formatCompact, formatDate, formatPercent } from '@/lib/utils/format'
 import { LIVE_DATA } from '@/lib/constants'
@@ -146,6 +147,9 @@ export default function ReservesPage() {
           </button>
         )}
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="reserves" asOf={liveData?.updatedAt} />
 
       {/* Loading */}
       {LIVE_DATA && isLoading && (

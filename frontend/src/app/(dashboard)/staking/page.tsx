@@ -8,6 +8,7 @@ import {
   Building2, Wallet, Layers,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { clsx } from 'clsx'
 import {
   STAKING_PROVIDERS, STAKING_COIN_INFO, DEFAULT_LIVE_APR_KEY,
@@ -512,6 +513,9 @@ export default function StakingPage() {
           )}
         </div>
       </div>
+
+      {/* Data provenance — reads the same registry that powers /data-sources */}
+      <SourceLine id="staking-rates" asOf={updatedAt} />
 
       {/* Network base APY reference */}
       <NetworkAprReference />

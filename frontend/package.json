@@ -25,7 +25,8 @@
     "db:seed": "node --env-file=.env.local scripts/db-seed.mjs",
     "restart": "npx kill-port 3000 & rmdir /s /q .next & npm run dev",
     "update": "git pull && npm install --no-audit --no-fund && npm run restart",
-    "fund-facts": "node scripts/build-fund-facts.mjs"
+    "data-sources": "tsx scripts/gen-data-sources.ts",
+    "fund-facts":"node scripts/build-fund-facts.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
