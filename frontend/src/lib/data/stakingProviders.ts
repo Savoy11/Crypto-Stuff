@@ -255,7 +255,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Kraken has excellent security and a long track record. However, in February 2023, Kraken paid $30M to settle SEC charges and permanently shut down its US staking-as-a-service program. Non-US users can still stake on Kraken. Generally offers higher APY than Coinbase due to passing through more validator rewards.',
     custodyModel: 'custodial',
     founded: 2011,
-    website: 'https://www.kraken.com/earn',
+    website: 'https://www.kraken.com/features/staking',
     tvlBillions: 1.3,
     risks: {
       custodyRisk:      8,
@@ -284,7 +284,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Binance offers Locked Staking, ETH Staking (BETH/WBETH), and BNB staking. As the world\'s largest exchange, it has massive liquidity and product depth, but has faced significant regulatory actions in the US (CFTC lawsuit, Zhao\'s guilty plea), UK, EU, and elsewhere. Higher counterparty risk than regulated US exchanges.',
     custodyModel: 'custodial',
     founded: 2017,
-    website: 'https://www.binance.com/en/pos',
+    website: 'https://www.binance.com/en/earn',
     tvlBillions: 5.0,
     risks: {
       custodyRisk:      8,
@@ -348,7 +348,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Bybit primarily serves derivatives traders but offers Bybit Earn with staking products. Has stronger user growth since FTX\'s collapse. Lower regulatory presence and oversight than US-listed exchanges, which cuts both ways — more flexibility, but less accountability.',
     custodyModel: 'custodial',
     founded: 2018,
-    website: 'https://www.bybit.com/en/earn/staking',
+    website: 'https://www.bybit.com/en/earn',
     tvlBillions: 0.8,
     risks: {
       custodyRisk:      8,
@@ -432,7 +432,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Phantom is the most popular Solana wallet. It supports native SOL staking directly in the wallet UI — you delegate your SOL to a validator of your choice, your keys stay in your wallet, and rewards compound each epoch (~2.5 days). Phantom also supports Marinade liquid staking (mSOL) and Jito (jitoSOL) for liquid alternatives.',
     custodyModel: 'non-custodial',
     founded: 2021,
-    website: 'https://phantom.app',
+    website: 'https://phantom.com',
     risks: {
       custodyRisk:      1,
       counterpartyRisk: 1,
@@ -497,7 +497,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Exodus is a popular non-custodial wallet with built-in staking for SOL, ADA, ATOM, AVAX, and DOT. It\'s known for its polished UI and ease of use, making it a good choice for newer users who want self-custody without complexity. Exodus takes a portion of staking rewards as a fee.',
     custodyModel: 'non-custodial',
     founded: 2015,
-    website: 'https://www.exodus.com/crypto-staking',
+    website: 'https://www.exodus.com/staking-crypto',
     risks: {
       custodyRisk:      1,
       counterpartyRisk: 2,
@@ -527,7 +527,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Lido is the dominant liquid staking protocol with ~$30B TVL. You deposit ETH and receive stETH (staked ETH) which accrues rewards daily and can be used in DeFi. Lido\'s curated set of ~30 professional validators introduces centralization risk — Lido controls ~32% of all staked ETH, approaching the critical 33% threshold. Lido DAO governance manages the protocol.',
     custodyModel: 'smart-contract',
     founded: 2020,
-    website: 'https://lido.fi',
+    website: 'https://stake.lido.fi',
     tvlBillions: 30.0,
     auditCount: 12,
     risks: {
@@ -579,7 +579,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Rocket Pool is the most decentralized ETH liquid staking protocol. Anyone can become a node operator with 8 ETH (vs. 32 ETH for solo staking). rETH is a non-rebasing token that appreciates in value vs ETH over time. With 3,000+ node operators, it\'s far more decentralized than Lido. Smart contract risk remains, but the distributed validator set reduces single points of failure.',
     custodyModel: 'smart-contract',
     founded: 2016,
-    website: 'https://rocketpool.net',
+    website: 'https://stake.rocketpool.net',
     tvlBillions: 4.5,
     auditCount: 7,
     risks: {
@@ -620,7 +620,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Marinade is the leading Solana liquid staking protocol. Depositing SOL gives you mSOL, which accrues staking rewards and can be used in Solana DeFi. Marinade stakes across 100+ validators using an algorithmic delegation strategy that optimizes for decentralization and performance. Fully audited and DAO-governed.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://marinade.finance',
+    website: 'https://app.marinade.finance/stake',
     tvlBillions: 0.9,
     auditCount: 4,
     risks: {
@@ -774,7 +774,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Benqi is the leading Avalanche DeFi protocol offering both lending/borrowing and liquid staking. sAVAX is the liquid staking receipt for AVAX, solving the 2-week lockup problem of native AVAX staking. sAVAX can be used as collateral in Benqi\'s lending market and other Avalanche DeFi protocols.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://staking.benqi.fi',
+    website: 'https://staking.benqi.fi/stake',
     tvlBillions: 0.35,
     auditCount: 3,
     risks: {
@@ -893,7 +893,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'KuCoin offers staking through KuCoin Earn with both soft staking (flexible) and fixed-term products. KCS (KuCoin Token) holders receive a daily dividend from 50% of trading fees. KuCoin has faced regulatory scrutiny (2023 DOJ indictment of founders) and operates without formal licensing in most jurisdictions. Higher yield but higher counterparty risk than regulated US exchanges.',
     custodyModel: 'custodial',
     founded: 2017,
-    website: 'https://www.kucoin.com/earn',
+    website: 'https://www.kucoin.com/earn/staking',
     tvlBillions: 0.6,
     risks: {
       custodyRisk:      8,
@@ -929,7 +929,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Crypto.com offers staking through its app and exchange, with bonus APY tiers unlocked by staking CRO tokens. It has faced criticism for opaque financials and the collapse of its Cronos chain ecosystem in 2022, though the exchange itself remained solvent. Available in most jurisdictions.',
     custodyModel: 'custodial',
     founded: 2016,
-    website: 'https://crypto.com/earn',
+    website: 'https://crypto.com/staking',
     tvlBillions: 0.7,
     risks: {
       custodyRisk:      8,
@@ -959,7 +959,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Bitget has grown rapidly post-FTX as a derivatives-focused exchange, now offering staking via Bitget Earn. Strong copy-trading community. Registered in Seychelles with a user protection fund. Regulatory status varies by jurisdiction — not available to US users.',
     custodyModel: 'custodial',
     founded: 2018,
-    website: 'https://www.bitget.com/earn',
+    website: 'https://www.bitget.com/earning/staking',
     tvlBillions: 0.5,
     risks: {
       custodyRisk:      8,
@@ -986,7 +986,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Gate.io has operated since 2013 and offers staking across a very broad range of assets including many long-tail coins not found on other exchanges. It has maintained operations without major hacks or insolvency events. Regulatory standing is limited — primarily serves non-US users.',
     custodyModel: 'custodial',
     founded: 2013,
-    website: 'https://www.gate.io/earn',
+    website: 'https://www.gate.com/staking',
     tvlBillions: 0.9,
     risks: {
       custodyRisk:      8,
@@ -1219,7 +1219,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Keplr is the dominant browser extension and mobile wallet for the Cosmos ecosystem. It supports native delegation staking across Cosmos Hub (ATOM), Osmosis (OSMO), Celestia (TIA), Injective (INJ), Stargaze, and 50+ IBC-connected chains. You control your keys entirely; Keplr is purely a UI for submitting on-chain transactions. Validator choice, slashing risk, and unbonding periods all apply natively.',
     custodyModel: 'non-custodial',
     founded: 2020,
-    website: 'https://www.keplr.app',
+    website: 'https://wallet.keplr.app',
     risks: {
       custodyRisk:      1,
       counterpartyRisk: 1,
@@ -1245,7 +1245,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Solflare is one of the two leading Solana wallets (alongside Phantom). It supports native SOL staking with detailed validator analytics and performance history, helping users pick validators intelligently. It also integrates Marinade (mSOL), Jito (jitoSOL), and Sanctum LSTs for liquid staking alternatives. Built by the Solana Foundation-backed team at Solflare.',
     custodyModel: 'non-custodial',
     founded: 2021,
-    website: 'https://solflare.com',
+    website: 'https://www.solflare.com/stake/',
     risks: {
       custodyRisk:      1,
       counterpartyRisk: 1,
@@ -1290,7 +1290,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Atomic Wallet offers non-custodial in-app delegation across a wide asset list (SOL, ETH, ADA, BNB, TRX, DOT and more). In June 2023 roughly $100M was stolen from ~5,500 users in an attack widely attributed to North Korea’s Lazarus Group; there was no general reimbursement, and a US class action followed. The exploit hit wallet key security rather than the staking mechanism itself, but it remains the dominant risk fact for this provider. The wallet and its staking features continue to operate.',
     custodyModel: 'non-custodial',
     founded: 2017,
-    website: 'https://atomicwallet.io',
+    website: 'https://atomicwallet.io/staking',
     auditCount: 1,
     risks: {
       custodyRisk:      6,
@@ -1318,7 +1318,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Trezor Suite stakes ETH (pooled, small minimum) and SOL (native delegation, min 1 SOL, added 2025) through an Everstake integration while private keys remain on the hardware device. Regional availability is governed by Everstake’s terms rather than Trezor’s. Rewards are network rates minus the operator’s commission; ETH unstaking is subject to the validator exit queue.',
     custodyModel: 'non-custodial',
     founded: 2013,
-    website: 'https://trezor.io/staking',
+    website: 'https://suite.trezor.io',
     risks: {
       custodyRisk:      1,
       counterpartyRisk: 4,
@@ -1345,7 +1345,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Frax Finance offers ETH liquid staking through a dual-token system: frxETH (pegged to ETH, used in DeFi) and sfrxETH (staked version that accrues all validator rewards). Because frxETH deposited in Curve earns only trading fees while sfrxETH earns all staking rewards for the entire pool, sfrxETH typically achieves higher APY than single-token liquid staking protocols. Frax also issues FRAX stablecoin and has a broad DeFi ecosystem.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://app.frax.finance/frxeth/mint',
+    website: 'https://app.frax.finance',
     tvlBillions: 0.6,
     auditCount: 5,
     risks: {
@@ -1424,7 +1424,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Stader Labs operates liquid staking protocols across multiple chains, issuing chain-specific receipt tokens: ETHx on Ethereum, MaticX on Polygon, BNBx on BNB Chain, and others. ETHx uses a permissioned node operator model with a community pool alongside permissioned operators. Stader has grown rapidly as a multi-chain alternative to single-chain protocols.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://www.staderlabs.com',
+    website: 'https://www.staderlabs.com/eth/stake/',
     tvlBillions: 0.8,
     auditCount: 6,
     risks: {
@@ -1613,7 +1613,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Origin Ether (OETH) is a yield-bearing ETH token that auto-routes deposited ETH across the best liquid staking protocols (Lido, Rocket Pool, Frax) and DeFi strategies (Curve, Convex) to maximise yield. As a rebasing token, OETH holders see their balance grow daily without any action. Origin Protocol also operates OUSD (yield-bearing stablecoin) and has been audited extensively.',
     custodyModel: 'smart-contract',
     founded: 2018,
-    website: 'https://app.oeth.com',
+    website: 'https://app.originprotocol.com',
     tvlBillions: 0.3,
     auditCount: 8,
     risks: {
@@ -1654,7 +1654,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Bedrock (by RockX) offers liquid staking tokens for ETH (uniETH) and Bitcoin (uniBTC). uniETH integrates with EigenLayer for restaking rewards. uniBTC is notable for enabling Bitcoin to earn yield via the Babylon restaking protocol, wrapped on EVM chains. Bedrock targets institutional and retail stakers across Ethereum and the emerging Bitcoin restaking narrative.',
     custodyModel: 'smart-contract',
     founded: 2022,
-    website: 'https://app.bedrock.technology',
+    website: 'https://app.bedrock.technology/unibtc',
     tvlBillions: 0.5,
     auditCount: 3,
     risks: {
@@ -1727,7 +1727,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Quicksilver is a Cosmos-native liquid staking protocol that issues qAssets (qATOM, qOSMO, qSTARS, etc.). A key differentiator is that Quicksilver passes governance voting rights through to qAsset holders, letting users participate in governance of the underlying chain while retaining liquidity. Operates as its own Cosmos chain, using IBC for cross-chain staking.',
     custodyModel: 'smart-contract',
     founded: 2022,
-    website: 'https://app.quicksilver.zone',
+    website: 'https://app.quicksilver.zone/staking',
     tvlBillions: 0.08,
     auditCount: 2,
     risks: {
@@ -1749,10 +1749,10 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     name: 'pSTAKE Finance',
     category: 'liquid',
     tagline: 'Cosmos and BNB liquid staking — stkATOM, stkBNB with DeFi integrations',
-    description: 'pSTAKE Finance offers liquid staking for Cosmos (stkATOM), BNB (stkBNB), and other assets. It was one of the early Cosmos liquid staking protocols and has integrations with major DeFi venues on Osmosis and BNB Chain. Backed by Binance Labs among others. Smaller TVL than Stride but well-established with multiple audits.',
+    description: 'pSTAKE Finance was one of the early Cosmos liquid staking protocols (stkATOM, stkBNB) but has pivoted to Bitcoin liquid staking — its main app is now BTC-focused and the Cosmos stkASSET products are being wound down/deprecated, so the stkATOM/stkBNB listing below is legacy. Backed by Binance Labs among others; smaller TVL than Stride but multiple audits.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://pstake.finance',
+    website: 'https://app.pstake.finance',
     tvlBillions: 0.12,
     auditCount: 4,
     risks: {
@@ -1781,7 +1781,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Bifrost is a Polkadot parachain purpose-built for liquid staking across the Polkadot and Kusama ecosystem. It issues vDOT (voucher DOT) and vKSM (voucher KSM), which bypass the 28-day and 7-day unbonding periods respectively. vTokens can be used in DeFi on Bifrost and via bridges to other ecosystems. The protocol also supports vGLMR, vASTR, and other parachain tokens.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://bifrost.app',
+    website: 'https://app.bifrost.io',
     tvlBillions: 0.15,
     auditCount: 3,
     risks: {
@@ -1811,7 +1811,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Babylon enables Bitcoin holders to stake BTC without bridging or wrapping. BTC remains on the Bitcoin L1 in a self-custodial timelock script; if a staker misbehaves (provable double-signing on a PoS chain), the BTC is slashable via Bitcoin\'s own script logic. Babylon connects to PoS chains as a shared security provider, earning BTC rewards from those chains. As of 2024, Babylon had over $4B in BTC staking commitments in its cap-limited mainnet phases.',
     custodyModel: 'smart-contract',
     founded: 2022,
-    website: 'https://babylonlabs.io',
+    website: 'https://btcstaking.babylonlabs.io',
     tvlBillions: 4.0,
     auditCount: 4,
     risks: {
@@ -1853,7 +1853,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Lombard wraps Babylon-staked Bitcoin into LBTC, an EVM-compatible liquid token that enables BTC holders to earn staking yield while using their position in DeFi. LBTC is minted 1:1 against BTC that is staked on Babylon\'s protocol. It trades on Ethereum and other EVM chains, providing the DeFi composability that native Bitcoin staking lacks.',
     custodyModel: 'smart-contract',
     founded: 2024,
-    website: 'https://lombard.finance',
+    website: 'https://www.lombard.finance/app/stake',
     tvlBillions: 1.5,
     auditCount: 3,
     risks: {
@@ -1938,7 +1938,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Convex Finance sits on top of Curve Finance, letting users deposit Curve LP tokens to earn boosted CRV rewards without locking CRV themselves. Staking cvxCRV earns a share of the CRV fees collected by Convex\'s locked veCRV position. Convex controls a dominant share of all veCRV, making it the primary venue for CRV governance influence and boosted Curve yields.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://www.convexfinance.com/stake',
+    website: 'https://curve.convexfinance.com/stake',
     tvlBillions: 2.0,
     auditCount: 4,
     risks: {
@@ -2009,7 +2009,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     description: 'Meta Pool is the dominant liquid staking protocol on NEAR Protocol, issuing stNEAR in exchange for NEAR deposits. stNEAR accrues staking rewards automatically and can be used across NEAR DeFi. Unlike native NEAR staking (~4-day unbonding), stNEAR holders can swap back to NEAR instantly via liquidity pools. Meta Pool distributes stake across dozens of validators to minimize slashing concentration risk.',
     custodyModel: 'smart-contract',
     founded: 2021,
-    website: 'https://www.metapool.app',
+    website: 'https://www.metapool.app/stake',
     tvlBillions: 0.08,
     auditCount: 2,
     risks: {
