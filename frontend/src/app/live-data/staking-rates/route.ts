@@ -68,7 +68,82 @@ const FALLBACK: Record<string, number> = {
   // NEAR Protocol
   native_near:     10.0,
   metapool_near:    9.5,
+
+  // ── Liquid-staking / restaking protocols (live via DeFiLlama Yields) ────────
+  // ETH LSTs & restaking
+  frax_eth:         4.5,
+  stakewise_eth:    3.7,
+  stader_eth:       3.9,
+  swell_eth:        4.2,
+  renzo_eth:        4.5,
+  kelp_eth:         4.3,
+  puffer_eth:       4.0,
+  origin_eth:       4.2,
+  bedrock_eth:      4.1,
+  etherfi_eth:      4.8,
+  // Solana LSTs
+  sanctum_sol:      7.8,
+  ankr_sol:         6.2,
+  // Avalanche LSTs
+  benqi_avax:       6.5,
+  ankr_avax:        6.0,
+  // Polygon / BNB LSTs
+  stader_matic:     4.5,
+  stader_bnb:       5.0,
+  pstake_bnb:       5.5,
+  ankr_bnb:         5.5,
+  // Cosmos LSTs
+  quicksilver_atom:13.0,
+  pstake_atom:     12.5,
+  // Polkadot / Kusama LSTs
+  bifrost_dot:     12.0,
+  bifrost_ksm:     14.0,
+  // Bitcoin LST
+  lombard_btc:      3.2,
 }
+
+// ─── DeFiLlama Yields mapping ────────────────────────────────────────────────
+// Maps our internal rate key → the receipt-token symbol(s) DeFiLlama lists for
+// that liquid-staking/restaking pool. Matching is by exact symbol (single-asset
+// staking pools are just the ticker, e.g. "STETH"; LP pools are "STETH-ETH" and
+// are excluded by the exact match), disambiguated by chain + highest TVL. This
+// avoids hardcoding DeFiLlama's pool UUIDs, which churn.
+const LLAMA_MAP: { key: string; symbols: string[]; chain?: string }[] = [
+  // ETH liquid staking / restaking
+  { key: 'frax_eth',        symbols: ['SFRXETH'],          chain: 'Ethereum' },
+  { key: 'stakewise_eth',   symbols: ['OSETH'],            chain: 'Ethereum' },
+  { key: 'stader_eth',      symbols: ['ETHX'],             chain: 'Ethereum' },
+  { key: 'swell_eth',       symbols: ['RSWETH', 'SWETH'],  chain: 'Ethereum' },
+  { key: 'renzo_eth',       symbols: ['EZETH'],            chain: 'Ethereum' },
+  { key: 'kelp_eth',        symbols: ['RSETH'],            chain: 'Ethereum' },
+  { key: 'puffer_eth',      symbols: ['PUFETH'],           chain: 'Ethereum' },
+  { key: 'origin_eth',      symbols: ['OETH'],             chain: 'Ethereum' },
+  { key: 'bedrock_eth',     symbols: ['UNIETH'],           chain: 'Ethereum' },
+  { key: 'etherfi_eth',     symbols: ['WEETH', 'EETH'],    chain: 'Ethereum' },
+  { key: 'ankr_eth',        symbols: ['ANKRETH'],          chain: 'Ethereum' },
+  // Solana
+  { key: 'sanctum_sol',     symbols: ['INF'],              chain: 'Solana' },
+  { key: 'ankr_sol',        symbols: ['ANKRSOL'],          chain: 'Solana' },
+  // Avalanche
+  { key: 'benqi_avax',      symbols: ['SAVAX'],            chain: 'Avalanche' },
+  { key: 'ankr_avax',       symbols: ['ANKRAVAX'],         chain: 'Avalanche' },
+  // Polygon
+  { key: 'stader_matic',    symbols: ['MATICX'],           chain: 'Polygon' },
+  // BNB Chain
+  { key: 'stader_bnb',      symbols: ['BNBX'],             chain: 'BSC' },
+  { key: 'pstake_bnb',      symbols: ['STKBNB'],           chain: 'BSC' },
+  { key: 'ankr_bnb',        symbols: ['ANKRBNB'],          chain: 'BSC' },
+  // Cosmos LSTs (chain left open — symbol is distinctive and the chain label varies)
+  { key: 'quicksilver_atom', symbols: ['QATOM'] },
+  { key: 'pstake_atom',     symbols: ['STKATOM'] },
+  // Polkadot / Kusama LSTs
+  { key: 'bifrost_dot',     symbols: ['VDOT'] },
+  { key: 'bifrost_ksm',     symbols: ['VKSM'] },
+  // Bitcoin LST
+  { key: 'lombard_btc',     symbols: ['LBTC'],             chain: 'Ethereum' },
+  // NEAR (Meta Pool) — upgrades the metapool_near fallback to a live reading
+  { key: 'metapool_near',   symbols: ['STNEAR'],           chain: 'Near' },
+]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -120,6 +195,7 @@ export async function GET() {
     injRes,
     tiaRes,
     nearRes,
+    llamaRes,
   ] = await Promise.allSettled([
     // 1. Lido stETH 7-day APR SMA
     timedFetch('https://eth-api.lido.fi/v1/protocol/steth/apr/sma', { headers: { Accept: 'application/json' } }),
@@ -160,6 +236,8 @@ export async function GET() {
     timedFetch('https://api-celestia-ia.cosmostation.io/cosmos/mint/v1beta1/inflation', { headers: { Accept: 'application/json' } }),
     // 17. NEAR staking APY (NEAR public stats)
     timedFetch('https://api.nearblocks.io/v1/stats', { headers: { Accept: 'application/json' } }),
+    // 18. DeFiLlama Yields — live APY for liquid-staking & restaking protocols (keyless)
+    timedFetch('https://yields.llama.fi/pools', { headers: { Accept: 'application/json' } }),
   ])
 
   // ── 1. Lido stETH ──────────────────────────────────────────────────────────
@@ -370,7 +448,39 @@ export async function GET() {
     } catch { /* fallback */ }
   }
 
-  // ── Bitcoin yield: no live public API; keep fallback estimate ──────────────
+  // ── 18. DeFiLlama Yields → liquid-staking / restaking protocol APYs ─────────
+  // One keyless fetch covers ~24 protocol rows that otherwise have no live feed.
+  // Runs after the protocol-specific blocks above so a DeFiLlama reading upgrades
+  // any derived estimate (e.g. ankr_eth, previously offset from Lido) to live.
+  if (llamaRes.status === 'fulfilled' && llamaRes.value.ok) {
+    try {
+      const d = await llamaRes.value.json()
+      const pools: Array<{ symbol?: string; chain?: string; apy?: number; apyBase?: number; tvlUsd?: number }> =
+        Array.isArray(d?.data) ? d.data : []
+      if (pools.length) {
+        for (const m of LLAMA_MAP) {
+          let cands: typeof pools = []
+          for (const sym of m.symbols) {
+            cands = pools.filter(p => (p.symbol || '').toUpperCase() === sym)
+            if (m.chain) {
+              const byChain = cands.filter(p => p.chain === m.chain)
+              if (byChain.length) cands = byChain
+            }
+            if (cands.length) break
+          }
+          if (!cands.length) continue
+          cands.sort((a, b) => (b.tvlUsd || 0) - (a.tvlUsd || 0))
+          const best = cands[0]
+          // Prefer base staking yield; fall back to total APY when base is absent/zero.
+          const raw = (typeof best.apyBase === 'number' && best.apyBase > 0) ? best.apyBase : best.apy
+          const pct = typeof raw === 'number' ? clamp(raw, 0, 40) : null
+          if (pct != null) { rates[m.key] = round2(pct); sources[m.key] = 'live' }
+        }
+      }
+    } catch { /* keep fallbacks */ }
+  }
+
+  // ── Bitcoin yield: Babylon native has no live public API; keep fallback ─────
   // babylon_btc is a nascent protocol with variable TVL-based yield; static fallback is accurate
 
   return NextResponse.json({

@@ -10,7 +10,7 @@ import {
 import { PageHeader } from '@/components/ui/PageHeader'
 import { clsx } from 'clsx'
 import {
-  STAKING_PROVIDERS, STAKING_COIN_INFO,
+  STAKING_PROVIDERS, STAKING_COIN_INFO, DEFAULT_LIVE_APR_KEY,
   resolveYieldType, YIELD_TYPE_META,
   type StakingProvider, type StakingCoinId, type ProviderCategory,
 } from '@/lib/data/stakingProviders'
@@ -49,6 +49,22 @@ function aprDisplay(
   const live = rates[liveKey]
   if (live != null) return { apr: live, live: sources[liveKey] === 'live' }
   return { apr: staticApr, live: false }
+}
+
+/**
+ * Resolve which live-rate key an asset row should read.
+ *   1. An explicit asset.liveAprKey always wins.
+ *   2. Self-custody wallets do NATIVE delegation, so the live network base rate
+ *      (DEFAULT_LIVE_APR_KEY) is an honest reading of what the position earns
+ *      (minus a small validator commission). Scoped to non-ETH coins: wallet ETH
+ *      staking routes through assorted providers, so we don't show one LST's rate
+ *      for it. CeFi/liquid are deliberately excluded — their rates aren't the raw
+ *      network rate, so they must opt in with an explicit key.
+ */
+function resolveLiveAprKey(provider: StakingProvider, coinId: StakingCoinId, asset: StakingProvider['assets'][StakingCoinId]): string | undefined {
+  if (asset?.liveAprKey) return asset.liveAprKey
+  if (provider.category === 'wallet' && coinId !== 'eth') return DEFAULT_LIVE_APR_KEY[coinId]
+  return undefined
 }
 
 // ─── Provider Card ────────────────────────────────────────────────────────────
@@ -165,7 +181,7 @@ function ProviderCard({
       <div className="border-t border-border divide-y divide-border/50">
         {visibleAssets.map(([coinId, asset]) => {
           const info = STAKING_COIN_INFO[coinId]
-          const { apr, live } = aprDisplay(asset.staticApr, asset.liveAprKey, rates, sources)
+          const { apr, live } = aprDisplay(asset.staticApr, resolveLiveAprKey(provider, coinId, asset), rates, sources)
           const yieldType = resolveYieldType(provider, asset)
           const yieldMeta = YIELD_TYPE_META[yieldType]
 
@@ -482,7 +498,7 @@ export default function StakingPage() {
             description={`Staking Opportunities evaluates ${STAKING_PROVIDERS.length} providers across three categories: CeFi exchanges (highest counterparty risk), self-custody wallets, and liquid staking protocols (lowest custody risk). Each provider is scored on six risk dimensions.`}
             details={[
               { label: 'Risk dimensions', text: 'Custody · Counterparty · Smart contract · Slashing · Liquidity · Regulatory — each scored 1–10. Composite score is weighted with counterparty at 25%.' },
-              { label: 'Live APY', text: 'Lido, Rocket Pool, Marinade, and Jito pull live APR from their APIs. CeFi rates are static estimates and may differ from current offerings.' },
+              { label: 'Live APY', text: 'Liquid-staking & restaking protocols pull live APY from DeFiLlama plus each protocol’s own API (Lido, Rocket Pool, Marinade, Jito, Stride). Self-custody wallets show the live on-chain network rate for native delegation. CeFi exchange rates are static estimates and may differ from current offerings.' },
               { label: 'Celsius warning', text: 'Celsius is included as an educational cautionary example — it is marked defunct and should not be used.' },
             ]}
           />
@@ -567,8 +583,9 @@ export default function StakingPage() {
       <div className="rounded-lg border border-border bg-bg-elevated p-3 text-xs text-text-muted leading-relaxed">
         <span className="font-semibold text-text-secondary">Disclaimer: </span>
         APY figures are indicative and fluctuate based on network conditions, total validators, and protocol fees.
-        Exchange staking rates are static estimates — check each platform directly for current rates.
-        Liquid staking APRs (Lido, Marinade, Jito) are fetched from public protocol APIs.
+        Exchange (CeFi) staking rates are static estimates — check each platform directly for current rates.
+        Liquid-staking / restaking APRs are fetched live from DeFiLlama and public protocol APIs; self-custody
+        wallet rows show the live network base rate for native delegation (gross of validator commission).
         Risk scores are editorial assessments and do not constitute financial advice. Always do your own research before staking.
       </div>
     </div>

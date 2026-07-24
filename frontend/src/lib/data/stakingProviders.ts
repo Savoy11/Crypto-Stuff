@@ -793,6 +793,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'sAVAX',
         liquid: true,
+        liveAprKey: 'benqi_avax',
         features: [
           'sAVAX — liquid AVAX staking, bypasses 2-week lockup',
           'sAVAX usable as collateral in Benqi Liquidity Market',
@@ -833,6 +834,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'eETH',
         liquid: true,
+        liveAprKey: 'etherfi_eth',
         features: [
           'eETH — liquid receipt token redeemable via withdrawal queue',
           'EigenLayer restaking rewards on top of base staking APY',
@@ -1364,6 +1366,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'sfrxETH',
         liquid: true,
+        liveAprKey: 'frax_eth',
         features: [
           'sfrxETH accrues all validator rewards from the entire frxETH supply',
           'Higher APY than Lido/Rocket Pool due to dual-token model',
@@ -1404,6 +1407,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'osETH',
         liquid: true,
+        liveAprKey: 'stakewise_eth',
         features: [
           'osETH — universal liquid token across all StakeWise vaults',
           'Permissionless vault creation for custom validator sets',
@@ -1436,9 +1440,9 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
       regulatoryRisk:   2,
     },
     assets: {
-      eth:  { coinId: 'eth',  staticApr: 3.9,  minStakeNative: 0, lockupDays: 0, receiptToken: 'ETHx',   liquid: true, features: ['ETHx — liquid receipt for Ethereum staking', 'Permissioned + community node operators', 'Instant exit via Curve ETHx pool', '6 audits'], assetRisks: { contractRisk: 5 } },
-      matic:{ coinId: 'matic',staticApr: 4.5,  minStakeNative: 1, lockupDays: 0, receiptToken: 'MaticX', liquid: true, features: ['MaticX — largest Polygon liquid staking token', 'Used as collateral on Aave, Compound', 'Instant exit via AMM'], assetRisks: { contractRisk: 4 } },
-      bnb:  { coinId: 'bnb',  staticApr: 5.0,  minStakeNative: 0, lockupDays: 0, receiptToken: 'BNBx',   liquid: true, features: ['BNBx — liquid BNB staking, bypasses 7-day unbonding', 'Available on BNB Chain DeFi'], assetRisks: { contractRisk: 4 } },
+      eth:  { coinId: 'eth',  staticApr: 3.9,  minStakeNative: 0, lockupDays: 0, receiptToken: 'ETHx',   liquid: true, liveAprKey: 'stader_eth',   features: ['ETHx — liquid receipt for Ethereum staking', 'Permissioned + community node operators', 'Instant exit via Curve ETHx pool', '6 audits'], assetRisks: { contractRisk: 5 } },
+      matic:{ coinId: 'matic',staticApr: 4.5,  minStakeNative: 1, lockupDays: 0, receiptToken: 'MaticX', liquid: true, liveAprKey: 'stader_matic', features: ['MaticX — largest Polygon liquid staking token', 'Used as collateral on Aave, Compound', 'Instant exit via AMM'], assetRisks: { contractRisk: 4 } },
+      bnb:  { coinId: 'bnb',  staticApr: 5.0,  minStakeNative: 0, lockupDays: 0, receiptToken: 'BNBx',   liquid: true, liveAprKey: 'stader_bnb',   features: ['BNBx — liquid BNB staking, bypasses 7-day unbonding', 'Available on BNB Chain DeFi'], assetRisks: { contractRisk: 4 } },
     },
   },
 
@@ -1470,6 +1474,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'rswETH',
         liquid: true,
+        liveAprKey: 'swell_eth',
         features: [
           'rswETH — restaked ETH earning staking + EigenLayer AVS rewards',
           'swETH available for standard liquid staking (no restaking)',
@@ -1511,6 +1516,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'ezETH',
         liquid: true,
+        liveAprKey: 'renzo_eth',
         features: [
           'ezETH — liquid restaking token earning ETH staking + EigenLayer AVS rewards',
           'Accepts ETH, stETH, cbETH, rETH as deposits',
@@ -1552,6 +1558,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'rsETH',
         liquid: true,
+        liveAprKey: 'kelp_eth',
         features: [
           'rsETH — accepts ETH, stETH, cbETH, rETH, sfrxETH, ETHx as deposit',
           'Restake existing LSTs without unwrapping',
@@ -1592,6 +1599,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'pufETH',
         liquid: true,
+        liveAprKey: 'puffer_eth',
         features: [
           'pufETH — native restaking, earns staking + EigenLayer AVS rewards',
           'Validator anti-slashing: Intel TDX trusted execution environments',
@@ -1632,6 +1640,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'OETH',
         liquid: true,
+        liveAprKey: 'origin_eth',
         features: [
           'OETH auto-routes to highest-yield LSTs and DeFi strategies',
           'Rebasing token — balance grows automatically each day',
@@ -1666,7 +1675,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
       regulatoryRisk:   3,
     },
     assets: {
-      eth: { coinId: 'eth', staticApr: 4.1, minStakeNative: 0, lockupDays: 0, receiptToken: 'uniETH', liquid: true, features: ['uniETH — liquid ETH staking with EigenLayer restaking', 'Instant exit via uniETH/ETH Curve pool', '3 audits'], assetRisks: { contractRisk: 6 } },
+      eth: { coinId: 'eth', staticApr: 4.1, minStakeNative: 0, lockupDays: 0, receiptToken: 'uniETH', liquid: true, liveAprKey: 'bedrock_eth', features: ['uniETH — liquid ETH staking with EigenLayer restaking', 'Instant exit via uniETH/ETH Curve pool', '3 audits'], assetRisks: { contractRisk: 6 } },
       btc: { coinId: 'btc', staticApr: 3.5, minStakeNative: 0.001, lockupDays: 0, receiptToken: 'uniBTC', liquid: true, features: ['uniBTC — BTC liquid restaking via Babylon protocol', 'Earn BTC yield by restaking through EVM wrapper', 'Nascent product — elevated smart contract risk'], assetRisks: { contractRisk: 8, slashingRisk: 5 } },
     },
   },
@@ -1702,6 +1711,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'INF',
         liquid: true,
+        liveAprKey: 'sanctum_sol',
         features: [
           'INF (Infinity) — auto-routing LST picking highest-yield Solana validators',
           'Instant exit from any LST via shared Infinity reserve pool',
@@ -1739,7 +1749,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
       regulatoryRisk:   2,
     },
     assets: {
-      atom: { coinId: 'atom', staticApr: 13.0, minStakeNative: 0.1, lockupDays: 0, receiptToken: 'qATOM', liquid: true, features: ['qATOM retains Cosmos Hub governance voting rights', 'IBC-based cross-chain staking', 'Exit via qATOM/ATOM Osmosis pool', '2 security audits', 'Smaller TVL — lower liquidity than Stride'], assetRisks: { contractRisk: 6, slashingRisk: 5, liquidityRisk: 5 } },
+      atom: { coinId: 'atom', staticApr: 13.0, minStakeNative: 0.1, lockupDays: 0, receiptToken: 'qATOM', liquid: true, liveAprKey: 'quicksilver_atom', features: ['qATOM retains Cosmos Hub governance voting rights', 'IBC-based cross-chain staking', 'Exit via qATOM/ATOM Osmosis pool', '2 security audits', 'Smaller TVL — lower liquidity than Stride'], assetRisks: { contractRisk: 6, slashingRisk: 5, liquidityRisk: 5 } },
       osmo: { coinId: 'osmo', staticApr: 9.0,  minStakeNative: 1,   lockupDays: 0, receiptToken: 'qOSMO', liquid: true, features: ['qOSMO — liquid Osmosis staking with governance', 'Exit via Osmosis DEX'], assetRisks: { contractRisk: 6, liquidityRisk: 5 } },
     },
   },
@@ -1764,8 +1774,8 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
       regulatoryRisk:   2,
     },
     assets: {
-      atom: { coinId: 'atom', staticApr: 12.5, minStakeNative: 0.1, lockupDays: 0, receiptToken: 'stkATOM', liquid: true, features: ['stkATOM — liquid Cosmos staking', 'Listed on Osmosis DEX', '4 audits including Halborn', 'Backed by Binance Labs'], assetRisks: { contractRisk: 5, slashingRisk: 5 } },
-      bnb:  { coinId: 'bnb',  staticApr: 5.5,  minStakeNative: 0.1, lockupDays: 0, receiptToken: 'stkBNB', liquid: true, features: ['stkBNB — liquid BNB staking on BNB Chain', 'Integrated with Venus Protocol as collateral'], assetRisks: { contractRisk: 5 } },
+      atom: { coinId: 'atom', staticApr: 12.5, minStakeNative: 0.1, lockupDays: 0, receiptToken: 'stkATOM', liquid: true, liveAprKey: 'pstake_atom', features: ['stkATOM — liquid Cosmos staking', 'Listed on Osmosis DEX', '4 audits including Halborn', 'Backed by Binance Labs'], assetRisks: { contractRisk: 5, slashingRisk: 5 } },
+      bnb:  { coinId: 'bnb',  staticApr: 5.5,  minStakeNative: 0.1, lockupDays: 0, receiptToken: 'stkBNB', liquid: true, liveAprKey: 'pstake_bnb', features: ['stkBNB — liquid BNB staking on BNB Chain', 'Integrated with Venus Protocol as collateral'], assetRisks: { contractRisk: 5 } },
     },
   },
 
@@ -1793,8 +1803,8 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
       regulatoryRisk:   2,
     },
     assets: {
-      dot: { coinId: 'dot', staticApr: 12.0, minStakeNative: 1, lockupDays: 0, receiptToken: 'vDOT', liquid: true, features: ['vDOT — bypasses 28-day Polkadot unbonding period', 'Instant exit via vDOT/DOT pool on Bifrost DEX', '3 audits', 'Polkadot parachain — fully on-chain governance'], assetRisks: { contractRisk: 5, slashingRisk: 5 } },
-      ksm: { coinId: 'ksm', staticApr: 14.0, minStakeNative: 0.1, lockupDays: 0, receiptToken: 'vKSM', liquid: true, features: ['vKSM — bypasses 7-day Kusama unbonding', 'Higher yield than DOT (canary network premiums)', 'Liquid exit via Bifrost DEX'], assetRisks: { contractRisk: 5, slashingRisk: 5, liquidityRisk: 4 } },
+      dot: { coinId: 'dot', staticApr: 12.0, minStakeNative: 1, lockupDays: 0, receiptToken: 'vDOT', liquid: true, liveAprKey: 'bifrost_dot', features: ['vDOT — bypasses 28-day Polkadot unbonding period', 'Instant exit via vDOT/DOT pool on Bifrost DEX', '3 audits', 'Polkadot parachain — fully on-chain governance'], assetRisks: { contractRisk: 5, slashingRisk: 5 } },
+      ksm: { coinId: 'ksm', staticApr: 14.0, minStakeNative: 0.1, lockupDays: 0, receiptToken: 'vKSM', liquid: true, liveAprKey: 'bifrost_ksm', features: ['vKSM — bypasses 7-day Kusama unbonding', 'Higher yield than DOT (canary network premiums)', 'Liquid exit via Bifrost DEX'], assetRisks: { contractRisk: 5, slashingRisk: 5, liquidityRisk: 4 } },
     },
   },
 
@@ -1872,6 +1882,7 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
         lockupDays: 0,
         receiptToken: 'LBTC',
         liquid: true,
+        liveAprKey: 'lombard_btc',
         features: [
           'LBTC — liquid EVM-native BTC staking token',
           'Backed 1:1 by Babylon-staked Bitcoin',
@@ -1991,9 +2002,9 @@ export const STAKING_PROVIDERS: StakingProvider[] = [
     },
     assets: {
       eth:  { coinId: 'eth',  staticApr: 3.7,  minStakeNative: 0.5,  lockupDays: 0, receiptToken: 'ankrETH', liquid: true,  liveAprKey: 'ankr_eth',  features: ['ankrETH non-rebasing token', 'Lower DeFi liquidity vs Lido/Rocket Pool', '5 security audits'] },
-      bnb:  { coinId: 'bnb',  staticApr: 5.5,  minStakeNative: 0.1,  lockupDays: 0, receiptToken: 'ankrBNB', liquid: true,  features: ['ankrBNB liquid BNB staking', 'Bypass 7-day BNB unbonding'] },
-      avax: { coinId: 'avax', staticApr: 6.0,  minStakeNative: 1,    lockupDays: 0, receiptToken: 'ankrAVAX',liquid: true,  features: ['ankrAVAX — alternative to Benqi sAVAX', 'No 25 AVAX minimum'] },
-      sol:  { coinId: 'sol',  staticApr: 6.2,  minStakeNative: 0.01, lockupDays: 0, receiptToken: 'ankrSOL', liquid: true,  features: ['ankrSOL liquid Solana staking', 'Lower liquidity than Marinade/Jito'] },
+      bnb:  { coinId: 'bnb',  staticApr: 5.5,  minStakeNative: 0.1,  lockupDays: 0, receiptToken: 'ankrBNB', liquid: true,  liveAprKey: 'ankr_bnb',  features: ['ankrBNB liquid BNB staking', 'Bypass 7-day BNB unbonding'] },
+      avax: { coinId: 'avax', staticApr: 6.0,  minStakeNative: 1,    lockupDays: 0, receiptToken: 'ankrAVAX',liquid: true,  liveAprKey: 'ankr_avax', features: ['ankrAVAX — alternative to Benqi sAVAX', 'No 25 AVAX minimum'] },
+      sol:  { coinId: 'sol',  staticApr: 6.2,  minStakeNative: 0.01, lockupDays: 0, receiptToken: 'ankrSOL', liquid: true,  liveAprKey: 'ankr_sol',  features: ['ankrSOL liquid Solana staking', 'Lower liquidity than Marinade/Jito'] },
     },
   },
 
