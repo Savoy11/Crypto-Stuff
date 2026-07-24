@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Shield, Building2, Wallet, Layers, Search, RefreshCw, Radio } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { STALE_TIME_LONG, GC_TIME } from '@/lib/constants'
 import { clsx } from 'clsx'
@@ -440,6 +441,9 @@ export default function StakingPlatformsPage() {
           ))}
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="staking-discovery" />
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">

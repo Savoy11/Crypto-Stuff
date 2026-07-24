@@ -10,6 +10,7 @@ import { useFeedBiasStore } from '@/store/useFeedBiasStore'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
 import { applyBias, shouldAugmentFetch } from '@/lib/watchlist/bias'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import type { MarketArticle, MarketNewsCategory, MarketNewsResponse } from '@/app/live-data/market-news/route'
 
@@ -221,6 +222,9 @@ function EquityNewsContent() {
           </button>
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="market-news" />
 
       {/* Filters */}
       <div className="flex flex-col gap-3">

@@ -7,6 +7,7 @@ import { clsx } from 'clsx'
 import { format } from 'date-fns'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { AreaChart } from '@/components/charts/AreaChart'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
@@ -132,6 +133,9 @@ function EquityBacktestsContent() {
           ]}
         />
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="security-ohlcv" />
 
       {/* Disclaimer */}
       <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 flex gap-3">

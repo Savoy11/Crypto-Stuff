@@ -10,6 +10,7 @@ import { useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Search, Plus, Star, X, ChevronDown, ChevronUp, Coins, Trash2, TrendingUp, AlertTriangle, Eye, ExternalLink, Database, LayoutGrid, Rows3 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import type { CandidateCoin, CoinDiscoveryResponse } from '@/app/live-data/coin-discovery/route'
 
@@ -466,6 +467,9 @@ export default function CoinDiscoveryPage() {
           </div>
         )}
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="coin-discovery" />
 
       {/* Source selector */}
       <div className="flex items-center gap-3 flex-wrap">

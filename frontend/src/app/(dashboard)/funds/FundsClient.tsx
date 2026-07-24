@@ -6,6 +6,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown, ChevronLeft, ChevronRight, Clock, ExternalLink, Landmark, RefreshCw, Search, SlidersHorizontal } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import {
   FUND_CATALOG, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
@@ -324,6 +325,9 @@ export function FundsClient() {
           </button>
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="fund-universe" />
 
       {/* Per-directory outage notices — a silent half-universe looks like a bug */}
       {universeData?.etfError && (

@@ -6,6 +6,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, KeyRound, LineChart, RefreshCw, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { OutlierScanPanel } from '@/components/markets/OutlierScanPanel'
 import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
@@ -175,6 +176,9 @@ export function EquitiesClient() {
           </button>
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="stock-universe" />
 
       {/* Not-configured notice */}
       {universeData && !configured && (

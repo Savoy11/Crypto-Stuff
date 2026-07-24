@@ -6,6 +6,7 @@ import { CalendarDays, KeyRound, Landmark } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { STALE_TIME_LONG } from '@/lib/constants'
 import type { MarketCalendarResponse } from '@/app/live-data/market-calendar/route'
 
@@ -46,6 +47,9 @@ function CalendarContent() {
           details={[{ label: 'Data source', text: 'Financial Modeling Prep earnings + economic calendars (free API key required).' }]}
         />
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="market-calendar" />
 
       {isLoading ? (
         <div className="h-48 animate-shimmer bg-shimmer-gradient bg-[length:200%_100%] rounded-card" />

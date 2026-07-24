@@ -13,6 +13,7 @@ import {
 import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import type { ChartType, DrawingTool, Drawing } from '@/components/charts/CandlestickChart'
 import type { LucideIcon } from 'lucide-react'
@@ -545,6 +546,9 @@ function EquityTaContent() {
           { label: 'Drawings', text: 'Trendlines, horizontal rays, rectangles, and Fibonacci retracements — click two points on the chart.' },
         ]}
       />
+
+      {/* Data provenance */}
+      <SourceLine id="security-ohlcv" />
 
       <div className="flex gap-1 border-b border-slate-800">
         {([['chart', 'Chart'], ['screener', 'Screener']] as const).map(([id, label]) => (

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpDown, Banknote, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import {
   CONVERTER_CURRENCIES, CURRENCY_CATALOG, CURRENCY_CATEGORY_INFO, formatFxRate,
@@ -209,6 +210,9 @@ export function CurrenciesClient() {
           description="Intraday FX pair quotes with a daily ECB reference-rate converter. Pairs follow market convention — a rising USD/JPY means a stronger dollar, a rising EUR/USD a weaker one — so read direction against the base currency."
         />
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="fx-rates" />
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard title="Pairs" value={String(CURRENCY_CATALOG.length)} subtitle={`${pricedCount} priced live`} accentColor="#22c55e" />

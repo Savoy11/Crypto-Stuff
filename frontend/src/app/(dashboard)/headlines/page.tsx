@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Loader2, RefreshCw, Coins, LineChart, Star } from 'lucide-react'
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { useFeedBiasStore } from '@/store/useFeedBiasStore'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
@@ -343,6 +344,9 @@ export default function HeadlinesPage() {
           </button>
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="headlines" />
 
       {/* Loading */}
       {isLoading && (

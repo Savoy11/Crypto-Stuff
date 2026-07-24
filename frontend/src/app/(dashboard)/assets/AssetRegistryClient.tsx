@@ -16,6 +16,7 @@ import { useAssetStore } from '@/store/useAssetStore'
 import { assetsApi } from '@/lib/api/assets'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { formatCurrency, formatCompact, formatDate, formatPercent } from '@/lib/utils/format'
 import { LIVE_DATA, STALE_TIME_SHORT, BLOCKCHAIN_LABELS } from '@/lib/constants'
 import type { AssetType, Blockchain, RiskBand } from '@/types/asset'
@@ -389,6 +390,9 @@ export function AssetRegistryClient() {
           )}
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="markets" />
 
       {/* Tab bar */}
       <div className="flex gap-1 border-b border-slate-800">
