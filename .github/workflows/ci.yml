@@ -228,6 +228,12 @@ jobs:
           NEXT_PUBLIC_WS_URL: ws://localhost:8000
           NEXT_PUBLIC_ENV: test
           NEXT_TELEMETRY_DISABLED: 1
+          # `next build` imports every route during page-data collection, and the
+          # db client (src/lib/db) is created eagerly on import — it throws when
+          # DATABASE_URL is unset. postgres-js connects lazily, so this placeholder
+          # is never actually dialed during the build; it only satisfies the
+          # presence check. No live database is required to build.
+          DATABASE_URL: postgres://build:build@localhost:5432/build
         run: |
           cd frontend
           npm run build
