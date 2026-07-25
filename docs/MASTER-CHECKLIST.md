@@ -18,7 +18,54 @@ priorities, and progress. Add to it, check things off, re-prioritise. This is a 
 ## Legend
 
 - **Priority:** `P0` = do first / unblocks others · `P1` = core value · `P2` = later / nice-to-have
+- Each backlog item is rated on three lenses: **Importance** (impact if done / cost if not),
+  **Efficiency** (ROI — value ÷ effort), **Practicality** (readiness — dependencies, risk, is it
+  already built). Priority is the net of the three.
 - Check a box when done; add sub-bullets for notes/links as we go.
+
+---
+
+## Project state & prioritized backlog (from PR review — 2026-07-25)
+
+**Where CAEP stands.** Phase-1 task queue (`docs/TASK-QUEUE.md`: T1–T12, R1/R2) has **landed**
+— live-data audit, shared TA/backtest math verified, canonical risk scale, Coins registry,
+accuracy audits. The **Macro Markets module** (commodities / currencies / bonds & rates) shipped
+2026-07-21, which covers most of Phase-2 item 1. Live-data audit baseline: **60 REAL / 8 FALLBACK
+/ 3 UNCONFIGURED / 1 EMPTY / 0 FAIL**. Of 39 PRs, only three are open: **#38, #21, #39 (this doc)**.
+
+Prioritized outstanding work, most-important first:
+
+- [ ] `P0` **Merge #38 — fix the red Frontend Check CI build.** *Importance:* critical — `next
+      build` fails on `main` (illegal route exports in `macro-news` + eager `DATABASE_URL` at
+      build time), so every deploy/PR is blocked. *Efficiency:* very high — fix is written and
+      verified (14/14 tests, `next build` exit 0). *Practicality:* ready to merge now. **Do this
+      first.**
+- [ ] `P0` **Resolve #21's status** (Wave-0 live-data audit + the task-queue doc). *Importance:*
+      high — it carries the audit and 6 bug fixes. *Practicality:* its fixes may already have
+      re-landed via later PRs; **check whether it's superseded → close, or still needed → merge.**
+      Don't leave it dangling.
+- [ ] `P1` **CI durability.** Red CI is a recurring theme (#22 "chronic CI red", #38). Add
+      guardrails so the two #38 failure modes can't regress (route-export lint rule; build-time
+      `DATABASE_URL` placeholder in CI). *Importance:* high · *Efficiency:* med · *Practicality:* high.
+- [ ] `P1` **F3 — `fund-universe` performance** (11 s / 14 MB payload → pagination or server-side
+      filtering). *Importance:* med-high (user-facing latency) · *Efficiency:* med · *Practicality:*
+      high (self-contained).
+- [ ] `P1` **F4 — dead `chart` route** that fabricates OHLC (`open==high==low==close`).
+      **Verify consumers first** (Compare may reference `/live-data/chart`), then delete or replace.
+      *Importance:* med (data integrity) · *Efficiency:* high · *Practicality:* high after the consumer check.
+- [ ] `P2` **F2 — `stock-social` recency starvation** (Reddit gets 0 slots at `limit ≤ 30`).
+      **Product decision on the real-time-vs-forum blend comes before code.** *Importance:* low-med ·
+      *Practicality:* blocked on the decision.
+- [ ] `P2` **F1 — `Promise.allSettled` convention audit.** Mostly resolved — the 2026-07-22 pass
+      found 7 of 8 flagged routes were already correct as sequential fallback ladders. *Reduce to:*
+      document the classification; only `config`/`wallet/exchange` may warrant a real change.
+- [ ] `P2` **Phase 2 — Options & futures support.** The larger remaining roadmap item (commodities/
+      bonds/fiat already shipped via Macro). New primitives the app has never modeled (Greeks, IV,
+      expiries, chains); `lib/risk/profiles/optionsTrade.ts` is an existing foundation to review.
+      *Importance:* med (roadmap) · *Efficiency:* low (large) · *Practicality:* low — **needs scoping first.**
+
+> The **On-chain event data** initiative below is a new P1 that slots alongside F3/F4 — a
+> discrete, mostly-free build rather than debt cleanup.
 
 ---
 
