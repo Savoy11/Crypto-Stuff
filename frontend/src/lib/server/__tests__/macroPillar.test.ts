@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { classifyPillar } from '@/app/live-data/macro-news/route'
+import { classifyPillar } from '@/lib/server/macroNews'
 
 // The classifier decides which chip a macro headline appears under, and a
 // misfile hides the story from the filter a reader is actually using.
