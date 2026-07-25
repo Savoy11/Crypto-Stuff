@@ -4,6 +4,7 @@ import { useState, useCallback, useMemo } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Settings, Loader2, Share2, Check, RefreshCw, Search, X, Info } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import Link from 'next/link'
 import { clsx } from 'clsx'
 import { NEWS_CATEGORIES } from '@/lib/data/newsCategories'
@@ -337,6 +338,9 @@ export default function NewsPage() {
           )}
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="news" />
 
       {/* No providers configured */}
       {noProviders && (

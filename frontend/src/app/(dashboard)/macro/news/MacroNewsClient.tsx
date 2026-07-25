@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { Banknote, Gem, Newspaper, Percent, RefreshCw, TrendingDown, TrendingUp, Zap } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { timeAgo } from '@/lib/utils/format'
 import { STALE_TIME_MEDIUM } from '@/lib/constants'
 import type { MacroNewsArticle, MacroNewsResponse, MacroPillar, MacroSentiment } from '@/app/live-data/macro-news/route'
@@ -110,6 +111,9 @@ export function MacroNewsClient() {
           description="Multi-feed news scoped strictly to the three macro pillars. Articles from general market feeds appear only when they are actually about commodities, currencies, or rates; everything else is dropped server-side. Detected instruments link to their detail pages."
         />
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="macro-news" />
 
       <div className="flex flex-wrap items-center gap-2">
         <button onClick={() => setPillar('all')}

@@ -27,6 +27,7 @@ import {
   Gem,
   Banknote,
   Percent,
+  Network,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -78,6 +79,7 @@ export const MODULES: SuiteModule[] = [
       { href: '/research', label: 'Research', icon: Microscope },
       { href: '/agent-config', label: 'AI Agents', icon: Bot },
       { href: '/settings', label: 'Integrations', icon: Settings },
+      { href: '/data-sources', label: 'Data Sources', icon: Network },
     ],
   },
   {

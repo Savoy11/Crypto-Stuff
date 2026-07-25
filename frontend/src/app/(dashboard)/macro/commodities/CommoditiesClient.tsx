@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowDown, ArrowUp, ArrowUpDown, Gem, Search } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import {
   COMMODITY_CATALOG, COMMODITY_CATEGORY_INFO, formatCommodityPrice,
@@ -111,6 +112,9 @@ export function CommoditiesClient() {
           description="Live continuous front-month contracts across metals, energy, agriculture, and livestock. Each contract quotes in its own market convention — dollars per barrel, cents per bushel — and is shown exactly that way rather than flattened into a fake common unit."
         />
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="macro-quotes" />
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard title="Contracts" value={String(COMMODITY_CATALOG.length)} subtitle={`${movers?.pricedCount ?? 0} priced live`} accentColor="#f59e0b" />

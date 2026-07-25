@@ -12,6 +12,7 @@ import {
   BarChart2, PieChartIcon, Activity,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { clsx } from 'clsx'
 import { hydratePortfolios, usePortfolioStore } from '@/store/usePortfolioStore'
 import {
@@ -930,6 +931,9 @@ export default function PortfoliosPage() {
               <Plus size={16} /> New Portfolio
             </button>
           </div>
+
+          {/* Data provenance */}
+          <SourceLine id="portfolio-prices" />
 
           {portfolios.length === 0 ? (
             <div className="text-center py-20">

@@ -8,6 +8,7 @@ import {
   Clock, Zap, DollarSign, ArrowLeftRight, Plus, X,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { DataBadge } from '@/components/ui/DataBadge'
 import { clsx } from 'clsx'
 import {
@@ -517,6 +518,9 @@ export default function TransferFeesPage() {
           )}
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="network-fees" />
 
       {/* Provenance / freshness notice for hand-maintained withdrawal fees */}
       {(() => {

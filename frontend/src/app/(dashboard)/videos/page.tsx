@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineChart, Globe2, Sparkles, Youtube, AlertCircle, ArrowUpDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { useFeedBiasStore } from '@/store/useFeedBiasStore'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
@@ -313,6 +314,9 @@ export default function VideosPage() {
           </button>
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="videos" />
 
       {/* No modules enabled */}
       {!cryptoOn && !marketsOn && (

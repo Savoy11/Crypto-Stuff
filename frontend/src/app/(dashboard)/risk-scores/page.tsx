@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { AlertTriangle, ChevronDown, ChevronRight, Shield } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_LONG } from '@/lib/constants'
 import type { RiskBand } from '@/lib/risk/types'
@@ -202,6 +203,9 @@ export default function RiskScoresPage() {
           ]}
         />
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="risk-scores" />
 
       {data && !data.ok && (
         <div className="rounded border border-amber-500/20 bg-amber-500/5 px-4 py-2.5">

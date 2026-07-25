@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import { clsx } from 'clsx'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { LIVE_DATA } from '@/lib/constants'
 import type { SocialSignal, AssetSentiment } from '@/app/live-data/social/route'
 import { useAssetList } from '@/lib/hooks/useAssetList'
@@ -265,6 +266,9 @@ export default function SocialPage() {
           )}
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="social" />
 
       {/* Filters row */}
       <div className="flex flex-wrap items-center gap-3">

@@ -8,9 +8,10 @@ import {
   Building2, Wallet, Layers,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { clsx } from 'clsx'
 import {
-  STAKING_PROVIDERS, STAKING_COIN_INFO,
+  STAKING_PROVIDERS, STAKING_COIN_INFO, DEFAULT_LIVE_APR_KEY,
   resolveYieldType, YIELD_TYPE_META,
   type StakingProvider, type StakingCoinId, type ProviderCategory,
 } from '@/lib/data/stakingProviders'
@@ -51,6 +52,22 @@ function aprDisplay(
   return { apr: staticApr, live: false }
 }
 
+/**
+ * Resolve which live-rate key an asset row should read.
+ *   1. An explicit asset.liveAprKey always wins.
+ *   2. Self-custody wallets do NATIVE delegation, so the live network base rate
+ *      (DEFAULT_LIVE_APR_KEY) is an honest reading of what the position earns
+ *      (minus a small validator commission). Scoped to non-ETH coins: wallet ETH
+ *      staking routes through assorted providers, so we don't show one LST's rate
+ *      for it. CeFi/liquid are deliberately excluded — their rates aren't the raw
+ *      network rate, so they must opt in with an explicit key.
+ */
+function resolveLiveAprKey(provider: StakingProvider, coinId: StakingCoinId, asset: StakingProvider['assets'][StakingCoinId]): string | undefined {
+  if (asset?.liveAprKey) return asset.liveAprKey
+  if (provider.category === 'wallet' && coinId !== 'eth') return DEFAULT_LIVE_APR_KEY[coinId]
+  return undefined
+}
+
 // ─── Provider Card ────────────────────────────────────────────────────────────
 
 function ProviderCard({
@@ -78,6 +95,21 @@ function ProviderCard({
       return true
     })
   }, [provider, coinFilter, showAdjacent])
+
+  // Resolve each visible row's live/estimate status once, so the card can both
+  // render rows and disclose — at the card level — when it has no live feed at all.
+  const assetRows = useMemo(
+    () =>
+      visibleAssets.map(([coinId, asset]) => {
+        const { apr, live } = aprDisplay(asset.staticApr, resolveLiveAprKey(provider, coinId, asset), rates, sources)
+        return { coinId, asset, apr, live }
+      }),
+    [visibleAssets, provider, rates, sources],
+  )
+
+  // A live, non-defunct provider whose every shown rate is a static estimate
+  // gets an explicit card-level disclosure — not just the per-row `est` tag.
+  const allEstimated = !provider.defunct && assetRows.length > 0 && assetRows.every(r => !r.live)
 
   if (visibleAssets.length === 0) return null
 
@@ -144,14 +176,41 @@ function ProviderCard({
             </p>
           </div>
 
+          {/* Direct call-to-action to the provider's actual staking page */}
+          {provider.website && !provider.defunct && (
+            <a
+              href={provider.website}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="shrink-0 self-start flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-accent-blue/40 bg-accent-blue/10 text-accent-blue hover:bg-accent-blue/20 hover:border-accent-blue/60 transition-colors"
+              title={`Open ${provider.name}'s staking page`}
+            >
+              {provider.category === 'cefi' ? 'Stake' : provider.category === 'wallet' ? 'Open wallet' : 'Open app'}
+              <ExternalLink size={12} className="shrink-0" />
+            </a>
+          )}
+
         </div>
       </div>
 
+      {/* Card-level disclosure: no live rate feed for this provider */}
+      {allEstimated && (
+        <div className="px-4 pb-3 -mt-1">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
+            <AlertTriangle size={12} className="text-amber-400 shrink-0 mt-0.5" />
+            <span className="text-[11px] text-amber-300/80 leading-relaxed">
+              No live rate feed for {provider.name} — the APY{assetRows.length > 1 ? 's' : ''} below{' '}
+              {assetRows.length > 1 ? 'are' : 'is'} a static estimate, not a current reading.{' '}
+              {provider.website ? 'Verify the current rate on their site before staking.' : 'Verify the current rate before staking.'}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Asset rows */}
       <div className="border-t border-border divide-y divide-border/50">
-        {visibleAssets.map(([coinId, asset]) => {
+        {assetRows.map(({ coinId, asset, apr, live }) => {
           const info = STAKING_COIN_INFO[coinId]
-          const { apr, live } = aprDisplay(asset.staticApr, asset.liveAprKey, rates, sources)
           const yieldType = resolveYieldType(provider, asset)
           const yieldMeta = YIELD_TYPE_META[yieldType]
 
@@ -173,10 +232,20 @@ function ProviderCard({
                     {provider.defunct ? `${apr.toFixed(1)}%` : `${apr.toFixed(2)}%`}
                   </span>
                   {live && !provider.defunct && (
-                    <span className="text-[9px] text-emerald-500/70 ml-0.5">LIVE</span>
+                    <span
+                      className="ml-1 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded border bg-emerald-500/10 text-emerald-400/90 border-emerald-500/25"
+                      title="Live rate — fetched from a protocol/network feed"
+                    >
+                      live
+                    </span>
                   )}
                   {!live && !provider.defunct && (
-                    <span className="text-[9px] text-amber-400/70 ml-0.5" title="Static estimate — not a live reading; verify with the provider">est</span>
+                    <span
+                      className="ml-1 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded border bg-amber-500/10 text-amber-400/90 border-amber-500/25"
+                      title="Static estimate — not a live reading; verify the current rate with the provider"
+                    >
+                      est
+                    </span>
                   )}
                   {provider.defunct && (
                     <span className="text-[9px] text-red-400/60 ml-1">ADVERTISED</span>
@@ -468,7 +537,7 @@ export default function StakingPage() {
             description={`Staking Opportunities evaluates ${STAKING_PROVIDERS.length} providers across three categories: CeFi exchanges (highest counterparty risk), self-custody wallets, and liquid staking protocols (lowest custody risk). Each provider is scored on six risk dimensions.`}
             details={[
               { label: 'Risk dimensions', text: 'Custody · Counterparty · Smart contract · Slashing · Liquidity · Regulatory — each scored 1–10. Composite score is weighted with counterparty at 25%.' },
-              { label: 'Live APY', text: 'Lido, Rocket Pool, Marinade, and Jito pull live APR from their APIs. CeFi rates are static estimates and may differ from current offerings.' },
+              { label: 'Live APY', text: 'Liquid-staking & restaking protocols pull live APY from DeFiLlama plus each protocol’s own API (Lido, Rocket Pool, Marinade, Jito, Stride). Self-custody wallets show the live on-chain network rate for native delegation. CeFi exchange rates are static estimates and may differ from current offerings.' },
               { label: 'Celsius warning', text: 'Celsius is included as an educational cautionary example — it is marked defunct and should not be used.' },
             ]}
           />
@@ -482,6 +551,9 @@ export default function StakingPage() {
           )}
         </div>
       </div>
+
+      {/* Data provenance — reads the same registry that powers /data-sources */}
+      <SourceLine id="staking-rates" asOf={updatedAt} />
 
       {/* Network base APY reference */}
       <NetworkAprReference />
@@ -553,8 +625,9 @@ export default function StakingPage() {
       <div className="rounded-lg border border-border bg-bg-elevated p-3 text-xs text-text-muted leading-relaxed">
         <span className="font-semibold text-text-secondary">Disclaimer: </span>
         APY figures are indicative and fluctuate based on network conditions, total validators, and protocol fees.
-        Exchange staking rates are static estimates — check each platform directly for current rates.
-        Liquid staking APRs (Lido, Marinade, Jito) are fetched from public protocol APIs.
+        Exchange (CeFi) staking rates are static estimates — check each platform directly for current rates.
+        Liquid-staking / restaking APRs are fetched live from DeFiLlama and public protocol APIs; self-custody
+        wallet rows show the live network base rate for native delegation (gross of validator commission).
         Risk scores are editorial assessments and do not constitute financial advice. Always do your own research before staking.
       </div>
     </div>

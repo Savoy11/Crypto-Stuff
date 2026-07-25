@@ -25,6 +25,7 @@ import {
 } from '@/lib/utils/indicators'
 import { DataBadge } from '@/components/ui/DataBadge'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { useThesisStore, computeRiskReward } from '@/store/useThesisStore'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
 import type { CoinListResponse } from '@/lib/types/coinList'
@@ -1419,6 +1420,9 @@ function TechnicalAnalysisContent() {
           { label: 'Screener', text: 'Scans every tracked asset on a selectable timeframe (4H/1D/1W) for technical setups, with sortable results and optional auto-refresh.' },
         ]}
       />
+
+      {/* Data provenance */}
+      <SourceLine id="ohlcv" />
 
       {/* Controls bar */}
       <div className="flex flex-wrap items-center gap-3">

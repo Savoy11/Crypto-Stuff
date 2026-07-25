@@ -9,6 +9,7 @@ import {
 import Link from 'next/link'
 import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import type { StockSocialSignal, StockSentimentSummary, StockSocialResponse } from '@/app/live-data/stock-social/route'
 
@@ -193,6 +194,9 @@ function EquitySocialContent() {
           </button>
         </div>
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="stock-social" />
 
       {/* Symbol filter */}
       <div className="flex items-center gap-2">

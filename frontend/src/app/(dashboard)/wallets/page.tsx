@@ -8,6 +8,7 @@ import {
 import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
 import type { ScanTarget } from '@/app/live-data/pump-report/scan/route'
 import { clsx } from 'clsx'
+import { SourceLine } from '@/components/ui/SourceLine'
 import {
   useWalletStore,
   CHAIN_META, ALL_CHAINS, EXCHANGE_META,
@@ -497,6 +498,7 @@ export default function WalletsPage() {
         <p className="text-sm text-text-muted mt-1">
           Track balances across addresses, browser wallets, and exchanges.
         </p>
+        <SourceLine id="wallet" className="mt-2" />
       </div>
 
       {/* Tab bar */}

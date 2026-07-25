@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ExternalLink, Percent } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { LineChart } from '@/components/charts/LineChart'
 import {
@@ -81,6 +82,9 @@ export function RatesClient() {
           description="The yield curve below is the US Treasury's official daily par curve — 13 maturities, not an approximation. Yield indices and bond futures quote live intraday. Individual corporate and municipal bond quotes are licensed data with no free source, so this page deliberately does not show them."
         />
       </div>
+
+      {/* Data provenance */}
+      <SourceLine id="treasury-yield-curve" />
 
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard
