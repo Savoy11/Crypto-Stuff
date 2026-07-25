@@ -96,6 +96,21 @@ function ProviderCard({
     })
   }, [provider, coinFilter, showAdjacent])
 
+  // Resolve each visible row's live/estimate status once, so the card can both
+  // render rows and disclose — at the card level — when it has no live feed at all.
+  const assetRows = useMemo(
+    () =>
+      visibleAssets.map(([coinId, asset]) => {
+        const { apr, live } = aprDisplay(asset.staticApr, resolveLiveAprKey(provider, coinId, asset), rates, sources)
+        return { coinId, asset, apr, live }
+      }),
+    [visibleAssets, provider, rates, sources],
+  )
+
+  // A live, non-defunct provider whose every shown rate is a static estimate
+  // gets an explicit card-level disclosure — not just the per-row `est` tag.
+  const allEstimated = !provider.defunct && assetRows.length > 0 && assetRows.every(r => !r.live)
+
   if (visibleAssets.length === 0) return null
 
   return (
@@ -178,11 +193,24 @@ function ProviderCard({
         </div>
       </div>
 
+      {/* Card-level disclosure: no live rate feed for this provider */}
+      {allEstimated && (
+        <div className="px-4 pb-3 -mt-1">
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
+            <AlertTriangle size={12} className="text-amber-400 shrink-0 mt-0.5" />
+            <span className="text-[11px] text-amber-300/80 leading-relaxed">
+              No live rate feed for {provider.name} — the APY{assetRows.length > 1 ? 's' : ''} below{' '}
+              {assetRows.length > 1 ? 'are' : 'is'} a static estimate, not a current reading.{' '}
+              {provider.website ? 'Verify the current rate on their site before staking.' : 'Verify the current rate before staking.'}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Asset rows */}
       <div className="border-t border-border divide-y divide-border/50">
-        {visibleAssets.map(([coinId, asset]) => {
+        {assetRows.map(({ coinId, asset, apr, live }) => {
           const info = STAKING_COIN_INFO[coinId]
-          const { apr, live } = aprDisplay(asset.staticApr, resolveLiveAprKey(provider, coinId, asset), rates, sources)
           const yieldType = resolveYieldType(provider, asset)
           const yieldMeta = YIELD_TYPE_META[yieldType]
 
@@ -204,10 +232,20 @@ function ProviderCard({
                     {provider.defunct ? `${apr.toFixed(1)}%` : `${apr.toFixed(2)}%`}
                   </span>
                   {live && !provider.defunct && (
-                    <span className="text-[9px] text-emerald-500/70 ml-0.5">LIVE</span>
+                    <span
+                      className="ml-1 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded border bg-emerald-500/10 text-emerald-400/90 border-emerald-500/25"
+                      title="Live rate — fetched from a protocol/network feed"
+                    >
+                      live
+                    </span>
                   )}
                   {!live && !provider.defunct && (
-                    <span className="text-[9px] text-amber-400/70 ml-0.5" title="Static estimate — not a live reading; verify with the provider">est</span>
+                    <span
+                      className="ml-1 text-[9px] font-semibold uppercase tracking-wide px-1 py-0.5 rounded border bg-amber-500/10 text-amber-400/90 border-amber-500/25"
+                      title="Static estimate — not a live reading; verify the current rate with the provider"
+                    >
+                      est
+                    </span>
                   )}
                   {provider.defunct && (
                     <span className="text-[9px] text-red-400/60 ml-1">ADVERTISED</span>
