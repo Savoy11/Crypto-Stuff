@@ -229,6 +229,15 @@ const tests = [
     const sources = j.sources ?? {}
     const keys = Object.keys(rates)
     if (keys.length === 0) throw new Error('no rates')
+    // The DeFiLlama + native-rate expansion added ~23 protocol keys to the
+    // fallback table, so a current route ALWAYS returns ~51 keys regardless of
+    // which upstreams the running IP can reach (these are fallback keys — their
+    // presence is IP-independent). Far fewer keys means the server is running
+    // pre-expansion code (a stale dev server / old checkout) — fail loudly here
+    // rather than let the run pass green against code that isn't the branch's.
+    const REQUIRED_KEYS = ['frax_eth', 'renzo_eth', 'kelp_eth', 'benqi_avax', 'lombard_btc', 'quicksilver_atom']
+    const missingKeys = REQUIRED_KEYS.filter((k) => !(k in rates))
+    if (missingKeys.length) throw new Error(`missing expanded staking keys (stale server / old code?): ${missingKeys.join(', ')} — only ${keys.length} keys returned`)
     const bad = keys.filter((k) => !(rates[k] >= 0 && rates[k] < 100))
     if (bad.length) throw new Error(`APR out of [0,100): ${bad.join(', ')}`)
     const live = keys.filter((k) => sources[k] === 'live')
