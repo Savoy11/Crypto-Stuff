@@ -338,6 +338,43 @@ value dies if scores follow the money.
 - [ ] Review each program's terms for: app/desktop placement, comparison-table rules, and
       whether ranking-with-payment is permitted at all.
 
+## Owner backlog (2026-07-26 brain dump)
+
+CAEP-side items only. Chronolens items went to that project's own checklist; company-level
+items (entity filing, federal regulation research, disclosure docs, "what is sellable")
+went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both products.
+
+- [ ] **Open a working session on the risk framework for the desktop app.** Starting point
+      already exists: the 3-scale inconsistency in `lib/risk/` is tracked in the market
+      assessment as a Phase 0 blocker. Decide the single scale before more profiles land.
+- [ ] **Desktop update mechanism — and whether updates are monetized.** How does an installed
+      copy get new versions (auto-update channel? manual download? signed releases?), and does
+      that ride the entitlement system (Phase 6) as paid upgrades, a subscription, or free
+      updates with paid modules. Affects installer choice, code signing, and release cadence.
+- [ ] **Options / futures tool.** New instrument surface. Macro Markets already prices futures
+      contracts through `security-quotes`/`security-chart` (19 commodity contracts, 4 CBOT rate
+      futures), so the quote plumbing exists; options chains do not — that needs a provider
+      decision (and most options data is paid).
+- [ ] **Bond ladder tool + bond affiliate links.** ⚠ Note before building: Portfolio Builder
+      **already has** a bond ladder (`bondLadder(horizon)` / `consolidateLadder()` in
+      `lib/data/portfolioBuilder.ts`, duration-matched SHY→IEF→BND→TLT). Decide whether this is
+      surfacing that engine as a standalone tool or extending it. Affiliate half extends the
+      affiliate-links section above — same integrity rules (ladder is chosen by duration match,
+      never by who pays).
+- [ ] **Linking brokerage accounts / helping power users process trades.** ⚠ **The largest
+      regulatory step in the backlog** — routing or assisting orders is execution, not
+      information, and touches broker-dealer territory. Scope it deliberately: read-only
+      position sync (the safe version, extends the existing wallet/exchange-credential
+      pattern) is a different product from anything that places or pre-fills trades. Decide
+      which before any provider work.
+- [ ] **Fine-tune all screeners.** Stock Registry range screener, coin screener/discovery, fund
+      screener, TA screener — consistency of filters, defaults, and result quality across them.
+- [ ] **Test and fine-tune all agents and AI-enhanced tools.** 11 agents exist; `data-scraper`,
+      `equity-data-scraper` and `equity-diligence` are configurable but have **no invocation
+      trigger** — either give them a UI entry point or retire them. Judge output against the
+      REAL vs FALLBACK rule: an agent answering vaguely off a fallback route is a data problem,
+      not a prompt problem.
+
 ## Rough sizing (from prior analysis)
 
 - Foundation + porting CAEP into the module shell: ~3–4 weeks part-time.
