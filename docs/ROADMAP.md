@@ -369,6 +369,12 @@ went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both produ
       which before any provider work.
 - [ ] **Fine-tune all screeners.** Stock Registry range screener, coin screener/discovery, fund
       screener, TA screener — consistency of filters, defaults, and result quality across them.
+- [ ] **Label every data source on screen, per the house policy.** CAEP's side of the
+      source-labeling item in `docs/BUSINESS-CHECKLIST.md`: the provider registry already
+      records which provider served each surface, and the tier dropdown exposes sourcing per
+      category — but attribution isn't consistently rendered where a reader sees the number.
+      Includes marking *derived* values (risk scores, composites) as CAEP's own computation,
+      never as a provider's figure.
 - [ ] **Test and fine-tune all agents and AI-enhanced tools.** 11 agents exist; `data-scraper`,
       `equity-data-scraper` and `equity-diligence` are configurable but have **no invocation
       trigger** — either give them a UI entry point or retire them. Judge output against the

@@ -59,6 +59,11 @@ structure, regulatory research, disclosures and tax compliance are decided once,
       Terms of Service, Privacy Policy, "Not investment advice" disclaimer, affiliate/ad
       disclosure ("How we make money"), data-source attribution page, and a contact/complaints
       route.
+- [ ] **Source-labeling policy (both products).** Decide the house rule for how third-party data
+      is labeled wherever it appears: which sources must be named, in what wording, how
+      licence-required attribution is rendered (Wikipedia CC BY-SA, LoC, GDELT, SEC all differ),
+      and how *derived* figures are marked so a computed score is never mistaken for a
+      publisher's number. Write it once here; each product's checklist tracks its own rendering.
 - [ ] Placement rules: linked in the footer of every page **and** surfaced at the point of
       relevance (a disclaimer nobody sees does not protect anyone).
 - [ ] Keep one canonical copy per document, shared by both products where the text is identical,
@@ -66,13 +71,12 @@ structure, regulatory research, disclosures and tax compliance are decided once,
 
 ## 4. Tax & ongoing compliance
 
-- [ ] **Tax paperwork / TIN / compliance tracking — build an agent for it?** Flagged for a
-      scope decision: as written this tracks *the company's own* obligations (filings due,
-      TIN/EIN records, quarterly estimates, 1099s from affiliate programs) — that's business
-      ops, not a user-facing feature. Cheapest first version is a calendar of deadlines plus a
-      document checklist; only build an agent if the manual version proves it earns its keep.
-      *If instead the intent was a user-facing tax tool, it moves to CAEP's roadmap — say so and
-      it moves.*
+- [ ] **Tax paperwork / TIN / compliance tracking — an internal tool for the owner.** Confirmed
+      scope: this tracks *the company's own* obligations (filings due, TIN/EIN records,
+      quarterly estimates, 1099s from affiliate programs) so taxes get filed correctly. It is
+      **not** a user-facing product feature and ships in neither product. Cheapest first
+      version is a deadline calendar plus a document checklist; only build an agent for it if
+      the manual version proves it earns its keep.
 - [ ] Affiliate income is reportable — expect 1099s once affiliate links go live; bookkeeping
       must be in place **before** the first payout, not after.
 - [ ] Annual entity filings / franchise tax calendar.
