@@ -281,6 +281,106 @@ diversified portfolios aligned to the user**, not generic model portfolios:
    reminders need notifications; monetized via the entitlement system (Phase 6).
    Not investment advice — educational tooling with prominent disclaimers.
 
+## Affiliate links (staking first, then any relevant surface) — `P2`, gated on integrity rules
+
+Revenue idea: earn referral commission on providers CAEP already sends users to. Start with
+the **Staking Opportunities** page, then open it to any surface where an outbound link is
+genuinely useful. Applies to **both distributions — the free web version and the desktop
+app** (they differ in attribution and in what some affiliate terms allow; see below).
+
+### Non-negotiable integrity rules (decide these before writing any code)
+
+CAEP *rates* the providers it would be paid by — `computeOverallRisk()` scores 55 staking
+providers across 6 risk dimensions. That is a real conflict of interest, and the product's
+value dies if scores follow the money.
+
+- [ ] **Affiliate status never influences ranking, scoring, sorting, or filtering.** Enforce it
+      structurally: the risk engine must not be able to read the affiliate field.
+- [ ] **Coverage bias is disclosed.** Exchanges (Coinbase, Kraken, Binance, OKX, Bybit) run
+      referral programs; liquid-staking protocols (Lido, Rocket Pool, Marinade) largely don't —
+      so paid links will cluster in CeFi. Default ordering must stay risk-based, never
+      "monetizable first".
+- [ ] **Warnings are never softened for a paying partner.** Celsius stays as the cautionary
+      example; a high risk score stays loud even if that provider pays.
+- [ ] **Per-link disclosure in the UI** (FTC requires clear and conspicuous), plus a plain
+      "How we make money" page. Mark affiliate rows visibly, not in a footer nobody reads.
+- [ ] **Keep the honest URL.** Add an optional `affiliateUrl` beside the existing
+      `website` field in `stakingProviders.ts` — never overwrite `website`, so a
+      non-affiliate path always exists and links stay auditable.
+
+### Implementation notes
+
+- [ ] Hook: `StakingProvider.website?` already exists (`src/lib/data/stakingProviders.ts`);
+      add `affiliateUrl?` + `affiliateProgram?` and render through one shared component so
+      disclosure can't be forgotten on a new surface.
+- [ ] **Desktop app:** open affiliate links in the system browser (not an embedded webview) —
+      cookie-based attribution usually fails in-app, and several programs' terms restrict
+      desktop/app placement. Confirm per program before enabling there.
+- [ ] **Web:** `rel="sponsored noopener"` on paid links (Google requires `sponsored`).
+- [ ] Track click-through per provider so the value is measurable, without shipping
+      user-identifying analytics.
+
+### Other surfaces to consider once the pattern exists
+
+- [ ] **Transfer Fee Calculator** — the highest-intent surface in the app, and
+      `docs/MARKET-ASSESSMENT.md` already notes competing fee/bridge comparators are
+      affiliate-monetized. Same integrity rules: cheapest route wins, never the paying route.
+- [ ] **Coin Registry / Wallets** — exchange and hardware-wallet signups.
+- [ ] Equities/Funds modules — brokerage referrals, if the terms allow a research context.
+
+### Legal / compliance
+
+- [ ] FTC disclosure (US) + equivalent rules in other jurisdictions; crypto affiliate
+      marketing is restricted or licensed in some (UK FCA financial-promotion rules apply to
+      crypto referrals).
+- [ ] Keep the informational framing already in the risk register — a paid link next to a risk
+      score edges closer to "recommendation"; disclaimers must stay prominent.
+- [ ] Review each program's terms for: app/desktop placement, comparison-table rules, and
+      whether ranking-with-payment is permitted at all.
+
+## Owner backlog (2026-07-26 brain dump)
+
+CAEP-side items only. Chronolens items went to that project's own checklist; company-level
+items (entity filing, federal regulation research, disclosure docs, "what is sellable")
+went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both products.
+
+- [ ] **Open a working session on the risk framework for the desktop app.** Starting point
+      already exists: the 3-scale inconsistency in `lib/risk/` is tracked in the market
+      assessment as a Phase 0 blocker. Decide the single scale before more profiles land.
+- [ ] **Desktop update mechanism — and whether updates are monetized.** How does an installed
+      copy get new versions (auto-update channel? manual download? signed releases?), and does
+      that ride the entitlement system (Phase 6) as paid upgrades, a subscription, or free
+      updates with paid modules. Affects installer choice, code signing, and release cadence.
+- [ ] **Options / futures tool.** New instrument surface. Macro Markets already prices futures
+      contracts through `security-quotes`/`security-chart` (19 commodity contracts, 4 CBOT rate
+      futures), so the quote plumbing exists; options chains do not — that needs a provider
+      decision (and most options data is paid).
+- [ ] **Bond ladder tool + bond affiliate links.** ⚠ Note before building: Portfolio Builder
+      **already has** a bond ladder (`bondLadder(horizon)` / `consolidateLadder()` in
+      `lib/data/portfolioBuilder.ts`, duration-matched SHY→IEF→BND→TLT). Decide whether this is
+      surfacing that engine as a standalone tool or extending it. Affiliate half extends the
+      affiliate-links section above — same integrity rules (ladder is chosen by duration match,
+      never by who pays).
+- [ ] **Linking brokerage accounts / helping power users process trades.** ⚠ **The largest
+      regulatory step in the backlog** — routing or assisting orders is execution, not
+      information, and touches broker-dealer territory. Scope it deliberately: read-only
+      position sync (the safe version, extends the existing wallet/exchange-credential
+      pattern) is a different product from anything that places or pre-fills trades. Decide
+      which before any provider work.
+- [ ] **Fine-tune all screeners.** Stock Registry range screener, coin screener/discovery, fund
+      screener, TA screener — consistency of filters, defaults, and result quality across them.
+- [ ] **Label every data source on screen, per the house policy.** CAEP's side of the
+      source-labeling item in `docs/BUSINESS-CHECKLIST.md`: the provider registry already
+      records which provider served each surface, and the tier dropdown exposes sourcing per
+      category — but attribution isn't consistently rendered where a reader sees the number.
+      Includes marking *derived* values (risk scores, composites) as CAEP's own computation,
+      never as a provider's figure.
+- [ ] **Test and fine-tune all agents and AI-enhanced tools.** 11 agents exist; `data-scraper`,
+      `equity-data-scraper` and `equity-diligence` are configurable but have **no invocation
+      trigger** — either give them a UI entry point or retire them. Judge output against the
+      REAL vs FALLBACK rule: an agent answering vaguely off a fallback route is a data problem,
+      not a prompt problem.
+
 ## Rough sizing (from prior analysis)
 
 - Foundation + porting CAEP into the module shell: ~3–4 weeks part-time.
