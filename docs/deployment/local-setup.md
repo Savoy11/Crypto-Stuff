@@ -18,8 +18,8 @@ The fastest way to run the full stack:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/Savoy11/Crypto-Stuff.git
-cd Crypto-Stuff
+git clone https://github.com/Savoy11/finance-now.git
+cd finance-now
 
 # 2. Copy environment files
 cp backend/.env.example backend/.env
