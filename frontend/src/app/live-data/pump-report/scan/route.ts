@@ -61,7 +61,7 @@ Risk level guide:
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
       system: systemPrompt,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       tools: [{ type: 'web_search_20250305', name: 'web_search' } as any],
       messages: [{ role: 'user', content: userPrompt }],
     })

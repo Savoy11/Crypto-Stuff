@@ -449,7 +449,7 @@ export default function CandlestickChart({
   // Convert chart data-space (time+price) → SVG pixel coords
   const toXY = useCallback((time: Time, price: number): [number, number] | null => {
     const x = chartRef.current?.timeScale().timeToCoordinate(time)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const y = (mainSeriesRef.current as any)?.priceToCoordinate?.(price)
     if (x == null || y == null || !isFinite(x as number) || !isFinite(y as number)) return null
     return [x as number, y as number]
@@ -464,7 +464,7 @@ export default function CandlestickChart({
     const py = e.clientY - rect.top
 
     const time = chartRef.current?.timeScale().coordinateToTime(px) as Time | null
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     const price = (mainSeriesRef.current as any)?.coordinateToPrice?.(py) as number | null
     if (time == null || price == null) return
 
@@ -789,7 +789,7 @@ export default function CandlestickChart({
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
-      {/* eslint-disable-next-line @typescript-eslint/no-unused-vars */}
+      { }
       <span style={{ display: 'none' }}>{svgTick}</span>
 
       {/* Crosshair data window */}

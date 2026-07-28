@@ -276,7 +276,7 @@ export default function HeadlinesPage() {
     // watchlist matches rise within the strip rather than letting one module
     // take it over.
     return applyBias(picked.sort(rank), watchlist, biasStrength, toBiasable)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [cryptoStories, marketStories, watchlist, biasStrength])
 
   // Sections exclude whatever was promoted to the top strip, so nothing repeats.
@@ -301,7 +301,7 @@ export default function HeadlinesPage() {
       })
     }
     return out
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [cryptoOn, marketsOn, cryptoStories, marketStories, promoted, watchlist, biasStrength])
 
   const isLoading = (cryptoOn && cryptoQuery.isLoading) || (marketsOn && marketsQuery.isLoading)

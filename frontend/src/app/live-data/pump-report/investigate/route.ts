@@ -137,7 +137,7 @@ export async function POST(req: NextRequest) {
           max_tokens: 8000,
           temperature,
           system: resolvedSystem,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
           tools: [{ type: 'web_search_20250305', name: 'web_search' } as any],
           messages: [{ role: 'user', content: `Begin a full autonomous investigation into: ${target}. Run all 8 search angles and produce the complete evidence report.` }],
           stream: true,
