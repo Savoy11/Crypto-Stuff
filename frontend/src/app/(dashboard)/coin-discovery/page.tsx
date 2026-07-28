@@ -1,5 +1,7 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
+
 /* eslint-disable @next/next/no-img-element --
    Coin icons are remote CoinGecko CDN avatars rendered at 28–36px with an onError
    fallback that hides broken images. next/image would require per-domain
@@ -395,7 +397,7 @@ const LIMIT_OPTIONS = [
   { value: 750,  label: 'Top 750' },
 ]
 
-export default function CoinDiscoveryPage() {
+function CoinDiscoveryPageInner() {
   const [tab, setTab]             = useState<Tab>('recommendations')
   const [recoFilter, setRecoFilter] = useState('all')
   const [search, setSearch]       = useState('')
@@ -648,5 +650,16 @@ export default function CoinDiscoveryPage() {
       {tab === 'search' && <SearchTab />}
       {tab === 'added'  && <AddedCoinsTab />}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside CoinDiscoveryPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function CoinDiscoveryPage() {
+  return (
+    <ModuleGate module="crypto">
+      <CoinDiscoveryPageInner />
+    </ModuleGate>
   )
 }

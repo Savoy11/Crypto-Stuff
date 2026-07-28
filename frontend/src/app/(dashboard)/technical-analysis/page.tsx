@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react'
 import dynamic from 'next/dynamic'
 import { useQuery } from '@tanstack/react-query'
@@ -1312,11 +1313,16 @@ type Tab = 'chart' | 'patterns' | 'scanner' | 'backtest'
 
 // useSearchParams() forces a CSR bailout, so the page body must sit inside a
 // Suspense boundary for `next build` prerendering to succeed.
+// ModuleGate sits outside Suspense so a disabled module renders the unlock
+// notice without mounting TechnicalAnalysisContent — none of its queries or
+// useSearchParams work runs for a user who cannot see the results.
 export default function TechnicalAnalysisPage() {
   return (
-    <Suspense>
-      <TechnicalAnalysisContent />
-    </Suspense>
+    <ModuleGate module="crypto">
+      <Suspense>
+        <TechnicalAnalysisContent />
+      </Suspense>
+    </ModuleGate>
   )
 }
 

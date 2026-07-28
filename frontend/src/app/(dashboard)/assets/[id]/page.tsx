@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -1212,7 +1213,7 @@ function ReservesTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
   )
 }
 
-export default function AssetDetailPage() {
+function AssetDetailPageInner() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
@@ -1336,5 +1337,16 @@ export default function AssetDetailPage() {
         )}
       </div>
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside AssetDetailPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function AssetDetailPage() {
+  return (
+    <ModuleGate module="crypto">
+      <AssetDetailPageInner />
+    </ModuleGate>
   )
 }

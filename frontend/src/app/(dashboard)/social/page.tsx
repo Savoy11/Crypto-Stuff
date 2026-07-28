@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -219,7 +220,7 @@ async function fetchSocial(asset: string, extraSubs: string[]): Promise<{
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function SocialPage() {
+function SocialPageInner() {
   const [assetFilter, setAssetFilter] = useState('all')
   const subreddits = useCustomSubreddits()
   const { assets: assetList } = useAssetList()
@@ -356,5 +357,16 @@ export default function SocialPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside SocialPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function SocialPage() {
+  return (
+    <ModuleGate module="crypto">
+      <SocialPageInner />
+    </ModuleGate>
   )
 }

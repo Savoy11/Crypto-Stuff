@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -391,7 +392,7 @@ function WrongNetworkExplainer() {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-export default function TransferFeesPage() {
+function TransferFeesPageInner() {
   const [coinId, setCoinId] = useState<string>('usdt')
   const [amount, setAmount] = useState<string>('1000')
   const [stops, setStops]   = useState<string[]>(['binance', 'coinbase'])
@@ -914,5 +915,16 @@ export default function TransferFeesPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside TransferFeesPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function TransferFeesPage() {
+  return (
+    <ModuleGate module="crypto">
+      <TransferFeesPageInner />
+    </ModuleGate>
   )
 }

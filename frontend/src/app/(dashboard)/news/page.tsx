@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Settings, Loader2, Share2, Check, RefreshCw, Search, X, Info } from 'lucide-react'
@@ -201,7 +202,7 @@ async function fetchLiveNews(
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function NewsPage() {
+function NewsPageInner() {
   const [assetFilter, setAssetFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState<NewsCategory | 'all'>('all')
   const [sentimentFilter, setSentimentFilter] = useState<'all' | 'positive' | 'neutral' | 'negative'>('all')
@@ -543,5 +544,16 @@ export default function NewsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside NewsPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function NewsPage() {
+  return (
+    <ModuleGate module="crypto">
+      <NewsPageInner />
+    </ModuleGate>
   )
 }

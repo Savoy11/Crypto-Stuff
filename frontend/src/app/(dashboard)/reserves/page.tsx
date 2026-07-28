@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { stablecoinMetaIsStale, stablecoinMetaAgeDays, META_STALE_AFTER_DAYS } from '@/lib/data/stablecoinMeta'
@@ -77,7 +78,7 @@ async function fetchLiveReserves(): Promise<{ assets: LiveReserveAsset[]; update
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ReservesPage() {
+function ReservesPageInner() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data: liveData, isLoading, isError, refetch } = useQuery({
@@ -308,5 +309,16 @@ export default function ReservesPage() {
         </>
       )}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside ReservesPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function ReservesPage() {
+  return (
+    <ModuleGate module="crypto">
+      <ReservesPageInner />
+    </ModuleGate>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Shield, Building2, Wallet, Layers, Search, RefreshCw, Radio } from 'lucide-react'
@@ -396,7 +397,7 @@ const CATEGORY_FILTERS: Array<{ id: CategoryFilter; label: string }> = [
   { id: 'liquid', label: 'DeFi / Liquid' },
 ]
 
-export default function StakingPlatformsPage() {
+function StakingPlatformsPageInner() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [search, setSearch]                 = useState('')
   const [showDefunct, setShowDefunct]       = useState(false)
@@ -508,5 +509,16 @@ export default function StakingPlatformsPage() {
         APY figures are indicative — actual rates vary with network conditions. Always verify on the platform&apos;s website before staking.
       </p>
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside StakingPlatformsPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function StakingPlatformsPage() {
+  return (
+    <ModuleGate module="crypto">
+      <StakingPlatformsPageInner />
+    </ModuleGate>
   )
 }

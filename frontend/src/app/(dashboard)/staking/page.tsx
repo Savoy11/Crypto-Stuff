@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import React, { useState, useMemo, useRef, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -483,7 +484,7 @@ function AssetDropdown({
 
 type CategoryFilter = 'all' | ProviderCategory
 
-export default function StakingPage() {
+function StakingPageInner() {
   const [coinFilter, setCoinFilter] = useState<StakingCoinId | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   // Off by default: "ETH staking" should mean ETH staking, not governance/lending.
@@ -631,5 +632,16 @@ export default function StakingPage() {
         Risk scores are editorial assessments and do not constitute financial advice. Always do your own research before staking.
       </div>
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside StakingPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function StakingPage() {
+  return (
+    <ModuleGate module="crypto">
+      <StakingPageInner />
+    </ModuleGate>
   )
 }

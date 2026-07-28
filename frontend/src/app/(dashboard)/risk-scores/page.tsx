@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { Fragment, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
@@ -177,7 +178,7 @@ function RiskTable({ title, note, assets, pillarKeys }: {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function RiskScoresPage() {
+function RiskScoresPageInner() {
   const { data, isLoading } = useQuery<RiskScoresResponse>({
     queryKey: ['risk-scores'],
     queryFn: () => fetch('/live-data/risk-scores').then((r) => r.json()),
@@ -271,5 +272,16 @@ export default function RiskScoresPage() {
         {' '}· safety scores are analytics, not investment advice
       </p>
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside RiskScoresPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function RiskScoresPage() {
+  return (
+    <ModuleGate module="crypto">
+      <RiskScoresPageInner />
+    </ModuleGate>
   )
 }
