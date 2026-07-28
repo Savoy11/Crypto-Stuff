@@ -19,6 +19,15 @@
 // `InvalidArgumentError: invalid onRequestStart method` the moment the two
 // drift apart. Importing both from the same package makes that a non-issue,
 // and it stops a Node upgrade from silently disabling the pin.
+//
+// ⚠ undici is pinned to the 7.x line, and must stay there while this app
+// targets Node 20 (CI's setup-node and all three Dockerfile stages are
+// node:20-alpine). undici 8 declares `engines.node >= 22.19.0` and calls
+// `worker_threads.markAsUncloneable` unconditionally, so on Node 20 the build
+// dies collecting page data with `TypeError: s.util.markAsUncloneable is not a
+// function` — which a Node 22 dev machine will not reproduce. undici 7
+// feature-detects the same API and no-ops without it. Move to 8 only together
+// with the Node 22 base image.
 
 import { Agent, fetch as undiciFetch } from 'undici'
 import { isPrivateAddress, resolvePublicAddresses } from '@/lib/server/urlSafety'
