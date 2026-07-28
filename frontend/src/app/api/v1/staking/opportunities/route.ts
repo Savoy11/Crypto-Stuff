@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { CORS, options } from '@/app/api/_cors'
 import {
   STAKING_PROVIDERS, computeOverallRisk, mergedRisks, getRiskLevel,
-  resolveYieldType, YIELD_TYPE_META,
+  resolveYieldType, YIELD_TYPE_META, getStakingDataProvenance,
   type StakingCoinId, type ProviderCategory,
 } from '@/lib/data/stakingProviders'
 import { scoreStakingProvider } from '@/lib/risk/profiles/stakingAdapter'
@@ -166,7 +166,12 @@ export async function GET(req: NextRequest) {
     total: opportunities.length,
     yieldTypeCounts,
     filters: { coin: coinParam ?? 'all', category: categoryParam ?? 'all', yieldType: yieldTypeParam ?? 'all', includeAdjacent, maxRisk, minSafety, includeDefunct },
-    note: 'Each opportunity carries a yieldType (native, liquid, cefi, restaking, governance, lending). By default only products that actually stake the queried coin are returned; governance-token staking and lending yield are excluded unless include_adjacent=true or yield_type is set explicitly. SCORING: prefer safetyScore (0–100, HIGHER = SAFER) with its 5-level band (low/moderate/elevated/high/critical); filter it with min_safety (a 0–100 floor). The legacy riskScore (1–10, HIGHER = RISKIER) with its riskLevel and the max_risk filter remain unchanged for existing consumers but are deprecated. Defunct providers (e.g. Celsius) are excluded by default — use include_defunct=true.',
+    note: 'Each opportunity carries a yieldType (native, liquid, cefi, restaking, governance, lending). By default only products that actually stake the queried coin are returned; governance-token staking and lending yield are excluded unless include_adjacent=true or yield_type is set explicitly. SCORING: prefer safetyScore (0–100, HIGHER = SAFER) with its 5-level band (low/moderate/elevated/high/critical); filter it with min_safety (a 0–100 floor). The legacy riskScore (1–10, HIGHER = RISKIER) with its riskLevel and the max_risk filter remain unchanged for existing consumers but are deprecated. Defunct providers (e.g. Celsius) are excluded by default — use include_defunct=true. FRESHNESS: updatedAt is when this response was generated, which describes the live APRs only (per-row aprSource="live"). Rows with aprSource="estimate", and every risk score, lock-up, and minimum on every row, come from the curated catalog described by referenceData — check referenceData.verifiedAt, not updatedAt, before treating those as current.',
+    source: 'Finance Now curated staking catalog + live protocol APR feeds (Lido, Rocket Pool, Marinade, Jito, Stride)',
     updatedAt: new Date().toISOString(),
+    // Provenance for the curated half of this payload. Without it the fresh
+    // `updatedAt` above implied the risk profiles and estimated APRs had just
+    // been refreshed too, which was never true (audit finding M5).
+    referenceData: getStakingDataProvenance(),
   }, { headers: CORS })
 }

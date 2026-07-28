@@ -6,12 +6,14 @@ import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Shield, Building2, Wallet, Layers, Search, RefreshCw, Radio } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { STALE_TIME_LONG, GC_TIME } from '@/lib/constants'
 import { clsx } from 'clsx'
 import {
   STAKING_PROVIDERS,
   STAKING_COIN_INFO,
+  getStakingDataProvenance, STAKING_DATA_LAST_VERIFIED, STAKING_DATA_STALE_AFTER_DAYS,
   type StakingProvider, type ProviderCategory, type StakingCoinId,
 } from '@/lib/data/stakingProviders'
 import type { StakingDiscoveryResponse, DiscoverySource } from '@/app/live-data/staking-discovery/route'
@@ -445,6 +447,28 @@ function StakingPlatformsPageInner() {
 
       {/* Data provenance */}
       <SourceLine id="staking-discovery" />
+
+      {/* The live-discovery half of this page (DefiLlama/Yearn/Pendle/Beefy) is
+          covered by the SourceLine above. The directory platforms come from the
+          same curated catalog the /staking page uses, so their age is disclosed
+          the same way (audit finding M5). */}
+      {(() => {
+        const prov = getStakingDataProvenance()
+        return (
+          <ProvenanceNotice
+            label="Directory platforms & risk scores"
+            staleLabel="Directory platform data may be out of date"
+            confidence={prov.confidence}
+            stale={prov.stale}
+          >
+            — {prov.source.toLowerCase()}, compiled{' '}
+            {new Date(STAKING_DATA_LAST_VERIFIED).toLocaleDateString()} ({prov.ageDays} days ago)
+            {prov.stale && `, past the ${STAKING_DATA_STALE_AFTER_DAYS}-day review window`}. Discovered
+            on-chain opportunities are live; the platform directory and its risk scores are curated
+            estimates — confirm current terms with the platform.
+          </ProvenanceNotice>
+        )
+      })()}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">

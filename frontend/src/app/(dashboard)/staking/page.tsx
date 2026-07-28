@@ -10,10 +10,12 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { clsx } from 'clsx'
 import {
   STAKING_PROVIDERS, STAKING_COIN_INFO, DEFAULT_LIVE_APR_KEY,
   resolveYieldType, YIELD_TYPE_META,
+  getStakingDataProvenance, STAKING_DATA_LAST_VERIFIED, STAKING_DATA_STALE_AFTER_DAYS,
   type StakingProvider, type StakingCoinId, type ProviderCategory,
 } from '@/lib/data/stakingProviders'
 import type { StakingRatesResponse } from '@/app/live-data/staking-rates/route'
@@ -555,6 +557,30 @@ function StakingPageInner() {
 
       {/* Data provenance — reads the same registry that powers /data-sources */}
       <SourceLine id="staking-rates" asOf={updatedAt} />
+
+      {/* Provenance / freshness notice for the curated provider catalog. The
+          SourceLine above covers the live APR feeds; this covers the risk
+          profiles, terms, and reference APRs underneath them, which are
+          hand-maintained and were previously shown with no indication of age
+          (audit finding M5). Same shape as the transfer-fees notice. */}
+      {(() => {
+        const prov = getStakingDataProvenance()
+        return (
+          <ProvenanceNotice
+            label="Provider risk profiles & terms"
+            staleLabel="Provider risk data may be out of date"
+            confidence={prov.confidence}
+            stale={prov.stale}
+          >
+            — {prov.source.toLowerCase()}, compiled{' '}
+            {new Date(STAKING_DATA_LAST_VERIFIED).toLocaleDateString()} ({prov.ageDays} days ago)
+            {prov.stale && `, past the ${STAKING_DATA_STALE_AFTER_DAYS}-day review window`}.
+            {liveCount > 0
+              ? ` ${liveCount} APR${liveCount > 1 ? 's are' : ' is'} live; every other rate, lock-up, minimum, and risk score is a curated estimate — confirm current terms with the provider.`
+              : ' All rates, lock-ups, minimums, and risk scores below are curated estimates — confirm current terms with the provider.'}
+          </ProvenanceNotice>
+        )
+      })()}
 
       {/* Network base APY reference */}
       <NetworkAprReference />
