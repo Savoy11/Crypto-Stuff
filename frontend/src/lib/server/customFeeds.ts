@@ -3,15 +3,34 @@
 // Used by the equity news / social / OHLCV routes; the quote ladder in
 // marketData.ts uses the same conventions.
 
-import { validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
+import { pinnedFetch } from '@/lib/server/pinnedFetch'
 import type { CustomProviderDef, ProviderConfig } from '@/lib/api/live/providers'
 
 export type ActiveCustom = CustomProviderDef & { config: ProviderConfig }
 
-/** Fetch a custom provider URL with its configured auth. Throws on failure. */
+/**
+ * Fetch a custom provider URL with its configured auth. Throws on failure.
+ *
+ * Every hop goes through `pinnedFetch`, which validates the URL (string level
+ * AND resolved addresses) and then connects to a vetted address rather than
+ * re-resolving the name — see pinnedFetch.ts for why the second half matters.
+ *
+ * Two consequences of pinning, both deliberate:
+ *
+ * 1. pinnedFetch buffers the body and hands back a standard `Response`, so the
+ *    pinned agent closes with the request instead of waiting on a caller.
+ *    Callers keep the same interface and read it whenever they like. Feeds are
+ *    RSS/JSON documents, so buffering costs nothing that streaming was saving.
+ * 2. `next: { revalidate }` no longer applies. Next's fetch cache does not
+ *    cover requests carrying a custom dispatcher, so custom feeds now hit
+ *    their upstream on every request instead of once per revalidate window.
+ *    `revalidate` is kept in the signature — callers pass it, and it should
+ *    start working again the day this can drop the dispatcher — but it is
+ *    inert today. Custom feeds are opt-in and few; that is the price of not
+ *    being rebindable.
+ */
 export async function fetchCustomUrl(provider: ActiveCustom, url: string, revalidate = 300): Promise<Response> {
-  const urlError = await validatePublicHttpUrlResolved(url)
-  if (urlError) throw new Error(urlError)
+  void revalidate // see note 2 above — inert while requests carry a dispatcher
 
   const headers: Record<string, string> = { Accept: 'application/json, application/rss+xml, application/atom+xml, */*' }
   let finalUrl = url
@@ -34,17 +53,24 @@ export async function fetchCustomUrl(provider: ActiveCustom, url: string, revali
   const MAX_REDIRECTS = 3
   let currentUrl = finalUrl
   for (let hop = 0; ; hop++) {
-    const res = await fetch(currentUrl, { headers, redirect: 'manual', signal: AbortSignal.timeout(10_000), next: { revalidate } })
-    if (res.status < 300 || res.status >= 400) {
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      return res
+    // pinnedFetch validates currentUrl before opening anything, so the hop
+    // check that used to live at the bottom of this loop is now implicit —
+    // a redirect target that resolves internally throws here, on its own hop.
+    const response = await pinnedFetch(currentUrl, {
+      headers,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(10_000),
+    })
+
+    if (response.status < 300 || response.status >= 400) {
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return response
     }
-    const location = res.headers.get('location')
-    if (!location) throw new Error(`HTTP ${res.status} redirect with no Location header`)
+
+    const location = response.headers.get('location')
+    if (!location) throw new Error(`HTTP ${response.status} redirect with no Location header`)
     if (hop >= MAX_REDIRECTS) throw new Error('Too many redirects')
     const nextUrl = new URL(location, currentUrl).toString()
-    const hopError = await validatePublicHttpUrlResolved(nextUrl)
-    if (hopError) throw new Error(`Redirect target rejected: ${hopError}`)
     // Auth must not leak to a different host than the one it was configured for.
     if (new URL(nextUrl).host !== new URL(currentUrl).host) {
       delete headers['Authorization']

@@ -112,23 +112,40 @@ export function validatePublicHttpUrl(raw: string): string | null {
  * for another reason, pin here.
  */
 export async function validatePublicHttpUrlResolved(raw: string): Promise<string | null> {
+  const result = await resolvePublicAddresses(raw)
+  return 'error' in result ? result.error : null
+}
+
+/**
+ * The same check as validatePublicHttpUrlResolved, but it hands back the
+ * vetted addresses so a caller can *connect to one of them* instead of
+ * re-resolving the name. That is what closes the rebinding window: the socket
+ * goes to an address this function saw and approved, not to whatever the
+ * resolver says a moment later. See pinnedFetch.ts for the transport side.
+ *
+ * `addresses` is empty for an address literal — there was nothing to resolve,
+ * the literal itself was already checked, and the URL can be fetched as-is.
+ */
+export async function resolvePublicAddresses(
+  raw: string
+): Promise<{ error: string } | { addresses: string[] }> {
   const stringError = validatePublicHttpUrl(raw)
-  if (stringError) return stringError
+  if (stringError) return { error: stringError }
 
   // Safe: validatePublicHttpUrl already parsed it.
   const host = new URL(raw.replace('{asset}', 'bitcoin')).hostname.toLowerCase()
 
   // An address literal has nothing to resolve and was already checked above.
   const bare = host.replace(/^\[|\]$/g, '')
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(bare) || bare.includes(':')) return null
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(bare) || bare.includes(':')) return { addresses: [] }
 
-  let addresses: { address: string }[]
+  let resolved: { address: string }[]
   try {
-    addresses = await lookup(host, { all: true, verbatim: true })
+    resolved = await lookup(host, { all: true, verbatim: true })
   } catch {
-    return `Could not resolve host: ${host}`
+    return { error: `Could not resolve host: ${host}` }
   }
-  if (addresses.length === 0) return `Could not resolve host: ${host}`
-  if (addresses.some(a => isPrivateAddress(a.address))) return PRIVATE_ADDRESS_ERROR
-  return null
+  if (resolved.length === 0) return { error: `Could not resolve host: ${host}` }
+  if (resolved.some(a => isPrivateAddress(a.address))) return { error: PRIVATE_ADDRESS_ERROR }
+  return { addresses: resolved.map(a => a.address) }
 }

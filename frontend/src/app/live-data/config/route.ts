@@ -8,7 +8,8 @@ import {
   type CustomProviderDef,
 } from '@/lib/api/live/providers'
 import { guardSensitiveRoute } from '@/lib/server/apiGuard'
-import { validatePublicHttpUrl, validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
+import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { pinnedFetch } from '@/lib/server/pinnedFetch'
 
 export const dynamic = 'force-dynamic'
 
@@ -175,15 +176,13 @@ async function testProvider(provider: { id: string; isCustom?: boolean; url?: st
 
 async function testCustomProvider(url: string, key?: string): Promise<TestResult> {
   if (!url) return { ok: false, error: 'No URL configured for this provider' }
-  // This one fetches, so it resolves. The two save-time checks above stay
-  // string-level on purpose — a config shouldn't be rejected because DNS was
-  // down when the user hit Save (see urlSafety.ts).
-  const urlError = await validatePublicHttpUrlResolved(url)
-  if (urlError) return { ok: false, error: urlError }
+  // This one fetches, so it validates, resolves, AND pins. The two save-time
+  // checks above stay string-level on purpose — a config shouldn't be rejected
+  // because DNS was down when the user hit Save (see urlSafety.ts).
   try {
     // Simple reachability check — don't follow redirects (a redirect could
     // point at an internal address); a 2xx/3xx counts as reachable.
-    const res = await fetch(url.replace('{asset}', 'bitcoin').replace(/\{symbols?\}/g, 'AAPL'), {
+    const res = await pinnedFetch(url.replace('{asset}', 'bitcoin').replace(/\{symbols?\}/g, 'AAPL'), {
       headers: { Accept: 'application/json, application/rss+xml, */*' },
       signal: AbortSignal.timeout(8000),
       redirect: 'manual',

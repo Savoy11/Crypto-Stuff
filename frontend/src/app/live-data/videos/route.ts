@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getVideoProviders, recordProviderFetch, type AnyActiveProvider, type ProviderMarket } from '@/lib/api/live/providers'
-import { validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
+import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { pinnedFetch } from '@/lib/server/pinnedFetch'
 import { guardQuotaRoute } from '@/lib/server/apiGuard'
 import { decodeEntities, stripTags } from '@/lib/utils/html'
 
@@ -118,22 +119,33 @@ export interface VideosResponse {
   channels: Array<{ provider: string; channel: string; market: ProviderMarket; count: number }>
 }
 
-async function feedUrl(provider: AnyActiveProvider): Promise<string | null> {
+/**
+ * The feed URL, plus whether it came from user input.
+ *
+ * `userSupplied` decides which fetch the caller uses: a raw custom URL is
+ * attacker-influenced and goes through pinnedFetch, while a youtube.com URL
+ * built from a channel id is not, and stays on the platform fetch so it keeps
+ * Next's revalidate cache. Channel ids are matched against `^UC[\w-]{20,}$`,
+ * so they cannot smuggle a host in.
+ */
+async function feedUrl(
+  provider: AnyActiveProvider
+): Promise<{ url: string; userSupplied: boolean } | null> {
   if (provider.isCustom) {
     // Custom entries accept either a bare channel id or a full feed URL.
     const raw = provider.url?.trim()
     if (!raw) return null
     if (/^UC[\w-]{20,}$/.test(raw)) {
-      return `https://www.youtube.com/feeds/videos.xml?channel_id=${raw}`
+      return { url: `https://www.youtube.com/feeds/videos.xml?channel_id=${raw}`, userSupplied: false }
     }
-    // validatePublicHttpUrlResolved returns an ERROR MESSAGE for a bad URL and
-    // null for a good one — not the validated URL. Treat null as "safe to
-    // fetch". Resolving (not just string-checking) because the caller fetches
-    // whatever comes back from here.
-    return (await validatePublicHttpUrlResolved(raw)) === null ? raw : null
+    // Cheap string-level reject here so an obviously bad entry never reaches
+    // the fetch; pinnedFetch re-validates and resolves before connecting.
+    return validatePublicHttpUrl(raw) === null ? { url: raw, userSupplied: true } : null
   }
   const channelId = BUILTIN_CHANNELS[provider.id]
-  return channelId ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}` : null
+  return channelId
+    ? { url: `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, userSupplied: false }
+    : null
 }
 
 /** Pull one tag's text out of an Atom entry. */
@@ -175,16 +187,23 @@ function parseChannelFeed(xml: string, provider: AnyActiveProvider, market: Prov
 }
 
 async function fetchProvider(provider: AnyActiveProvider, market: ProviderMarket): Promise<VideoItem[]> {
-  const url = await feedUrl(provider)
-  if (!url) {
+  const feed = await feedUrl(provider)
+  if (!feed) {
     recordProviderFetch(provider.id, { error: 'No channel id configured' })
     return []
   }
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)',
+    Accept: 'application/atom+xml, application/xml',
+  }
   try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)', Accept: 'application/atom+xml, application/xml' },
-      next: { revalidate: 600 }, // channels post a few times a day at most
-    })
+    // User-supplied URLs get the pinned path (no revalidate cache — Next's
+    // fetch cache doesn't cover a custom dispatcher). Built-in youtube.com
+    // feeds keep the 600 s revalidate: channels post a few times a day, and
+    // nothing about those URLs is attacker-influenced.
+    const res = feed.userSupplied
+      ? await pinnedFetch(feed.url, { headers })
+      : await fetch(feed.url, { headers, next: { revalidate: 600 } })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const items = parseChannelFeed(await res.text(), provider, market)
     recordProviderFetch(provider.id, { count: items.length })

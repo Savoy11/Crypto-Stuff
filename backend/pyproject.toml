@@ -64,7 +64,14 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
-addopts = "--cov=app --cov-report=term-missing --cov-fail-under=80"
+# Coverage floor lives HERE and nowhere else. It used to be 80 in this file
+# while CI overrode it to 45, so a bare local `pytest` failed on the exact
+# suite CI called green — the 80 was aspirational, set back when the suite
+# couldn't run at all, and nothing measured it after the suite was fixed.
+# 45 is under the ~51% first real measurement (2026-07-28). Raise it with new
+# tests, in one place; do not re-add a --cov-fail-under override to the CI
+# workflow, or the two numbers will drift apart again.
+addopts = "--cov=app --cov-report=term-missing --cov-fail-under=45"
 
 [tool.coverage.run]
 omit = ["tests/*", "app/db/migrations/*"]

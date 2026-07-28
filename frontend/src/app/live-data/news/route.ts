@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getNewsProviders, recordProviderFetch, type AnyActiveProvider, type CustomProviderDef } from '@/lib/api/live/providers'
 import { ASSET_LIST } from '@/lib/data/assetList'
-import { validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
+import { pinnedFetch } from '@/lib/server/pinnedFetch'
 import { decodeEntities, stripCdata, stripTags } from '@/lib/utils/html'
 
 export const dynamic = 'force-dynamic'
@@ -345,12 +345,6 @@ async function fetchCustomProvider(
   assetFilter: string,
   limit: number
 ): Promise<LiveNewsArticle[]> {
-  // Defense in depth: URLs are validated when a custom provider is saved, but
-  // re-check at fetch time so a stale/hand-edited config can't reach internal
-  // hosts — and resolve DNS here, which save-time validation deliberately does
-  // not do (M3).
-  if (await validatePublicHttpUrlResolved(provider.url)) return []
-
   const url = provider.url.replace('{asset}', assetFilter !== 'all' ? assetFilter : 'bitcoin')
 
   const headers: Record<string, string> = { Accept: 'application/json, application/rss+xml, */*' }
@@ -367,7 +361,16 @@ async function fetchCustomProvider(
     }
   }
 
-  const res = await fetch(finalUrl, { headers, next: { revalidate: 120 } })
+  // Defense in depth: URLs are validated when a custom provider is saved, but
+  // pinnedFetch re-validates at fetch time (so a stale or hand-edited config
+  // can't reach an internal host), resolves DNS, and connects to a vetted
+  // address rather than the name — M3. It throws instead of returning an
+  // error string, which the caller already handles per provider.
+  //
+  // Pinning costs the `next: { revalidate: 120 }` this call used to carry:
+  // Next's fetch cache doesn't cover requests with a custom dispatcher. Custom
+  // news providers now hit upstream per request.
+  const res = await pinnedFetch(finalUrl, { headers })
   if (!res.ok) throw new Error(`Custom provider ${provider.name}: HTTP ${res.status}`)
 
   const contentType = res.headers.get('content-type') ?? ''
