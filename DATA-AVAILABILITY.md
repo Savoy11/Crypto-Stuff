@@ -20,9 +20,12 @@ what is — and is not — backed by real data, with no fabricated figures prese
 > ⚠ **REGENERATION NEEDED (flagged 2026-07-28, audit finding H3).** This report predates
 > two shipped changes and is stale in exactly the way its own warning above describes:
 >
-> 1. **The Macro Markets module is entirely absent** — `/live-data/macro-news`, `fx-rates`,
->    `fx-rates-extended`, and `treasury-yield-curve` (all shipped 2026-07-21) have no rows,
->    and the route-count claims below are off (57 route files on disk, not 51).
+> 1. **The Macro Markets module was entirely absent** — `/live-data/macro-news`, `fx-rates`,
+>    `fx-rates-extended`, and `treasury-yield-curve` (all shipped 2026-07-21) had no rows.
+>    Placeholder rows were added 2026-07-28 marked ⬜ **Not measured**; they still need a real
+>    audit run to get statuses. The route-count claim was also wrong (**56** route files on
+>    disk, not 51 — and not the 57 this warning first claimed); that line is now corrected
+>    and statically re-verified.
 > 2. **The staking section is wrong** — the 2026-07-24 staking-rates rewrite (PR #37)
 >    added DefiLlama Yields plus ~10 native-rate sources; "only 4 of 28 live" no longer
 >    holds. `DATA-SOURCES.md` has the current story; the two docs disagree until this one
@@ -40,6 +43,7 @@ what is — and is not — backed by real data, with no fabricated figures prese
 | 🟡 **Partial** | Some fields live, others are static reference values or labeled estimates. |
 | 🔑 **Key-gated** | Needs an API key/paid plan the project does not have. Route reports `configured: false` honestly. |
 | 🔴 **Not available** | No free real-time source. The UI shows an explicit "not available" notice — never fabricated numbers. |
+| ⬜ **Not measured** | The surface exists in code but has never been through an audit run. **Not a status** — an admission that one is owed. Never leave a row here after a regeneration. |
 
 ---
 
@@ -142,7 +146,7 @@ silently again. Run `npm run audit:strict` to make them exit non-zero.
 ### Equities module
 | Feature / Page | Status | Source | Notes |
 |----------------|--------|--------|-------|
-| Quotes | 🟢 Live | Yahoo Finance (ladder: FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage → Yahoo → Stooq → catalog) | Yahoo serves in practice. **Stooq now 404s** — that rung of the ladder is dead; catalog reference is the real last resort. |
+| Quotes | 🟢 Live | Yahoo Finance (ladder: FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage → Yahoo → catalog) | Yahoo serves in practice. **Stooq has been removed from the ladder entirely** (code re-checked 2026-07-28) — it 404s on every variant, so it was deleted from the registry and the quote path rather than left as a dead rung. Catalog reference is the last resort. |
 | OHLCV / TA / backtests | 🟢 Live | Yahoo Finance | 124 candles for 6M. |
 | Price chart | 🟢 Live | Yahoo | Close-only series by design. **Takes Yahoo range vocab (`6mo`), unlike its sibling `security-ohlcv` (`6M`)** — mismatched vocab returns 400. |
 | Trailing returns | 🟢 Live | Yahoo spark | |
@@ -162,6 +166,20 @@ silently again. Run `npm run audit:strict` to make them exit non-zero.
 | Fund holdings | 🟢 Live | SEC N-PORT (keyless, authoritative) | Verified full books: VOO 511, IVV 507, VTI 1500, QQQ 101, ARKK 46. |
 | Fund holdings — UITs | 🟡 Partial | catalog | **SPY, and UITs generally, file no N-PORT**, so they correctly fall back to indicative top holdings. Not a bug. |
 | Fund holdings history | 🔑 Key-gated | SEC N-PORT diff → FMP | Works only where an N-PORT series exists; no FMP key configured as fallback. |
+
+### Macro Markets module
+Shipped 2026-07-21, **after** this report's last generation — every row below is ⬜ **Not measured**.
+The sources are read from code, not from an audit run; nothing here has been observed working from
+any machine. Filling these in is the H3 follow-up.
+
+| Feature / Page | Status | Source (per code) | Notes |
+|----------------|--------|-------------------|-------|
+| Macro news | ⬜ Not measured | 8 keyless RSS feeds (Investing.com ×3, OilPrice, FXStreet, MarketWatch, CNBC ×2) | `macro-news`. Content-first pillar classifier; 14-day staleness cutoff. Several of these are the same publishers that bot-block elsewhere in this report — expect per-feed variance by IP. |
+| FX rates — official tier | ⬜ Not measured | ECB daily reference via frankfurter.dev (keyless) | `fx-rates`. 30 currencies. |
+| FX rates — extended tier | ⬜ Not measured | community `fawazahmed0/currency-api` (keyless) | `fx-rates-extended`. +127 currencies, hand-verified allowlist. Labeled as community-sourced in the UI, never blended with the ECB tier unattributed. |
+| Treasury yield curve | ⬜ Not measured | treasury.gov daily par curve XML (keyless) | `treasury-yield-curve`. 13 maturities + 2s10s/3m10y spreads; 4h revalidate. |
+| Commodity / currency / rate quotes | ⬜ Not measured | existing `security-quotes` ladder | No new plumbing — macro instruments price through the equity quote path, so their status tracks the Quotes row above. |
+| CUSIP-level bond quotes | 🔴 Not available | — | Licensed data. Intentionally absent and stated on-page; this row needs no measurement. |
 
 ### Not available
 | Feature | Status | Notes |
@@ -194,7 +212,10 @@ Not real-time and not fabricated; stable reference facts that belong in the app 
 Project convention (CLAUDE.md): every `/live-data` route needs `export const dynamic = 'force-dynamic'`,
 `next: { revalidate: N }` on each fetch, and `Promise.allSettled` for any multi-fetch.
 
-- ✅ **`force-dynamic`** — all 51 route files comply (`chart` was the sole exception; fixed 2026-07-20).
+- ✅ **`force-dynamic`** — all **56** route files comply (`chart` was the sole exception; fixed 2026-07-20).
+  Count and compliance re-verified **statically** on 2026-07-28 (`find src/app/live-data -name route.ts`
+  vs `grep -l "export const dynamic"`, 56/56). This one line needs no running server, so it is current
+  even though the availability statuses above are not.
 - ✅ **`revalidate`** — present on every outbound fetch in all routes that fetch.
 - ✅ **`Promise.allSettled`** — resolved 2026-07-22. The earlier flag listed 8 routes found by grepping for
   multi-fetch without `allSettled`; reading them showed **7 were already correct and 1 had a real bug that
@@ -278,6 +299,13 @@ minimum** for free-tier polling without hitting 429.
 12. ✅ ~~Bring the 8 bare-`Promise.all` routes onto `Promise.allSettled`.~~ Done 2026-07-22 — 7 were already
     correct (sequential fallback ladders that must not be parallelised, or not multi-fetch at all); the real
     bug was `sec-filings` discarding collected filings when an archive page threw. See the conventions audit above.
+13. ⏳ **Regenerate this report** (audit finding H3). Partially addressed 2026-07-28 with the corrections that
+    can be made from the code alone — route count (51 → 56, statically re-verified), the Stooq rung (removed
+    from the ladder, not merely dead), and a Macro section that exists rather than being silently missing.
+    What remains genuinely needs `npm run audit` against a running server **on the owner's machine**: every
+    ⬜ Not measured row, the staking counts (PR #37 invalidated "24 of 28 estimates"), and re-confirmation of
+    the 🟢/🟡 rows last observed 2026-07-20. Availability is IP-dependent — a datacenter run would write a
+    systematically wrong baseline, which is worse than the stale one it replaced.
 
 ## Validation
 
