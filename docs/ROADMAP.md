@@ -344,9 +344,12 @@ Finance Now-side items only. Chronolens items went to that project's own checkli
 items (entity filing, federal regulation research, disclosure docs, "what is sellable")
 went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both products.
 
-- [ ] **Open a working session on the risk framework for the desktop app.** Starting point
-      already exists: the 3-scale inconsistency in `lib/risk/` is tracked in the market
-      assessment as a Phase 0 blocker. Decide the single scale before more profiles land.
+- [x] ~~**Open a working session on the risk framework for the desktop app.**~~ SETTLED —
+      R1/R2 (2026-07-19) ratified the single canonical scale (0–100, higher = safer,
+      bands 80/60/40/20; see `docs/architecture/risk-scale-spec.md`) and shipped the
+      migration. The "3-scale inconsistency" premise came from a stale memo and was
+      disproved against the code; the market assessment's Phase 0 blocker is obsolete.
+      Do not re-litigate this — new profiles build on the shipped scale.
 - [ ] **Desktop update mechanism — and whether updates are monetized.** How does an installed
       copy get new versions (auto-update channel? manual download? signed releases?), and does
       that ride the entitlement system (Phase 6) as paid upgrades, a subscription, or free
