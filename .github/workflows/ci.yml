@@ -216,7 +216,18 @@ jobs:
       - name: Run ESLint
         run: |
           cd frontend
+          # Two runs on purpose: the first writes SARIF for code scanning and
+          # must NOT fail the job (otherwise a lint error means no upload), the
+          # second is the actual gate.
+          #
+          # `|| true` used to hide more than that. @microsoft/eslint-formatter-sarif
+          # was never in the lockfile, so this line failed every run, the `|| true`
+          # swallowed it, and the upload step below — `continue-on-error: true` —
+          # swallowed the missing file. ESLint results silently never reached code
+          # scanning. The package is a devDependency now; this check makes a repeat
+          # loud instead of invisible.
           npm run lint -- --format=@microsoft/eslint-formatter-sarif --output-file=eslint-results.sarif || true
+          test -s eslint-results.sarif || { echo "::error::SARIF report was not produced — the formatter is missing or failed"; exit 1; }
           npm run lint
 
       - name: Upload ESLint SARIF
