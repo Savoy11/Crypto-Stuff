@@ -10,6 +10,7 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
 import { FundHoldingsHistory } from './FundHoldingsHistory'
 import { FundHoldingsSection } from './FundHoldingsSection'
 import { ExplainedLabel } from '@/components/ui/ExplainedLabel'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import {
@@ -239,6 +240,11 @@ export default function FundDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Provenance for the quote above. Detail pages carried no SourceLine
+            while every registry page did, so the page with the most specific
+            numbers was the one with no attribution. */}
+        <SourceLine id="security-quotes" />
 
         {/* Trading-restriction disclaimer — minimum holding periods, frequent-trading
             policies, and daily-reset leverage warnings */}

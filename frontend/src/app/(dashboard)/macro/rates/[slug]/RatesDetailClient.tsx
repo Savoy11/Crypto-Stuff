@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { PriceChartCard } from '@/components/markets/PriceChartCard'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { RATES_CATEGORY_INFO, formatRatesQuote, getRatesEntry } from '@/lib/data/ratesCatalog'
 import { getFund } from '@/lib/data/fundCatalog'
 import { STALE_TIME_SHORT } from '@/lib/constants'
@@ -80,6 +81,11 @@ export function RatesDetailClient({ slug }: { slug: string }) {
           )}
         </div>
       </div>
+
+      {/* Provenance for the live quote above. Detail pages carried no
+          SourceLine while every registry page did, so the page with the most
+          specific numbers was the one with no attribution. */}
+      <SourceLine id="macro-quotes" />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2">

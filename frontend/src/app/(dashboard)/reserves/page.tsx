@@ -3,7 +3,8 @@
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { stablecoinMetaIsStale, stablecoinMetaAgeDays, META_STALE_AFTER_DAYS } from '@/lib/data/stablecoinMeta'
+import { stablecoinMetaIsStale, stablecoinMetaAgeDays, META_STALE_AFTER_DAYS, getStablecoinMetaProvenance } from '@/lib/data/stablecoinMeta'
+import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { Vault, CheckCircle, AlertTriangle, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
@@ -163,8 +164,31 @@ function ReservesPageInner() {
         )}
       </div>
 
-      {/* Data provenance */}
+      {/* Data provenance. The SourceLine's `asOf` is the DefiLlama supply
+          fetch — true for supply, but this page also shows attester names,
+          attestation dates, and collateralization from a curated snapshot, so a
+          bare "updated 2m ago" overstated the freshness of most of the table
+          (audit L7, compounding H2). The notice below states the snapshot's own
+          age, always, next to it. */}
       <SourceLine id="reserves" asOf={liveData?.updatedAt} />
+
+      {(() => {
+        const prov = getStablecoinMetaProvenance()
+        return (
+          <ProvenanceNotice
+            label="Attestation & collateral figures"
+            staleLabel="Attestation snapshot may be out of date"
+            confidence={prov.confidence}
+            stale={prov.stale}
+          >
+            — {prov.source.toLowerCase()}, dated {new Date(prov.verifiedAt).toLocaleDateString()}{' '}
+            ({prov.ageDays} days ago)
+            {prov.stale && `, past the ${META_STALE_AFTER_DAYS}-day attestation cycle`}. Circulating
+            supply above is live via DefiLlama; attester, attestation date, and collateralization come
+            from this snapshot.
+          </ProvenanceNotice>
+        )
+      })()}
 
       {/* Loading */}
       {LIVE_DATA && isLoading && (

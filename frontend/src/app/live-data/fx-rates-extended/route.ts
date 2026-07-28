@@ -36,6 +36,12 @@ export interface FxRatesExtendedResponse {
   base?: 'USD'
   /** ISO code → units per 1 USD, extended-tier currencies only. */
   rates?: Record<string, number>
+  /**
+   * Allowlisted codes the upstream feed did not return a usable number for.
+   * Empty in the normal case. Non-empty means the converter is quietly offering
+   * fewer currencies than intended — see the note at the drop site below.
+   */
+  missing?: string[]
   source?: 'community-currency-api'
   error?: string
 }
@@ -78,22 +84,36 @@ export async function GET(): Promise<NextResponse<FxRatesExtendedResponse>> {
     if (!data.usd || !data.date) throw new Error('malformed currency-api response')
 
     const rates: Record<string, number> = {}
+    const missing: string[] = []
     for (const code of EXTENDED_CURRENCIES) {
       const value = data.usd[code]
-      // Fail loudly rather than silently drop: if the upstream feed stops
-      // carrying a code this allowlist expects, that's worth surfacing, not
-      // hiding behind a shorter-than-intended currency list.
-      if (typeof value !== 'number' || !isFinite(value)) continue
+      // Surface rather than silently drop: if the upstream feed stops carrying
+      // a code this allowlist expects, that's worth reporting, not hiding
+      // behind a shorter-than-intended currency list.
+      //
+      // Reported, not thrown. This comment used to claim the route "fails
+      // loudly" while the code did a bare `continue` — but throwing here would
+      // be worse than the bug it described, taking down all ~127 extended
+      // currencies because one went missing. So: serve what resolved, and name
+      // what didn't, in the response and in provider utilization.
+      if (typeof value !== 'number' || !isFinite(value)) {
+        missing.push(code.toUpperCase())
+        continue
+      }
       rates[code.toUpperCase()] = value
     }
     if (Object.keys(rates).length === 0) throw new Error('no extended-tier rates resolved')
 
-    recordProviderFetch('currency-api-extended', { count: Object.keys(rates).length })
+    recordProviderFetch('currency-api-extended', {
+      count: Object.keys(rates).length,
+      ...(missing.length ? { error: `${missing.length} allowlisted codes absent upstream: ${missing.join(', ')}` } : {}),
+    })
     return NextResponse.json({
       ok: true,
       date: data.date,
       base: 'USD',
       rates,
+      missing,
       source: 'community-currency-api',
     })
   } catch (err) {

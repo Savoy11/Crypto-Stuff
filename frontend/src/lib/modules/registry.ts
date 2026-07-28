@@ -38,10 +38,13 @@ import {
 //
 // Rules that keep module boundaries clean:
 //  1. A module's pages import shared code only from components/ui,
-//     components/charts, lib/ core, and its own folders — never from another
-//     module's internals.
+//     components/charts, components/markets, lib/ core, and its own folders —
+//     never from another module's internals.
 //  2. Cross-module data flows through /live-data or /api/v1 routes, never
 //     through direct imports of another module's page code.
+//  3. Every optional module's pages are wrapped in <ModuleGate module="…">, at
+//     the component boundary rather than inside the page's JSX, so a disabled
+//     module never mounts the page and its queries never fire.
 
 export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'builder'
 

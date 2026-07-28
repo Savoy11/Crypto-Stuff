@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getProviderKey, recordProviderFetch } from '@/lib/api/live/providers'
+import { guardQuotaRoute } from '@/lib/server/apiGuard'
 import { decodeEntities } from '@/lib/utils/html'
 import type { VideoItem } from '../videos/route'
 
@@ -125,6 +126,13 @@ const ORDERS: SearchOrder[] = ['relevance', 'date', 'viewCount', 'rating']
 const DURATIONS: SearchDuration[] = ['any', 'short', 'medium', 'long']
 
 export async function GET(request: NextRequest) {
+  // 100 quota units per search against a 10,000/day allowance, so ~100 searches
+  // exhaust the day for every user. The per-minute cap stops a runaway client;
+  // the app-wide daily cap is what actually protects the budget, set below the
+  // real ceiling so a manual check is still possible after it trips (audit L6).
+  const denied = guardQuotaRoute(request, 'video-search', 10, { limitPerDay: 80 })
+  if (denied) return denied
+
   const params = request.nextUrl.searchParams
   const query = params.get('q')?.trim() ?? ''
   const limit = Math.min(parseInt(params.get('limit') ?? '25', 10) || 25, 50)

@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowLeft, ExternalLink, FileText, Sparkles, TrendingDown, TrendingUp } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import { SecFilingsFeed } from '@/components/markets/SecFilingsFeed'
@@ -139,6 +140,11 @@ export default function EquityDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Provenance for the quote above. Detail pages carried no SourceLine
+            while every registry page did, so the page with the most specific
+            numbers was the one with no attribution. */}
+        <SourceLine id="security-quotes" />
 
         {/* Chart + stats */}
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
