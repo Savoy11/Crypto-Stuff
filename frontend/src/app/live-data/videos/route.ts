@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getVideoProviders, recordProviderFetch, type AnyActiveProvider, type ProviderMarket } from '@/lib/api/live/providers'
-import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
 import { guardQuotaRoute } from '@/lib/server/apiGuard'
 import { decodeEntities, stripTags } from '@/lib/utils/html'
 
@@ -118,7 +118,7 @@ export interface VideosResponse {
   channels: Array<{ provider: string; channel: string; market: ProviderMarket; count: number }>
 }
 
-function feedUrl(provider: AnyActiveProvider): string | null {
+async function feedUrl(provider: AnyActiveProvider): Promise<string | null> {
   if (provider.isCustom) {
     // Custom entries accept either a bare channel id or a full feed URL.
     const raw = provider.url?.trim()
@@ -126,9 +126,11 @@ function feedUrl(provider: AnyActiveProvider): string | null {
     if (/^UC[\w-]{20,}$/.test(raw)) {
       return `https://www.youtube.com/feeds/videos.xml?channel_id=${raw}`
     }
-    // validatePublicHttpUrl returns an ERROR MESSAGE for a bad URL and null for
-    // a good one — not the validated URL. Treat null as "safe to fetch".
-    return validatePublicHttpUrl(raw) === null ? raw : null
+    // validatePublicHttpUrlResolved returns an ERROR MESSAGE for a bad URL and
+    // null for a good one — not the validated URL. Treat null as "safe to
+    // fetch". Resolving (not just string-checking) because the caller fetches
+    // whatever comes back from here.
+    return (await validatePublicHttpUrlResolved(raw)) === null ? raw : null
   }
   const channelId = BUILTIN_CHANNELS[provider.id]
   return channelId ? `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}` : null
@@ -173,7 +175,7 @@ function parseChannelFeed(xml: string, provider: AnyActiveProvider, market: Prov
 }
 
 async function fetchProvider(provider: AnyActiveProvider, market: ProviderMarket): Promise<VideoItem[]> {
-  const url = feedUrl(provider)
+  const url = await feedUrl(provider)
   if (!url) {
     recordProviderFetch(provider.id, { error: 'No channel id configured' })
     return []

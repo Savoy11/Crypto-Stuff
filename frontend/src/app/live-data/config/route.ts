@@ -8,7 +8,7 @@ import {
   type CustomProviderDef,
 } from '@/lib/api/live/providers'
 import { guardSensitiveRoute } from '@/lib/server/apiGuard'
-import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { validatePublicHttpUrl, validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
 
 export const dynamic = 'force-dynamic'
 
@@ -175,7 +175,10 @@ async function testProvider(provider: { id: string; isCustom?: boolean; url?: st
 
 async function testCustomProvider(url: string, key?: string): Promise<TestResult> {
   if (!url) return { ok: false, error: 'No URL configured for this provider' }
-  const urlError = validatePublicHttpUrl(url)
+  // This one fetches, so it resolves. The two save-time checks above stay
+  // string-level on purpose — a config shouldn't be rejected because DNS was
+  // down when the user hit Save (see urlSafety.ts).
+  const urlError = await validatePublicHttpUrlResolved(url)
   if (urlError) return { ok: false, error: urlError }
   try {
     // Simple reachability check — don't follow redirects (a redirect could

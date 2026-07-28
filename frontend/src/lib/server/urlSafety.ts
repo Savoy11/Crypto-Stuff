@@ -1,6 +1,22 @@
 // Server-side URL validation for user-supplied endpoints (custom providers).
 // Prevents SSRF: the server must never be coaxed into fetching internal,
 // loopback, link-local, or cloud-metadata addresses.
+//
+// Two layers, deliberately separate:
+//
+//   validatePublicHttpUrl()          — synchronous, string-level. Protocol,
+//                                      credentials, and the hostname/IP literal.
+//   validatePublicHttpUrlResolved()  — the above PLUS a DNS resolution, with
+//                                      every returned address checked.
+//
+// The string layer alone was the M3 finding: a hostname is only text, so
+// `evil.example.com A 169.254.169.254` sails through it. Anything that is
+// about to *fetch* must use the resolving layer. The string layer stays for
+// save-time validation (a config's URL should not be rejected because DNS
+// happened to be down when the user clicked Save) and as the fast pre-check
+// inside the resolving layer.
+
+import { lookup } from 'node:dns/promises'
 
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
@@ -29,9 +45,20 @@ function isPrivateIpv6(host: string): boolean {
   return false
 }
 
+/** True for any address literal that must never be fetched. */
+export function isPrivateAddress(host: string): boolean {
+  return isPrivateIpv4(host) || isPrivateIpv6(host)
+}
+
+const PRIVATE_ADDRESS_ERROR =
+  'URL points to a private or internal address — only public endpoints are allowed'
+
 /**
- * Validate a user-supplied URL is a public http(s) endpoint.
- * Returns an error message, or null when the URL is acceptable.
+ * Validate a user-supplied URL is a public http(s) endpoint, by inspection of
+ * the URL string alone. Returns an error message, or null when acceptable.
+ *
+ * Does NOT resolve DNS — a hostname that *resolves* to a private address
+ * passes here. Use validatePublicHttpUrlResolved() before fetching.
  */
 export function validatePublicHttpUrl(raw: string): string | null {
   let url: URL
@@ -47,14 +74,61 @@ export function validatePublicHttpUrl(raw: string): string | null {
     return 'URLs with embedded credentials are not allowed'
   }
   const host = url.hostname.toLowerCase()
+  // URL.hostname keeps the brackets on an IPv6 literal ("[2606:4700::1]").
+  // The dotless-hostname heuristic below would reject every one of them as a
+  // "bare hostname", including public ones — an accident of that heuristic,
+  // not a decision: isPrivateIpv6 exists precisely to sort v6 into public and
+  // private. Literals are exempted from the heuristic and judged on address.
+  const isAddressLiteral = /^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.startsWith('[')
   if (
     BLOCKED_HOSTNAMES.has(host) ||
     BLOCKED_HOST_SUFFIXES.some(s => host.endsWith(s)) ||
-    !host.includes('.') ||                                       // bare hostnames resolve internally
-    isPrivateIpv4(host) ||
-    isPrivateIpv6(host)
+    (!isAddressLiteral && !host.includes('.')) ||                // bare hostnames resolve internally
+    isPrivateAddress(host)
   ) {
-    return 'URL points to a private or internal address — only public endpoints are allowed'
+    return PRIVATE_ADDRESS_ERROR
   }
+  return null
+}
+
+/**
+ * Validate a user-supplied URL is a public http(s) endpoint, resolving its
+ * hostname and rejecting if ANY returned address is private/reserved. Returns
+ * an error message, or null when acceptable.
+ *
+ * Every address is checked, not just the first: a host that answers with both
+ * a public and a private address must be rejected, since which one the socket
+ * ends up using is not ours to choose.
+ *
+ * ⚠ Residual risk — this validates, it does not pin. Between this lookup and
+ * the connect that follows, a hostile resolver can answer differently (classic
+ * DNS rebinding); the socket may reach an address this function never saw.
+ * Closing that fully means connecting to the vetted IP rather than the name,
+ * which under Next's global fetch needs an undici dispatcher with a custom
+ * `connect.lookup` — undici is not a dependency here, and adding one to the
+ * bundle for this was judged the larger risk. What this does close is the
+ * whole no-DNS-controls-needed class: a plain `A 169.254.169.254` record, a
+ * CNAME into an internal zone, a split-horizon name. If you later add undici
+ * for another reason, pin here.
+ */
+export async function validatePublicHttpUrlResolved(raw: string): Promise<string | null> {
+  const stringError = validatePublicHttpUrl(raw)
+  if (stringError) return stringError
+
+  // Safe: validatePublicHttpUrl already parsed it.
+  const host = new URL(raw.replace('{asset}', 'bitcoin')).hostname.toLowerCase()
+
+  // An address literal has nothing to resolve and was already checked above.
+  const bare = host.replace(/^\[|\]$/g, '')
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(bare) || bare.includes(':')) return null
+
+  let addresses: { address: string }[]
+  try {
+    addresses = await lookup(host, { all: true, verbatim: true })
+  } catch {
+    return `Could not resolve host: ${host}`
+  }
+  if (addresses.length === 0) return `Could not resolve host: ${host}`
+  if (addresses.some(a => isPrivateAddress(a.address))) return PRIVATE_ADDRESS_ERROR
   return null
 }

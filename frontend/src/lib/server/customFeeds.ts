@@ -3,14 +3,14 @@
 // Used by the equity news / social / OHLCV routes; the quote ladder in
 // marketData.ts uses the same conventions.
 
-import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
 import type { CustomProviderDef, ProviderConfig } from '@/lib/api/live/providers'
 
 export type ActiveCustom = CustomProviderDef & { config: ProviderConfig }
 
 /** Fetch a custom provider URL with its configured auth. Throws on failure. */
 export async function fetchCustomUrl(provider: ActiveCustom, url: string, revalidate = 300): Promise<Response> {
-  const urlError = validatePublicHttpUrl(url)
+  const urlError = await validatePublicHttpUrlResolved(url)
   if (urlError) throw new Error(urlError)
 
   const headers: Record<string, string> = { Accept: 'application/json, application/rss+xml, application/atom+xml, */*' }
@@ -43,7 +43,7 @@ export async function fetchCustomUrl(provider: ActiveCustom, url: string, revali
     if (!location) throw new Error(`HTTP ${res.status} redirect with no Location header`)
     if (hop >= MAX_REDIRECTS) throw new Error('Too many redirects')
     const nextUrl = new URL(location, currentUrl).toString()
-    const hopError = validatePublicHttpUrl(nextUrl)
+    const hopError = await validatePublicHttpUrlResolved(nextUrl)
     if (hopError) throw new Error(`Redirect target rejected: ${hopError}`)
     // Auth must not leak to a different host than the one it was configured for.
     if (new URL(nextUrl).host !== new URL(currentUrl).host) {

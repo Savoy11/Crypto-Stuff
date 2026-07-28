@@ -17,7 +17,7 @@ import {
   type AnyActiveProvider,
   type CustomProviderDef,
 } from './providers'
-import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
 
 export interface SecurityQuote {
   symbol: string
@@ -357,7 +357,7 @@ export async function fetchCustomQuotes(
   provider: CustomProviderDef & { config: { apiKey?: string } },
   symbols: string[]
 ): Promise<Record<string, SecurityQuote>> {
-  const urlError = validatePublicHttpUrl(provider.url.replace(/\{symbols?\}/g, 'AAPL'))
+  const urlError = await validatePublicHttpUrlResolved(provider.url.replace(/\{symbols?\}/g, 'AAPL'))
   if (urlError) throw new Error(urlError)
 
   const headers: Record<string, string> = { Accept: 'application/json' }
