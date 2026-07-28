@@ -3,6 +3,8 @@ Unit tests for peg stability analytics module.
 """
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from app.analytics.peg_stability import (
@@ -68,7 +70,7 @@ class TestCalculateRollingVolatility:
     def test_constant_price_zero_volatility(self):
         prices = [1.0] * 50
         result = calculate_rolling_volatility(prices, window=10)
-        assert all(v == pytest.approx(0.0, abs=1e-9) for v in result if v is not None)
+        assert all(v == pytest.approx(0.0, abs=1e-9) for v in result if not math.isnan(v))
 
     def test_output_length_matches_input(self, sample_price_series_stable):
         result = calculate_rolling_volatility(sample_price_series_stable, window=24)
@@ -121,23 +123,21 @@ class TestDetectDepegEvents:
 
 
 class TestCalculatePegScore:
+    # calculate_peg_score takes the raw price series (it derives its own
+    # deviation stats internally) — not a PegDeviationStats object.
     def test_perfect_peg_score_100(self):
-        stats = calculate_peg_deviation([1.0] * 100, peg=1.0)
-        score = calculate_peg_score(stats)
+        score = calculate_peg_score([1.0] * 100, peg=1.0)
         assert score == pytest.approx(100.0, abs=1.0)
 
     def test_large_depeg_low_score(self, sample_price_series_depegged):
-        stats = calculate_peg_deviation(sample_price_series_depegged, peg=1.0)
-        score = calculate_peg_score(stats)
+        score = calculate_peg_score(sample_price_series_depegged, peg=1.0)
         assert score < 70.0
 
     def test_score_bounded_0_100(self, sample_price_series_stable):
-        stats = calculate_peg_deviation(sample_price_series_stable, peg=1.0)
-        score = calculate_peg_score(stats)
+        score = calculate_peg_score(sample_price_series_stable, peg=1.0)
         assert 0.0 <= score <= 100.0
 
     def test_moderate_deviation_mid_score(self):
         prices = [1.0 + 0.003 * (i % 2) for i in range(100)]  # 30bps oscillation
-        stats = calculate_peg_deviation(prices, peg=1.0)
-        score = calculate_peg_score(stats)
+        score = calculate_peg_score(prices, peg=1.0)
         assert 50.0 <= score <= 95.0

@@ -25,16 +25,30 @@ def get_engine() -> AsyncEngine:
     """Return the singleton async engine, creating it on first call."""
     global _engine
     if _engine is None:
-        _engine = create_async_engine(
-            settings.DATABASE_URL,
-            pool_size=settings.DATABASE_POOL_SIZE,
-            max_overflow=settings.DATABASE_MAX_OVERFLOW,
-            pool_timeout=settings.DATABASE_POOL_TIMEOUT,
-            pool_recycle=1800,
-            pool_pre_ping=True,
-            echo=settings.DEBUG,
-            future=True,
-        )
+        if settings.ENVIRONMENT == "test":
+            # pytest-asyncio gives each test its own event loop; pooled asyncpg
+            # connections are bound to the loop they were created on, so reuse
+            # across tests raises "Event loop is closed". NullPool makes every
+            # checkout a fresh connection on the current loop.
+            from sqlalchemy.pool import NullPool
+
+            _engine = create_async_engine(
+                settings.DATABASE_URL,
+                poolclass=NullPool,
+                echo=settings.DEBUG,
+                future=True,
+            )
+        else:
+            _engine = create_async_engine(
+                settings.DATABASE_URL,
+                pool_size=settings.DATABASE_POOL_SIZE,
+                max_overflow=settings.DATABASE_MAX_OVERFLOW,
+                pool_timeout=settings.DATABASE_POOL_TIMEOUT,
+                pool_recycle=1800,
+                pool_pre_ping=True,
+                echo=settings.DEBUG,
+                future=True,
+            )
         logger.info("database_engine_created", url=settings.DATABASE_URL.split("@")[-1])
     return _engine
 

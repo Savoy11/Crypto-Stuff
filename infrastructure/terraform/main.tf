@@ -145,19 +145,12 @@ resource "aws_kms_key" "fn" {
         }
         Action   = "kms:*"
         Resource = "*"
-      },
-      {
-        Sid    = "Allow EKS Service Account"
-        Effect = "Allow"
-        Principal = {
-          AWS = aws_iam_role.backend.arn
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
-        ]
-        Resource = "*"
       }
+      # No per-role statement here. Referencing aws_iam_role.backend.arn in
+      # this policy created a dependency cycle (eks → this key → backend role
+      # → eks OIDC). The root statement above delegates access control to IAM
+      # identity policies, and the backend role already gets kms:Decrypt/
+      # GenerateDataKey via its DecryptSecrets policy in iam.tf.
     ]
   })
 

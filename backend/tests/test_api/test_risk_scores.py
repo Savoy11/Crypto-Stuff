@@ -51,5 +51,8 @@ class TestRiskScoreEndpoints:
         resp = await client.post(
             f"/api/v1/risk-scores/{fake_id}/recalculate",
             headers=auth_headers_admin,
+            json={},  # RecalculateRequest body is required even though all fields default
         )
-        assert resp.status_code in (200, 404, 500)
+        # 404: the asset id is random and absent — the admin got through the
+        # role gate, which is what this test is about.
+        assert resp.status_code == 404

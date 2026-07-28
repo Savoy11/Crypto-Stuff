@@ -3,32 +3,73 @@ Integration tests for authentication endpoints.
 """
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+
+from app.db.session import get_db_session
+from app.main import app
+
+
+class _FakeLoginSession:
+    """Async-session stand-in: SELECTs resolve to the given user, writes no-op."""
+
+    def __init__(self, user):
+        self._user = user
+
+    async def execute(self, *_args, **_kwargs):
+        result = MagicMock()
+        result.scalar_one_or_none.return_value = self._user
+        return result
+
+    def add(self, *_args, **_kwargs):
+        return None
+
+    async def commit(self):
+        return None
+
+    async def rollback(self):
+        return None
+
+    async def flush(self):
+        return None
 
 
 class TestLoginEndpoint:
     @pytest.mark.asyncio
     async def test_login_returns_tokens(self, client):
-        mock_user = {
-            "id": str(uuid4()),
-            "email": "analyst@financenow.example",
-            "role": "analyst",
-            "is_active": True,
-            "mfa_enabled": False,
-        }
-        with patch("app.api.v1.auth.authenticate_user", new=AsyncMock(return_value=mock_user)):
-            resp = await client.post(
-                "/api/v1/auth/login",
-                json={"email": "analyst@financenow.example", "password": "SecurePass123!"},
-            )
-        assert resp.status_code in (
-            200,
-            422,
-            500,
-        )  # 200 when wired, others are acceptable in unit test
+        # The login endpoint queries the DB and verifies the bcrypt hash
+        # inline (there is no authenticate_user helper). Override the session
+        # dependency with a canned user and stub the hash check.
+        mock_user = MagicMock()
+        mock_user.id = uuid4()
+        mock_user.email = "analyst@financenow.example"
+        mock_user.role = "analyst"
+        mock_user.hashed_password = "x"
+        mock_user.is_active = True
+        mock_user.mfa_enabled = False
+        mock_user.locked_until = None
+        mock_user.failed_login_attempts = 0
+
+        async def fake_session():
+            yield _FakeLoginSession(mock_user)
+
+        app.dependency_overrides[get_db_session] = fake_session
+        try:
+            with patch("app.api.v1.auth.verify_password", return_value=True):
+                resp = await client.post(
+                    "/api/v1/auth/login",
+                    json={"email": "analyst@financenow.example", "password": "SecurePass123!"},
+                )
+        finally:
+            app.dependency_overrides.pop(get_db_session, None)
+
+        assert resp.status_code == 200
+        payload = resp.json()["data"]
+        assert payload["access_token"]
+        assert payload["refresh_token"]
+        assert payload["token_type"] == "bearer"
 
     @pytest.mark.asyncio
     async def test_login_missing_fields_422(self, client):

@@ -285,8 +285,11 @@ class ScoringEngine:
         if not all_scores:
             return 50.0
 
-        below = sum(1 for s in all_scores if s < score)
-        return float(below / len(all_scores) * 100.0)
+        # Inclusive rank (at-or-below), not strict: the distribution contains
+        # this asset's own score, so with a strict < the best asset of N could
+        # only ever reach (N-1)/N — "100 = best" would be unsatisfiable.
+        at_or_below = sum(1 for s in all_scores if s <= score)
+        return float(at_or_below / len(all_scores) * 100.0)
 
     async def _calculate_percentile(self, score: float, db: AsyncSession) -> float | None:
         """Query today's scores and compute percentile rank."""

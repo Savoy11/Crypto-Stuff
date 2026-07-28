@@ -141,10 +141,10 @@ class TestConfidenceCalculation:
 
     def test_complete_data_full_confidence(self):
         data = {
-            "market_data": [1] * 168,
-            "reserve_attestation": {"attester": "Deloitte"},
-            "blockchain_metrics": [1] * 24,
-            "liquidity_metrics": [1] * 24,
+            "prices": [1.0] * 168,
+            "reserve_composition": {"cash": 0.8, "treasuries": 0.2},
+            "velocity": 1.2,
+            "smart_contract_data": {"audited": True},
         }
         confidence = self.engine.calculate_confidence(data)
         assert confidence >= 0.9
@@ -167,21 +167,21 @@ class TestPercentileCalculation:
     @pytest.mark.asyncio
     async def test_highest_score_100th_percentile(self):
         all_scores = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0]
-        percentile = await self.engine.calculate_percentile(100.0, all_scores)
+        percentile = self.engine.calculate_percentile(100.0, all_scores)
         assert percentile == pytest.approx(100.0, abs=1.0)
 
     @pytest.mark.asyncio
     async def test_lowest_score_0th_percentile(self):
         all_scores = [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0]
-        percentile = await self.engine.calculate_percentile(10.0, all_scores)
+        percentile = self.engine.calculate_percentile(10.0, all_scores)
         assert percentile <= 15.0
 
     @pytest.mark.asyncio
     async def test_single_score_in_list(self):
-        percentile = await self.engine.calculate_percentile(75.0, [75.0])
+        percentile = self.engine.calculate_percentile(75.0, [75.0])
         assert 0.0 <= percentile <= 100.0
 
     @pytest.mark.asyncio
     async def test_empty_scores_returns_50(self):
-        percentile = await self.engine.calculate_percentile(75.0, [])
+        percentile = self.engine.calculate_percentile(75.0, [])
         assert percentile == pytest.approx(50.0, abs=1.0)

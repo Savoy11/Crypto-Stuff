@@ -61,22 +61,48 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
 
 
 def _make_token(user_id: str, role: str = "viewer") -> str:
-    return create_access_token(subject=user_id, extra_claims={"role": role})
+    return create_access_token(subject=user_id, role=role)
 
 
-@pytest.fixture
-def viewer_token() -> str:
-    return _make_token(str(uuid4()), "viewer")
+async def _create_user_token(role: str) -> str:
+    """Insert a real user row and mint a token for it.
+
+    get_current_user resolves the token's subject against the users table and
+    401s when the row is missing, so a token minted for a random UUID fails
+    every authenticated request. These fixtures therefore need the app's real
+    database (provided by the postgres service in CI).
+    """
+    from app.core.security import get_password_hash
+    from app.db.session import get_session_factory
+    from app.models.user import User
+
+    factory = get_session_factory()
+    async with factory() as session:
+        user = User(
+            email=f"{uuid4().hex}@fixtures.test",
+            hashed_password=get_password_hash("Testpass-123!"),
+            role=role,
+            is_active=True,
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return _make_token(str(user.id), role)
 
 
-@pytest.fixture
-def analyst_token() -> str:
-    return _make_token(str(uuid4()), "analyst")
+@pytest_asyncio.fixture
+async def viewer_token() -> str:
+    return await _create_user_token("viewer")
 
 
-@pytest.fixture
-def admin_token() -> str:
-    return _make_token(str(uuid4()), "admin")
+@pytest_asyncio.fixture
+async def analyst_token() -> str:
+    return await _create_user_token("analyst")
+
+
+@pytest_asyncio.fixture
+async def admin_token() -> str:
+    return await _create_user_token("admin")
 
 
 @pytest.fixture
