@@ -10,10 +10,10 @@ from datetime import UTC, datetime, timedelta
 from functools import wraps
 from typing import Any
 
+import bcrypt
 import pyotp
 import structlog
 from jose import JWTError, jwt
-import bcrypt
 
 from app.config import settings
 from app.core.exceptions import (
