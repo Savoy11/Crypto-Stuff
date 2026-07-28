@@ -112,7 +112,9 @@ def create_app() -> FastAPI:
         # old handler read `.detail`, which raised AttributeError inside itself
         # and turned every domain error into a bare 500.
         logger.warning("fn_exception", message=exc.message, code=exc.code, status=exc.status_code)
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.message, "code": exc.code})
+        return JSONResponse(
+            status_code=exc.status_code, content={"detail": exc.message, "code": exc.code}
+        )
 
     return app
 

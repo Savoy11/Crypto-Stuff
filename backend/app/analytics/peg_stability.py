@@ -87,7 +87,7 @@ def calculate_peg_deviation(
         percentile_95=float(np.percentile(abs_deviations, 95)),
         percentile_99=float(np.percentile(abs_deviations, 99)),
         current_deviation_bps=float(current_dev),
-        is_depegged=abs(current_dev) > threshold_bps,
+        is_depegged=bool(abs(current_dev) > threshold_bps),
     )
 
 

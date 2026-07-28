@@ -138,8 +138,8 @@ module "eks" {
       # Node labels
       labels = {
         "node.kubernetes.io/lifecycle" = "normal"
-        "fn/node-pool"               = "general"
-        "fn/environment"             = var.environment
+        "fn/node-pool"                 = "general"
+        "fn/environment"               = var.environment
       }
 
       # Taints — none for general pool
@@ -201,8 +201,8 @@ module "eks" {
 
       labels = {
         "node.kubernetes.io/lifecycle" = "spot"
-        "fn/node-pool"               = "spot"
-        "fn/workload-type"           = "batch"
+        "fn/node-pool"                 = "spot"
+        "fn/workload-type"             = "batch"
       }
 
       taints = {
