@@ -13,7 +13,7 @@ from typing import Any
 import pyotp
 import structlog
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 
 from app.config import settings
 from app.core.exceptions import (
@@ -28,17 +28,24 @@ logger = structlog.get_logger(__name__)
 # Password hashing
 # ------------------------------------------------------------------ #
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Direct bcrypt, not passlib: passlib 1.7.4 is unmaintained and its backend
+# self-test crashes against bcrypt >= 4.1 (feeds a >72-byte probe that modern
+# bcrypt rejects with ValueError). Hashes are the same $2b$ format either way,
+# so existing stored hashes keep verifying.
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a plaintext password using bcrypt."""
-    return pwd_context.hash(password)
+    """Hash a plaintext password using bcrypt (cost 12)."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against a bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except ValueError:
+        # Malformed/legacy hash — treat as non-matching rather than erroring.
+        return False
 
 
 # ------------------------------------------------------------------ #
