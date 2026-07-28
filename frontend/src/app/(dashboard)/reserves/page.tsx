@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { stablecoinMetaIsStale, stablecoinMetaAgeDays, META_STALE_AFTER_DAYS } from '@/lib/data/stablecoinMeta'
 import { Vault, CheckCircle, AlertTriangle, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
@@ -119,6 +120,19 @@ export default function ReservesPage() {
         <div className="flex items-center gap-3">
           <Vault className="h-6 w-6 text-blue-400" />
           <div>
+            {/* Escalating staleness banner (transferFees pattern) — the
+                previous snapshot silently aged to 20 months (audit H2). */}
+            {stablecoinMetaIsStale() && (
+              <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  The curated attestation snapshot is {stablecoinMetaAgeDays()} days old
+                  (stale after {META_STALE_AFTER_DAYS}) — attester names, dates, and
+                  composition splits below may lag current issuer filings. Refresh
+                  <code className="mx-1">src/lib/data/stablecoinMeta.ts</code> from issuer disclosures.
+                </span>
+              </div>
+            )}
             <PageHeader
               title="Reserve Transparency Monitor"
               // Only SUPPLY is live here. Attester, attestation date and

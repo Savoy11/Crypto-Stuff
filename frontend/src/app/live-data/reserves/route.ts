@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { ATTESTATION_META, COMPOSITION_MAP, META_AS_OF, MONITORED_STABLECOINS } from '@/lib/data/stablecoinMeta'
+import { ATTESTATION_META, COMPOSITION_MAP, META_AS_OF, MONITORED_STABLECOINS, getStablecoinMetaProvenance } from '@/lib/data/stablecoinMeta'
 
 export const dynamic = 'force-dynamic'
 
@@ -109,7 +109,7 @@ export async function GET() {
 
     assets.sort((a, b) => b.circulatingUsd - a.circulatingUsd)
 
-    return NextResponse.json({ ok: true, assets, metaAsOf: META_AS_OF, updatedAt: new Date().toISOString() })
+    return NextResponse.json({ ok: true, assets, metaAsOf: META_AS_OF, metaProvenance: getStablecoinMetaProvenance(), updatedAt: new Date().toISOString() })
   } catch (err) {
     return NextResponse.json(
       { ok: false, assets: [], error: String(err), updatedAt: new Date().toISOString() },
