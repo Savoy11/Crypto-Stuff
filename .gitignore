@@ -62,3 +62,9 @@ crash.*.log
 # OS
 .DS_Store
 Thumbs.db
+
+# Python coverage artifacts
+.coverage
+backend/.coverage
+backend/htmlcov/
+backend/test-results.xml
