@@ -1,0 +1,117 @@
+// Transport half of the SSRF defence (audit M3). urlSafety.ts decides whether
+// an address is allowed; this file makes sure the socket actually goes there.
+//
+// Validating a hostname and then handing the *name* to fetch leaves a window:
+// between our lookup and the connect, a resolver under an attacker's control
+// can answer differently, and the socket lands somewhere we never approved.
+// That is DNS rebinding, and no amount of pre-checking the name closes it.
+//
+// The fix is to connect to the vetted IP. undici's connector takes a `lookup`,
+// so we hand it one that ignores DNS entirely and returns the address
+// resolvePublicAddresses() already approved. TLS is unaffected: undici passes
+// `servername` from the URL, so SNI and certificate validation still use the
+// hostname — we change where the packets go, not who we think we're talking to.
+//
+// Why undici's own fetch rather than the global one: a dispatcher only works
+// with the fetch implementation it was built for. Node's built-in fetch is
+// backed by a *vendored* undici whose major version tracks the Node release,
+// so passing an Agent from the npm `undici` package to global fetch dies with
+// `InvalidArgumentError: invalid onRequestStart method` the moment the two
+// drift apart. Importing both from the same package makes that a non-issue,
+// and it stops a Node upgrade from silently disabling the pin.
+//
+// ⚠ undici is pinned to the 7.x line, and must stay there while this app
+// targets Node 20 (CI's setup-node and all three Dockerfile stages are
+// node:20-alpine). undici 8 declares `engines.node >= 22.19.0` and calls
+// `worker_threads.markAsUncloneable` unconditionally, so on Node 20 the build
+// dies collecting page data with `TypeError: s.util.markAsUncloneable is not a
+// function` — which a Node 22 dev machine will not reproduce. undici 7
+// feature-detects the same API and no-ops without it. Move to 8 only together
+// with the Node 22 base image.
+
+import { Agent, fetch as undiciFetch } from 'undici'
+import { isPrivateAddress, resolvePublicAddresses } from '@/lib/server/urlSafety'
+
+type LookupCallback = (
+  err: NodeJS.ErrnoException | null,
+  address: string | { address: string; family: number }[],
+  family?: number
+) => void
+
+const familyOf = (address: string): 4 | 6 => (address.includes(':') ? 6 : 4)
+
+/**
+ * A dispatcher whose DNS answer is fixed to `addresses`. One per request:
+ * these are cheap, and a shared pool keyed by origin would happily reuse a
+ * socket opened under a different pin.
+ */
+function pinnedAgent(addresses: string[]): Agent {
+  return new Agent({
+    connect: {
+      lookup(_hostname: string, options: { all?: boolean }, callback: LookupCallback) {
+        // Belt and braces: these came from resolvePublicAddresses, but this is
+        // the last line before a socket opens, so re-check rather than trust.
+        const safe = addresses.filter(a => !isPrivateAddress(a))
+        if (safe.length === 0) {
+          const err: NodeJS.ErrnoException = new Error('No public address available for host')
+          err.code = 'ENOTFOUND'
+          callback(err, '')
+          return
+        }
+        if (options?.all) {
+          callback(null, safe.map(address => ({ address, family: familyOf(address) })))
+          return
+        }
+        callback(null, safe[0], familyOf(safe[0]))
+      },
+    },
+  })
+}
+
+export interface PinnedFetchInit {
+  headers?: Record<string, string>
+  redirect?: 'manual' | 'error' | 'follow'
+  signal?: AbortSignal
+  method?: string
+  body?: string
+}
+
+/**
+ * fetch(), with the connection pinned to a pre-validated address.
+ *
+ * Throws — before opening anything — if the URL fails string-level or
+ * resolve-level validation. Address-literal URLs skip pinning: there is no
+ * name to rebind, and the literal was already checked.
+ *
+ * The body is buffered and re-wrapped in a standard `Response` so the pinned
+ * agent can be closed here rather than left to a caller who may never get
+ * round to it. Everything this guards is an RSS or JSON document, so nothing
+ * is lost by not streaming.
+ *
+ * ⚠ Requests made through this function are NOT covered by Next's fetch
+ * cache — `next: { revalidate }` has no effect on a request carrying a custom
+ * dispatcher. Callers that relied on it now hit their upstream every time.
+ */
+export async function pinnedFetch(url: string, init: PinnedFetchInit = {}): Promise<Response> {
+  const resolution = await resolvePublicAddresses(url)
+  if ('error' in resolution) throw new Error(resolution.error)
+
+  // Address literal — nothing to pin, already validated, so the platform
+  // fetch (and its cache integration) is fine here.
+  if (resolution.addresses.length === 0) {
+    return fetch(url, init as RequestInit)
+  }
+
+  const agent = pinnedAgent(resolution.addresses)
+  try {
+    const res = await undiciFetch(url, { ...init, dispatcher: agent })
+    const body = await res.arrayBuffer()
+    return new Response(body, {
+      status: res.status,
+      statusText: res.statusText,
+      headers: [...res.headers] as [string, string][],
+    })
+  } finally {
+    await agent.close().catch(() => {})
+  }
+}

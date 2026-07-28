@@ -100,7 +100,7 @@ async function runAgentAnthropic(
   const system = opts.systemSuffix ? `${cfg.systemPrompt}\n\n${opts.systemSuffix}` : cfg.systemPrompt
   const messages: Anthropic.MessageParam[] = [...opts.messages]
   // Our client-side data tools plus Anthropic's server-side web_search tool.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
   const tools: any[] = [...toolsForAgent(cfg.toolset), webSearchTool(opts.webSearchMaxUses ?? 5)]
   const toolsUsed: { name: string; input: unknown }[] = []
   const maxIterations = opts.maxIterations ?? 8
@@ -233,7 +233,7 @@ async function runAgentOpenAI(
     // Execute all tool calls in parallel
     const toolResultMessages = await Promise.all(
       assistantMsg.tool_calls.map(async (tc) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         const fn = (tc as any).function as { name: string; arguments: string }
         const input = JSON.parse(fn.arguments || '{}')
         toolsUsed.push({ name: fn.name, input })

@@ -180,7 +180,7 @@ function EquityNewsContent() {
       return true
     })
     return applyBias(filtered, watchlist, biasStrength, toBiasable)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
   }, [data, categoryFilter, sentimentFilter, symbolFilter, keywords, watchlist, biasStrength])
 
   const breaking = articles.filter((a) => a.isBreaking)

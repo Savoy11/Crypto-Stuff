@@ -6,7 +6,7 @@ import {
   NoVideoAnalyzerError,
   type VideoTimestamp,
 } from '@/lib/video'
-import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { validatePublicHttpUrlResolved } from '@/lib/server/urlSafety'
 import { guardSensitiveRoute } from '@/lib/server/apiGuard'
 
 // Ask an AI model about a specific video.
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
 
   // The URL is handed to a third-party model to fetch, so it gets the same SSRF
   // validation as any other user-supplied endpoint.
-  const urlError = validatePublicHttpUrl(videoUrl)
+  const urlError = await validatePublicHttpUrlResolved(videoUrl)
   if (urlError) {
     return NextResponse.json({ ok: false, error: urlError } satisfies VideoAnalyzeResponse, { status: 400 })
   }

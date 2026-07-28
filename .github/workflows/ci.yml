@@ -139,16 +139,15 @@ jobs:
           CHAINLINK_RPC_URL: ""
         run: |
           cd backend
-          # Coverage floor: measured reality is ~51% (2026-07-28, first run
-          # where the whole suite passed). The old 70 was aspirational and set
-          # while the suite couldn't run; raising this back up is tracked as an
-          # audit follow-up and should come with new tests, not a broken gate.
+          # No --cov-fail-under here on purpose: the floor is set once, in
+          # backend/pyproject.toml's addopts, so a bare local `pytest` and this
+          # job gate on the same number. They disagreed before (80 vs 45) and a
+          # passing CI run meant nothing locally. Change the floor there.
           poetry run pytest \
             --cov=app \
             --cov-report=xml:coverage.xml \
             --cov-report=html:htmlcov \
             --cov-report=term-missing \
-            --cov-fail-under=45 \
             --junit-xml=test-results.xml \
             -v \
             --tb=short \
@@ -217,7 +216,18 @@ jobs:
       - name: Run ESLint
         run: |
           cd frontend
+          # Two runs on purpose: the first writes SARIF for code scanning and
+          # must NOT fail the job (otherwise a lint error means no upload), the
+          # second is the actual gate.
+          #
+          # `|| true` used to hide more than that. @microsoft/eslint-formatter-sarif
+          # was never in the lockfile, so this line failed every run, the `|| true`
+          # swallowed it, and the upload step below — `continue-on-error: true` —
+          # swallowed the missing file. ESLint results silently never reached code
+          # scanning. The package is a devDependency now; this check makes a repeat
+          # loud instead of invisible.
           npm run lint -- --format=@microsoft/eslint-formatter-sarif --output-file=eslint-results.sarif || true
+          test -s eslint-results.sarif || { echo "::error::SARIF report was not produced — the formatter is missing or failed"; exit 1; }
           npm run lint
 
       - name: Upload ESLint SARIF

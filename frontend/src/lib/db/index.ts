@@ -14,7 +14,7 @@ import * as schema from './schema'
 // the module is evaluated once and the global is just an unused indirection.
 
 declare global {
-  // eslint-disable-next-line no-var
+
   var __fnDbClient: ReturnType<typeof postgres> | undefined
 }
 

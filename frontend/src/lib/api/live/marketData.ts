@@ -17,7 +17,7 @@ import {
   type AnyActiveProvider,
   type CustomProviderDef,
 } from './providers'
-import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { pinnedFetch } from '@/lib/server/pinnedFetch'
 
 export interface SecurityQuote {
   symbol: string
@@ -357,9 +357,6 @@ export async function fetchCustomQuotes(
   provider: CustomProviderDef & { config: { apiKey?: string } },
   symbols: string[]
 ): Promise<Record<string, SecurityQuote>> {
-  const urlError = validatePublicHttpUrl(provider.url.replace(/\{symbols?\}/g, 'AAPL'))
-  if (urlError) throw new Error(urlError)
-
   const headers: Record<string, string> = { Accept: 'application/json' }
   const apiKey = provider.config.apiKey
   const applyAuth = (url: string): string => {
@@ -376,7 +373,11 @@ export async function fetchCustomQuotes(
   const quotes: Record<string, SecurityQuote> = {}
 
   const getPayload = async (url: string): Promise<unknown> => {
-    const res = await fetch(applyAuth(url), { headers, signal: AbortSignal.timeout(10_000), next: { revalidate: 60 } })
+    // pinnedFetch validates and then connects to a vetted address rather than
+    // the name (M3). It costs the `next: { revalidate: 60 }` this call had —
+    // Next's fetch cache doesn't cover requests with a custom dispatcher — so
+    // custom quote feeds now hit upstream per request.
+    const res = await pinnedFetch(applyAuth(url), { headers, signal: AbortSignal.timeout(10_000) })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const payload = await res.json() as unknown
     return provider.jsonArrayPath ? dig(payload, provider.jsonArrayPath) : payload

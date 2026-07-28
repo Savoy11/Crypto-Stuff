@@ -8,7 +8,7 @@
     "css:watch": "tailwindcss -i ./src/app/globals.css -o ./src/app/globals.compiled.css --watch",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "smoke": "node scripts/test-live-data.mjs --quick",
     "audit": "node scripts/test-live-data.mjs",
@@ -26,7 +26,7 @@
     "restart": "npx kill-port 3000 & rmdir /s /q .next & npm run dev",
     "update": "git pull && npm install --no-audit --no-fund && npm run restart",
     "data-sources": "tsx scripts/gen-data-sources.ts",
-    "fund-facts":"node scripts/build-fund-facts.mjs"
+    "fund-facts": "node scripts/build-fund-facts.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.106.0",
@@ -38,7 +38,7 @@
     "drizzle-orm": "^0.45.2",
     "lightweight-charts": "^5.2.0",
     "lucide-react": "^0.358.0",
-    "next": "14.2.0",
+    "next": "14.2.35",
     "next-auth": "^5.0.0-beta.31",
     "openai": "^6.45.0",
     "postcss": "^8.4.38",
@@ -49,18 +49,18 @@
     "recharts": "^2.12.0",
     "tailwindcss": "^3.4.0",
     "typescript": "^5.4.0",
+    "undici": "^7.29.0",
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@microsoft/eslint-formatter-sarif": "^3.1.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.12.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@typescript-eslint/eslint-plugin": "^7.18.0",
-    "@typescript-eslint/parser": "^7.18.0",
     "drizzle-kit": "^0.31.10",
-    "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.0",
+    "eslint": "^9.39.5",
+    "eslint-config-next": "^16.2.12",
     "vitest": "^3.0.0"
   }
 }

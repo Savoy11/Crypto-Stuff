@@ -256,7 +256,7 @@ function NewsPageInner() {
 
   const liveArticles = useMemo<AnyArticle[]>(
     () => applyBias(liveData?.articles ?? [], watchlist, biasStrength, toBiasable),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [liveData, watchlist, biasStrength]
   )
   const activeProviders = liveData?.providers ?? []
