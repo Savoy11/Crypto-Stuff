@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: caep
+  name: fn
   labels:
-    name: caep
+    name: fn
     environment: production
     app.kubernetes.io/managed-by: kubectl
   annotations:
@@ -12,8 +12,8 @@ metadata:
 apiVersion: v1
 kind: ResourceQuota
 metadata:
-  name: caep-resource-quota
-  namespace: caep
+  name: fn-resource-quota
+  namespace: fn
 spec:
   hard:
     requests.cpu: "20"
@@ -29,8 +29,8 @@ spec:
 apiVersion: v1
 kind: LimitRange
 metadata:
-  name: caep-limit-range
-  namespace: caep
+  name: fn-limit-range
+  namespace: fn
 spec:
   limits:
     - type: Container

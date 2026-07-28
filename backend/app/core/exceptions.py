@@ -1,5 +1,5 @@
 """
-Custom exception hierarchy for CAEP.
+Custom exception hierarchy for Finance Now.
 All domain-specific exceptions map to appropriate HTTP status codes.
 """
 from __future__ import annotations
@@ -11,17 +11,17 @@ from fastapi import HTTPException, status
 # ------------------------------------------------------------------ #
 
 
-class CAEPError(Exception):
-    """Root exception for all CAEP domain errors."""
+class FinanceNowError(Exception):
+    """Root exception for all Finance Now domain errors."""
 
     # HTTP status the global handler maps this to. Subclasses override; the
     # base is a 500. The handler in main.py used to read `.detail`/`.status_code`,
-    # which this class never had — so EVERY CAEPError reaching it raised
+    # which this class never had — so EVERY FinanceNowError reaching it raised
     # AttributeError *inside* the handler and turned an intended 4xx into a bare
     # 500. Declaring the fields here is what makes the handler work at all.
     status_code: int = 500
 
-    def __init__(self, message: str, code: str = "CAEP_ERROR") -> None:
+    def __init__(self, message: str, code: str = "FN_ERROR") -> None:
         self.message = message
         self.code = code
         super().__init__(message)
@@ -32,28 +32,28 @@ class CAEPError(Exception):
 # ------------------------------------------------------------------ #
 
 
-class AuthenticationError(CAEPError):
+class AuthenticationError(FinanceNowError):
     status_code = 401
 
     def __init__(self, message: str = "Authentication failed") -> None:
         super().__init__(message, "AUTH_ERROR")
 
 
-class TokenExpiredError(CAEPError):
+class TokenExpiredError(FinanceNowError):
     status_code = 401
 
     def __init__(self) -> None:
         super().__init__("Access token has expired", "TOKEN_EXPIRED")
 
 
-class InvalidTokenError(CAEPError):
+class InvalidTokenError(FinanceNowError):
     status_code = 401
 
     def __init__(self) -> None:
         super().__init__("Invalid or malformed token", "INVALID_TOKEN")
 
 
-class InsufficientPermissionsError(CAEPError):
+class InsufficientPermissionsError(FinanceNowError):
     status_code = 403
 
     def __init__(self, required_role: str = "") -> None:
@@ -65,14 +65,14 @@ class InsufficientPermissionsError(CAEPError):
         super().__init__(msg, "INSUFFICIENT_PERMISSIONS")
 
 
-class MFARequiredError(CAEPError):
+class MFARequiredError(FinanceNowError):
     status_code = 401
 
     def __init__(self) -> None:
         super().__init__("Multi-factor authentication required", "MFA_REQUIRED")
 
 
-class InvalidMFACodeError(CAEPError):
+class InvalidMFACodeError(FinanceNowError):
     status_code = 401
 
     def __init__(self) -> None:
@@ -84,7 +84,7 @@ class InvalidMFACodeError(CAEPError):
 # ------------------------------------------------------------------ #
 
 
-class NotFoundError(CAEPError):
+class NotFoundError(FinanceNowError):
     status_code = 404
 
     def __init__(self, resource: str, resource_id: str | None = None) -> None:
@@ -96,7 +96,7 @@ class NotFoundError(CAEPError):
         self.resource_id = resource_id
 
 
-class DuplicateResourceError(CAEPError):
+class DuplicateResourceError(FinanceNowError):
     status_code = 409
 
     def __init__(self, resource: str, field: str = "") -> None:
@@ -106,7 +106,7 @@ class DuplicateResourceError(CAEPError):
         super().__init__(msg, "DUPLICATE_RESOURCE")
 
 
-class ValidationError(CAEPError):
+class ValidationError(FinanceNowError):
     status_code = 422
 
     def __init__(self, message: str, field: str = "") -> None:
@@ -119,13 +119,13 @@ class ValidationError(CAEPError):
 # ------------------------------------------------------------------ #
 
 
-class PipelineError(CAEPError):
+class PipelineError(FinanceNowError):
     def __init__(self, pipeline: str, message: str) -> None:
         super().__init__(f"Pipeline '{pipeline}' error: {message}", "PIPELINE_ERROR")
         self.pipeline = pipeline
 
 
-class ExternalAPIError(CAEPError):
+class ExternalAPIError(FinanceNowError):
     status_code = 502  # our response status; the upstream's code is upstream_status
 
     def __init__(self, service: str, message: str, upstream_status: int | None = None) -> None:
@@ -137,14 +137,14 @@ class ExternalAPIError(CAEPError):
         self.upstream_status = upstream_status
 
 
-class DataQualityError(CAEPError):
+class DataQualityError(FinanceNowError):
     status_code = 422
 
     def __init__(self, message: str) -> None:
         super().__init__(message, "DATA_QUALITY_ERROR")
 
 
-class InsufficientDataError(CAEPError):
+class InsufficientDataError(FinanceNowError):
     status_code = 422
 
     def __init__(self, message: str = "Insufficient data for calculation") -> None:
@@ -156,7 +156,7 @@ class InsufficientDataError(CAEPError):
 # ------------------------------------------------------------------ #
 
 
-class RateLimitExceededError(CAEPError):
+class RateLimitExceededError(FinanceNowError):
     status_code = 429
 
     def __init__(self, limit: int, window: int) -> None:

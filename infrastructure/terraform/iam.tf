@@ -1,5 +1,5 @@
 ###############################################################################
-# CAEP — IAM Roles and Policies (Least-Privilege, IRSA)
+# Finance Now — IAM Roles and Policies (Least-Privilege, IRSA)
 ###############################################################################
 
 ###############################################################################
@@ -68,7 +68,7 @@ data "aws_iam_policy_document" "backend_assume_role" {
     condition {
       test     = "StringEquals"
       variable = "${module.eks.oidc_provider}:sub"
-      values   = ["system:serviceaccount:caep:caep-backend-sa"]
+      values   = ["system:serviceaccount:fn:fn-backend-sa"]
     }
 
     condition {
@@ -88,16 +88,16 @@ resource "aws_iam_role" "backend" {
   })
 }
 
-# Policy: Secrets Manager — read CAEP secrets only
+# Policy: Secrets Manager — read Finance Now secrets only
 resource "aws_iam_policy" "backend_secrets" {
   name        = "${local.name_prefix}-backend-secrets-policy"
-  description = "Allow backend to read CAEP secrets from Secrets Manager"
+  description = "Allow backend to read Finance Now secrets from Secrets Manager"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ReadCaepSecrets"
+        Sid    = "ReadFnSecrets"
         Effect = "Allow"
         Action = [
           "secretsmanager:GetSecretValue",
@@ -116,7 +116,7 @@ resource "aws_iam_policy" "backend_secrets" {
           "kms:GenerateDataKey",
           "kms:DescribeKey",
         ]
-        Resource = [aws_kms_key.caep.arn]
+        Resource = [aws_kms_key.fn.arn]
       }
     ]
   })
@@ -124,10 +124,10 @@ resource "aws_iam_policy" "backend_secrets" {
   tags = local.common_tags
 }
 
-# Policy: S3 — access to CAEP data buckets only
+# Policy: S3 — access to Finance Now data buckets only
 resource "aws_iam_policy" "backend_s3" {
   name        = "${local.name_prefix}-backend-s3-policy"
-  description = "Allow backend to read/write CAEP S3 data buckets"
+  description = "Allow backend to read/write Finance Now S3 data buckets"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -159,7 +159,7 @@ resource "aws_iam_policy" "backend_s3" {
         Sid      = "DecryptS3"
         Effect   = "Allow"
         Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
-        Resource = [aws_kms_key.caep.arn]
+        Resource = [aws_kms_key.fn.arn]
       }
     ]
   })
@@ -182,7 +182,7 @@ resource "aws_iam_policy" "backend_cloudwatch" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "cloudwatch:namespace" = "CAEP"
+            "cloudwatch:namespace" = "Finance Now"
           }
         }
       },
@@ -195,7 +195,7 @@ resource "aws_iam_policy" "backend_cloudwatch" {
           "logs:PutLogEvents",
           "logs:DescribeLogStreams",
         ]
-        Resource = "arn:aws:logs:${var.aws_region}:${local.account_id}:log-group:/caep/*:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${local.account_id}:log-group:/fn/*:*"
       }
     ]
   })
@@ -308,7 +308,7 @@ resource "aws_iam_policy" "ebs_csi_kms" {
         "kms:GenerateDataKey*",
         "kms:DescribeKey",
       ]
-      Resource = [aws_kms_key.caep.arn]
+      Resource = [aws_kms_key.fn.arn]
     }]
   })
 
@@ -468,7 +468,7 @@ resource "aws_iam_role" "cicd_deploy" {
         }
         StringLike = {
           # Replace with your actual GitHub org/repo
-          "token.actions.githubusercontent.com:sub" = "repo:your-org/caep:*"
+          "token.actions.githubusercontent.com:sub" = "repo:your-org/finance-now:*"
         }
       }
     }]
@@ -481,7 +481,7 @@ resource "aws_iam_role" "cicd_deploy" {
 
 resource "aws_iam_policy" "cicd_deploy" {
   name        = "${local.name_prefix}-cicd-deploy-policy"
-  description = "Least-privilege policy for CI/CD to deploy CAEP to EKS"
+  description = "Least-privilege policy for CI/CD to deploy Finance Now to EKS"
 
   policy = jsonencode({
     Version = "2012-10-17"

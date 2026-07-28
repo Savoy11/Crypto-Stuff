@@ -20,9 +20,9 @@
 # Check raw price from CoinGecko directly
 curl "https://api.coingecko.com/api/v3/simple/price?ids=<coin-id>&vs_currencies=usd"
 
-# Compare to CAEP stored value
+# Compare to Finance Now stored value
 curl -H "Authorization: Bearer $ADMIN_TOKEN" \
-  https://api.caep.io/api/v1/market-data/<asset-id>/latest
+  https://api.financenow.example.com/api/v1/market-data/<asset-id>/latest
 ```
 
 **Step 2 — Assess Impact**
@@ -32,7 +32,7 @@ curl -H "Authorization: Bearer $ADMIN_TOKEN" \
 
 **Step 3 — Validate Data Pipeline**
 ```bash
-kubectl logs -l app=caep-backend -n caep | grep "coingecko" | tail -50
+kubectl logs -l app=fn-backend -n fn | grep "coingecko" | tail -50
 ```
 
 **Step 4 — Escalate if Confirmed**
@@ -48,30 +48,30 @@ kubectl logs -l app=caep-backend -n caep | grep "coingecko" | tail -50
 
 **Step 1 — Check pod status**
 ```bash
-kubectl get pods -n caep
-kubectl describe pod <failing-pod> -n caep
+kubectl get pods -n fn
+kubectl describe pod <failing-pod> -n fn
 ```
 
 **Step 2 — Check logs**
 ```bash
-kubectl logs -l app=caep-backend -n caep --tail=200 | grep "ERROR\|CRITICAL"
+kubectl logs -l app=fn-backend -n fn --tail=200 | grep "ERROR\|CRITICAL"
 ```
 
 **Step 3 — Check database**
 ```bash
-kubectl exec -it postgres-0 -n caep -- psql -U caep -c "SELECT count(*) FROM pg_stat_activity;"
+kubectl exec -it postgres-0 -n fn -- psql -U caep -c "SELECT count(*) FROM pg_stat_activity;"
 # High connection count may indicate pool exhaustion
 ```
 
 **Step 4 — Restart if necessary**
 ```bash
-kubectl rollout restart deployment/caep-backend -n caep
-kubectl rollout status deployment/caep-backend -n caep
+kubectl rollout restart deployment/fn-backend -n fn
+kubectl rollout status deployment/fn-backend -n fn
 ```
 
 **Step 5 — Scale up if load-related**
 ```bash
-kubectl scale deployment caep-backend --replicas=10 -n caep
+kubectl scale deployment fn-backend --replicas=10 -n fn
 ```
 
 ---
@@ -82,13 +82,13 @@ kubectl scale deployment caep-backend --replicas=10 -n caep
 
 Aurora automatically promotes a read replica within ~30 seconds. To verify:
 ```bash
-aws rds describe-db-clusters --db-cluster-identifier caep-cluster \
+aws rds describe-db-clusters --db-cluster-identifier fn-cluster \
   --query 'DBClusters[0].DBClusterMembers[*].{Instance:DBInstanceIdentifier,Writer:IsClusterWriter}'
 ```
 
 If manual intervention is required:
 ```bash
-aws rds failover-db-cluster --db-cluster-identifier caep-cluster
+aws rds failover-db-cluster --db-cluster-identifier fn-cluster
 ```
 
 **Post-failover**: Update `DATABASE_URL` in Kubernetes secret if the writer endpoint changed.

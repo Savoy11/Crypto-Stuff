@@ -14,8 +14,8 @@ interface StakingDiscoveryStore {
   isDismissed:     (id: string) => boolean
 }
 
-const KEY_SAVED     = 'caep:staking-saved'
-const KEY_DISMISSED = 'caep:staking-dismissed'
+const KEY_SAVED     = 'fn:staking-saved'
+const KEY_DISMISSED = 'fn:staking-dismissed'
 
 function load<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback

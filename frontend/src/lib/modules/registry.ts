@@ -31,7 +31,7 @@ import {
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
-// CAEP is organised as a suite of entitlement-gated modules (see docs/ROADMAP.md).
+// Finance Now is organised as a suite of entitlement-gated modules (see docs/ROADMAP.md).
 // Each module contributes a section of sidebar navigation and owns a set of
 // route prefixes. The sidebar renders from this registry filtered by the
 // user's entitlements; in local dev every module is enabled by default.

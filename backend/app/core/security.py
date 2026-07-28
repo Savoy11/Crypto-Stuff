@@ -186,7 +186,7 @@ def generate_api_key() -> tuple[str, str]:
         Tuple of (raw_key, key_hash). Store only the hash in the database;
         return the raw key once to the user.
     """
-    raw_key = f"caep_{secrets.token_urlsafe(40)}"
+    raw_key = f"fn_{secrets.token_urlsafe(40)}"
     key_hash = hash_api_key(raw_key)
     return raw_key, key_hash
 

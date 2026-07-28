@@ -18,7 +18,7 @@ import { guardSensitiveRoute } from '@/lib/server/apiGuard'
 // adapter registration, not a change here.
 //
 // Guarded like the other AI endpoints: this spends the user's API credits, so
-// it is localhost-only unless CAEP_ADMIN_TOKEN is set (see apiGuard).
+// it is localhost-only unless FN_ADMIN_TOKEN (legacy CAEP_ADMIN_TOKEN) is set (see apiGuard).
 
 export const dynamic = 'force-dynamic'
 

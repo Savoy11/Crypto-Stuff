@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for CAEP backend test suite.
+Shared pytest fixtures for Finance Now backend test suite.
 """
 from __future__ import annotations
 

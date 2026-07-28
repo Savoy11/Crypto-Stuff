@@ -1,6 +1,12 @@
 'use client'
 
 import { create } from 'zustand'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep:added-coins', 'fn:added-coins')
+migrateStorageKey('caep:dismissed-coins', 'fn:dismissed-coins')
+
 
 export interface AddedCoin {
   cgId: string
@@ -29,8 +35,8 @@ interface CoinDiscoveryStore {
   isDismissed: (cgId: string) => boolean
 }
 
-const STORAGE_KEY_ADDED    = 'caep:added-coins'
-const STORAGE_KEY_DISMISSED = 'caep:dismissed-coins'
+const STORAGE_KEY_ADDED    = 'fn:added-coins'
+const STORAGE_KEY_DISMISSED = 'fn:dismissed-coins'
 
 function load<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback

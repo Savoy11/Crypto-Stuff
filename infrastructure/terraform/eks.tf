@@ -1,5 +1,5 @@
 ###############################################################################
-# CAEP — EKS Cluster + Managed Node Groups
+# Finance Now — EKS Cluster + Managed Node Groups
 ###############################################################################
 
 module "eks" {
@@ -22,7 +22,7 @@ module "eks" {
   # Cluster encryption with KMS
   cluster_encryption_config = {
     resources        = ["secrets"]
-    provider_key_arn = aws_kms_key.caep.arn
+    provider_key_arn = aws_kms_key.fn.arn
   }
 
   # Security groups
@@ -86,9 +86,9 @@ module "eks" {
     },
     # CI/CD deploy role
     {
-      rolearn  = "arn:aws:iam::${local.account_id}:role/caep-cicd-deploy-role"
-      username = "caep-cicd"
-      groups   = ["caep-deployers"]
+      rolearn  = "arn:aws:iam::${local.account_id}:role/fn-cicd-deploy-role"
+      username = "fn-cicd"
+      groups   = ["fn-deployers"]
     },
   ]
 
@@ -100,7 +100,7 @@ module "eks" {
 
   eks_managed_node_groups = {
     # General workload nodes
-    caep_nodes = {
+    fn_nodes = {
       name           = "${local.name_prefix}-nodes"
       ami_type       = "AL2_x86_64"
       instance_types = var.eks_node_instance_types
@@ -138,8 +138,8 @@ module "eks" {
       # Node labels
       labels = {
         "node.kubernetes.io/lifecycle" = "normal"
-        "caep/node-pool"               = "general"
-        "caep/environment"             = var.environment
+        "fn/node-pool"               = "general"
+        "fn/environment"             = var.environment
       }
 
       # Taints — none for general pool
@@ -155,7 +155,7 @@ module "eks" {
             iops                  = 3000
             throughput            = 125
             encrypted             = true
-            kms_key_id            = aws_kms_key.caep.arn
+            kms_key_id            = aws_kms_key.fn.arn
             delete_on_termination = true
           }
         }
@@ -186,7 +186,7 @@ module "eks" {
     }
 
     # Spot nodes for non-critical batch workloads (Celery workers)
-    caep_spot_nodes = {
+    fn_spot_nodes = {
       name           = "${local.name_prefix}-spot-nodes"
       ami_type       = "AL2_x86_64"
       instance_types = ["m6i.large", "m6a.large", "m5.large", "m5a.large"]
@@ -201,13 +201,13 @@ module "eks" {
 
       labels = {
         "node.kubernetes.io/lifecycle" = "spot"
-        "caep/node-pool"               = "spot"
-        "caep/workload-type"           = "batch"
+        "fn/node-pool"               = "spot"
+        "fn/workload-type"           = "batch"
       }
 
       taints = {
         spot = {
-          key    = "caep/spot"
+          key    = "fn/spot"
           value  = "true"
           effect = "NO_SCHEDULE"
         }
@@ -220,7 +220,7 @@ module "eks" {
             volume_size           = 50
             volume_type           = "gp3"
             encrypted             = true
-            kms_key_id            = aws_kms_key.caep.arn
+            kms_key_id            = aws_kms_key.fn.arn
             delete_on_termination = true
           }
         }
@@ -381,7 +381,7 @@ resource "kubernetes_storage_class" "gp3_encrypted" {
   parameters = {
     type       = "gp3"
     encrypted  = "true"
-    kmsKeyId   = aws_kms_key.caep.arn
+    kmsKeyId   = aws_kms_key.fn.arn
     iops       = "3000"
     throughput = "125"
   }

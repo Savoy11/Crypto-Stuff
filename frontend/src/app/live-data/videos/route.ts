@@ -179,7 +179,7 @@ async function fetchProvider(provider: AnyActiveProvider, market: ProviderMarket
   }
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)', Accept: 'application/atom+xml, application/xml' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)', Accept: 'application/atom+xml, application/xml' },
       next: { revalidate: 600 }, // channels post a few times a day at most
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)

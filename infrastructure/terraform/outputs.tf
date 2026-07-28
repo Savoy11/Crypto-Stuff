@@ -1,5 +1,5 @@
 ###############################################################################
-# CAEP — Terraform Outputs
+# Finance Now — Terraform Outputs
 ###############################################################################
 
 ###############################################################################
@@ -64,7 +64,7 @@ output "eks_cluster_version" {
 
 output "eks_node_group_arn" {
   description = "ARN of the EKS managed node group"
-  value       = module.eks.eks_managed_node_groups["caep_nodes"].node_group_arn
+  value       = module.eks.eks_managed_node_groups["fn_nodes"].node_group_arn
 }
 
 output "eks_oidc_provider_arn" {
@@ -83,29 +83,29 @@ output "eks_kubeconfig_command" {
 
 output "rds_cluster_endpoint" {
   description = "Writer endpoint for the Aurora cluster"
-  value       = aws_rds_cluster.caep.endpoint
+  value       = aws_rds_cluster.fn.endpoint
   sensitive   = true
 }
 
 output "rds_cluster_reader_endpoint" {
   description = "Reader endpoint for the Aurora cluster (load balanced across readers)"
-  value       = aws_rds_cluster.caep.reader_endpoint
+  value       = aws_rds_cluster.fn.reader_endpoint
   sensitive   = true
 }
 
 output "rds_cluster_id" {
   description = "ID of the Aurora DB cluster"
-  value       = aws_rds_cluster.caep.cluster_identifier
+  value       = aws_rds_cluster.fn.cluster_identifier
 }
 
 output "rds_cluster_port" {
   description = "Port of the Aurora cluster"
-  value       = aws_rds_cluster.caep.port
+  value       = aws_rds_cluster.fn.port
 }
 
 output "rds_cluster_database_name" {
   description = "Name of the default database"
-  value       = aws_rds_cluster.caep.database_name
+  value       = aws_rds_cluster.fn.database_name
 }
 
 output "rds_security_group_id" {
@@ -119,19 +119,19 @@ output "rds_security_group_id" {
 
 output "redis_primary_endpoint" {
   description = "Primary endpoint of the Redis replication group"
-  value       = aws_elasticache_replication_group.caep.primary_endpoint_address
+  value       = aws_elasticache_replication_group.fn.primary_endpoint_address
   sensitive   = true
 }
 
 output "redis_reader_endpoint" {
   description = "Reader endpoint of the Redis replication group"
-  value       = aws_elasticache_replication_group.caep.reader_endpoint_address
+  value       = aws_elasticache_replication_group.fn.reader_endpoint_address
   sensitive   = true
 }
 
 output "redis_port" {
   description = "Port for the Redis cluster"
-  value       = aws_elasticache_replication_group.caep.port
+  value       = aws_elasticache_replication_group.fn.port
 }
 
 output "redis_security_group_id" {
@@ -172,18 +172,18 @@ output "node_group_iam_role_arn" {
 ###############################################################################
 
 output "kms_key_arn" {
-  description = "ARN of the CAEP master KMS key"
-  value       = aws_kms_key.caep.arn
+  description = "ARN of the Finance Now master KMS key"
+  value       = aws_kms_key.fn.arn
 }
 
 output "kms_key_id" {
-  description = "ID of the CAEP master KMS key"
-  value       = aws_kms_key.caep.key_id
+  description = "ID of the Finance Now master KMS key"
+  value       = aws_kms_key.fn.key_id
 }
 
 output "waf_web_acl_arn" {
   description = "ARN of the WAF Web ACL for the ALB"
-  value       = aws_wafv2_web_acl.caep.arn
+  value       = aws_wafv2_web_acl.fn.arn
 }
 
 ###############################################################################
@@ -206,12 +206,12 @@ output "api_keys_secrets_arn" {
 
 output "database_url_template" {
   description = "Template DATABASE_URL — replace PASSWORD with secret value"
-  value       = "postgresql+asyncpg://caep:PASSWORD@${aws_rds_cluster.caep.endpoint}:5432/caep"
+  value       = "postgresql+asyncpg://caep:PASSWORD@${aws_rds_cluster.fn.endpoint}:5432/caep"
   sensitive   = true
 }
 
 output "redis_url_template" {
   description = "Template REDIS_URL — replace PASSWORD with secret value"
-  value       = "redis://:PASSWORD@${aws_elasticache_replication_group.caep.primary_endpoint_address}:6379/0"
+  value       = "redis://:PASSWORD@${aws_elasticache_replication_group.fn.primary_endpoint_address}:6379/0"
   sensitive   = true
 }

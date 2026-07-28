@@ -5,7 +5,7 @@
  * scale, trailing trend, and news sentiment.
  *
  * Wallet-concentration / decentralization metrics need paid indexers, so per
- * CAEP's data-honesty rule they are NOT approximated here — when that data
+ * Finance Now's data-honesty rule they are NOT approximated here — when that data
  * source lands it becomes a sixth dimension, not a guess today.
  */
 import { clamp, piecewise } from '../normalize'
@@ -26,7 +26,7 @@ export const CRYPTO_ASSET_RISK_PROFILE: RiskProfileSpec = {
     { key: 'trend', label: '30d Trend', weight: 0.10,
       description: 'Trailing 30-day price change — steep drawdowns signal active repricing risk.' },
     { key: 'news', label: 'News Sentiment', weight: 0.10,
-      description: 'Net sentiment of recent articles tagged to this asset by the CAEP news pipeline.' },
+      description: 'Net sentiment of recent articles tagged to this asset by the Finance Now news pipeline.' },
   ],
 }
 

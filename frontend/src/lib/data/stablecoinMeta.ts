@@ -9,7 +9,7 @@
 /** Snapshot date of the curated tables below — update when refreshing them. */
 export const META_AS_OF = '2024-12-01'
 
-/** The stablecoins CAEP actively monitors (DefiLlama symbols, uppercase). */
+/** The stablecoins Finance Now actively monitors (DefiLlama symbols, uppercase). */
 export const MONITORED_STABLECOINS = ['USDC', 'USDT', 'DAI', 'FRAX', 'TUSD', 'PYUSD', 'USDP', 'GUSD', 'LUSD'] as const
 
 export interface AttestationMeta {

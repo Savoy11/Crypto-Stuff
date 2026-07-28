@@ -4,8 +4,9 @@ import { NextRequest, NextResponse } from 'next/server'
 // Guard for sensitive route handlers (AI invocation, config mutation,
 // credential storage). Two layers:
 //
-// 1. Access control — if CAEP_ADMIN_TOKEN is set, requests must present it
-//    (Authorization: Bearer <token> or x-caep-token header). If it is NOT set,
+// 1. Access control — if FN_ADMIN_TOKEN is set (legacy CAEP_ADMIN_TOKEN still
+//    honored), requests must present it (Authorization: Bearer <token> or
+//    x-fn-token header; legacy x-caep-token still accepted). If it is NOT set,
 //    only requests addressed to localhost are allowed, so a build deployed to
 //    a public host without a token fails closed instead of exposing these
 //    endpoints to the internet.
@@ -21,7 +22,7 @@ function isLocalRequest(req: NextRequest): boolean {
 
 function tokenMatches(req: NextRequest, expected: string): boolean {
   const bearer = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-  const supplied = req.headers.get('x-caep-token') ?? bearer ?? ''
+  const supplied = req.headers.get('x-fn-token') ?? req.headers.get('x-caep-token') ?? bearer ?? ''
   const a = Buffer.from(supplied)
   const b = Buffer.from(expected)
   return a.length === b.length && crypto.timingSafeEqual(a, b)
@@ -60,14 +61,14 @@ export function guardSensitiveRoute(
   bucket: string,
   limitPerMinute: number
 ): NextResponse | null {
-  const adminToken = process.env.CAEP_ADMIN_TOKEN
+  const adminToken = process.env.FN_ADMIN_TOKEN ?? process.env.CAEP_ADMIN_TOKEN
   if (adminToken) {
     if (!tokenMatches(req, adminToken)) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
   } else if (!isLocalRequest(req)) {
     return NextResponse.json(
-      { error: 'This endpoint is disabled on non-local hosts. Set CAEP_ADMIN_TOKEN to enable authenticated access.' },
+      { error: 'This endpoint is disabled on non-local hosts. Set FN_ADMIN_TOKEN to enable authenticated access.' },
       { status: 403 }
     )
   }

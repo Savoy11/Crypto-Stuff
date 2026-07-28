@@ -1,8 +1,8 @@
-# CAEP Architecture Overview
+# Finance Now Architecture Overview
 
 ## Introduction
 
-The Crypto Asset Evaluation Platform (CAEP) is a full-stack, cloud-native analytics platform designed to ingest real-time and historical data from multiple blockchain and market data sources, compute composite risk and opportunity scores across an asset universe, and deliver insights to analysts and traders via a low-latency REST API and WebSocket streaming interface.
+The Finance Now (Finance Now) is a full-stack, cloud-native analytics platform designed to ingest real-time and historical data from multiple blockchain and market data sources, compute composite risk and opportunity scores across an asset universe, and deliver insights to analysts and traders via a low-latency REST API and WebSocket streaming interface.
 
 This document describes the architecture decisions, component interactions, and operational characteristics of the platform at the level of detail required for engineering teams, platform operators, and technical reviewers.
 
@@ -10,7 +10,7 @@ This document describes the architecture decisions, component interactions, and 
 
 ## System Context
 
-CAEP operates as a read-heavy analytical system with write-intensive background pipelines. The platform consists of four primary logical tiers:
+Finance Now operates as a read-heavy analytical system with write-intensive background pipelines. The platform consists of four primary logical tiers:
 
 1. **Data Ingestion Layer** — fetches external market data, on-chain metrics, and DeFi protocol data on configurable schedules
 2. **Analytics and Scoring Engine** — computes composite risk scores, liquidity metrics, volatility signals, and alert conditions
@@ -39,7 +39,7 @@ CAEP operates as a read-heavy analytical system with write-intensive background 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       CAEP Platform Architecture                            │
+│                       Finance Now Platform Architecture                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │   [Browser / Mobile Client]                                                 │

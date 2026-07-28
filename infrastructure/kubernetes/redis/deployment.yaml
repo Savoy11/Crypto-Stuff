@@ -1,27 +1,27 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: caep-redis
-  namespace: caep
+  name: fn-redis
+  namespace: fn
   labels:
-    app: caep-redis
+    app: fn-redis
     component: cache
-    app.kubernetes.io/name: caep-redis
+    app.kubernetes.io/name: fn-redis
     app.kubernetes.io/component: cache
-    app.kubernetes.io/part-of: caep
+    app.kubernetes.io/part-of: fn
   annotations:
-    caep.io/description: "Redis 7 cache and message broker for CAEP"
+    financenow.example/description: "Redis 7 cache and message broker for Finance Now"
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: caep-redis
+      app: fn-redis
   strategy:
     type: Recreate  # Redis single-instance uses Recreate to avoid split-brain
   template:
     metadata:
       labels:
-        app: caep-redis
+        app: fn-redis
         component: cache
       annotations:
         prometheus.io/scrape: "false"  # Scraped via redis-exporter sidecar
@@ -78,7 +78,7 @@ spec:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: caep-backend-secrets
+                  name: fn-backend-secrets
                   key: REDIS_PASSWORD
 
           resources:
@@ -138,7 +138,7 @@ spec:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: caep-backend-secrets
+                  name: fn-backend-secrets
                   key: REDIS_PASSWORD
           resources:
             requests:
@@ -158,7 +158,7 @@ spec:
       volumes:
         - name: redis-data
           persistentVolumeClaim:
-            claimName: caep-redis-pvc
+            claimName: fn-redis-pvc
 
       nodeSelector:
         kubernetes.io/os: linux
@@ -166,10 +166,10 @@ spec:
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: caep-redis-pvc
-  namespace: caep
+  name: fn-redis-pvc
+  namespace: fn
   labels:
-    app: caep-redis
+    app: fn-redis
     component: cache
 spec:
   accessModes: [ReadWriteOnce]
@@ -181,10 +181,10 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: caep-redis-pdb
-  namespace: caep
+  name: fn-redis-pdb
+  namespace: fn
 spec:
   maxUnavailable: 0
   selector:
     matchLabels:
-      app: caep-redis
+      app: fn-redis

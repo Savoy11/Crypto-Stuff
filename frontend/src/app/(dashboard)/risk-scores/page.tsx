@@ -195,7 +195,7 @@ export default function RiskScoresPage() {
         <PageHeader
           title="Safety Score Leaderboard"
           subtitle="Composite safety (0–100, higher = safer) computed live — weighted pillars, fatal-flaw overrides, full audit trail"
-          description="Every score is composed from observable data: DefiLlama reserves and peg mechanisms, a batched CoinGecko market snapshot (7-day sparkline volatility, liquidity, scale), curated issuer disclosures, and CAEP's news sentiment pipeline. Scores run 0–100 — higher is safer. Stablecoins additionally pass through a fatal-flaw override: when Reserve, Structure, or Peg falls below its critical threshold, the composite is slashed multiplicatively, because a collapsing reserve cannot be averaged away by good sentiment."
+          description="Every score is composed from observable data: DefiLlama reserves and peg mechanisms, a batched CoinGecko market snapshot (7-day sparkline volatility, liquidity, scale), curated issuer disclosures, and Finance Now's news sentiment pipeline. Scores run 0–100 — higher is safer. Stablecoins additionally pass through a fatal-flaw override: when Reserve, Structure, or Peg falls below its critical threshold, the composite is slashed multiplicatively, because a collapsing reserve cannot be averaged away by good sentiment."
           details={[
             { label: 'Score bands', text: 'Low risk (80–100) · Moderate (60–79) · Elevated (40–59) · High (20–39) · Critical (0–19).' },
             { label: 'Data honesty', text: 'Pillars without data show N/A and are excluded — the composite reweights and Confidence/Coverage drop. Nothing is fabricated. Curated disclosure snapshots score at reduced confidence.' },

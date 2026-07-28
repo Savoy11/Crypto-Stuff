@@ -299,7 +299,7 @@ async function testYahooFinance(): Promise<TestResult> {
 /** Reachability check for a keyless YouTube channel feed. */
 async function testYouTubeChannel(channelId: string, label: string): Promise<TestResult> {
   const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)' },
   })
   if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
   const entries = ((await res.text()).match(/<entry>/g) ?? []).length
@@ -352,7 +352,7 @@ async function testLlmProvider(id: string, key?: string): Promise<TestResult> {
 
 async function testRssFeed(url: string, name: string): Promise<TestResult> {
   const res = await fetch(url, {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)', Accept: 'application/rss+xml, application/xml, text/xml' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)', Accept: 'application/rss+xml, application/xml, text/xml' },
   })
   if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
   const xml = await res.text()
@@ -364,7 +364,7 @@ async function testRssFeed(url: string, name: string): Promise<TestResult> {
 
 async function testRedditStocks(): Promise<TestResult> {
   const res = await fetch('https://www.reddit.com/r/stocks/hot.json?limit=1&raw_json=1', {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0; market research)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0; market research)' },
   })
   if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
   const data = await res.json() as { data?: { children?: unknown[] } }
@@ -375,7 +375,7 @@ async function testRedditStocks(): Promise<TestResult> {
 
 async function testStocktwits(): Promise<TestResult> {
   const res = await fetch('https://api.stocktwits.com/api/2/streams/trending.json', {
-    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0; market research)' },
+    headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0; market research)' },
   })
   if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
   const data = await res.json() as { messages?: unknown[] }

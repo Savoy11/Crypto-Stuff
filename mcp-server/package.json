@@ -1,7 +1,7 @@
 {
-  "name": "caep-mcp-server",
+  "name": "finance-now-mcp-server",
   "version": "1.0.0",
-  "description": "MCP server exposing CAEP (Crypto Asset Evaluation Platform) tools to Claude and other MCP-compatible AI agents",
+  "description": "MCP server exposing Finance Now tools to Claude and other MCP-compatible AI agents",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

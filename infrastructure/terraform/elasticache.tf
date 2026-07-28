@@ -1,15 +1,15 @@
 ###############################################################################
-# CAEP — ElastiCache Redis 7 (Replication Group, Multi-AZ, encrypted)
+# Finance Now — ElastiCache Redis 7 (Replication Group, Multi-AZ, encrypted)
 ###############################################################################
 
 ###############################################################################
 # Parameter Group
 ###############################################################################
 
-resource "aws_elasticache_parameter_group" "caep" {
+resource "aws_elasticache_parameter_group" "fn" {
   name        = "${local.name_prefix}-redis7"
   family      = "redis7"
-  description = "CAEP Redis 7 parameter group"
+  description = "Finance Now Redis 7 parameter group"
 
   parameter {
     name  = "maxmemory-policy"
@@ -95,9 +95,9 @@ resource "aws_elasticache_parameter_group" "caep" {
 # Subnet Group
 ###############################################################################
 
-resource "aws_elasticache_subnet_group" "caep" {
+resource "aws_elasticache_subnet_group" "fn" {
   name        = "${local.name_prefix}-redis-subnet-group"
-  description = "CAEP ElastiCache Redis subnet group"
+  description = "Finance Now ElastiCache Redis subnet group"
   subnet_ids  = module.vpc.database_subnets
 
   tags = merge(local.common_tags, {
@@ -118,16 +118,16 @@ resource "random_password" "redis_auth" {
 # Replication Group
 ###############################################################################
 
-resource "aws_elasticache_replication_group" "caep" {
+resource "aws_elasticache_replication_group" "fn" {
   replication_group_id = "${local.name_prefix}-redis"
-  description          = "CAEP Redis replication group — cache, sessions, pub/sub"
+  description          = "Finance Now Redis replication group — cache, sessions, pub/sub"
 
   # Engine
   engine               = "redis"
   engine_version       = var.redis_engine_version
   node_type            = var.redis_node_type
   port                 = 6379
-  parameter_group_name = aws_elasticache_parameter_group.caep.name
+  parameter_group_name = aws_elasticache_parameter_group.fn.name
 
   # Multi-AZ and clustering
   num_cache_clusters         = var.redis_num_cache_clusters
@@ -135,13 +135,13 @@ resource "aws_elasticache_replication_group" "caep" {
   multi_az_enabled           = var.redis_num_cache_clusters > 1
 
   # Subnet group and security
-  subnet_group_name  = aws_elasticache_subnet_group.caep.name
+  subnet_group_name  = aws_elasticache_subnet_group.fn.name
   security_group_ids = [aws_security_group.redis.id]
 
   # Encryption
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  kms_key_id                 = aws_kms_key.caep.arn
+  kms_key_id                 = aws_kms_key.fn.arn
   auth_token                 = random_password.redis_auth.result
 
   # Backups
@@ -185,7 +185,7 @@ resource "aws_elasticache_replication_group" "caep" {
 resource "aws_cloudwatch_log_group" "redis_slow" {
   name              = "/aws/elasticache/${local.name_prefix}/redis/slow-log"
   retention_in_days = 30
-  kms_key_id        = aws_kms_key.caep.arn
+  kms_key_id        = aws_kms_key.fn.arn
 
   tags = local.common_tags
 }
@@ -193,7 +193,7 @@ resource "aws_cloudwatch_log_group" "redis_slow" {
 resource "aws_cloudwatch_log_group" "redis_engine" {
   name              = "/aws/elasticache/${local.name_prefix}/redis/engine-log"
   retention_in_days = 14
-  kms_key_id        = aws_kms_key.caep.arn
+  kms_key_id        = aws_kms_key.fn.arn
 
   tags = local.common_tags
 }
@@ -215,7 +215,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_memory" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    ReplicationGroupId = aws_elasticache_replication_group.caep.id
+    ReplicationGroupId = aws_elasticache_replication_group.fn.id
   }
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -237,7 +237,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_connections" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    ReplicationGroupId = aws_elasticache_replication_group.caep.id
+    ReplicationGroupId = aws_elasticache_replication_group.fn.id
   }
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -258,7 +258,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_cpu" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    ReplicationGroupId = aws_elasticache_replication_group.caep.id
+    ReplicationGroupId = aws_elasticache_replication_group.fn.id
   }
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -279,7 +279,7 @@ resource "aws_cloudwatch_metric_alarm" "redis_replication_lag" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    ReplicationGroupId = aws_elasticache_replication_group.caep.id
+    ReplicationGroupId = aws_elasticache_replication_group.fn.id
   }
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -295,7 +295,7 @@ resource "aws_secretsmanager_secret_version" "redis_auth" {
   secret_id = aws_secretsmanager_secret.backend.id
   secret_string = jsonencode({
     redis_auth_token = random_password.redis_auth.result
-    redis_url        = "rediss://:${random_password.redis_auth.result}@${aws_elasticache_replication_group.caep.primary_endpoint_address}:6379/0"
+    redis_url        = "rediss://:${random_password.redis_auth.result}@${aws_elasticache_replication_group.fn.primary_endpoint_address}:6379/0"
   })
 
   lifecycle {

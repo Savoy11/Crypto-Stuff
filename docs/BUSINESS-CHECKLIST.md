@@ -1,11 +1,11 @@
 # Business & Compliance Checklist
 
-Company-level work that belongs to **neither product's backlog**. CAEP (this repo) and
+Company-level work that belongs to **neither product's backlog**. Finance Now (this repo) and
 Chronolens are developed independently, but they are shipped by one business — entity
 structure, regulatory research, disclosures and tax compliance are decided once, for both.
 
 **This doc is worked separately from the website and the software.** Product work lives in
-`docs/ROADMAP.md` (CAEP) and Chronolens's `docs/MASTER-CHECKLIST.md`.
+`docs/ROADMAP.md` (Finance Now) and Chronolens's `docs/MASTER-CHECKLIST.md`.
 
 **Last updated:** 2026-07-26 · Source: owner brain dump
 
@@ -30,7 +30,7 @@ structure, regulatory research, disclosures and tax compliance are decided once,
         double filings/registered agents/bookkeeping.
       - A middle path exists: one holding entity with the products as separate DBAs or
         wholly-owned subsidiaries.
-      - Note the products have genuinely different risk surfaces: CAEP touches financial data,
+      - Note the products have genuinely different risk surfaces: Finance Now touches financial data,
         risk scoring and (potentially) brokerage links; Chronolens is a research/media site.
 - [ ] Registered agent, EIN/TIN, state of formation, operating agreement.
 - [ ] Business bank account + bookkeeping separate from personal, from day one.
@@ -90,7 +90,7 @@ structure, regulatory research, disclosures and tax compliance are decided once,
 - [ ] Suggested shape for each bar (fill in per product):
       - Feature floor: the specific list that must work, with nothing half-built behind a nav link
       - Data honesty: every surface either shows real data or says plainly that it can't
-        (CAEP: the REAL-vs-FALLBACK audit rule · Chronolens: the ⛔ pre-release feed gate)
+        (Finance Now: the REAL-vs-FALLBACK audit rule · Chronolens: the ⛔ pre-release feed gate)
       - Legal floor: sections 1–3 of this document closed
       - Operational floor: backups, error monitoring, a support inbox someone reads
       - Quality floor: no known data-corrupting bug; tests green

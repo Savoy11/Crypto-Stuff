@@ -1,30 +1,30 @@
 ###############################################################################
-# CAEP — Prometheus Alert Rules
+# Finance Now — Prometheus Alert Rules
 ###############################################################################
 
 groups:
 
   # ─── API Health ────────────────────────────────────────────────────────────
-  - name: caep.api
+  - name: fn.api
     interval: 15s
     rules:
 
       - alert: HighAPIErrorRate
         expr: |
           (
-            sum(rate(http_requests_total{job="caep-backend", status=~"5.."}[5m]))
+            sum(rate(http_requests_total{job="fn-backend", status=~"5.."}[5m]))
             /
-            sum(rate(http_requests_total{job="caep-backend"}[5m]))
+            sum(rate(http_requests_total{job="fn-backend"}[5m]))
           ) * 100 > 5
         for: 2m
         labels:
           severity: critical
           team: platform
-          runbook: https://caep.example.com/runbooks/api-outage
+          runbook: https://financenow.example.com/runbooks/api-outage
         annotations:
           summary: "API error rate is above 5%"
           description: >
-            The CAEP backend API error rate is {{ printf "%.2f" $value }}%
+            The Finance Now backend API error rate is {{ printf "%.2f" $value }}%
             over the last 5 minutes (threshold: 5%).
             This may indicate a backend failure, database connectivity issue,
             or upstream API problem.
@@ -32,7 +32,7 @@ groups:
       - alert: APIHighLatency
         expr: |
           histogram_quantile(0.99,
-            sum(rate(http_request_duration_seconds_bucket{job="caep-backend"}[5m]))
+            sum(rate(http_request_duration_seconds_bucket{job="fn-backend"}[5m]))
             by (le, endpoint)
           ) > 2.0
         for: 5m
@@ -46,21 +46,21 @@ groups:
             Expected: < 2.0s. Investigate slow queries or upstream API timeouts.
 
       - alert: APIDown
-        expr: up{job="caep-backend"} == 0
+        expr: up{job="fn-backend"} == 0
         for: 1m
         labels:
           severity: critical
           team: platform
-          runbook: https://caep.example.com/runbooks/api-outage
+          runbook: https://financenow.example.com/runbooks/api-outage
         annotations:
-          summary: "CAEP Backend API is down"
+          summary: "Finance Now Backend API is down"
           description: >
-            The CAEP backend is not reachable at {{ $labels.instance }}.
+            The Finance Now backend is not reachable at {{ $labels.instance }}.
             Prometheus cannot scrape metrics. Check pod health and logs.
 
       - alert: HighRequestRate
         expr: |
-          sum(rate(http_requests_total{job="caep-backend"}[5m])) > 1000
+          sum(rate(http_requests_total{job="fn-backend"}[5m])) > 1000
         for: 5m
         labels:
           severity: warning
@@ -73,7 +73,7 @@ groups:
             This may indicate a traffic spike, DDoS, or runaway client.
 
   # ─── Database ──────────────────────────────────────────────────────────────
-  - name: caep.database
+  - name: fn.database
     interval: 30s
     rules:
 
@@ -85,7 +85,7 @@ groups:
         labels:
           severity: warning
           team: platform
-          runbook: https://caep.example.com/runbooks/scaling#database-connections
+          runbook: https://financenow.example.com/runbooks/scaling#database-connections
         annotations:
           summary: "PostgreSQL connection pool above 80%"
           description: >
@@ -99,7 +99,7 @@ groups:
         labels:
           severity: critical
           team: platform
-          runbook: https://caep.example.com/runbooks/backup-restore
+          runbook: https://financenow.example.com/runbooks/backup-restore
         annotations:
           summary: "PostgreSQL is unreachable"
           description: >
@@ -134,7 +134,7 @@ groups:
             Check pg_stat_statements for slow query analysis.
 
   # ─── Redis ────────────────────────────────────────────────────────────────
-  - name: caep.redis
+  - name: fn.redis
     interval: 15s
     rules:
 
@@ -145,7 +145,7 @@ groups:
         labels:
           severity: warning
           team: platform
-          runbook: https://caep.example.com/runbooks/scaling#redis-memory
+          runbook: https://financenow.example.com/runbooks/scaling#redis-memory
         annotations:
           summary: "Redis memory usage above 80%"
           description: >
@@ -190,7 +190,7 @@ groups:
             This is a single point of failure. Check replica connectivity.
 
   # ─── Infrastructure ────────────────────────────────────────────────────────
-  - name: caep.infrastructure
+  - name: fn.infrastructure
     interval: 30s
     rules:
 
@@ -234,13 +234,13 @@ groups:
             Clean up Docker images or expand EBS volumes.
 
   # ─── Business / Application Metrics ───────────────────────────────────────
-  - name: caep.business
+  - name: fn.business
     interval: 60s
     rules:
 
       - alert: RiskScoringEngineStale
         expr: |
-          time() - caep_scoring_last_update_timestamp > 600
+          time() - fn_scoring_last_update_timestamp > 600
         for: 5m
         labels:
           severity: warning
@@ -248,12 +248,12 @@ groups:
         annotations:
           summary: "Risk scoring engine has not updated in 10 minutes"
           description: >
-            The CAEP risk scoring engine's last update was more than 10 minutes ago.
+            The Finance Now risk scoring engine's last update was more than 10 minutes ago.
             Scores may be stale. Check Celery worker health and upstream API connectivity.
 
       - alert: PriceDataStale
         expr: |
-          time() - caep_price_last_update_timestamp > 180
+          time() - fn_price_last_update_timestamp > 180
         for: 3m
         labels:
           severity: warning
@@ -266,7 +266,7 @@ groups:
 
       - alert: WebSocketConnectionsDroppingFast
         expr: |
-          rate(caep_websocket_connections_total[5m]) < -100
+          rate(fn_websocket_connections_total[5m]) < -100
         for: 2m
         labels:
           severity: warning

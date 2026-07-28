@@ -268,7 +268,7 @@ async function fetchReddit(assetFilter: string, limit: number, extraSubs: string
 
 async function fetchRedditRss(feedUrl: string, assetFilter: string, limit: number): Promise<SocialSignal[]> {
   const res = await fetch(feedUrl, {
-    headers: { 'User-Agent': 'CAEP/1.0', Accept: 'application/rss+xml, application/xml, text/xml' },
+    headers: { 'User-Agent': 'FinanceNow/1.0', Accept: 'application/rss+xml, application/xml, text/xml' },
     next: { revalidate: 300 },
   })
   if (!res.ok) throw new Error(`Reddit RSS HTTP ${res.status} for ${feedUrl}`)

@@ -35,7 +35,7 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   }
   if (config.headers) {
     config.headers['X-Request-ID'] = crypto.randomUUID()
-    config.headers['X-Client'] = 'caep-web/1.0'
+    config.headers['X-Client'] = 'fn-web/1.0'
   }
   return config
 })

@@ -48,7 +48,7 @@ terminals.
 CNBC general) with keyword sentiment scoring and dedupe, mirroring the crypto
 news route's architecture. Surfaced on both detail page types.
 
-**Why:** News-with-sentiment is a core CAEP feature in the crypto module;
+**Why:** News-with-sentiment is a core Finance Now feature in the crypto module;
 the equities module would feel like a different product without it.
 
 ## 5. Multi-source quote ladder with honest fallbacks

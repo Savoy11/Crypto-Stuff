@@ -4,7 +4,7 @@
 // EDGAR requires a descriptive User-Agent identifying the requester
 export const EDGAR_HEADERS = {
   Accept: 'application/json',
-  'User-Agent': 'CAEP research dashboard (marcusowens94@gmail.com)',
+  'User-Agent': 'Finance Now research dashboard (marcusowens94@gmail.com)',
 }
 
 interface TickerMapEntry { cik_str: number; ticker: string; title: string }

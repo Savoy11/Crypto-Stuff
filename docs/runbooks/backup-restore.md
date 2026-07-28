@@ -15,18 +15,18 @@
 Aurora automated backups are enabled with 7-day retention. To list available backups:
 ```bash
 aws rds describe-db-cluster-snapshots \
-  --db-cluster-identifier caep-cluster \
+  --db-cluster-identifier fn-cluster \
   --query 'DBClusterSnapshots[*].{Id:DBClusterSnapshotIdentifier,Time:SnapshotCreateTime}'
 ```
 
 ### Manual Backup
 ```bash
 # Create snapshot
-kubectl exec -n caep postgres-0 -- \
-  pg_dump -U caep -Fc caep > caep-backup-$(date +%Y%m%d-%H%M%S).dump
+kubectl exec -n fn postgres-0 -- \
+  pg_dump -U caep -Fc caep > fn-backup-$(date +%Y%m%d-%H%M%S).dump
 
 # Upload to S3
-aws s3 cp caep-backup-*.dump s3://caep-backups/postgres/ --sse AES256
+aws s3 cp fn-backup-*.dump s3://fn-backups/postgres/ --sse AES256
 ```
 
 ## Restore Procedures
@@ -34,7 +34,7 @@ aws s3 cp caep-backup-*.dump s3://caep-backups/postgres/ --sse AES256
 ### Restore from RDS Snapshot
 ```bash
 aws rds restore-db-cluster-from-snapshot \
-  --db-cluster-identifier caep-restored \
+  --db-cluster-identifier fn-restored \
   --snapshot-identifier <snapshot-id> \
   --engine aurora-postgresql \
   --engine-version 15.4
@@ -43,18 +43,18 @@ aws rds restore-db-cluster-from-snapshot \
 ### Restore from pg_dump
 ```bash
 # Download backup
-aws s3 cp s3://caep-backups/postgres/<backup-file>.dump .
+aws s3 cp s3://fn-backups/postgres/<backup-file>.dump .
 
 # Restore
-kubectl exec -i -n caep postgres-0 -- \
+kubectl exec -i -n fn postgres-0 -- \
   pg_restore -U caep -d caep --clean --if-exists < <backup-file>.dump
 ```
 
 ### Point-in-Time Recovery (PITR)
 ```bash
 aws rds restore-db-cluster-to-point-in-time \
-  --db-cluster-identifier caep-pitr \
-  --source-db-cluster-identifier caep-cluster \
+  --db-cluster-identifier fn-pitr \
+  --source-db-cluster-identifier fn-cluster \
   --restore-to-time 2024-01-15T14:30:00Z
 ```
 

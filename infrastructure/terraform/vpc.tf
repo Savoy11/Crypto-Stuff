@@ -1,5 +1,5 @@
 ###############################################################################
-# CAEP — VPC, Subnets, Internet Gateway, NAT Gateways, Route Tables
+# Finance Now — VPC, Subnets, Internet Gateway, NAT Gateways, Route Tables
 ###############################################################################
 
 module "vpc" {
@@ -52,7 +52,7 @@ module "vpc" {
   }
 
   database_subnet_tags = {
-    "caep/subnet-type" = "database"
+    "fn/subnet-type" = "database"
   }
 
   tags = merge(local.common_tags, {

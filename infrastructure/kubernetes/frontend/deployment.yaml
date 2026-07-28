@@ -1,21 +1,21 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: caep-frontend
-  namespace: caep
+  name: fn-frontend
+  namespace: fn
   labels:
-    app: caep-frontend
+    app: fn-frontend
     component: frontend
     version: "1.0.0"
-    app.kubernetes.io/name: caep-frontend
+    app.kubernetes.io/name: fn-frontend
     app.kubernetes.io/component: frontend
-    app.kubernetes.io/part-of: caep
+    app.kubernetes.io/part-of: fn
 spec:
   replicas: 2
   revisionHistoryLimit: 5
   selector:
     matchLabels:
-      app: caep-frontend
+      app: fn-frontend
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -24,7 +24,7 @@ spec:
   template:
     metadata:
       labels:
-        app: caep-frontend
+        app: fn-frontend
         component: frontend
         version: "1.0.0"
     spec:
@@ -38,7 +38,7 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              app: caep-frontend
+              app: fn-frontend
 
       affinity:
         podAntiAffinity:
@@ -47,7 +47,7 @@ spec:
                 matchExpressions:
                   - key: app
                     operator: In
-                    values: [caep-frontend]
+                    values: [fn-frontend]
               topologyKey: kubernetes.io/hostname
 
       securityContext:
@@ -60,7 +60,7 @@ spec:
 
       containers:
         - name: frontend
-          image: ${ECR_REGISTRY}/caep-frontend:${IMAGE_TAG}
+          image: ${ECR_REGISTRY}/fn-frontend:${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - name: http
@@ -69,7 +69,7 @@ spec:
 
           envFrom:
             - configMapRef:
-                name: caep-frontend-config
+                name: fn-frontend-config
 
           env:
             - name: NODE_ENV
@@ -144,7 +144,7 @@ spec:
             sizeLimit: "1Gi"
 
       imagePullSecrets:
-        - name: caep-ecr-credentials
+        - name: fn-ecr-credentials
 
       nodeSelector:
         kubernetes.io/os: linux
@@ -152,13 +152,13 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: caep-frontend-pdb
-  namespace: caep
+  name: fn-frontend-pdb
+  namespace: fn
   labels:
-    app: caep-frontend
+    app: fn-frontend
     component: pdb
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app: caep-frontend
+      app: fn-frontend

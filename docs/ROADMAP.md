@@ -1,6 +1,6 @@
-# CAEP Suite — Roadmap & Module Architecture
+# Finance Now Suite — Roadmap & Module Architecture
 
-> Working document. This is the agreed plan for evolving CAEP from a crypto
+> Working document. This is the agreed plan for evolving Finance Now from a crypto
 > analytics dashboard into a modular financial suite covering asset analysis
 > (multiple asset classes), investing, budgeting, and financial planning —
 > sellable as one product or as individually licensed modules.
@@ -13,7 +13,7 @@ One application, three kinds of modules, one license system:
 
 | Pillar | Modules | Status |
 |--------|---------|--------|
-| **Analyze** | Crypto (existing CAEP), Equities, Commodities, Rates & Treasuries, Bonds | Crypto built; others planned |
+| **Analyze** | Crypto (existing Finance Now), Equities, Commodities, Rates & Treasuries, Bonds | Crypto built; others planned |
 | **Invest** | Portfolio (holdings, cost basis, P&L), Wallets, Watchlists | UI exists; needs real persistence |
 | **Budget & Plan** | Budgeting (accounts, transactions, budgets), Planning (net worth, goals, projections) | New |
 
@@ -283,14 +283,14 @@ diversified portfolios aligned to the user**, not generic model portfolios:
 
 ## Affiliate links (staking first, then any relevant surface) — `P2`, gated on integrity rules
 
-Revenue idea: earn referral commission on providers CAEP already sends users to. Start with
+Revenue idea: earn referral commission on providers Finance Now already sends users to. Start with
 the **Staking Opportunities** page, then open it to any surface where an outbound link is
 genuinely useful. Applies to **both distributions — the free web version and the desktop
 app** (they differ in attribution and in what some affiliate terms allow; see below).
 
 ### Non-negotiable integrity rules (decide these before writing any code)
 
-CAEP *rates* the providers it would be paid by — `computeOverallRisk()` scores 55 staking
+Finance Now *rates* the providers it would be paid by — `computeOverallRisk()` scores 55 staking
 providers across 6 risk dimensions. That is a real conflict of interest, and the product's
 value dies if scores follow the money.
 
@@ -340,7 +340,7 @@ value dies if scores follow the money.
 
 ## Owner backlog (2026-07-26 brain dump)
 
-CAEP-side items only. Chronolens items went to that project's own checklist; company-level
+Finance Now-side items only. Chronolens items went to that project's own checklist; company-level
 items (entity filing, federal regulation research, disclosure docs, "what is sellable")
 went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both products.
 
@@ -369,11 +369,11 @@ went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both produ
       which before any provider work.
 - [ ] **Fine-tune all screeners.** Stock Registry range screener, coin screener/discovery, fund
       screener, TA screener — consistency of filters, defaults, and result quality across them.
-- [ ] **Label every data source on screen, per the house policy.** CAEP's side of the
+- [ ] **Label every data source on screen, per the house policy.** Finance Now's side of the
       source-labeling item in `docs/BUSINESS-CHECKLIST.md`: the provider registry already
       records which provider served each surface, and the tier dropdown exposes sourcing per
       category — but attribution isn't consistently rendered where a reader sees the number.
-      Includes marking *derived* values (risk scores, composites) as CAEP's own computation,
+      Includes marking *derived* values (risk scores, composites) as Finance Now's own computation,
       never as a provider's figure.
 - [ ] **Test and fine-tune all agents and AI-enhanced tools.** 11 agents exist; `data-scraper`,
       `equity-data-scraper` and `equity-diligence` are configurable but have **no invocation
@@ -383,7 +383,7 @@ went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both produ
 
 ## Rough sizing (from prior analysis)
 
-- Foundation + porting CAEP into the module shell: ~3–4 weeks part-time.
+- Foundation + porting Finance Now into the module shell: ~3–4 weeks part-time.
 - Budget + Plan modules: ~3–4 weeks.
 - First new asset class (equities): ~2–3 weeks; each subsequent class 1–2.
 - Bonds: gated by data licensing, sequence last or ship as free-data

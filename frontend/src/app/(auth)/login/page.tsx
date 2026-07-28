@@ -134,7 +134,7 @@ export default function LoginPage() {
       {/* Footer */}
       <div className="text-center text-[10px] text-text-muted">
         <p>Authorized personnel only. All access is logged.</p>
-        <p className="mt-1">© 2025 CAEP. Institutional Analytics Platform.</p>
+        <p className="mt-1">© 2026 Finance Now. Institutional Analytics Platform.</p>
       </div>
     </div>
   )

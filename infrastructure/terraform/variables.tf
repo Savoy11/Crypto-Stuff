@@ -1,11 +1,11 @@
 ###############################################################################
-# CAEP — Terraform Variables
+# Finance Now — Terraform Variables
 ###############################################################################
 
 variable "project_name" {
   description = "Short project identifier used in all resource names and tags"
   type        = string
-  default     = "caep"
+  default     = "fn"
 
   validation {
     condition     = can(regex("^[a-z][a-z0-9-]{2,15}$", var.project_name))
@@ -227,9 +227,9 @@ variable "redis_automatic_failover" {
 ###############################################################################
 
 variable "domain_name" {
-  description = "Primary domain for the CAEP platform (e.g., caep.example.com)"
+  description = "Primary domain for the Finance Now platform (e.g., financenow.example.com)"
   type        = string
-  default     = "caep.example.com"
+  default     = "financenow.example.com"
 }
 
 variable "route53_zone_id" {

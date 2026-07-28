@@ -26,10 +26,10 @@ permissions:
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
-  ECR_REPO_BACKEND: caep-staging/backend
-  ECR_REPO_FRONTEND: caep-staging/frontend
-  EKS_CLUSTER: caep-staging-eks
-  KUBERNETES_NAMESPACE: caep
+  ECR_REPO_BACKEND: fn-staging/backend
+  ECR_REPO_FRONTEND: fn-staging/frontend
+  EKS_CLUSTER: fn-staging-eks
+  KUBERNETES_NAMESPACE: fn
 
 ###############################################################################
 # Jobs
@@ -71,9 +71,9 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/caep-cicd-deploy-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/fn-cicd-deploy-role
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: caep-cd-staging-${{ github.run_id }}
+          role-session-name: fn-cd-staging-${{ github.run_id }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -120,8 +120,8 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           build-args: |
-            NEXT_PUBLIC_API_URL=https://staging.caep.example.com/api
-            NEXT_PUBLIC_WS_URL=wss://staging.caep.example.com/ws
+            NEXT_PUBLIC_API_URL=https://staging.financenow.example.com/api
+            NEXT_PUBLIC_WS_URL=wss://staging.financenow.example.com/ws
             NEXT_TELEMETRY_DISABLED=1
 
       - name: Scan images with Trivy
@@ -140,7 +140,7 @@ jobs:
     needs: build-and-push
     environment:
       name: staging
-      url: https://staging.caep.example.com
+      url: https://staging.financenow.example.com
 
     steps:
       - name: Checkout code
@@ -149,7 +149,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/caep-cicd-deploy-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/fn-cicd-deploy-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Update kubeconfig
@@ -225,30 +225,30 @@ jobs:
 
       - name: Wait for backend rollout
         run: |
-          kubectl rollout status deployment/caep-backend \
+          kubectl rollout status deployment/fn-backend \
             -n ${{ env.KUBERNETES_NAMESPACE }} \
             --timeout=300s
 
       - name: Wait for frontend rollout
         run: |
-          kubectl rollout status deployment/caep-frontend \
+          kubectl rollout status deployment/fn-frontend \
             -n ${{ env.KUBERNETES_NAMESPACE }} \
             --timeout=180s
 
       - name: Verify pod health
         run: |
           echo "=== Pod Status ==="
-          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=caep-backend
-          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=caep-frontend
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=fn-backend
+          kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=fn-frontend
 
           echo "=== Checking all pods are Running ==="
           BACKEND_PODS=$(kubectl get pods -n ${{ env.KUBERNETES_NAMESPACE }} \
-            -l app=caep-backend -o jsonpath='{.items[*].status.phase}')
+            -l app=fn-backend -o jsonpath='{.items[*].status.phase}')
 
           for phase in $BACKEND_PODS; do
             if [ "$phase" != "Running" ]; then
               echo "ERROR: Backend pod not in Running state: $phase"
-              kubectl describe pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=caep-backend
+              kubectl describe pods -n ${{ env.KUBERNETES_NAMESPACE }} -l app=fn-backend
               exit 1
             fi
           done
@@ -276,7 +276,7 @@ jobs:
 
       - name: Run smoke tests against staging
         env:
-          STAGING_URL: https://staging.caep.example.com
+          STAGING_URL: https://staging.financenow.example.com
           SMOKE_TEST_API_KEY: ${{ secrets.STAGING_SMOKE_TEST_KEY }}
         run: |
           python -m pytest tests/smoke/ \
@@ -288,7 +288,7 @@ jobs:
 
       - name: Health check endpoints
         run: |
-          BASE_URL="https://staging.caep.example.com"
+          BASE_URL="https://staging.financenow.example.com"
 
           echo "Checking /health endpoint..."
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/api/health" --max-time 10)
@@ -334,7 +334,7 @@ jobs:
           channel-id: ${{ secrets.SLACK_DEPLOY_CHANNEL_ID }}
           payload: |
             {
-              "text": ":${{ steps.status.outputs.emoji }}: CAEP Staging Deploy — ${{ steps.status.outputs.status }}",
+              "text": ":${{ steps.status.outputs.emoji }}: Finance Now Staging Deploy — ${{ steps.status.outputs.status }}",
               "attachments": [
                 {
                   "color": "${{ steps.status.outputs.color }}",
@@ -346,7 +346,7 @@ jobs:
                     { "title": "Triggered by", "value": "${{ github.actor }}", "short": true },
                     { "title": "Branch", "value": "${{ github.ref_name }}", "short": true }
                   ],
-                  "footer": "CAEP CI/CD | <https://staging.caep.example.com|Open Staging>",
+                  "footer": "Finance Now CI/CD | <https://staging.financenow.example.com|Open Staging>",
                   "ts": "${{ github.event.repository.updated_at }}"
                 }
               ]

@@ -15,7 +15,7 @@ import * as schema from './schema'
 
 declare global {
   // eslint-disable-next-line no-var
-  var __caepDbClient: ReturnType<typeof postgres> | undefined
+  var __fnDbClient: ReturnType<typeof postgres> | undefined
 }
 
 export const DATABASE_URL = process.env.DATABASE_URL ?? ''
@@ -41,8 +41,8 @@ function createClient() {
   })
 }
 
-const client = globalThis.__caepDbClient ?? createClient()
-if (process.env.NODE_ENV !== 'production') globalThis.__caepDbClient = client
+const client = globalThis.__fnDbClient ?? createClient()
+if (process.env.NODE_ENV !== 'production') globalThis.__fnDbClient = client
 
 export const db = drizzle(client, { schema })
 

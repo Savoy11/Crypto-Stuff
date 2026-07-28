@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# CAEP - Crypto Asset Evaluation Platform
+# Finance Now - Multi-Asset Financial Analytics
 # One-shot local setup / installer (macOS / Linux / WSL)
 #
 # Installs every prerequisite needed to run the app locally, configures
@@ -45,7 +45,7 @@ CYAN='\033[0;36m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; GR
 header() {
   echo ""
   echo -e "${CYAN}==============================================${RESET}"
-  echo -e "${CYAN}  CAEP - Crypto Asset Evaluation Platform${RESET}"
+  echo -e "${CYAN}  Finance Now - Multi-Asset Financial Analytics${RESET}"
   echo -e "${CYAN}  Local Setup${RESET}"
   echo -e "${CYAN}==============================================${RESET}"
   echo ""
@@ -119,7 +119,7 @@ setup_frontend_env() {
   step "Configuring frontend environment (.env.local)..."
   if [ -f "$ENV_FILE" ]; then ok ".env.local already exists - leaving it untouched."; return; fi
   cat > "$ENV_FILE" << 'EOF'
-# CAEP runs live-only against free public APIs - no keys required to start.
+# Finance Now runs live-only against free public APIs - no keys required to start.
 # Optional keys unlock more surfaces (all also settable in the Integrations UI):
 #   FMP_API_KEY=            # full ETF holdings, stock universe, market calendar
 #   ANTHROPIC_API_KEY=      # AI agents, Research page, Daily Brief

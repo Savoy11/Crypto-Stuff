@@ -33,6 +33,11 @@ import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { useFeedBiasStore, BIAS_FEEDS } from '@/store/useFeedBiasStore'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
 import { BIAS_STRENGTHS } from '@/lib/watchlist/bias'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep-custom-subreddits', 'fn-custom-subreddits')
+
 
 // ─── Suite modules panel ──────────────────────────────────────────────────────
 // Toggles which suite modules (Crypto, Equities, ETFs & Funds) appear in the
@@ -232,7 +237,7 @@ function AiAgentsPanel() {
 
 // ─── Subreddit manager (embedded inside Reddit provider card) ─────────────────
 
-const SUBREDDIT_STORAGE_KEY = 'caep-custom-subreddits'
+const SUBREDDIT_STORAGE_KEY = 'fn-custom-subreddits'
 
 const BUILTIN_SUBREDDITS = [
   'CryptoCurrency', 'CryptoMarkets', 'SatoshiStreetBets', 'CryptoCurrencies',

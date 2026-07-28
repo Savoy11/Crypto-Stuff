@@ -19,16 +19,16 @@ aws ecr get-login-password --region us-east-1 | \
   <account-id>.dkr.ecr.us-east-1.amazonaws.com
 
 # Build and push backend
-docker build -t caep-backend ./backend
-docker tag caep-backend:latest \
-  <account-id>.dkr.ecr.us-east-1.amazonaws.com/caep-backend:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/caep-backend:latest
+docker build -t fn-backend ./backend
+docker tag fn-backend:latest \
+  <account-id>.dkr.ecr.us-east-1.amazonaws.com/fn-backend:latest
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/fn-backend:latest
 
 # Build and push frontend
-docker build -t caep-frontend ./frontend
-docker tag caep-frontend:latest \
-  <account-id>.dkr.ecr.us-east-1.amazonaws.com/caep-frontend:latest
-docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/caep-frontend:latest
+docker build -t fn-frontend ./frontend
+docker tag fn-frontend:latest \
+  <account-id>.dkr.ecr.us-east-1.amazonaws.com/fn-frontend:latest
+docker push <account-id>.dkr.ecr.us-east-1.amazonaws.com/fn-frontend:latest
 ```
 
 ---
@@ -50,7 +50,7 @@ kubectl apply -f infrastructure/kubernetes/postgres/
 kubectl apply -f infrastructure/kubernetes/redis/
 
 # Wait for DB to be ready
-kubectl rollout status statefulset/postgres -n caep
+kubectl rollout status statefulset/postgres -n fn
 
 # Deploy application services
 kubectl apply -f infrastructure/kubernetes/backend/
@@ -60,7 +60,7 @@ kubectl apply -f infrastructure/kubernetes/frontend/
 kubectl apply -f infrastructure/kubernetes/ingress.yaml
 
 # Verify all pods are running
-kubectl get pods -n caep
+kubectl get pods -n fn
 ```
 
 ---
@@ -70,14 +70,14 @@ kubectl get pods -n caep
 ```bash
 # Run database migrations as a one-off Job
 kubectl run alembic-upgrade \
-  --image=<account-id>.dkr.ecr.us-east-1.amazonaws.com/caep-backend:latest \
+  --image=<account-id>.dkr.ecr.us-east-1.amazonaws.com/fn-backend:latest \
   --restart=Never \
-  --env="DATABASE_URL=$(kubectl get secret caep-secrets -n caep -o jsonpath='{.data.DATABASE_URL}' | base64 -d)" \
+  --env="DATABASE_URL=$(kubectl get secret fn-secrets -n fn -o jsonpath='{.data.DATABASE_URL}' | base64 -d)" \
   --command -- alembic upgrade head \
-  -n caep
+  -n fn
 
-kubectl logs alembic-upgrade -n caep
-kubectl delete pod alembic-upgrade -n caep
+kubectl logs alembic-upgrade -n fn
+kubectl delete pod alembic-upgrade -n fn
 ```
 
 ---
@@ -86,13 +86,13 @@ kubectl delete pod alembic-upgrade -n caep
 
 ```bash
 # Manual scaling
-kubectl scale deployment caep-backend --replicas=5 -n caep
+kubectl scale deployment fn-backend --replicas=5 -n fn
 
 # HPA is pre-configured in infrastructure/kubernetes/backend/hpa.yaml
 # It scales automatically between 3-20 replicas based on CPU/memory
 
 # View HPA status
-kubectl get hpa -n caep
+kubectl get hpa -n fn
 ```
 
 ---
@@ -101,16 +101,16 @@ kubectl get hpa -n caep
 
 ```bash
 # Check pod health
-kubectl describe pod -l app=caep-backend -n caep
+kubectl describe pod -l app=fn-backend -n fn
 
 # View logs
-kubectl logs -l app=caep-backend -n caep --tail=100 -f
+kubectl logs -l app=fn-backend -n fn --tail=100 -f
 
 # Check service endpoints
-kubectl get endpoints -n caep
+kubectl get endpoints -n fn
 
 # Test health endpoint
-kubectl port-forward svc/caep-backend 8000:8000 -n caep &
+kubectl port-forward svc/fn-backend 8000:8000 -n fn &
 curl http://localhost:8000/health
 ```
 
@@ -120,13 +120,13 @@ curl http://localhost:8000/health
 
 ```bash
 # Update backend image
-kubectl set image deployment/caep-backend \
-  backend=<account-id>.dkr.ecr.us-east-1.amazonaws.com/caep-backend:v1.1.0 \
-  -n caep
+kubectl set image deployment/fn-backend \
+  backend=<account-id>.dkr.ecr.us-east-1.amazonaws.com/fn-backend:v1.1.0 \
+  -n fn
 
 # Monitor rollout
-kubectl rollout status deployment/caep-backend -n caep
+kubectl rollout status deployment/fn-backend -n fn
 
 # Rollback if needed
-kubectl rollout undo deployment/caep-backend -n caep
+kubectl rollout undo deployment/fn-backend -n fn
 ```

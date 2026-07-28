@@ -1,8 +1,8 @@
-# CAEP — Data Availability Report
+# Finance Now — Data Availability Report
 
 _Last generated: **2026-07-20**, from a full audit of all `/live-data/*` route handlers
 executed against a running dev server on the development machine. This document is the
-authoritative record of **what data in CAEP is live, what is partially live, and what has
+authoritative record of **what data in Finance Now is live, what is partially live, and what has
 no free real-time source**. It exists so that a walk-through of the app surfaces exactly
 what is — and is not — backed by real data, with no fabricated figures presented as real._
 

@@ -31,10 +31,10 @@ permissions:
 env:
   AWS_REGION: us-east-1
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
-  ECR_REPO_BACKEND: caep-production/backend
-  ECR_REPO_FRONTEND: caep-production/frontend
-  EKS_CLUSTER: caep-production-eks
-  KUBERNETES_NAMESPACE: caep
+  ECR_REPO_BACKEND: fn-production/backend
+  ECR_REPO_FRONTEND: fn-production/frontend
+  EKS_CLUSTER: fn-production-eks
+  KUBERNETES_NAMESPACE: fn
 
 ###############################################################################
 # Jobs
@@ -95,9 +95,9 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/caep-cicd-deploy-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/fn-cicd-deploy-role
           aws-region: ${{ env.AWS_REGION }}
-          role-session-name: caep-cd-production-${{ github.run_id }}
+          role-session-name: fn-cd-production-${{ github.run_id }}
 
       - name: Login to ECR
         uses: aws-actions/amazon-ecr-login@v2
@@ -107,9 +107,9 @@ jobs:
         run: |
           VERSION="${{ needs.preflight.outputs.version_tag }}"
 
-          BACKEND_SRC="${{ env.ECR_REGISTRY }}/caep-staging/backend:${VERSION}"
+          BACKEND_SRC="${{ env.ECR_REGISTRY }}/fn-staging/backend:${VERSION}"
           BACKEND_DST="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_BACKEND }}:${VERSION}"
-          FRONTEND_SRC="${{ env.ECR_REGISTRY }}/caep-staging/frontend:${VERSION}"
+          FRONTEND_SRC="${{ env.ECR_REGISTRY }}/fn-staging/frontend:${VERSION}"
           FRONTEND_DST="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:${VERSION}"
 
           # Pull from staging, re-tag for production ECR
@@ -176,7 +176,7 @@ jobs:
     needs: [preflight, promote-images, create-deployment]
     environment:
       name: production
-      url: https://caep.example.com
+      url: https://financenow.example.com
 
     steps:
       - name: Checkout code
@@ -187,7 +187,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/caep-cicd-deploy-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/fn-cicd-deploy-role
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Update kubeconfig
@@ -204,10 +204,10 @@ jobs:
       - name: Record current image versions (for rollback)
         id: current_versions
         run: |
-          CURRENT_BACKEND=$(kubectl get deployment caep-backend \
+          CURRENT_BACKEND=$(kubectl get deployment fn-backend \
             -n ${{ env.KUBERNETES_NAMESPACE }} \
             -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "none")
-          CURRENT_FRONTEND=$(kubectl get deployment caep-frontend \
+          CURRENT_FRONTEND=$(kubectl get deployment fn-frontend \
             -n ${{ env.KUBERNETES_NAMESPACE }} \
             -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || echo "none")
 
@@ -247,20 +247,20 @@ jobs:
 
       - name: Wait for backend rollout
         run: |
-          kubectl rollout status deployment/caep-backend \
+          kubectl rollout status deployment/fn-backend \
             -n ${{ env.KUBERNETES_NAMESPACE }} \
             --timeout=600s
 
       - name: Wait for frontend rollout
         run: |
-          kubectl rollout status deployment/caep-frontend \
+          kubectl rollout status deployment/fn-frontend \
             -n ${{ env.KUBERNETES_NAMESPACE }} \
             --timeout=300s
 
       - name: Production health checks
         id: health_check
         run: |
-          BASE_URL="https://caep.example.com"
+          BASE_URL="https://financenow.example.com"
 
           echo "Waiting 30 seconds for pods to be fully ready..."
           sleep 30
@@ -301,14 +301,14 @@ jobs:
               FRONTEND_IMG="${{ steps.current_versions.outputs.current_frontend }}"
             fi
 
-            kubectl set image deployment/caep-backend \
+            kubectl set image deployment/fn-backend \
               backend="$BACKEND_IMG" \
               -n ${{ env.KUBERNETES_NAMESPACE }}
-            kubectl set image deployment/caep-frontend \
+            kubectl set image deployment/fn-frontend \
               frontend="$FRONTEND_IMG" \
               -n ${{ env.KUBERNETES_NAMESPACE }}
 
-            kubectl rollout status deployment/caep-backend \
+            kubectl rollout status deployment/fn-backend \
               -n ${{ env.KUBERNETES_NAMESPACE }} --timeout=300s || true
 
             echo "Rollback applied."
@@ -323,7 +323,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           deployment-id: ${{ needs.create-deployment.outputs.deployment_id }}
           state: success
-          environment-url: https://caep.example.com
+          environment-url: https://financenow.example.com
 
       - name: Update GitHub Deployment status — failure
         if: failure()
@@ -353,7 +353,7 @@ jobs:
 
       - name: Run post-deploy tests
         env:
-          PROD_URL: https://caep.example.com
+          PROD_URL: https://financenow.example.com
           POST_DEPLOY_API_KEY: ${{ secrets.PROD_HEALTH_CHECK_KEY }}
         run: |
           pip install httpx pytest pytest-asyncio
@@ -397,7 +397,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ needs.preflight.outputs.version_tag }}
-          name: "CAEP ${{ needs.preflight.outputs.version_tag }}"
+          name: "Finance Now ${{ needs.preflight.outputs.version_tag }}"
           body: |
             ## What's Changed in ${{ needs.preflight.outputs.version_tag }}
 
@@ -408,7 +408,7 @@ jobs:
             - Frontend: `${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:${{ needs.preflight.outputs.version_tag }}`
 
             ## Deployment
-            - Deployed to production: https://caep.example.com
+            - Deployed to production: https://financenow.example.com
             - Deployed by: @${{ github.actor }}
             - Run ID: ${{ github.run_id }}
           makeLatest: true
@@ -437,13 +437,13 @@ jobs:
             echo "color=#dc3545" >> $GITHUB_OUTPUT
           fi
 
-      - name: Notify Slack #caep-releases
+      - name: Notify Slack #fn-releases
         uses: slackapi/slack-github-action@v1.25.0
         with:
           channel-id: ${{ secrets.SLACK_RELEASES_CHANNEL_ID }}
           payload: |
             {
-              "text": ":${{ steps.status.outputs.emoji }}: CAEP Production Deploy — ${{ steps.status.outputs.status }}",
+              "text": ":${{ steps.status.outputs.emoji }}: Finance Now Production Deploy — ${{ steps.status.outputs.status }}",
               "attachments": [
                 {
                   "color": "${{ steps.status.outputs.color }}",
@@ -451,9 +451,9 @@ jobs:
                     { "title": "Version", "value": "${{ needs.preflight.outputs.version_tag }}", "short": true },
                     { "title": "Status", "value": "${{ steps.status.outputs.status }}", "short": true },
                     { "title": "Deployed by", "value": "${{ github.actor }}", "short": true },
-                    { "title": "Production URL", "value": "<https://caep.example.com|caep.example.com>", "short": true }
+                    { "title": "Production URL", "value": "<https://financenow.example.com|financenow.example.com>", "short": true }
                   ],
-                  "footer": "CAEP Production | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                  "footer": "Finance Now Production | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
                 }
               ]
             }

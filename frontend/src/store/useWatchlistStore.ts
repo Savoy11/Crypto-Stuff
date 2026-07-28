@@ -5,6 +5,11 @@ import { toast } from 'react-hot-toast'
 import { INSTRUMENT_BY_KEY } from '@/lib/data/instruments'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
 import type { WatchlistsResponse } from '@/app/api/user/watchlists/route'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep:watchlist-active', 'fn:watchlist-active')
+
 
 // ─── DB-backed watchlist store ───────────────────────────────────────────────
 // Watchlists persist to Postgres via /api/user/watchlists — the last Phase 1
@@ -43,7 +48,7 @@ interface WatchlistStore {
 
 const LEGACY_V2_KEY = 'caep:watchlists:v2'
 const LEGACY_V1_KEY = 'caep:watchlist:v1'
-const KEY_ACTIVE = 'caep:watchlist-active'
+const KEY_ACTIVE = 'fn:watchlist-active'
 
 function loadActive(): string | null {
   if (typeof window === 'undefined') return null

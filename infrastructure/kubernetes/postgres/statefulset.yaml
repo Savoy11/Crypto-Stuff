@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: caep-postgres
-  namespace: caep
+  name: fn-postgres
+  namespace: fn
   labels:
-    app: caep-postgres
+    app: fn-postgres
     component: database
-    app.kubernetes.io/name: caep-postgres
+    app.kubernetes.io/name: fn-postgres
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: caep
+    app.kubernetes.io/part-of: fn
   annotations:
-    caep.io/description: "TimescaleDB/PostgreSQL 15 StatefulSet — time-series crypto data storage"
+    financenow.example/description: "TimescaleDB/PostgreSQL 15 StatefulSet — time-series crypto data storage"
 spec:
-  serviceName: caep-postgres-headless
+  serviceName: fn-postgres-headless
   replicas: 1
   selector:
     matchLabels:
-      app: caep-postgres
+      app: fn-postgres
   updateStrategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        app: caep-postgres
+        app: fn-postgres
         component: database
     spec:
       serviceAccountName: default
@@ -63,7 +63,7 @@ spec:
 
           envFrom:
             - secretRef:
-                name: caep-postgres-secrets
+                name: fn-postgres-secrets
 
           env:
             - name: POSTGRES_DB
@@ -172,7 +172,7 @@ spec:
       volumes:
         - name: postgres-config
           configMap:
-            name: caep-postgres-init
+            name: fn-postgres-init
             optional: true
 
       nodeSelector:
@@ -182,7 +182,7 @@ spec:
     - metadata:
         name: postgres-data
         labels:
-          app: caep-postgres
+          app: fn-postgres
       spec:
         accessModes: [ReadWriteOnce]
         storageClassName: gp3-encrypted

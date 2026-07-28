@@ -5,9 +5,9 @@
 
 ## Why
 
-The suite vision is one platform family — crypto (CAEP today), equities, ETF/mutual
+The suite vision is one platform family — crypto (Finance Now today), equities, ETF/mutual
 funds, bonds, commodities — sellable together or separately, sharing a home shell and
-a set of common services. Risk scoring is CAEP's identity feature, so it must become
+a set of common services. Risk scoring is Finance Now's identity feature, so it must become
 a **shared service with one vocabulary**, not a per-app reinvention.
 
 The codebase already has **three inconsistent risk systems**:
@@ -31,7 +31,7 @@ converge on the same architecture: a **single factor/dimension engine** with
 income by duration/convexity/spread, derivatives by Greeks and implied volatility
 ([overview](https://www.landytech.com/blog/managing-risk-with-multi-asset-factor-models),
 [Nasdaq](https://www.nasdaq.com/articles/risk-modeling-assumptions-and-techniques-for-multi-asset-portfolios)).
-That is exactly the shape of CAEP's existing backend engine (weighted components +
+That is exactly the shape of Finance Now's existing backend engine (weighted components +
 confidence), generalized. The framework keeps that architecture and makes it
 asset-class-neutral.
 

@@ -1,9 +1,9 @@
 @echo off
-title CAEP - Crypto Asset Evaluation Platform
+title Finance Now - Multi-Asset Financial Analytics
 cd /d "%~dp0"
 
 echo.
-echo  Launching CAEP...
+echo  Launching Finance Now...
 echo.
 
 where pwsh >nul 2>&1

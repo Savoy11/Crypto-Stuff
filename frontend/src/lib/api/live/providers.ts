@@ -673,7 +673,7 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     id: 'anthropic',
     name: 'Anthropic (Claude)',
     category: 'llm',
-    description: 'Claude models — the default for every CAEP agent (App Assistant, Research, Data Scraper, Pump Report, and the equity agents).',
+    description: 'Claude models — the default for every Finance Now agent (App Assistant, Research, Data Scraper, Pump Report, and the equity agents).',
     features: ['Tool use', 'Long context', 'Strong reasoning'],
     requiresKey: true,
     keyUrl: 'https://console.anthropic.com/settings/keys',

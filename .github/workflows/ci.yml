@@ -67,9 +67,9 @@ jobs:
       postgres:
         image: timescale/timescaledb:latest-pg15
         env:
-          POSTGRES_DB: caep_test
-          POSTGRES_USER: caep
-          POSTGRES_PASSWORD: caep_test_password
+          POSTGRES_DB: fn_test
+          POSTGRES_USER: fn
+          POSTGRES_PASSWORD: fn_test_password
         ports:
           - 5432:5432
         options: >-
@@ -117,7 +117,7 @@ jobs:
 
       - name: Run database migrations
         env:
-          DATABASE_URL: postgresql+asyncpg://caep:caep_test_password@localhost:5432/caep_test
+          DATABASE_URL: postgresql+asyncpg://fn:fn_test_password@localhost:5432/fn_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-only-for-ci
           ENVIRONMENT: test
@@ -127,7 +127,7 @@ jobs:
 
       - name: Run pytest with coverage
         env:
-          DATABASE_URL: postgresql+asyncpg://caep:caep_test_password@localhost:5432/caep_test
+          DATABASE_URL: postgresql+asyncpg://fn:fn_test_password@localhost:5432/fn_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test-secret-key-only-for-ci
           ENVIRONMENT: test
@@ -153,7 +153,7 @@ jobs:
         with:
           file: backend/coverage.xml
           flags: backend
-          name: caep-backend
+          name: fn-backend
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -266,7 +266,7 @@ jobs:
           # "production" stage (F-C root cause).
           target: runtime
           push: false
-          tags: caep-backend:ci-test
+          tags: fn-backend:ci-test
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
           build-args: |
@@ -282,7 +282,7 @@ jobs:
           # "production" stage (F-C root cause).
           target: runner
           push: false
-          tags: caep-frontend:ci-test
+          tags: fn-frontend:ci-test
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
           # build-args removed: the previous block used invalid "KEY: value"
@@ -294,7 +294,7 @@ jobs:
       - name: Run container structure test (backend)
         uses: plexsystems/container-structure-test-action@v0.3.0
         with:
-          image: caep-backend:ci-test
+          image: fn-backend:ci-test
           config: backend/container-structure-test.yml
         continue-on-error: true
 

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res = await fetch(`${TRONSCAN_API}?address=${encodeURIComponent(address)}`, {
-      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)' },
+      headers: { Accept: 'application/json', 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)' },
       next: { revalidate: 0 },
     })
     if (!res.ok) throw new Error(`Tronscan HTTP ${res.status}`)

@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CAEP DATA SOURCE REGISTRY — single source of truth for "where does this data
+// Finance Now DATA SOURCE REGISTRY — single source of truth for "where does this data
 // come from?". Consumed by three things so nothing drifts:
 //   1. scripts/gen-data-sources.ts  → generates docs/DATA-SOURCES.md
 //   2. /data-sources page           → in-app, human-readable catalog

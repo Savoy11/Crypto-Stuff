@@ -11,11 +11,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'CAEP — Crypto Asset Evaluation Platform',
-    template: '%s | CAEP',
+    default: 'Finance Now — Multi-Asset Financial Analytics',
+    template: '%s | Finance Now',
   },
   description:
-    'Institutional-grade crypto asset analytics: risk scores, reserve transparency, peg stability, and real-time alerts.',
+    'Institutional-grade multi-asset analytics: crypto, equities, funds, and macro — risk scores, reserve transparency, and real-time alerts.',
   robots: 'noindex, nofollow',
 }
 

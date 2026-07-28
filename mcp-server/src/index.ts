@@ -1,31 +1,31 @@
 #!/usr/bin/env node
 /**
- * CAEP MCP Server
+ * Finance Now MCP Server
  *
- * Exposes CAEP's analytical capabilities as MCP tools for Claude and other
- * MCP-compatible AI agents. Requires CAEP frontend to be running.
+ * Exposes Finance Now's analytical capabilities as MCP tools for Claude and other
+ * MCP-compatible AI agents. Requires Finance Now frontend to be running.
  *
  * Usage:
- *   1. Start CAEP: cd ../frontend && npm run dev
+ *   1. Start Finance Now: cd ../frontend && npm run dev
  *   2. Build this server: npm run build
  *   3. Add to Claude Desktop config (see README or CLAUDE.md)
  *
  * Environment:
- *   CAEP_BASE_URL  — base URL of the running CAEP instance (default: http://localhost:3000)
+ *   FN_BASE_URL — base URL of the running Finance Now instance (legacy CAEP_BASE_URL honored) (default: http://localhost:3000)
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 
-const BASE_URL = (process.env.CAEP_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+const BASE_URL = (process.env.FN_BASE_URL ?? process.env.CAEP_BASE_URL ?? 'http://localhost:3000').replace(/\/$/, '')
 const API = `${BASE_URL}/api/v1`
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(`${API}${path}`)
   if (!res.ok) {
     const body = await res.text()
-    throw new Error(`CAEP API error ${res.status}: ${body}`)
+    throw new Error(`Finance Now API error ${res.status}: ${body}`)
   }
   return res.json() as Promise<T>
 }
@@ -33,7 +33,7 @@ async function get<T>(path: string): Promise<T> {
 // ─── Server setup ─────────────────────────────────────────────────────────────
 
 const server = new McpServer({
-  name: 'caep',
+  name: 'finance-now',
   version: '1.0.0',
   description: 'Crypto Asset Evaluation Platform — transfer fees, staking analysis, network fees, prices, and news',
 })
@@ -65,7 +65,7 @@ server.tool(
 
 server.tool(
   'list_exchanges',
-  'List all cryptocurrency exchanges supported by the CAEP transfer fee calculator. Returns exchange ids (needed for find_transfer_routes), names, tiers, and supported coins.',
+  'List all cryptocurrency exchanges supported by the Finance Now transfer fee calculator. Returns exchange ids (needed for find_transfer_routes), names, tiers, and supported coins.',
   {
     tier: z.enum(['1', '2']).optional().describe('Filter by tier: 1 = major regulated exchanges (Binance, Coinbase, Kraken…), 2 = smaller regional exchanges.'),
   },
@@ -613,7 +613,7 @@ async function scanCodeQuality(): Promise<{
 
 server.tool(
   'run_audit',
-  'Run a full health audit of the CAEP application. Checks: TypeScript type errors, live-data route health (HTTP status + response shape), and code quality (any types, console.logs, missing error boundaries). Returns a structured pass/fail report.',
+  'Run a full health audit of the Finance Now application. Checks: TypeScript type errors, live-data route health (HTTP status + response shape), and code quality (any types, console.logs, missing error boundaries). Returns a structured pass/fail report.',
   {
     checks: z.array(z.enum(['tsc', 'routes', 'quality'])).optional()
       .describe('Which checks to run. Omit or pass all three to run everything. Options: "tsc" (TypeScript), "routes" (API health), "quality" (code scan).'),
@@ -632,7 +632,7 @@ server.tool(
     const FAIL = '❌'
     const WARN = '⚠️'
 
-    lines.push('# CAEP Audit Report')
+    lines.push('# Finance Now Audit Report')
     lines.push(`*${new Date().toLocaleString()}*\n`)
 
     // ── TypeScript ──

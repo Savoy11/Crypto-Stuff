@@ -1,18 +1,18 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: caep-postgres
-  namespace: caep
+  name: fn-postgres
+  namespace: fn
   labels:
-    app: caep-postgres
+    app: fn-postgres
     component: database
-    app.kubernetes.io/name: caep-postgres
+    app.kubernetes.io/name: fn-postgres
     app.kubernetes.io/component: database
-    app.kubernetes.io/part-of: caep
+    app.kubernetes.io/part-of: fn
 spec:
   type: ClusterIP
   selector:
-    app: caep-postgres
+    app: fn-postgres
   ports:
     - name: postgres
       port: 5432
@@ -24,16 +24,16 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: caep-postgres-headless
-  namespace: caep
+  name: fn-postgres-headless
+  namespace: fn
   labels:
-    app: caep-postgres
+    app: fn-postgres
     component: database
 spec:
   type: ClusterIP
   clusterIP: None
   selector:
-    app: caep-postgres
+    app: fn-postgres
   ports:
     - name: postgres
       port: 5432

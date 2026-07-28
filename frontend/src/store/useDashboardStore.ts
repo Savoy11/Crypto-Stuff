@@ -58,6 +58,6 @@ export const useDashboardStore = create<DashboardState>()(
 
       reset: () => set({ widgets: DEFAULT_WIDGETS, poppedOut: [] }),
     }),
-    { name: 'caep:dashboard' },
+    { name: 'fn:dashboard' },
   ),
 )

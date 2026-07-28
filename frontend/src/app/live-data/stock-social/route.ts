@@ -55,7 +55,7 @@ export interface StockSocialResponse {
 
 const SUBREDDITS = ['stocks', 'investing', 'StockMarket', 'wallstreetbets']
 
-const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0; market research)' }
+const UA = { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0; market research)' }
 
 // ─── Sentiment ────────────────────────────────────────────────────────────────
 

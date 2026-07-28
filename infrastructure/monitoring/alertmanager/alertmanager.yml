@@ -1,5 +1,5 @@
 ###############################################################################
-# CAEP — Alertmanager Configuration
+# Finance Now — Alertmanager Configuration
 # Routing: critical → PagerDuty + Slack, warnings → Slack only
 ###############################################################################
 
@@ -9,8 +9,8 @@ global:
 
   # SMTP for email alerts
   smtp_smarthost: 'smtp.example.com:587'
-  smtp_from: 'caep-alerts@example.com'
-  smtp_auth_username: 'caep-alerts@example.com'
+  smtp_from: 'fn-alerts@example.com'
+  smtp_auth_username: 'fn-alerts@example.com'
   smtp_auth_password_file: /etc/alertmanager/secrets/smtp_password
   smtp_require_tls: true
 
@@ -131,19 +131,19 @@ receivers:
         links:
           - href: '{{ .CommonAnnotations.runbook }}'
             text: 'Runbook'
-          - href: 'https://grafana.caep.example.com/d/caep-overview'
+          - href: 'https://grafana.financenow.example.com/d/fn-overview'
             text: 'Grafana Dashboard'
-        client: 'CAEP Alertmanager'
-        client_url: 'https://alertmanager.caep.example.com'
+        client: 'Finance Now Alertmanager'
+        client_url: 'https://alertmanager.financenow.example.com'
 
     slack_configs:
-      - channel: '#caep-critical'
-        username: 'CAEP Alertmanager'
+      - channel: '#fn-critical'
+        username: 'Finance Now Alertmanager'
         icon_emoji: ':rotating_light:'
         color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
         send_resolved: true
         title: '{{ if eq .Status "firing" }}FIRING{{ else }}RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
-        title_link: 'https://alertmanager.caep.example.com/#/alerts'
+        title_link: 'https://alertmanager.financenow.example.com/#/alerts'
         text: |
           *Severity:* {{ .CommonLabels.severity | toUpper }}
           *Environment:* {{ .CommonLabels.environment }}
@@ -153,21 +153,21 @@ receivers:
         actions:
           - type: button
             text: 'Grafana Dashboard'
-            url: 'https://grafana.caep.example.com/d/caep-overview'
+            url: 'https://grafana.financenow.example.com/d/fn-overview'
           - type: button
             text: 'Silence Alert'
             url: '{{ template "__alertmanager_silence_link" . }}'
 
-  # ── Warnings: Slack #caep-warnings ────────────────────────────────────────
+  # ── Warnings: Slack #fn-warnings ────────────────────────────────────────
   - name: 'slack-warnings'
     slack_configs:
-      - channel: '#caep-warnings'
-        username: 'CAEP Alertmanager'
+      - channel: '#fn-warnings'
+        username: 'Finance Now Alertmanager'
         icon_emoji: ':warning:'
         color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
         send_resolved: true
         title: '{{ if eq .Status "firing" }}WARNING{{ else }}RESOLVED{{ end }}: {{ .CommonAnnotations.summary }}'
-        title_link: 'https://alertmanager.caep.example.com/#/alerts'
+        title_link: 'https://alertmanager.financenow.example.com/#/alerts'
         text: |
           *Severity:* {{ .CommonLabels.severity }}
           *Service:* {{ .CommonLabels.service }}
@@ -175,13 +175,13 @@ receivers:
         actions:
           - type: button
             text: 'View in Grafana'
-            url: 'https://grafana.caep.example.com'
+            url: 'https://grafana.financenow.example.com'
 
-  # ── Product team: Slack #caep-product ─────────────────────────────────────
+  # ── Product team: Slack #fn-product ─────────────────────────────────────
   - name: 'slack-product'
     slack_configs:
-      - channel: '#caep-product'
-        username: 'CAEP Product Monitor'
+      - channel: '#fn-product'
+        username: 'Finance Now Product Monitor'
         icon_emoji: ':chart_with_downwards_trend:'
         send_resolved: true
         title: '{{ .CommonAnnotations.summary }}'
@@ -190,5 +190,5 @@ receivers:
   # ── Watchdog (dead man's switch) ──────────────────────────────────────────
   - name: 'watchdog'
     webhook_configs:
-      - url: 'https://healthchecks.example.com/ping/caep-watchdog'
+      - url: 'https://healthchecks.example.com/ping/fn-watchdog'
         send_resolved: false

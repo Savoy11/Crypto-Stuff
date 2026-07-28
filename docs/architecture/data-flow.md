@@ -1,8 +1,8 @@
-# CAEP Data Flow Documentation
+# Finance Now Data Flow Documentation
 
 ## Overview
 
-This document provides detailed sequence diagrams and narrative descriptions for every major data flow in the CAEP platform. It is intended for backend engineers, data engineers, and incident responders who need to understand how data moves through the system.
+This document provides detailed sequence diagrams and narrative descriptions for every major data flow in the Finance Now platform. It is intended for backend engineers, data engineers, and incident responders who need to understand how data moves through the system.
 
 ---
 
@@ -306,4 +306,4 @@ SELECT add_compression_policy('price_history', INTERVAL '7 days');
 SELECT add_retention_policy('price_history', INTERVAL '90 days');
 ```
 
-Archived data in S3 is organized by `s3://caep-data/{environment}/{table}/{year}/{month}/{day}/*.parquet` and queryable via AWS Athena.
+Archived data in S3 is organized by `s3://fn-data/{environment}/{table}/{year}/{month}/{day}/*.parquet` and queryable via AWS Athena.

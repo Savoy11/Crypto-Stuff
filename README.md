@@ -1,10 +1,10 @@
-# CAEP — Crypto Asset Evaluation Platform
+# Finance Now — Multi-Asset Financial Analytics
 
 **An AI-enhanced investment evaluator, and the flagship module of a growing suite of financial analysis tools.**
 
-CAEP evaluates crypto assets — stablecoins, Layer 1s, tokenized assets, and CBDCs — by combining live multi-provider market data, reserve transparency monitoring, regulatory news intelligence, and a configurable AI agent layer into a single Bloomberg-terminal-style workspace. It is built on a strict data-honesty principle: **every number is attributed to its source, estimates are labeled as estimates, and derived metrics with no reliable data source show "not available" rather than fabricated values.**
+Finance Now evaluates crypto assets — stablecoins, Layer 1s, tokenized assets, and CBDCs — by combining live multi-provider market data, reserve transparency monitoring, regulatory news intelligence, and a configurable AI agent layer into a single Bloomberg-terminal-style workspace. It is built on a strict data-honesty principle: **every number is attributed to its source, estimates are labeled as estimates, and derived metrics with no reliable data source show "not available" rather than fabricated values.**
 
-CAEP is one module in a larger suite. The same shell hosts entitlement-gated modules for Equities, ETFs & Funds, and a Portfolio Builder, with personal-finance modules (budgeting, planning) on the roadmap — one application, one auth layer, individually licensable modules. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Finance Now is one module in a larger suite. The same shell hosts entitlement-gated modules for Equities, ETFs & Funds, and a Portfolio Builder, with personal-finance modules (budgeting, planning) on the roadmap — one application, one auth layer, individually licensable modules. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ---
 
@@ -12,7 +12,7 @@ CAEP is one module in a larger suite. The same shell hosts entitlement-gated mod
 
 | Module | Scope | Status |
 |---|---|---|
-| **Crypto (CAEP)** | 110 monitored assets: risk evaluation, reserves, peg tracking, fees, staking, TA, news | 🟢 Active — flagship |
+| **Crypto (Finance Now)** | 110 monitored assets: risk evaluation, reserves, peg tracking, fees, staking, TA, news | 🟢 Active — flagship |
 | **Equities** | 79 large-caps across 11 sectors: live quotes, breadth, screener, TA, news, calendar | 🟢 Active |
 | **ETFs & Funds** | Fund registry and per-symbol detail | 🟢 Active |
 | **Portfolio Builder** | Cross-module portfolio construction | 🟡 Early |
@@ -24,7 +24,7 @@ Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from 
 
 ## The AI Layer
 
-CAEP is agent-native, in two directions:
+Finance Now is agent-native, in two directions:
 
 **AI working for you inside the app.** Four configurable agents (Settings → AI Agents), each with an editable system prompt, model, and temperature:
 
@@ -35,7 +35,7 @@ CAEP is agent-native, in two directions:
 
 Plus a **Daily Brief** generated from your holdings, live prices, and headlines. All agents are **BYOK** (bring your own key) across 10 LLM providers — Anthropic, OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Perplexity, Together, Cohere. Keys go in `frontend/.env.local`; nothing is proxied through third parties.
 
-**The app working for AI.** The platform exposes a clean REST `/api/v1` surface with OpenAPI documentation and an **MCP server** (`mcp-server/`), so external AI agents — Claude, or anything MCP-capable — can query CAEP's data directly. If you use AI to manage your research, CAEP is built to be one of its tools.
+**The app working for AI.** The platform exposes a clean REST `/api/v1` surface with OpenAPI documentation and an **MCP server** (`mcp-server/`), so external AI agents — Claude, or anything MCP-capable — can query Finance Now's data directly. If you use AI to manage your research, Finance Now is built to be one of its tools.
 
 ---
 
@@ -129,4 +129,4 @@ docker compose -f infrastructure/docker/docker-compose.yml up --build
 
 ## Disclaimer
 
-CAEP is an information and research tool. Nothing it displays or generates — including AI agent output and risk evaluations — is financial, investment, or legal advice. Verify all fees, rates, and reserve claims with primary sources before transacting.
+Finance Now is an information and research tool. Nothing it displays or generates — including AI agent output and risk evaluations — is financial, investment, or legal advice. Verify all fees, rates, and reserve claims with primary sources before transacting.

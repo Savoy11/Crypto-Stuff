@@ -1,21 +1,21 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: caep-ingress
-  namespace: caep
+  name: fn-ingress
+  namespace: fn
   labels:
-    app: caep
+    app: fn
     component: ingress
-    app.kubernetes.io/name: caep
+    app.kubernetes.io/name: fn
     app.kubernetes.io/component: ingress
-    app.kubernetes.io/part-of: caep
+    app.kubernetes.io/part-of: fn
   annotations:
     # AWS ALB Ingress Controller annotations
     kubernetes.io/ingress.class: alb
     alb.ingress.kubernetes.io/scheme: internet-facing
     alb.ingress.kubernetes.io/target-type: ip
-    alb.ingress.kubernetes.io/load-balancer-name: caep-alb
-    alb.ingress.kubernetes.io/group.name: caep
+    alb.ingress.kubernetes.io/load-balancer-name: fn-alb
+    alb.ingress.kubernetes.io/group.name: fn
 
     # SSL/TLS — ACM certificate ARN (replace with real ARN)
     alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:${AWS_ACCOUNT_ID}:certificate/${CERT_ID}"
@@ -34,11 +34,11 @@ metadata:
       idle_timeout.timeout_seconds=120,
       routing.http.drop_invalid_header_fields.enabled=true,
       access_logs.s3.enabled=true,
-      access_logs.s3.bucket=caep-alb-logs,
-      access_logs.s3.prefix=caep
+      access_logs.s3.bucket=fn-alb-logs,
+      access_logs.s3.prefix=fn
 
     # Security
-    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:us-east-1:${AWS_ACCOUNT_ID}:regional/webacl/caep-waf/${WAF_ID}"
+    alb.ingress.kubernetes.io/wafv2-acl-arn: "arn:aws:wafv2:us-east-1:${AWS_ACCOUNT_ID}:regional/webacl/fn-waf/${WAF_ID}"
     alb.ingress.kubernetes.io/shield-advanced-protection: "true"
 
     # WebSocket support
@@ -57,13 +57,13 @@ metadata:
 spec:
   tls:
     - hosts:
-        - caep.example.com
-        - www.caep.example.com
-      secretName: caep-tls-secret
+        - financenow.example.com
+        - www.financenow.example.com
+      secretName: fn-tls-secret
 
   rules:
     # Main application domain
-    - host: caep.example.com
+    - host: financenow.example.com
       http:
         paths:
           # API backend
@@ -71,7 +71,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: caep-backend
+                name: fn-backend
                 port:
                   name: http
 
@@ -80,7 +80,7 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: caep-backend
+                name: fn-backend
                 port:
                   name: http
 
@@ -89,7 +89,7 @@ spec:
             pathType: Exact
             backend:
               service:
-                name: caep-backend
+                name: fn-backend
                 port:
                   name: http
 
@@ -98,18 +98,18 @@ spec:
             pathType: Prefix
             backend:
               service:
-                name: caep-frontend
+                name: fn-frontend
                 port:
                   name: http
 
     # www redirect handled at ALB level via listener rule
-    - host: www.caep.example.com
+    - host: www.financenow.example.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: caep-frontend
+                name: fn-frontend
                 port:
                   name: http

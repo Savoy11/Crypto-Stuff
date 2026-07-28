@@ -14,7 +14,7 @@ class TestLoginEndpoint:
     async def test_login_returns_tokens(self, client):
         mock_user = {
             "id": str(uuid4()),
-            "email": "analyst@caep.io",
+            "email": "analyst@financenow.example",
             "role": "analyst",
             "is_active": True,
             "mfa_enabled": False,
@@ -22,7 +22,7 @@ class TestLoginEndpoint:
         with patch("app.api.v1.auth.authenticate_user", new=AsyncMock(return_value=mock_user)):
             resp = await client.post(
                 "/api/v1/auth/login",
-                json={"email": "analyst@caep.io", "password": "SecurePass123!"},
+                json={"email": "analyst@financenow.example", "password": "SecurePass123!"},
             )
         assert resp.status_code in (
             200,

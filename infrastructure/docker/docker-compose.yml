@@ -6,7 +6,7 @@ services:
       context: ../../backend
       dockerfile: Dockerfile
       target: runtime
-    container_name: caep-backend
+    container_name: fn-backend
     ports:
       - "8000:8000"
     environment:
@@ -30,7 +30,7 @@ services:
       - ../../backend:/app
       - backend_cache:/app/.cache
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -44,7 +44,7 @@ services:
       context: ../../frontend
       dockerfile: Dockerfile
       target: runner
-    container_name: caep-frontend
+    container_name: fn-frontend
     ports:
       - "3000:3000"
     environment:
@@ -59,12 +59,12 @@ services:
       - /app/node_modules
       - /app/.next
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
 
   nginx:
     image: nginx:1.25-alpine
-    container_name: caep-nginx
+    container_name: fn-nginx
     ports:
       - "80:80"
     volumes:
@@ -73,12 +73,12 @@ services:
       - backend
       - frontend
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
 
   postgres:
     image: timescale/timescaledb:latest-pg15
-    container_name: caep-postgres
+    container_name: fn-postgres
     environment:
       POSTGRES_DB: caep
       POSTGRES_USER: caep
@@ -90,7 +90,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U caep -d caep"]
@@ -114,7 +114,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: caep-redis
+    container_name: fn-redis
     ports:
       - "6379:6379"
     command: >
@@ -130,7 +130,7 @@ services:
     volumes:
       - redis_data:/data
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -140,7 +140,7 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.48.0
-    container_name: caep-prometheus
+    container_name: fn-prometheus
     ports:
       - "9090:9090"
     command:
@@ -155,12 +155,12 @@ services:
       - ../monitoring/prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana:10.2.0
-    container_name: caep-grafana
+    container_name: fn-grafana
     ports:
       - "3001:3000"
     environment:
@@ -175,12 +175,12 @@ services:
     depends_on:
       - prometheus
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
 
   alertmanager:
     image: prom/alertmanager:v0.26.0
-    container_name: caep-alertmanager
+    container_name: fn-alertmanager
     ports:
       - "9093:9093"
     volumes:
@@ -189,12 +189,12 @@ services:
       - '--config.file=/etc/alertmanager/alertmanager.yml'
       - '--storage.path=/alertmanager'
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
 
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:v0.15.0
-    container_name: caep-postgres-exporter
+    container_name: fn-postgres-exporter
     environment:
       DATA_SOURCE_NAME: "postgresql://caep:caep@postgres:5432/caep?sslmode=disable"
     ports:
@@ -203,12 +203,12 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
 
   redis-exporter:
     image: oliver006/redis_exporter:v1.55.0
-    container_name: caep-redis-exporter
+    container_name: fn-redis-exporter
     environment:
       REDIS_ADDR: redis://redis:6379
     ports:
@@ -216,7 +216,7 @@ services:
     depends_on:
       - redis
     networks:
-      - caep-network
+      - fn-network
     restart: unless-stopped
 
 volumes:
@@ -232,7 +232,7 @@ volumes:
     driver: local
 
 networks:
-  caep-network:
+  fn-network:
     driver: bridge
     ipam:
       config:

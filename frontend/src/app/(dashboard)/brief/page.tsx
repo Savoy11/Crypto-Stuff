@@ -6,13 +6,18 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { hydratePortfolios, usePortfolioStore } from '@/store/usePortfolioStore'
 import { hydrateWatchlists, useWatchlistStore, type WatchList } from '@/store/useWatchlistStore'
 import { INSTRUMENT_BY_KEY } from '@/lib/data/instruments'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep:daily-brief:v1', 'fn:daily-brief:v1')
+
 
 // AI Daily Brief — "your holdings, what moved, why, and what's ahead."
 // Reuses the research agent (Anthropic key via agent runner) and grounds the
 // prompt in the user's actual portfolio + watchlist symbols. The agent pulls
 // live prices/news through its tools, so the brief reflects real data.
 
-const LAST_BRIEF_KEY = 'caep:daily-brief:v1'
+const LAST_BRIEF_KEY = 'fn:daily-brief:v1'
 
 interface StoredBrief { text: string; generatedAt: string }
 

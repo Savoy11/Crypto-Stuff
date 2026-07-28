@@ -1,5 +1,5 @@
 # ================================================================
-# Multi-stage production Dockerfile for CAEP backend
+# Multi-stage production Dockerfile for Finance Now backend
 # ================================================================
 
 # ---- build stage ----
@@ -29,7 +29,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 curl \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r caep && useradd -r -g caep -s /bin/false caep
+    && groupadd -r fn && useradd -r -g fn -s /bin/false fn
 
 ENV VIRTUAL_ENV=/build/.venv \
     PATH="/build/.venv/bin:$PATH" \
@@ -41,8 +41,8 @@ COPY --from=builder /build/.venv /build/.venv
 COPY --from=builder /build/app ./app
 COPY alembic.ini .
 
-RUN chown -R caep:caep /app
-USER caep
+RUN chown -R fn:fn /app
+USER fn
 
 EXPOSE 8000
 

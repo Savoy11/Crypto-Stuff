@@ -21,19 +21,28 @@ import { auth } from './config'
 //   local mode off   → null, and callers must return 401
 //
 // Local mode is allowed in development, and in production only when
-// CAEP_ALLOW_LOCAL_USER=true is set explicitly. That default matters: without
-// it, deploying this app to a public host would silently hand every anonymous
-// visitor the same shared account and everyone's portfolio and budget with it.
+// FN_ALLOW_LOCAL_USER=true is set explicitly (legacy CAEP_ALLOW_LOCAL_USER is
+// still honored). That default matters: without it, deploying this app to a
+// public host would silently hand every anonymous visitor the same shared
+// account and everyone's portfolio and budget with it.
 //
 // When the auth wall is switched back on, nothing here needs to change — real
-// sessions simply start winning, and setting CAEP_ALLOW_LOCAL_USER=false turns
+// sessions simply start winning, and setting FN_ALLOW_LOCAL_USER=false turns
 // the fallback off entirely.
 
+// Deliberately NOT renamed in the Finance Now rebrand: this sentinel keys the
+// local user's DB row, and every portfolio/watchlist/builder-plan hangs off
+// that row. Changing the string would find-or-create a fresh user and orphan
+// all existing data. It is never shown in the UI.
 const LOCAL_USER_EMAIL = 'local@caep.local'
 
+function localUserFlag(): string | undefined {
+  return process.env.FN_ALLOW_LOCAL_USER ?? process.env.CAEP_ALLOW_LOCAL_USER
+}
+
 export function isLocalUserModeAllowed(): boolean {
-  if (process.env.CAEP_ALLOW_LOCAL_USER === 'true') return true
-  if (process.env.CAEP_ALLOW_LOCAL_USER === 'false') return false
+  if (localUserFlag() === 'true') return true
+  if (localUserFlag() === 'false') return false
   return process.env.NODE_ENV !== 'production'
 }
 

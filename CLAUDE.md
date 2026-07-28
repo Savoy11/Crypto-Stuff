@@ -1,4 +1,4 @@
-# CAEP — Crypto Asset Evaluation Platform
+# Finance Now — Multi-Asset Financial Analytics
 ## Claude Code Project Guide
 
 This file is auto-loaded by Claude Code at session start. It gives instant context so you can make changes without re-exploring the codebase.
@@ -7,7 +7,7 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade financial analytics suite built with Next.js 14 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): the **Crypto** module (original CAEP), an **Equities** module (`/equities`), and an **ETFs & Funds** module (`/funds`). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, and modules can be toggled in Integrations → Suite Modules. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers (an optional legacy backend exists for auth/agent features only). Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 14 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): the **Crypto** module (original Finance Now), an **Equities** module (`/equities`), and an **ETFs & Funds** module (`/funds`). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, and modules can be toggled in Integrations → Suite Modules. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers (an optional legacy backend exists for auth/agent features only). Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
@@ -273,7 +273,7 @@ NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws   # WebSocket (optional)
 FMP_API_KEY=...                             # Optional — settable in the Integrations UI. Uses FMP's /stable API (legacy /api/v3 is retired → 403). FREE tier: single-symbol quote/profile/history + earnings calendar. PAID only: batch quotes, company-screener, constituent lists, economic calendar. So a free key powers per-stock data & detail-page ticker resolution, but the broad Stock Registry universe needs a paid plan.
 # Other equity quote providers (all optional; also settable in the Integrations UI):
 # FINNHUB_API_KEY, TWELVE_DATA_API_KEY, TIINGO_API_KEY, ALPHA_VANTAGE_API_KEY
-CAEP_ADMIN_TOKEN=...                        # Optional — sensitive endpoints (AI agents, provider config, exchange creds) require this token when the app is served from a non-localhost host; without it they are localhost-only (see src/lib/server/apiGuard.ts)
+FN_ADMIN_TOKEN=...                        # (legacy CAEP_ADMIN_TOKEN still honored) Optional — sensitive endpoints (AI agents, provider config, exchange creds) require this token when the app is served from a non-localhost host; without it they are localhost-only (see src/lib/server/apiGuard.ts)
 ```
 
 **Server-side secret stores** (gitignored, written at repo `frontend/` root):
@@ -281,7 +281,7 @@ CAEP_ADMIN_TOKEN=...                        # Optional — sensitive endpoints (
 `.exchange-credentials.json` (exchange API keys — never sent to the browser; the client
 references connections by id via `/live-data/wallet/exchange-connections`).
 
-CAEP runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
+Finance Now runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
 
 ---
 
@@ -341,7 +341,7 @@ Risk/status color convention used across the app:
 
 > **Data-status source of truth:** `DATA-AVAILABILITY.md` (repo root) is the authoritative,
 > regularly-regenerated record of what is 🟢 Live / 🟡 Partial / 🔴 Not available. Consult it,
-> not this table, when in doubt. CAEP is live-only — there is **no mock/demo data path**;
+> not this table, when in doubt. Finance Now is live-only — there is **no mock/demo data path**;
 > "Mock" labels in older docs are obsolete.
 
 | Feature | Route | Status | Source / Notes |
@@ -474,7 +474,7 @@ return NextResponse.json(data, { headers: CORS })
 
 ## MCP Server (`mcp-server/`)
 
-A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes CAEP tools to Claude and any MCP-compatible AI agent. It calls the `/api/v1/` endpoints — CAEP frontend must be running.
+A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes Finance Now tools to Claude and any MCP-compatible AI agent. It calls the `/api/v1/` endpoints — Finance Now frontend must be running.
 
 ### Tools exposed
 | Tool | Description |
@@ -498,10 +498,10 @@ npm run build
 ```json
 {
   "mcpServers": {
-    "caep": {
+    "finance-now": {
       "command": "node",
       "args": ["C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff/mcp-server/dist/index.js"],
-      "env": { "CAEP_BASE_URL": "http://localhost:3000" }
+      "env": { "FN_BASE_URL": "http://localhost:3000" }
     }
   }
 }
@@ -510,12 +510,12 @@ Claude Desktop config lives at `%APPDATA%\Claude\claude_desktop_config.json` on 
 
 ### Add to Claude Code (project-level MCP)
 ```bash
-# Run from any directory — adds CAEP MCP to this project's .claude/settings.json
-claude mcp add caep node C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff/mcp-server/dist/index.js
+# Run from any directory — adds Finance Now MCP to this project's .claude/settings.json
+claude mcp add finance-now node C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff/mcp-server/dist/index.js
 ```
 
 ### Environment variable
-`CAEP_BASE_URL` — base URL of running CAEP instance (default: `http://localhost:3000`)
+`FN_BASE_URL` — base URL of running Finance Now instance (default: `http://localhost:3000`; legacy `CAEP_BASE_URL` still honored)
 
 ---
 

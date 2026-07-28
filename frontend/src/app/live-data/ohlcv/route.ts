@@ -248,7 +248,7 @@ export async function GET(request: NextRequest) {
       // api.binance.com is geo-blocked (451) from some regions, so the flat
       // 'binance' label hid the fact that candles were really coming from the
       // Binance.US mirror — a separate venue with its own liquidity and
-      // therefore its own prices. Anything comparing CAEP candles against a
+      // therefore its own prices. Anything comparing Finance Now candles against a
       // Binance.com reference needs to know which one it got.
       return NextResponse.json({
         ok: true, range, candles, granularity: cfg.candleSize, source: 'binance',
