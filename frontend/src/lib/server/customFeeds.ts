@@ -24,9 +24,34 @@ export async function fetchCustomUrl(provider: ActiveCustom, url: string, revali
     }
   }
 
-  const res = await fetch(finalUrl, { headers, signal: AbortSignal.timeout(10_000), next: { revalidate } })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res
+  // Redirects are followed MANUALLY so every hop passes the same SSRF
+  // validation as the original URL. fetch's default `redirect: 'follow'`
+  // validated only hop zero — a feed URL that 3xx'd to 169.254.169.254 or an
+  // internal host would be fetched happily (the config-page test fetch always
+  // used `redirect: 'manual'` for exactly this reason; the data path didn't).
+  // Legitimate feeds do redirect (http→https, feed proxies), so hops are
+  // followed rather than rejected — just never blindly.
+  const MAX_REDIRECTS = 3
+  let currentUrl = finalUrl
+  for (let hop = 0; ; hop++) {
+    const res = await fetch(currentUrl, { headers, redirect: 'manual', signal: AbortSignal.timeout(10_000), next: { revalidate } })
+    if (res.status < 300 || res.status >= 400) {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res
+    }
+    const location = res.headers.get('location')
+    if (!location) throw new Error(`HTTP ${res.status} redirect with no Location header`)
+    if (hop >= MAX_REDIRECTS) throw new Error('Too many redirects')
+    const nextUrl = new URL(location, currentUrl).toString()
+    const hopError = validatePublicHttpUrl(nextUrl)
+    if (hopError) throw new Error(`Redirect target rejected: ${hopError}`)
+    // Auth must not leak to a different host than the one it was configured for.
+    if (new URL(nextUrl).host !== new URL(currentUrl).host) {
+      delete headers['Authorization']
+      if (provider.authMethod === 'header' && provider.authHeaderName) delete headers[provider.authHeaderName]
+    }
+    currentUrl = nextUrl
+  }
 }
 
 /** Walk a dot-path ("data.items") into an object. */

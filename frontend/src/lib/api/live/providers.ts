@@ -788,7 +788,11 @@ function readConfigFile(): ConfigFile {
 
 function writeConfigFile(file: ConfigFile): void {
   try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(file, null, 2), 'utf8')
+    // 0600 like the exchange-credentials store — this file holds provider and
+    // LLM API keys. mode only applies on creation, so chmod covers files
+    // created by earlier versions with the default 0644.
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(file, null, 2), { encoding: 'utf8', mode: 0o600 })
+    fs.chmodSync(CONFIG_PATH, 0o600)
   } catch (e) {
     console.error('[providers] Failed to write config file:', e)
   }
