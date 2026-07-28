@@ -7,7 +7,7 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade financial analytics suite built with Next.js 14 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): the **Crypto** module (original Finance Now), an **Equities** module (`/equities`), and an **ETFs & Funds** module (`/funds`). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, and modules can be toggled in Integrations → Suite Modules. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers (an optional legacy backend exists for auth/agent features only). Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 14 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus five optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
@@ -36,26 +36,43 @@ frontend/src/
 ├── app/
 │   ├── layout.tsx                  # Root layout — wraps everything in <Providers>
 │   ├── providers.tsx               # React Query + Toaster setup
-│   ├── (auth)/                     # Login page
+│   ├── (auth)/                     # Login page (Auth.js credentials; wall currently off)
 │   ├── (dashboard)/                # All main pages (use Sidebar layout)
 │   │   ├── layout.tsx              # Dashboard shell with Sidebar
+│   │   │
+│   │   │  # ── Core (always on) ──
 │   │   ├── headlines/page.tsx      # Landing page — cross-module aggregate news feed
+│   │   ├── videos/page.tsx
+│   │   ├── brief/page.tsx          # AI Daily Brief (needs ANTHROPIC_API_KEY)
+│   │   ├── watchlist/page.tsx      # Cross-module; DB-backed
+│   │   ├── portfolios/page.tsx     # DB-backed
+│   │   ├── compare/page.tsx        # 2–6 stocks/funds/coins
+│   │   ├── research/page.tsx       # Crypto/Equities/Macro agent runner
+│   │   ├── agent-config/page.tsx   # AI Agents tab
+│   │   ├── settings/page.tsx       # Integrations + Suite Modules toggles
+│   │   ├── data-sources/page.tsx
+│   │   │
+│   │   │  # ── Crypto module (all gated by <ModuleGate module="crypto">) ──
 │   │   ├── assets/page.tsx         # Coin Registry ("Coins" nav; route kept /assets) — live prices
-│   │   ├── risk-scores/page.tsx
-│   │   ├── reserves/page.tsx
-│   │   ├── alerts/page.tsx
-│   │   ├── watchlist/page.tsx
+│   │   ├── assets/[id]/page.tsx    # Coin detail
 │   │   ├── news/page.tsx           # Per-coin news feed with sentiment
 │   │   ├── social/page.tsx
-│   │   ├── global-adoption/page.tsx
+│   │   ├── wallets/page.tsx
 │   │   ├── transfer-fees/page.tsx  # Transfer Fee Calculator
 │   │   ├── staking/page.tsx        # Staking Opportunities
-│   │   ├── equities/               # EQUITIES MODULE — registry, [symbol], news, social, TA, backtests
+│   │   ├── staking-discovery/page.tsx
+│   │   ├── coin-discovery/page.tsx
+│   │   ├── technical-analysis/page.tsx
+│   │   ├── risk-scores/page.tsx
+│   │   ├── reserves/page.tsx
+│   │   │
+│   │   │  # ── Optional modules (each gated by its own <ModuleGate>) ──
+│   │   ├── equities/               # EQUITIES MODULE — registry, [symbol], news, social, TA, backtests, calendar
+│   │   ├── macro/                  # MACRO MODULE — overview, news, commodities, currencies, rates (+ [slug] detail)
 │   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
-│   │   ├── backtests/page.tsx
-│   │   ├── reports/page.tsx
-│   │   └── settings/page.tsx       # Integrations + Suite Modules toggles
-│   └── live-data/                  # Server-side API proxy routes (no API keys exposed)
+│   │   ├── portfolio-builder/      # PREMIUM module — own entitlement
+│   │   └── global-adoption/        # De-routed (T5) — redirects to /headlines; page retained
+│   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 47 routes
 │       ├── markets/route.ts        # CoinGecko price data
 │       ├── news/route.ts           # Multi-provider crypto news (RSS + JSON feeds)
 │       ├── social/route.ts         # Social sentiment data
@@ -80,7 +97,17 @@ frontend/src/
 │       ├── security-returns/route.ts # Batched trailing 1M/3M/YTD/1Y returns (Yahoo spark) — backs the fund screener Returns tab/filters
 │       ├── fx-rates/route.ts        # Daily ECB reference FX (frankfurter.dev, keyless) — Macro currency converter, official tier
 │       ├── fx-rates-extended/route.ts # +127 more currencies (community currency-api, keyless) — converter's labeled extended tier
-│       └── treasury-yield-curve/route.ts # Official 13-maturity daily par curve (treasury.gov XML, keyless) + spreads/shape
+│       ├── treasury-yield-curve/route.ts # Official 13-maturity daily par curve (treasury.gov XML, keyless) + spreads/shape
+│       ├── macro-news/route.ts     # 8 keyless RSS feeds + content-first pillar classifier
+│       ├── risk-scores/route.ts    # Live composites via lib/risk
+│       ├── staking-discovery/route.ts, coin-discovery/route.ts
+│       ├── portfolio-prices/route.ts, portfolio-history/route.ts
+│       ├── wallet/                 # On-chain balances + exchange connections
+│       ├── pump-report/            # Pump-report scan + chat (own agent loop)
+│       ├── videos/, video-search/, video-analyze/
+│       ├── market-calendar/route.ts, fund-universe/route.ts, coin-list/, coin-search/
+│       ├── btc-stats/, defi-tvl/, fear-greed/, funding-rates/, ohlcv/, assets/
+│       └── cbdc-data/route.ts      # Retained for the de-routed /global-adoption page
 │
 ├── components/
 │   ├── layout/
@@ -89,12 +116,15 @@ frontend/src/
 │   │   ├── TopBar.tsx
 │   │   ├── StatusBar.tsx
 │   │   └── DataStatusBanner.tsx
-│   ├── ui/                         # Generic reusable components
+│   ├── ui/                         # Generic reusable components (incl. SourceLine, ProvenanceNotice)
 │   ├── charts/                     # Recharts wrappers + CandlestickChart/indicatorRegistry (shared TA engine)
 │   ├── markets/                    # Shared equities/funds UI (PriceChartCard, MarketNewsList)
+│   ├── agents/                     # AssistantWidget + agent chat UI
+│   ├── portfolio-builder/          # PlanMonitor and questionnaire UI
+│   ├── pump-report/                # PumpReportTab (used by /wallets)
 │   ├── assets/
 │   ├── analytics/
-│   ├── dashboard/
+│   ├── dashboard/                  # Retained widgets; only RiskHeatmap is still routed (via PopoutContent)
 │   └── alerts/
 │
 ├── lib/
@@ -106,22 +136,38 @@ frontend/src/
 │   │   ├── engine.ts               # composeRisk() — profile-agnostic scoring
 │   │   ├── normalize.ts            # piecewise/linear normalizers, vol, drawdown
 │   │   └── profiles/               # equity, optionsTrade, stakingAdapter
+│   ├── auth/                       # Auth.js config + getCurrentUserId()/requireUserId()
+│   ├── db/                         # Drizzle schema + client (users, entitlements, instruments…)
 │   ├── data/                       # Static/semi-static data files (no API calls)
-│   │   ├── transferFees.ts         # 30 exchanges × 22 coins × 18 networks
-│   │   ├── stakingProviders.ts     # 55 staking providers with risk profiles
-│   │   ├── equityCatalog.ts        # ~70 large-cap stocks, 11 sectors, reference data
-│   │   └── fundCatalog.ts          # ~55 ETFs/mutual funds + computeFeeDrag()
+│   │   ├── transferFees.ts         # 30 exchanges × 22 coins × 18 networks (+ provenance)
+│   │   ├── stakingProviders.ts     # 55 staking providers with risk profiles (+ provenance)
+│   │   ├── equityCatalog.ts        # 79 large-cap stocks, 11 sectors, reference data
+│   │   ├── fundCatalog.ts          # 118 ETFs/mutual funds + computeFeeDrag()
+│   │   ├── commodityCatalog.ts     # 19 front-month contracts, 5 categories
+│   │   ├── currencyCatalog.ts      # 17 FX pairs + DXY
+│   │   ├── ratesCatalog.ts         # 4 CBOE yield indices + 4 CBOT futures
+│   │   ├── instruments.ts          # Unified instrument layer across all classes
+│   │   ├── stablecoinMeta.ts       # Curated issuer metadata (+ provenance)
+│   │   ├── portfolioBuilder.ts     # Portfolio Builder engine (pure TS, vitest-tested)
+│   │   └── assetCatalog.ts         # Coin reference metadata
+│   ├── agents/                     # Agent runner, prompts, tools
+│   ├── server/                     # Server-only helpers (apiGuard, edgar, secFundamentals, customFeeds…)
 │   ├── api/                        # API client functions
-│   │   └── live/                   # Live data fetchers (CoinGecko, DefiLlama, marketData.ts, etc.)
+│   │   └── live/                   # Live data fetchers (CoinGecko, DefiLlama, marketData.ts, providers.ts)
 │   ├── utils/
 │   └── websocket/
 │
 ├── store/                          # Zustand stores
-│   ├── useAlertStore.ts
-│   ├── useAssetStore.ts
-│   ├── useAuthStore.ts
 │   ├── useEntitlementStore.ts      # Which suite modules are enabled
+│   ├── useWatchlistStore.ts        # DB-backed, optimistic
+│   ├── usePortfolioStore.ts        # DB-backed, optimistic
+│   ├── useAlertStore.ts, usePriceAlertStore.ts
+│   ├── useAssetStore.ts, useCoinDiscoveryStore.ts, useStakingDiscoveryStore.ts
+│   ├── useWalletStore.ts, useThesisStore.ts, useFeedBiasStore.ts
+│   ├── usePopoutStore.ts, useTierStore.ts, useRefreshStore.ts, useDashboardStore.ts
 │   └── useStreamStore.ts
+│                                   # NOTE: no auth store — session comes from
+│                                   # next-auth/react's useSession()
 │
 └── types/                          # Shared TypeScript types
 ```
@@ -143,6 +189,7 @@ frontend/src/
    - Import the icon from `lucide-react`
    - Add entry to the owning module's `navItems`: `{ href: '/your-page', label: 'Label', icon: IconName }`
    - If the page belongs to an optional module, also add its route prefix to that module's `routePrefixes` and wrap the page in `<ModuleGate module="...">`
+   - **Wrap at the component boundary, not inside the page's JSX.** `export default function Page() { return <ModuleGate module="x"><PageInner /></ModuleGate> }` — so a disabled module never mounts `PageInner` and its queries never fire. Wrapping the returned JSX instead renders the lock notice while still fetching everything behind it
 
 3. **If you need a live data API route:** `src/app/live-data/your-route/route.ts`
    - Always add `export const dynamic = 'force-dynamic'` (prevents static caching)
@@ -194,6 +241,21 @@ const { data } = useQuery({
 
 ## Data Files Reference
 
+> **Every hand-maintained table must carry provenance.** Curated reference data
+> presented next to live data reads as live, and three separate audit findings
+> (H2, M5, L2) were the same bug: a static snapshot shown with no age, or worse,
+> stamped with a fresh `updatedAt`. The established pattern — copy it — is a
+> `*_LAST_VERIFIED` date, a `*_STALE_AFTER_DAYS` window, `…AgeDays(now)` /
+> `…IsStale(now)` with an **injectable `now`** so it's testable, and a
+> `get…Provenance()` returning `{ source, verifiedAt, ageDays, stale, confidence }`.
+> Render it with `<ProvenanceNotice>` (components/ui) — **always visible, not only
+> when stale**, since a notice that only appears past a threshold teaches readers
+> to treat its absence as "live". Reference implementations: `transferFees.ts`,
+> `stablecoinMeta.ts`, `stakingProviders.ts`.
+>
+> Date the table by when it was **compiled as a whole**, never by its most recent
+> partial edit — re-verifying 8 rows of 55 does not refresh the other 47.
+
 ### `src/lib/data/transferFees.ts`
 Central data file for the Transfer Fee Calculator.
 
@@ -209,7 +271,8 @@ To add an exchange: append to `EXCHANGES` array following the existing pattern. 
 ### `src/lib/data/stakingProviders.ts`
 Central data file for the Staking Opportunities page.
 
-- **`StakingCoinId`** — 9 stakeable coins: eth, sol, ada, dot, atom, matic, avax, bnb, trx
+- **Provenance:** `STAKING_DATA_LAST_VERIFIED` + `getStakingDataProvenance()` drive the freshness notice on `/staking` and `/staking-discovery`, and the `referenceData` block on `/api/v1/staking/opportunities`. Stale after 90 days (shorter than the 120 used for fees/attestations — a provider's risk profile can change overnight, which is why Celsius is in the catalog).
+- **`StakingCoinId`** — 16 stakeable coins: eth, sol, ada, dot, atom, matic, avax, bnb, trx, btc, cro, osmo, ksm, inj, tia, near
 - **`ProviderCategory`** — `'cefi' | 'wallet' | 'liquid'`
 - **`RiskProfile`** — 6 dimensions, each 1–10: `custodyRisk`, `counterpartyRisk`, `contractRisk`, `slashingRisk`, `liquidityRisk`, `regulatoryRisk`
 - **`computeOverallRisk(risks)`** — weighted composite score (counterparty 25%, custody 20%, liquidity 20%, contract 15%, slashing 10%, regulatory 10%)
@@ -222,12 +285,12 @@ Central data file for the Staking Opportunities page.
 To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius should always be kept — it's used as the educational cautionary example.
 
 ### `src/lib/data/equityCatalog.ts` (Equities module)
-- **`EQUITY_CATALOG`** — ~70 large-cap US stocks with sector (11 GICS sectors in `SECTOR_INFO`), industry, and approximate reference values (price, market cap, P/E, dividend yield, beta). Reference values are fallbacks — live quotes override price/change.
+- **`EQUITY_CATALOG`** — 79 large-cap US stocks with sector (11 GICS sectors in `SECTOR_INFO`), industry, and approximate reference values (price, market cap, P/E, dividend yield, beta). Reference values are fallbacks — live quotes override price/change.
 - Symbols use Yahoo notation (`BRK-B`, not `BRK.B`) so one string works across Yahoo and FMP.
 - To add a stock: append to `EQUITY_CATALOG`; the registry table, detail route, and quote universe pick it up automatically.
 
 ### `src/lib/data/fundCatalog.ts` (Funds module)
-- **`FUND_CATALOG`** — ~55 funds (`type: 'etf' | 'mutual'`) with issuer, category (`FUND_CATEGORY_INFO`), expense ratio, AUM, yield, inception, tracked index, and indicative top holdings.
+- **`FUND_CATALOG`** — 118 funds (`type: 'etf' | 'mutual'`) with issuer, category (`FUND_CATEGORY_INFO`), expense ratio, AUM, yield, inception, tracked index, and indicative top holdings.
 - **`computeFeeDrag(principal, erPct, years, returnPct)`** — expense-ratio cost projection used by the Fee Drag Analyzer on fund detail pages.
 - To add a fund: append to `FUND_CATALOG` following the pattern.
 
@@ -267,13 +330,47 @@ The **TopBar data-tier dropdown** (`TierSwitch` / `src/lib/tier.ts`) breaks sour
 ## Environment Variables
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:8000   # Optional legacy backend (auth/agent only)
-NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws   # WebSocket (optional)
-# Paid-tier provider keys (CoinGecko Pro, CryptoPanic, etc.) live in .env.local
-FMP_API_KEY=...                             # Optional — settable in the Integrations UI. Uses FMP's /stable API (legacy /api/v3 is retired → 403). FREE tier: single-symbol quote/profile/history + earnings calendar. PAID only: batch quotes, company-screener, constituent lists, economic calendar. So a free key powers per-stock data & detail-page ticker resolution, but the broad Stock Registry universe needs a paid plan.
-# Other equity quote providers (all optional; also settable in the Integrations UI):
-# FINNHUB_API_KEY, TWELVE_DATA_API_KEY, TIINGO_API_KEY, ALPHA_VANTAGE_API_KEY
-FN_ADMIN_TOKEN=...                        # (legacy CAEP_ADMIN_TOKEN still honored) Optional — sensitive endpoints (AI agents, provider config, exchange creds) require this token when the app is served from a non-localhost host; without it they are localhost-only (see src/lib/server/apiGuard.ts)
+# ── Database (required for every DB-backed feature) ──
+DATABASE_URL=postgres://…                   # Postgres. Backs users, entitlements, portfolios,
+                                            # watchlists, builder_plans, instruments. Without it
+                                            # those routes return 503 (isDbConfigured guard) —
+                                            # the rest of the app still runs live-only.
+
+# ── Auth (Auth.js / next-auth v5) ──
+AUTH_SECRET=…                               # REQUIRED once the login wall is re-enabled — Auth.js
+                                            # reads it directly from env (it appears in no source
+                                            # file, so grep won't find it). Generate: openssl rand -base64 32
+FN_ALLOW_LOCAL_USER=true|false              # (legacy CAEP_ALLOW_LOCAL_USER still honored)
+                                            # Defaults: allowed in dev, denied in production.
+                                            # ⚠ Setting true in production hands every anonymous
+                                            # visitor the same shared account. See lib/auth/session.ts.
+
+# ── Optional legacy backend ──
+NEXT_PUBLIC_API_URL=http://localhost:8000   # Legacy Python backend. Still serves assets/market-data/
+                                            # alerts/risk-scores through the axios client; auth no
+                                            # longer routes here (see lib/auth/).
+NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws   # WebSocket (optional; unused while LIVE_DATA is true)
+NEXT_PUBLIC_SITE_URL=…                      # Absolute base for share links / metadata
+
+# ── AI agents ──
+ANTHROPIC_API_KEY=…                         # Daily Brief, all agents, pump-report. Also settable in
+                                            # Integrations → AI Providers (UI key wins over env).
+# Other LLM providers, same resolution order via getProviderKey():
+# OPENAI_API_KEY, GOOGLE_API_KEY, GROQ_API_KEY, XAI_API_KEY, DEEPSEEK_API_KEY,
+# PERPLEXITY_API_KEY, MISTRAL_API_KEY, TOGETHER_API_KEY, COHERE_API_KEY
+
+# ── Market data providers (all optional; all settable in the Integrations UI) ──
+FMP_API_KEY=...                             # Uses FMP's /stable API (legacy /api/v3 is retired → 403). FREE tier: single-symbol quote/profile/history + earnings calendar. PAID only: batch quotes, company-screener, constituent lists, economic calendar. So a free key powers per-stock data & detail-page ticker resolution, but the broad Stock Registry universe needs a paid plan.
+COINGECKO_API_KEY=…                         # Paid tier; COINGECKO_BASE_URL overrides the endpoint
+# Equity quotes:  FINNHUB_API_KEY, TWELVE_DATA_API_KEY, TIINGO_API_KEY, ALPHA_VANTAGE_API_KEY
+# Crypto/news:    COINMARKETCAP_API_KEY, BINANCE_API_KEY, CRYPTOPANIC_API_KEY, MESSARI_API_KEY,
+#                 NEWSAPI_API_KEY, GNEWS_API_KEY, LUNARCRUSH_API_KEY, SANTIMENT_API_KEY
+# Full env-var mapping lives in getProviderKey() (src/lib/api/live/providers.ts).
+
+# ── Admin ──
+FN_ADMIN_TOKEN=...                          # (legacy CAEP_ADMIN_TOKEN still honored) Optional — sensitive endpoints (AI agents, provider config, exchange creds) require this token when the app is served from a non-localhost host; without it they are localhost-only (see src/lib/server/apiGuard.ts)
+FN_BASE_URL=http://localhost:3000           # (legacy CAEP_BASE_URL still honored) Base URL the MCP
+                                            # server and scripts call back into
 ```
 
 **Server-side secret stores** (gitignored, written at repo `frontend/` root):
@@ -349,15 +446,15 @@ Risk/status color convention used across the app:
 | Headlines | `/headlines` | 🟢 Live | **Landing page** (`/` and post-login redirect here). Client-side merge of `/live-data/news` (crypto) + `/live-data/market-news` (equities) into a cross-module "Top Stories" strip plus a section per enabled module. Sections follow the entitlement store, so the feed reflects the user's bundle. Funds has no general feed of its own and shares the Markets section. Replaced the old `/dashboard` page; its `components/dashboard/*` widgets are retained but no longer routed (except `RiskHeatmap`, still used by `PopoutContent`). |
 | Coins (Coin Registry) | `/assets` | 🟢 Live | Nav label "Coins"; route path kept as `/assets` to preserve deep links. Market-breadth KPIs, asset-type chips + inline screener, sortable/paginated table (Stock-Registry-standard layout), canonical Safety Score column, Reserve Monitor tab. Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
 | Coin Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-coin news |
-| Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk` |
-| Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`) |
+| Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk`. **No sidebar entry** — in the crypto module's `routePrefixes` but not its `navItems`; reached from the coin detail page's "full leaderboard & methodology" link |
+| Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`). **No sidebar entry and no inbound links** — reachable only by direct URL. The Coins page's "Reserve Monitor" is a tab inside `/assets`, not a link here. Either link it or fold it in |
 | Alerts | TopBar bell | 🟢 Live | `/live-data/alerts` — stablecoin depegs + major-asset 24h moves; surfaced in the TopBar bell (no standalone page) |
 | Watchlist | `/watchlist` | 🟢 Live | Cross-module: coins, stocks, ETFs & funds, and macro instruments in named lists with live prices. **DB-backed** via `/api/user/watchlists` (+`/[id]` PUT/DELETE) through `useWatchlistStore` (optimistic, client-UUID ids, one-time localStorage import that MERGES even into a non-empty account — see store comment). Feed bias (`lib/watchlist/bias.ts`) and the Daily Brief read the store, not localStorage |
 | News | `/news` | 🟢 Live | Multi-provider RSS/JSON; sentiment + asset detection |
 | Social | `/social` | 🟡 Partial | `/live-data/social` — verify which signals are live vs derived |
 | Global | `/global-adoption` | ⚪ De-routed | Access removed (T5) pending a post-production rework — a mislabeled CBDC tracker on stale/duplicated static data with a fabricated live timestamp. Page + `/live-data/cbdc-data` route retained; `/global-adoption` redirects to `/headlines`. See `docs/assessments/T5-utility-triage.md`. |
 | Transfer Fee Calc | `/transfer-fees` | 🟡 Partial | Static fee table (`transferFees.ts`) + live token prices; staleness-labeled |
-| Staking | `/staking` | 🟡 Partial | Live stETH/mSOL/jitoSOL APR; other providers reference/estimated |
+| Staking | `/staking` | 🟡 Partial | Live stETH/mSOL/jitoSOL APR; other providers reference/estimated. Curated catalog is staleness-labeled (`getStakingDataProvenance()`) |
 | Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
 | Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data |
 | Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
@@ -365,6 +462,8 @@ Risk/status color convention used across the app:
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
 | Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
+| Videos | `/videos` | 🟢 Live | Video search + AI analysis (`/live-data/videos`, `video-search`, `video-analyze`) |
+| Data Sources | `/data-sources` | — | Per-provider status and utilization, read from the provider registry |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
@@ -399,15 +498,15 @@ One module (`macro` entitlement), three areas. Owner spec + status: `docs/ROADMA
 | Macro Overview | `/macro` | 🟢 Live | Landing page; live quote strips per area |
 | Macro News | `/macro/news` | 🟢 Live | `/live-data/macro-news` — 8 keyless RSS feeds (Investing.com commodities/bonds/forex, OilPrice, FXStreet, MarketWatch, CNBC ×2). **Content-first pillar classifier** (strong-currency terms → commodities → bonds → weak-currency; general-feed articles matching no pillar are dropped). 14-day staleness cutoff; future `pubDate`s clamped (Investing.com omits TZ); balanced merge guarantees each pillar ≤¼ of slots so slow bonds feeds aren't crowded out; detected instruments link to macro detail pages |
 | Commodities | `/macro/commodities`, `/[slug]` | 🟢 Live | `commodityCatalog.ts` — 19 verified front-month contracts, 5 categories. `quoteBasis: 'usd'\|'cents'` renders each market's convention (472.75¢/bu, never "$472"). Detail: chart + facts + ETF proxies → /funds. **`etfProxies` are genuine single-commodity exposure**, not the broad-basket DBC these used to point to. Deep, multi-issuer lineups for the liquid metals/energy markets (gold: GLD/IAU/GLDM/SGOL/AAAU/BAR/OUNZ; silver: SLV/SIVR/PSLV; WTI: USO/OILK/USL; nat gas: UNG/UNL) — each variant genuinely differs (expense ratio, K-1 vs 1099 tax form, front-month vs laddered roll, physical-redemption feature), all added to `fundCatalog.ts` and verified both quotable AND actively trading (5-day history, not just a cached price) before inclusion. Copper/grain/platinum/palladium get one verified proxy each (CPER/CORN/WEAT/SOYB/CANE/PPLT/PALL) — genuinely thinner markets, not an under-researched gap; broad-basket funds (DBB, COPX-style miner ETFs) are deliberately excluded even as a single option since that's the exact overstated-specificity problem this fix corrected. Heating oil, coffee, cocoa, cotton, live cattle, and lean hogs are **deliberately empty** — their single-commodity ETFs/ETNs (UHN, JO, NIB, BAL, COW) were confirmed delisted (last trade 2019–2023) 2026-07-21; don't backfill with a basket fund to avoid a blank list |
-| Currencies | `/macro/currencies`, `/[slug]` | 🟢 Live | `currencyCatalog.ts` — 18 pairs + DXY, per-pair `precision`. **`etfProxies`** (new `FundCategoryId: 'currency'` in `fundCatalog.ts`): the 6 USD majors get their CurrencyShares trust (FXE/FXB/FXY/FXF/FXC/FXA — holds currency deposits, direct exposure); Dollar Index gets UUP/UDN/USDU (long/short/alt-index). Deliberately empty for every EM pair and every cross — EM single-currency funds (FXM/BZF/CYB/ICN/SZR) confirmed delisted, crosses have never had a dedicated fund (only vs-USD trusts exist), NZD/KRW never had one. **Converter is two-tier**: 30 ECB currencies (`/live-data/fx-rates`, frankfurter.dev — verified to be ECB's *complete* published set, not a subset) plus 127 more via `/live-data/fx-rates-extended` (community `fawazahmed0/currency-api`, keyless, hand-verified allowlist excluding crypto tickers/precious-metal ounce codes/IMF SDR/defunct pre-euro currencies from that feed's ~340 raw codes). Grouped by `<optgroup>` in the UI; any conversion touching an extended-tier currency shows a distinct disclosure (community-sourced, not ECB) instead of the "official" ECB copy — the two tiers are never blended without attribution |
+| Currencies | `/macro/currencies`, `/[slug]` | 🟢 Live | `currencyCatalog.ts` — 17 pairs + DXY (18 entries), per-pair `precision`. **`etfProxies`** (new `FundCategoryId: 'currency'` in `fundCatalog.ts`): the 6 USD majors get their CurrencyShares trust (FXE/FXB/FXY/FXF/FXC/FXA — holds currency deposits, direct exposure); Dollar Index gets UUP/UDN/USDU (long/short/alt-index). Deliberately empty for every EM pair and every cross — EM single-currency funds (FXM/BZF/CYB/ICN/SZR) confirmed delisted, crosses have never had a dedicated fund (only vs-USD trusts exist), NZD/KRW never had one. **Converter is two-tier**: 30 ECB currencies (`/live-data/fx-rates`, frankfurter.dev — verified to be ECB's *complete* published set, not a subset) plus 127 more via `/live-data/fx-rates-extended` (community `fawazahmed0/currency-api`, keyless, hand-verified allowlist excluding crypto tickers/precious-metal ounce codes/IMF SDR/defunct pre-euro currencies from that feed's ~340 raw codes). Grouped by `<optgroup>` in the UI; any conversion touching an extended-tier currency shows a distinct disclosure (community-sourced, not ECB) instead of the "official" ECB copy — the two tiers are never blended without attribution |
 | Bonds & Rates | `/macro/rates`, `/[slug]` | 🟢 Live | `ratesCatalog.ts` — 4 CBOE yield indices + 4 CBOT futures. Curve chart from `/live-data/treasury-yield-curve` = **official** treasury.gov 13-maturity daily par curve (keyless XML, regex-parsed, 4h revalidate) + 2s10s/3m10y spreads + shape. Overview-page bond ETF shelf → /funds. **CUSIP-level bond quotes are licensed data — intentionally absent, stated on-page.** Detail pages carry a per-instrument **"Duration-Matched Funds"** section (`etfProxies`, distinct from the commodity/currency "ETF Proxies" naming since nobody buys "the 10-year yield" directly — the match is by maturity band, not asset identity): 13-week yield → SGOV/BIL (0-3mo bills); 5-year yield + 5yr future → IEI (3-7Y, added to fill the SHY↔IEF duration gap); 10-year yield + 10yr future → IEF; 30-year yield + 30yr future → TLT; 2yr future → SHY. General credit/inflation/aggregate funds (LQD/HYG/TIP/BND/AGG) stay overview-only since they don't map to a specific curve point |
 
-`PriceChartCard` takes `valueFormat: 'usd' | 'plain'` (default `'usd'`, existing pages unchanged) — use `'plain'` for FX, yields, and cents-quoted contracts so axes aren't $-mislabeled. **Cross-cutting integration shipped 2026-07-21**: `market: 'macro'` exists across the provider registry (11 built-in rows; macro routes are registry-driven with utilization), tier categories, Integrations sections, and agents (`macro-research`/`macro-screener`, toolset `'macro'`); all 46 macro instruments are `sec:`-keyed entries in `instruments.ts` (classes `commodity`/`currency`/`rate`, `detailPath` slug routing) so watchlists/portfolios/Compare can hold them.
+`PriceChartCard` takes `valueFormat: 'usd' | 'plain'` (default `'usd'`, existing pages unchanged) — use `'plain'` for FX, yields, and cents-quoted contracts so axes aren't $-mislabeled. **Cross-cutting integration shipped 2026-07-21**: `market: 'macro'` exists across the provider registry (11 built-in rows; macro routes are registry-driven with utilization), tier categories, Integrations sections, and agents (`macro-research`/`macro-screener`, toolset `'macro'`); all 45 macro instruments (19 commodities + 18 currencies + 8 rates) are `sec:`-keyed entries in `instruments.ts` (classes `commodity`/`currency`/`rate`, `detailPath` slug routing) so watchlists/portfolios/Compare can hold them.
 
 ### ETFs & Funds module (`/funds`)
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
-| Fund Registry | `/funds` | 🟢 Live | `fundCatalog.ts` + live quotes; ~55 ETFs/mutual funds |
+| Fund Registry | `/funds` | 🟢 Live | `fundCatalog.ts` + live quotes; 118 ETFs/mutual funds |
 | Fund Detail | `/funds/[symbol]` | 🟢 Live | Live chart/news + fund facts; Fee Drag Analyzer, top holdings |
 
 ---
