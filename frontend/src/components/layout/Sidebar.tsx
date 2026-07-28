@@ -19,9 +19,9 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import { useSession } from 'next-auth/react'
 import { useAlertStore } from '@/store/useAlertStore'
 import { useStreamStore } from '@/store/useStreamStore'
-import { useAuthStore } from '@/store/useAuthStore'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { usePopoutStore, POPOUT_META, type PopoutKey } from '@/store/usePopoutStore'
 import { MODULES, moduleForPath, type ModuleId, type SuiteModule } from '@/lib/modules/registry'
@@ -176,7 +176,8 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { unreadCount } = useAlertStore()
   const { connectionStatus } = useStreamStore()
-  const { user } = useAuthStore()
+  const { data: session } = useSession()
+  const user = session?.user
   const isEnabled = useEntitlementStore((s) => s.isEnabled)
 
   const [order, setOrder] = useState<SectionOrder>({})
@@ -472,8 +473,17 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 <User size={12} className="text-accent-blue" aria-hidden />
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-medium text-text-primary truncate">{user.name}</div>
-                <div className="text-[10px] text-text-muted capitalize">{user.role}</div>
+                {/* `name` is nullable in the users table, and the Auth.js
+                    session carries no role — the removed legacy backend was
+                    the only thing that had one. Email is the identifier that
+                    always exists, so it fills in for a missing name and
+                    otherwise sits underneath it. */}
+                <div className="text-xs font-medium text-text-primary truncate">
+                  {user.name ?? user.email}
+                </div>
+                {user.name && user.email && (
+                  <div className="text-[10px] text-text-muted truncate">{user.email}</div>
+                )}
               </div>
             </div>
             {/* Logout removed while the login wall is disabled (see (dashboard)/layout.tsx).

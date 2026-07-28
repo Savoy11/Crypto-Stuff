@@ -2,36 +2,55 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { signIn } from 'next-auth/react'
 import { Activity, Eye, EyeOff, Loader2, AlertTriangle } from 'lucide-react'
-import { useAuthStore } from '@/store/useAuthStore'
 import { APP_NAME, APP_FULL_NAME } from '@/lib/constants'
 import { clsx } from 'clsx'
 
+// Sign-in goes through Auth.js (lib/auth/config.ts) against the Postgres
+// `users` table. It used to post to the legacy Python backend over axios, which
+// authenticated a *different* user record than the one every DB-backed feature
+// resolves through getCurrentUserId() — so logging in did not change whose
+// portfolios you saw. That duplicate stack is gone; this is the only login path.
+
+// LOGIN TEMPORARILY DISABLED (by request, until the risk framework is done).
+// The page redirects away so the screen never renders; the form below is
+// preserved. To RE-ENABLE: set this to false and set REQUIRE_AUTH = true in
+// (dashboard)/layout.tsx. Unlike before, flipping those now yields a correct
+// login — the session Auth.js creates is the same one getCurrentUserId() reads,
+// so a signed-in user sees their own rows rather than local-user mode's shared
+// ones.
+//
+// Module scope, not a component const: it is a build-time flag, and as a local
+// it tripped react-hooks/exhaustive-deps on the redirect effect below.
+const LOGIN_DISABLED = true
+
 export default function LoginPage() {
   const router = useRouter()
-  const { login, isLoading, error, clearError } = useAuthStore()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault()
-      clearError()
-      try {
-        await login({ email, password })
-        router.push('/headlines')
-      } catch {
-        // error already set in store
+      setError(null)
+      setIsLoading(true)
+      // redirect: false so a bad password renders an inline error instead of
+      // bouncing to Auth.js's own error page.
+      const result = await signIn('credentials', { email, password, redirect: false })
+      setIsLoading(false)
+      if (result?.error) {
+        setError('Incorrect email or password.')
+        return
       }
+      router.push('/headlines')
     },
-    [email, password, login, router, clearError]
+    [email, password, router]
   )
 
-  // LOGIN TEMPORARILY DISABLED (by request, until the risk framework is done).
-  // Redirect away so the screen never renders; the form below is preserved.
-  // To RE-ENABLE later: remove this block and the `LOGIN_DISABLED` gate on the return.
-  const LOGIN_DISABLED = true
   useEffect(() => {
     if (LOGIN_DISABLED) router.replace('/headlines')
   }, [router])

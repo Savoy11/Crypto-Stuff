@@ -22,37 +22,11 @@ export interface ApiError {
   details?: Record<string, string[]>
 }
 
-export interface LoginRequest {
-  email: string
-  password: string
-}
-
-export interface LoginResponse {
-  accessToken: string
-  refreshToken: string
-  user: UserProfile
-  expiresIn: number
-}
-
-export interface RefreshTokenRequest {
-  refreshToken: string
-}
-
-export interface RefreshTokenResponse {
-  accessToken: string
-  expiresIn: number
-}
-
-export interface UserProfile {
-  id: string
-  email: string
-  name: string
-  role: 'admin' | 'analyst' | 'viewer'
-  organization: string
-  avatar?: string
-  createdAt: string
-  lastLoginAt: string
-}
+// The legacy backend's auth DTOs (LoginRequest/LoginResponse/RefreshToken*/
+// UserProfile) lived here. They described the Python API's token exchange and
+// user record, which the app no longer talks to — Auth.js owns sign-in and its
+// session type comes from next-auth. Removed rather than kept "just in case":
+// a second user shape is exactly what let two divergent identities coexist.
 
 export interface WebSocketMessage<T = unknown> {
   type: string

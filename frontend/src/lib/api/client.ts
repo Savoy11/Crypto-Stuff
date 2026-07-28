@@ -1,22 +1,16 @@
-import axios, { type AxiosInstance, type AxiosRequestConfig, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
+import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from 'axios'
 import { API_BASE_URL } from '@/lib/constants'
 
-let _getAccessToken: (() => string | null) | null = null
-let _getRefreshToken: (() => string | null) | null = null
-let _onRefreshSuccess: ((token: string) => void) | null = null
-let _onLogout: (() => void) | null = null
-
-export function configureApiClient(opts: {
-  getAccessToken: () => string | null
-  getRefreshToken: () => string | null
-  onRefreshSuccess: (token: string) => void
-  onLogout: () => void
-}) {
-  _getAccessToken = opts.getAccessToken
-  _getRefreshToken = opts.getRefreshToken
-  _onRefreshSuccess = opts.onRefreshSuccess
-  _onLogout = opts.onLogout
-}
+// Axios client for the remaining legacy-backend calls (assets, market-data,
+// alerts, risk-scores). It carries no auth: the bearer-token and refresh-queue
+// interceptors that used to live here were driven entirely by the legacy auth
+// store's in-memory tokens, and both are gone now that Auth.js owns sign-in.
+// Auth.js keeps its session in an HttpOnly cookie, which the browser attaches
+// on its own — there is nothing for an interceptor to inject.
+//
+// Whether this client should exist at all is a separate question: see the
+// dead-weight sweep in docs/assessments (M8). `assetsApi` is the one live
+// consumer, via the Coin Registry's market-breadth KPIs.
 
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -27,12 +21,8 @@ const apiClient: AxiosInstance = axios.create({
   },
 })
 
-// Request interceptor — attach auth token + request ID
+// Request interceptor — request ID + client tag for server-side correlation
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  const token = _getAccessToken?.()
-  if (token && config.headers) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
   if (config.headers) {
     config.headers['X-Request-ID'] = crypto.randomUUID()
     config.headers['X-Client'] = 'fn-web/1.0'
@@ -40,72 +30,10 @@ apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   return config
 })
 
-let isRefreshing = false
-let refreshQueue: Array<{
-  resolve: (token: string) => void
-  reject: (err: unknown) => void
-}> = []
-
-function processRefreshQueue(token: string | null, error: unknown) {
-  refreshQueue.forEach(({ resolve, reject }) => {
-    if (token) resolve(token)
-    else reject(error)
-  })
-  refreshQueue = []
-}
-
-// Response interceptor — handle 401 with token refresh
+// Response interceptor — normalize errors into a consistent shape
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean }
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          refreshQueue.push({
-            resolve: (token: string) => {
-              if (originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${token}`
-              }
-              resolve(apiClient(originalRequest))
-            },
-            reject,
-          })
-        })
-      }
-
-      originalRequest._retry = true
-      isRefreshing = true
-
-      const refreshToken = _getRefreshToken?.()
-      if (!refreshToken) {
-        _onLogout?.()
-        return Promise.reject(error)
-      }
-
-      try {
-        const { data } = await axios.post(`${API_BASE_URL}/auth/refresh`, {
-          refreshToken,
-        })
-        const newToken: string = data.accessToken
-        _onRefreshSuccess?.(newToken)
-        processRefreshQueue(newToken, null)
-
-        if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${newToken}`
-        }
-        return apiClient(originalRequest)
-      } catch (refreshError) {
-        processRefreshQueue(null, refreshError)
-        _onLogout?.()
-        return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
-      }
-    }
-
-    // Normalize error
     const apiError = {
       message: (error.response?.data as { message?: string })?.message ?? error.message ?? 'An unexpected error occurred',
       code: (error.response?.data as { code?: string })?.code ?? 'UNKNOWN_ERROR',
