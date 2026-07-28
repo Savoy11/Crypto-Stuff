@@ -3,13 +3,15 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
 import { getCommodity } from '@/lib/data/commodityCatalog'
 import { CommodityDetailClient } from './CommodityDetailClient'
 
-export default function CommodityDetailPage({ params }: { params: { slug: string } }) {
-  const entry = getCommodity(params.slug)
+export default async function CommodityDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  // Next 15: route params are a Promise. See the note in the Next 15 commit.
+  const { slug } = await params
+  const entry = getCommodity(slug)
   if (!entry) notFound()
 
   return (
     <ModuleGate module="macro">
-      <CommodityDetailClient slug={params.slug} />
+      <CommodityDetailClient slug={slug} />
     </ModuleGate>
   )
 }
