@@ -124,8 +124,8 @@ frontend/src/
 │   ├── pump-report/                # PumpReportTab (used by /wallets)
 │   ├── assets/
 │   ├── analytics/
-│   ├── dashboard/                  # Retained widgets; only RiskHeatmap is still routed (via PopoutContent)
-│   └── alerts/
+│   ├── dashboard/                  # RiskHeatmap only — the other 6 widgets were deleted in the M8 sweep
+│   └── alerts/                     # LiveAlertRow only (TopBar bell)
 │
 ├── lib/
 │   ├── constants.ts                # App-wide constants, stale times, API URLs
@@ -162,10 +162,10 @@ frontend/src/
 │   ├── useWatchlistStore.ts        # DB-backed, optimistic
 │   ├── usePortfolioStore.ts        # DB-backed, optimistic
 │   ├── useAlertStore.ts, usePriceAlertStore.ts
-│   ├── useAssetStore.ts, useCoinDiscoveryStore.ts, useStakingDiscoveryStore.ts
+│   ├── useAssetStore.ts, useCoinDiscoveryStore.ts
 │   ├── useWalletStore.ts, useThesisStore.ts, useFeedBiasStore.ts
-│   ├── usePopoutStore.ts, useTierStore.ts, useRefreshStore.ts, useDashboardStore.ts
-│   └── useStreamStore.ts
+│   ├── usePopoutStore.ts, useTierStore.ts, useRefreshStore.ts
+│   └── useStreamStore.ts           # owns the WsStatus type since M8 removed the ws client
 │                                   # NOTE: no auth store — session comes from
 │                                   # next-auth/react's useSession()
 │
@@ -349,7 +349,9 @@ FN_ALLOW_LOCAL_USER=true|false              # (legacy CAEP_ALLOW_LOCAL_USER stil
 NEXT_PUBLIC_API_URL=http://localhost:8000   # Legacy Python backend. Still serves assets/market-data/
                                             # alerts/risk-scores through the axios client; auth no
                                             # longer routes here (see lib/auth/).
-NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws   # WebSocket (optional; unused while LIVE_DATA is true)
+                                            # NEXT_PUBLIC_WS_URL is gone — the app opens no socket.
+                                            # The reconnect client it configured was unreachable
+                                            # (LIVE_DATA is hardcoded true) and was removed in M8.
 NEXT_PUBLIC_SITE_URL=…                      # Absolute base for share links / metadata
 
 # ── AI agents ──

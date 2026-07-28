@@ -28,18 +28,10 @@ export interface ApiError {
 // session type comes from next-auth. Removed rather than kept "just in case":
 // a second user shape is exactly what let two divergent identities coexist.
 
-export interface WebSocketMessage<T = unknown> {
-  type: string
-  channel: string
-  data: T
-  timestamp: string
-  requestId?: string
-}
-
-export interface WebSocketSubscription {
-  channel: string
-  assetId?: string
-}
+// WebSocketMessage/WebSocketSubscription described the legacy backend's socket
+// envelope. Both went with lib/websocket/client.ts in the M8 sweep — the app is
+// live-only over /live-data REST routes and opens no socket. Connection status
+// (the one surviving concept) is typed as WsStatus in store/useStreamStore.ts.
 
 export type TimeRange = '1h' | '24h' | '7d' | '30d' | '90d' | '1y'
 

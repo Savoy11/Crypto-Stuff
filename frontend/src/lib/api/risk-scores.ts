@@ -1,52 +1,15 @@
-import apiClient from './client'
 import type { RiskScore } from '@/types/asset'
-import type { RiskSummary, RiskLeaderboardEntry } from '@/types/risk'
-import type { PaginatedResponse, TimeRange } from '@/types/api'
-import { LIVE_DATA } from '@/lib/constants'
+import type { TimeRange } from '@/types/api'
 
-// Composite risk scoring is a derived analytic with no free real-time source.
-// In strict live mode it is reported as empty (the UI shows an explicit
-// "not available" notice) rather than falling back to mock scores.
-const EMPTY_RISK_SUMMARY: RiskSummary = {
-  totalAssets: 0,
-  avgScore: 0,
-  distribution: [],
-  trends: [],
-  lastUpdated: new Date(0).toISOString(),
-}
-
-const EMPTY_LEADERBOARD: PaginatedResponse<RiskLeaderboardEntry> = {
-  data: [],
-  total: 0,
-  page: 1,
-  pageSize: 0,
-  totalPages: 0,
-  hasNext: false,
-  hasPrev: false,
-}
-
+// Per-asset composite risk *history* is a derived analytic with no free
+// real-time source, so this reads as empty and the chart shows an explicit
+// "not available" notice rather than mock scores. (The live composites the
+// app does surface come from /live-data/risk-scores via lib/risk.)
+//
+// getSummary / getLeaderboard / getLatestScore were removed in the M8 sweep:
+// their legacy-backend paths sat behind `if (LIVE_DATA)` early returns —
+// unreachable, since `LIVE_DATA` is a hardcoded `true` — and their hooks
+// (useRiskSummary, useRiskLeaderboard, useLatestRiskScore) had no consumers.
 export const riskScoresApi = {
-  getSummary: async (): Promise<RiskSummary> => {
-    if (LIVE_DATA) return EMPTY_RISK_SUMMARY
-    const { data } = await apiClient.get<RiskSummary>('/risk-scores/summary')
-    return data
-  },
-
-  getLeaderboard: async (params: { page?: number; pageSize?: number } = {}): Promise<PaginatedResponse<RiskLeaderboardEntry>> => {
-    if (LIVE_DATA) return EMPTY_LEADERBOARD
-    const { data } = await apiClient.get<PaginatedResponse<RiskLeaderboardEntry>>('/risk-scores/leaderboard', { params })
-    return data
-  },
-
-  getAssetScores: async (assetId: string, timeRange: TimeRange = '30d'): Promise<RiskScore[]> => {
-    if (LIVE_DATA) return []
-    const { data } = await apiClient.get<RiskScore[]>(`/risk-scores/${assetId}`, { params: { timeRange } })
-    return data
-  },
-
-  getLatestScore: async (assetId: string): Promise<RiskScore | null> => {
-    if (LIVE_DATA) return null
-    const { data } = await apiClient.get<RiskScore>(`/risk-scores/${assetId}/latest`)
-    return data
-  },
+  getAssetScores: async (_assetId: string, _timeRange: TimeRange = '30d'): Promise<RiskScore[]> => [],
 }

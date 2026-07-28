@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { assetsApi, type GetAssetsParams } from '@/lib/api/assets'
 import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
@@ -13,7 +13,6 @@ export const ASSET_KEYS = {
   list: (params: GetAssetsParams) => [...ASSET_KEYS.lists(), params] as const,
   details: () => [...ASSET_KEYS.all, 'detail'] as const,
   detail: (id: string) => [...ASSET_KEYS.details(), id] as const,
-  watchlist: () => [...ASSET_KEYS.all, 'watchlist'] as const,
   search: (q: string) => [...ASSET_KEYS.all, 'search', q] as const,
 }
 
@@ -43,14 +42,9 @@ export function useAsset(id: string) {
   })
 }
 
-export function useWatchlist() {
-  return useQuery({
-    queryKey: ASSET_KEYS.watchlist(),
-    queryFn: () => assetsApi.getWatchlist(),
-    staleTime: STALE_TIME_MEDIUM,
-    gcTime: GC_TIME,
-  })
-}
+// useWatchlist was removed in the M8 sweep — no consumers, and the api method
+// behind it faked a saved list from "the first 5 assets". The real watchlist is
+// store/useWatchlistStore.ts, backed by /api/user/watchlists.
 
 /**
  * The live risk composite for every scored asset, indexed by id. Shared query
@@ -75,20 +69,8 @@ export function useAssetSearch(query: string) {
   })
 }
 
-export function usePrefetchAsset() {
-  const queryClient = useQueryClient()
-
-  return useCallback(
-    (id: string) => {
-      queryClient.prefetchQuery({
-        queryKey: ASSET_KEYS.detail(id),
-        queryFn: () => assetsApi.getAsset(id),
-        staleTime: STALE_TIME_MEDIUM,
-      })
-    },
-    [queryClient]
-  )
-}
+// usePrefetchAsset was removed in the M8 sweep — it was written for a hover-
+// prefetch on the asset table that never shipped, and had no callers.
 
 // ─── Discovered-coin → Asset conversion ──────────────────────────────────────
 
