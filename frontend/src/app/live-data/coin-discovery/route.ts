@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import {
-  CAEP_TRACKED_IDS, UTILITY_MAP, CATEGORY_INFO, SCORING_CONFIG,
+  FN_TRACKED_IDS, UTILITY_MAP, CATEGORY_INFO, SCORING_CONFIG,
   getRecommendationLevel, type RecommendationLevel,
 } from '@/lib/data/coinCatalog'
 import { fetchCoinGeckoPages } from '@/lib/server/coingeckoPages'
@@ -191,10 +191,10 @@ export async function GET(req: Request) {
     )
   }
 
-  const alreadyTracked = rawCoins.filter(c => CAEP_TRACKED_IDS.has(c.id)).length
+  const alreadyTracked = rawCoins.filter(c => FN_TRACKED_IDS.has(c.id)).length
 
   const candidates: CandidateCoin[] = rawCoins
-    .filter(c => !CAEP_TRACKED_IDS.has(c.id) && c.market_cap > 0)
+    .filter(c => !FN_TRACKED_IDS.has(c.id) && c.market_cap > 0)
     .map(c => {
       const mc   = scoreMarketCap(c.market_cap)
       const util = scoreUtility(c.id)

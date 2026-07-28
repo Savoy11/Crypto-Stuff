@@ -10,10 +10,10 @@ from datetime import UTC, datetime, timedelta
 from functools import wraps
 from typing import Any
 
+import bcrypt
 import pyotp
 import structlog
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.config import settings
 from app.core.exceptions import (
@@ -28,17 +28,24 @@ logger = structlog.get_logger(__name__)
 # Password hashing
 # ------------------------------------------------------------------ #
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Direct bcrypt, not passlib: passlib 1.7.4 is unmaintained and its backend
+# self-test crashes against bcrypt >= 4.1 (feeds a >72-byte probe that modern
+# bcrypt rejects with ValueError). Hashes are the same $2b$ format either way,
+# so existing stored hashes keep verifying.
 
 
 def get_password_hash(password: str) -> str:
-    """Hash a plaintext password using bcrypt."""
-    return pwd_context.hash(password)
+    """Hash a plaintext password using bcrypt (cost 12)."""
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plaintext password against a bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except ValueError:
+        # Malformed/legacy hash — treat as non-matching rather than erroring.
+        return False
 
 
 # ------------------------------------------------------------------ #
@@ -186,7 +193,7 @@ def generate_api_key() -> tuple[str, str]:
         Tuple of (raw_key, key_hash). Store only the hash in the database;
         return the raw key once to the user.
     """
-    raw_key = f"caep_{secrets.token_urlsafe(40)}"
+    raw_key = f"fn_{secrets.token_urlsafe(40)}"
     key_hash = hash_api_key(raw_key)
     return raw_key, key_hash
 

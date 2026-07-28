@@ -1,6 +1,76 @@
 // Staking providers data — CeFi exchanges, self-custody wallets, liquid staking protocols.
 // Risk scores are on a 1–10 scale (10 = highest risk) across 6 dimensions.
 
+// ── Provenance / staleness machinery (same pattern as transferFees.ts and
+//    stablecoinMeta.ts) ──────────────────────────────────────────────────────
+//
+// This is the app's last large hand-maintained table with no staleness surface
+// (audit finding M5). Everything below — 6-dimension risk profiles, lockup
+// periods, minimums, TVL, audit counts, and the reference APRs for every
+// provider except the three with live feeds — is a curated snapshot, and it was
+// being presented with no indication of its age.
+//
+// The date is the day the catalog as a whole was compiled, taken from this
+// file's git history (28a78c5). It is deliberately NOT bumped to the later
+// partial edits: 479fccd (2026-07-20) verified only the 8 platforms it added,
+// 0f4eb2e re-checked deep links, and ed07f3c wired live APRs for three liquid
+// protocols. None of those re-verified the other ~47 providers' risk profiles,
+// and claiming they did is exactly the fabricated-freshness problem this
+// machinery exists to prevent. Bump it only after a full pass over the catalog.
+export const STAKING_DATA_LAST_VERIFIED = '2026-06-28'
+
+// Days after which the curated provider data is considered stale.
+//
+// 90 rather than transferFees'/stablecoinMeta's 120: a provider's risk profile
+// can change overnight rather than on a publication cycle — an exchange loses a
+// licence, a protocol is exploited, a lender freezes withdrawals. Celsius is in
+// this catalog precisely because it went from investment-grade-looking to
+// bankrupt in weeks, so a full quarter is already generous for this data.
+export const STAKING_DATA_STALE_AFTER_DAYS = 90
+
+export function stakingDataAgeDays(now: Date = new Date()): number {
+  const verified = new Date(STAKING_DATA_LAST_VERIFIED)
+  return Math.floor((now.getTime() - verified.getTime()) / 86_400_000)
+}
+
+export function stakingDataIsStale(now: Date = new Date()): boolean {
+  return stakingDataAgeDays(now) > STAKING_DATA_STALE_AFTER_DAYS
+}
+
+export type StakingDataConfidence = 'high' | 'medium' | 'low'
+
+export interface StakingDataProvenance {
+  source: string
+  verifiedAt: string
+  ageDays: number
+  stale: boolean
+  confidence: StakingDataConfidence
+}
+
+/**
+ * Provenance for the curated provider catalog. The table is compiled as a whole
+ * on a single date, so confidence is a function of age — no per-provider
+ * verification timestamps are invented, because none exist:
+ *   ≤45d → high · ≤90d → medium · beyond the stale threshold → low.
+ *
+ * Live APRs (stETH, mSOL, jitoSOL via /live-data/staking-rates) are NOT covered
+ * by this: they are fetched per request and carry their own freshness. This
+ * describes the reference data underneath them.
+ */
+export function getStakingDataProvenance(now: Date = new Date()): StakingDataProvenance {
+  const ageDays = stakingDataAgeDays(now)
+  const stale = ageDays > STAKING_DATA_STALE_AFTER_DAYS
+  const confidence: StakingDataConfidence =
+    ageDays <= 45 ? 'high' : ageDays <= STAKING_DATA_STALE_AFTER_DAYS ? 'medium' : 'low'
+  return {
+    source: 'Curated provider risk profiles, terms, and reference APRs',
+    verifiedAt: STAKING_DATA_LAST_VERIFIED,
+    ageDays,
+    stale,
+    confidence,
+  }
+}
+
 export type StakingCoinId = 'eth' | 'sol' | 'ada' | 'dot' | 'atom' | 'matic' | 'avax' | 'bnb' | 'trx' | 'btc' | 'cro' | 'osmo' | 'ksm' | 'inj' | 'tia' | 'near'
 export type ProviderCategory = 'cefi' | 'wallet' | 'liquid'
 

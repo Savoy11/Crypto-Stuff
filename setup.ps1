@@ -1,5 +1,5 @@
 <#
-  CAEP - Crypto Asset Evaluation Platform
+  Finance Now - Multi-Asset Financial Analytics
   One-shot local setup / installer (Windows PowerShell)
 
   Installs every prerequisite needed to run the app locally, configures
@@ -42,7 +42,7 @@ $MIN_NODE_MINOR = 17
 function Write-Header {
     Write-Host ''
     Write-Host '==============================================' -ForegroundColor Cyan
-    Write-Host '  CAEP - Crypto Asset Evaluation Platform'      -ForegroundColor Cyan
+    Write-Host '  Finance Now - Multi-Asset Financial Analytics'      -ForegroundColor Cyan
     Write-Host '  Local Setup'                                  -ForegroundColor Cyan
     Write-Host '==============================================' -ForegroundColor Cyan
     Write-Host ''
@@ -159,7 +159,7 @@ function Set-FrontendEnv {
         return
     }
     @"
-# CAEP runs live-only against free public APIs - no keys required to start.
+# Finance Now runs live-only against free public APIs - no keys required to start.
 # Optional keys unlock more surfaces (all also settable in the Integrations UI):
 #   FMP_API_KEY=            # full ETF holdings, stock universe, market calendar
 #   ANTHROPIC_API_KEY=      # AI agents, Research page, Daily Brief

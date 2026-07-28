@@ -1,7 +1,10 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { stablecoinMetaIsStale, stablecoinMetaAgeDays, META_STALE_AFTER_DAYS, getStablecoinMetaProvenance } from '@/lib/data/stablecoinMeta'
+import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { Vault, CheckCircle, AlertTriangle, ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
@@ -76,7 +79,7 @@ async function fetchLiveReserves(): Promise<{ assets: LiveReserveAsset[]; update
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function ReservesPage() {
+function ReservesPageInner() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const { data: liveData, isLoading, isError, refetch } = useQuery({
@@ -119,6 +122,19 @@ export default function ReservesPage() {
         <div className="flex items-center gap-3">
           <Vault className="h-6 w-6 text-blue-400" />
           <div>
+            {/* Escalating staleness banner (transferFees pattern) — the
+                previous snapshot silently aged to 20 months (audit H2). */}
+            {stablecoinMetaIsStale() && (
+              <div className="mb-3 flex items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-400">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                <span>
+                  The curated attestation snapshot is {stablecoinMetaAgeDays()} days old
+                  (stale after {META_STALE_AFTER_DAYS}) — attester names, dates, and
+                  composition splits below may lag current issuer filings. Refresh
+                  <code className="mx-1">src/lib/data/stablecoinMeta.ts</code> from issuer disclosures.
+                </span>
+              </div>
+            )}
             <PageHeader
               title="Reserve Transparency Monitor"
               // Only SUPPLY is live here. Attester, attestation date and
@@ -148,8 +164,31 @@ export default function ReservesPage() {
         )}
       </div>
 
-      {/* Data provenance */}
+      {/* Data provenance. The SourceLine's `asOf` is the DefiLlama supply
+          fetch — true for supply, but this page also shows attester names,
+          attestation dates, and collateralization from a curated snapshot, so a
+          bare "updated 2m ago" overstated the freshness of most of the table
+          (audit L7, compounding H2). The notice below states the snapshot's own
+          age, always, next to it. */}
       <SourceLine id="reserves" asOf={liveData?.updatedAt} />
+
+      {(() => {
+        const prov = getStablecoinMetaProvenance()
+        return (
+          <ProvenanceNotice
+            label="Attestation & collateral figures"
+            staleLabel="Attestation snapshot may be out of date"
+            confidence={prov.confidence}
+            stale={prov.stale}
+          >
+            — {prov.source.toLowerCase()}, dated {new Date(prov.verifiedAt).toLocaleDateString()}{' '}
+            ({prov.ageDays} days ago)
+            {prov.stale && `, past the ${META_STALE_AFTER_DAYS}-day attestation cycle`}. Circulating
+            supply above is live via DefiLlama; attester, attestation date, and collateralization come
+            from this snapshot.
+          </ProvenanceNotice>
+        )
+      })()}
 
       {/* Loading */}
       {LIVE_DATA && isLoading && (
@@ -294,5 +333,16 @@ export default function ReservesPage() {
         </>
       )}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside ReservesPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function ReservesPage() {
+  return (
+    <ModuleGate module="crypto">
+      <ReservesPageInner />
+    </ModuleGate>
   )
 }

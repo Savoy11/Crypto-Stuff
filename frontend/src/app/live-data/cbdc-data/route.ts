@@ -322,7 +322,7 @@ async function fetchFromAtlanticCouncil(): Promise<CbdcEntry[] | null> {
   try {
     const res = await fetch('https://www.atlanticcouncil.org/cbdctracker/', {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)',
+        'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)',
       },
       signal: AbortSignal.timeout(10000),
     })

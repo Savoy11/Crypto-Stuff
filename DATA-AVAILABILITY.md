@@ -1,8 +1,8 @@
-# CAEP — Data Availability Report
+# Finance Now — Data Availability Report
 
 _Last generated: **2026-07-20**, from a full audit of all `/live-data/*` route handlers
 executed against a running dev server on the development machine. This document is the
-authoritative record of **what data in CAEP is live, what is partially live, and what has
+authoritative record of **what data in Finance Now is live, what is partially live, and what has
 no free real-time source**. It exists so that a walk-through of the app surfaces exactly
 what is — and is not — backed by real data, with no fabricated figures presented as real._
 
@@ -16,6 +16,21 @@ what is — and is not — backed by real data, with no fabricated figures prese
 > REAL / FALLBACK / UNCONFIGURED / EMPTY / FAIL rather than just pass/fail.
 > `npm run smoke` runs the fast CI subset. **Do not hand-edit the statuses below
 > without re-running the audit** — that is how this file went stale last time.
+
+> ⚠ **REGENERATION NEEDED (flagged 2026-07-28, audit finding H3).** This report predates
+> two shipped changes and is stale in exactly the way its own warning above describes:
+>
+> 1. **The Macro Markets module is entirely absent** — `/live-data/macro-news`, `fx-rates`,
+>    `fx-rates-extended`, and `treasury-yield-curve` (all shipped 2026-07-21) have no rows,
+>    and the route-count claims below are off (57 route files on disk, not 51).
+> 2. **The staking section is wrong** — the 2026-07-24 staking-rates rewrite (PR #37)
+>    added DefiLlama Yields plus ~10 native-rate sources; "only 4 of 28 live" no longer
+>    holds. `DATA-SOURCES.md` has the current story; the two docs disagree until this one
+>    is regenerated.
+>
+> Statuses are IP-dependent (see CLAUDE.md), so regeneration must happen **on the owner's
+> machine**: `npm run audit` with the app running, then update this file from the output.
+> Until then, trust per-row statuses here only for surfaces unchanged since 2026-07-20.
 
 ## Legend
 

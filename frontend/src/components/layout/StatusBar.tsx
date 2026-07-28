@@ -70,7 +70,7 @@ export function StatusBar() {
           </span>
         )}
         <span className="hidden lg:inline text-border">|</span>
-        <span className="hidden lg:inline">CAEP v{APP_VERSION}</span>
+        <span className="hidden lg:inline">FN v{APP_VERSION}</span>
       </div>
     </div>
   )

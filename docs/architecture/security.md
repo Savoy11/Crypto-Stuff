@@ -2,7 +2,7 @@
 
 ## Overview
 
-CAEP implements a defense-in-depth security posture designed to meet enterprise and institutional standards, including preparation for SOC2 Type II compliance.
+Finance Now implements a defense-in-depth security posture designed to meet enterprise and institutional standards, including preparation for SOC2 Type II compliance.
 
 ---
 

@@ -7,10 +7,10 @@ export { options as OPTIONS }
 const SPEC = {
   openapi: '3.0.3',
   info: {
-    title: 'CAEP API',
+    title: 'Finance Now API',
     version: '1.0.0',
-    description: 'Crypto Asset Evaluation Platform — programmatic access to transfer fee routing, staking opportunity analysis, live network fees, coin prices, and crypto news with sentiment. Designed for AI agents and automated workflows.',
-    contact: { name: 'CAEP', url: 'http://localhost:3000' },
+    description: 'Finance Now — programmatic access to transfer fee routing, staking opportunity analysis, live network fees, coin prices, and crypto news with sentiment. Designed for AI agents and automated workflows.',
+    contact: { name: 'Finance Now', url: 'http://localhost:3000' },
   },
   servers: [
     { url: 'http://localhost:3000/api/v1', description: 'Local development' },

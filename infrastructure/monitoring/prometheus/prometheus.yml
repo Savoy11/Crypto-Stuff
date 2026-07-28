@@ -1,5 +1,5 @@
 ###############################################################################
-# CAEP — Prometheus Scrape Configuration + Alert Rules
+# Finance Now — Prometheus Scrape Configuration + Alert Rules
 ###############################################################################
 
 global:
@@ -9,7 +9,7 @@ global:
 
   # Attach these labels to every time series scraped by this instance
   external_labels:
-    cluster: 'caep-production'
+    cluster: 'fn-production'
     environment: 'production'
     region: 'us-east-1'
 
@@ -38,8 +38,8 @@ scrape_configs:
       - targets: ['localhost:9090']
     metrics_path: /metrics
 
-  # ─── CAEP FastAPI Backend ──────────────────────────────────────────────────
-  - job_name: 'caep-backend'
+  # ─── Finance Now FastAPI Backend ──────────────────────────────────────────────────
+  - job_name: 'fn-backend'
     metrics_path: /metrics
     scrape_interval: 15s
     static_configs:
@@ -51,14 +51,14 @@ scrape_configs:
       - source_labels: [__address__]
         target_label: instance
       - target_label: job
-        replacement: caep-backend
+        replacement: fn-backend
 
   # ─── Kubernetes pod discovery (production EKS) ────────────────────────────
   - job_name: 'kubernetes-pods'
     kubernetes_sd_configs:
       - role: pod
         namespaces:
-          names: ['caep']
+          names: ['fn']
     relabel_configs:
       # Only scrape pods annotated with prometheus.io/scrape: "true"
       - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]

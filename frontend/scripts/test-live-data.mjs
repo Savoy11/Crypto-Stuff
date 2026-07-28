@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// CAEP live-data audit harness.
+// Finance Now live-data audit harness.
 //
 // Hits every /live-data/*, /api/v1/* and agent route against the running dev
 // server (which in turn calls the real upstream APIs), validates response shape,
@@ -40,7 +40,7 @@
 // lighter, overlapping check; its unique cross-layer consistency assertions were
 // folded in below (see the "cross-layer" group) so the two cannot drift apart.
 
-const BASE = process.env.BASE_URL ?? process.env.CAEP_BASE_URL ?? 'http://localhost:3000'
+const BASE = process.env.BASE_URL ?? process.env.FN_BASE_URL ?? process.env.CAEP_BASE_URL ?? 'http://localhost:3000'
 const ARGS = new Set(process.argv.slice(2))
 const QUICK = ARGS.has('--quick')
 const STRICT = ARGS.has('--strict')
@@ -751,7 +751,7 @@ const run = async () => {
     process.exit(fails.length === 0 && (!STRICT || fallbacks.length + empties.length === 0) ? 0 : 1)
   }
 
-  console.log(`\n══════════ CAEP LIVE-DATA AUDIT ${QUICK ? '(quick)' : '(full)'} → ${BASE} ══════════\n`)
+  console.log(`\n══════════ FINANCE NOW LIVE-DATA AUDIT ${QUICK ? '(quick)' : '(full)'} → ${BASE} ══════════\n`)
   let lastGroup = ''
   for (const r of results) {
     if (r.group !== lastGroup) { console.log(`\n── ${r.group} ──`); lastGroup = r.group }

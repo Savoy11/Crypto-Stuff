@@ -34,14 +34,9 @@ export interface AlertMetadata {
   additionalInfo?: Record<string, string | number | boolean>
 }
 
-export interface AlertFilters {
-  severity: AlertSeverity | 'all'
-  alertType: AlertType | 'all'
-  assetId: string | null
-  isRead: boolean | null
-  dateFrom: Date | null
-  dateTo: Date | null
-}
+// AlertFilters was removed in the M8 sweep — its only consumer was the
+// orphaned AlertFilters component. The alert store declares its own filter
+// shape inline (store/useAlertStore.ts).
 
 export interface AlertStats {
   total: number

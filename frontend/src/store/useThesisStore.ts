@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep-chart-theses', 'fn-chart-theses')
+
 
 // A saved trading/investment thesis attached to a coin + timeframe. Stored locally
 // (localStorage) — no backend. The "snapshot" is the lightweight context at save
@@ -37,7 +42,7 @@ export const useThesisStore = create<ThesisState>()(
         })),
       removeThesis: (id) => set((s) => ({ theses: s.theses.filter((t) => t.id !== id) })),
     }),
-    { name: 'caep-chart-theses' },
+    { name: 'fn-chart-theses' },
   ),
 )
 

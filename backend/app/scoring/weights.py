@@ -15,6 +15,13 @@ class ScoringWeights:
     network_velocity: float = 0.20
     security_compliance: float = 0.15
 
+    def __post_init__(self) -> None:
+        # The docstring is a contract, not a hint: constructing weights that
+        # don't sum to 1.0 silently rescales every composite score, so fail
+        # at construction rather than at whatever point someone remembers to
+        # call validate().
+        self.validate()
+
     def validate(self) -> None:
         total = (
             self.reserve_transparency

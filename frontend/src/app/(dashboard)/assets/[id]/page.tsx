@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -51,6 +52,7 @@ import { RiskScoreBadge, RiskBandPill } from '@/components/assets/RiskScoreBadge
 import { MetricCard } from '@/components/ui/MetricCard'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { formatCompact, formatAddress, formatBps, formatDate, formatScore, formatAssetPrice, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { getPegDeviationColorClass, getScoreColor } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS, LIVE_DATA } from '@/lib/constants'
@@ -533,9 +535,14 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
             <Shield size={11} aria-hidden />
             <span>Issuer: <span className="text-text-secondary">{asset.issuer}</span></span>
           </div>
+          {/* This is the date the *reference metadata* (issuer, contract,
+              links, description) was last revised — not a price timestamp.
+              Labelled explicitly because it sits beside live prices, and a bare
+              "Updated" here reads as though the quotes were what refreshed.
+              Day precision, since that is the precision the catalog has. */}
           <div className="flex items-center gap-1.5">
             <Clock size={11} aria-hidden />
-            <span>Updated: <span className="text-text-secondary font-mono">{formatDate(asset.updatedAt, 'MMM dd, HH:mm')}</span></span>
+            <span>Reference data as of: <span className="text-text-secondary font-mono">{formatDate(asset.updatedAt, 'MMM dd, yyyy')}</span></span>
           </div>
         </div>
       )}
@@ -1212,7 +1219,7 @@ function ReservesTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
   )
 }
 
-export default function AssetDetailPage() {
+function AssetDetailPageInner() {
   const params = useParams<{ id: string }>()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
@@ -1277,6 +1284,11 @@ export default function AssetDetailPage() {
         <AssetHeader asset={asset} />
       </ErrorBoundary>
 
+      {/* Provenance for the price above. Detail pages carried no SourceLine
+          while every registry page did, so the page with the most specific
+          numbers was the one with no attribution. */}
+      <SourceLine id="markets" />
+
       {/* Tabs */}
       <div className="flex items-center gap-0.5 border-b border-border" role="tablist">
         {TABS.map(({ id, label }) => (
@@ -1336,5 +1348,16 @@ export default function AssetDetailPage() {
         )}
       </div>
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside AssetDetailPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function AssetDetailPage() {
+  return (
+    <ModuleGate module="crypto">
+      <AssetDetailPageInner />
+    </ModuleGate>
   )
 }

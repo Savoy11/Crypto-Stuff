@@ -1,7 +1,5 @@
-import apiClient from './client'
 import type { Asset, AssetDetail, AssetFilters, AssetSortConfig } from '@/types/asset'
 import type { PaginatedResponse, QueryParams } from '@/types/api'
-import { LIVE_DATA } from '@/lib/constants'
 import { fetchLiveMarkets } from './live/liveClient'
 import { buildLiveAssets, buildLiveAssetDetail } from './live/overlay'
 import { applyRiskComposite, type RiskScoreIndex } from './live/riskScores'
@@ -87,6 +85,14 @@ export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedRes
   }
 }
 
+// The legacy-backend fallbacks here sat behind `if (LIVE_DATA)` early returns,
+// and `LIVE_DATA` is a hardcoded `true` (lib/constants.ts) — unreachable, and
+// removed in the M8 sweep along with the axios client.
+//
+// getWatchlist/addToWatchlist/removeFromWatchlist went with them: the real
+// watchlist is DB-backed through store/useWatchlistStore.ts + /api/user/
+// watchlists. These three were a parallel, never-wired implementation whose
+// live path returned "the first 5 assets" as if it were a saved list.
 export const assetsApi = {
   /**
    * List assets. Pass the live risk-composite index (from useRiskScoreIndex /
@@ -96,56 +102,25 @@ export const assetsApi = {
    * (R2 Phase 2 review finding H1).
    */
   getAssets: async (params: GetAssetsParams = {}, riskIndex?: RiskScoreIndex): Promise<PaginatedResponse<Asset>> => {
-    if (LIVE_DATA) {
-      const { quotes } = await fetchLiveMarkets()
-      let assets = buildLiveAssets(quotes)
-      if (riskIndex && riskIndex.size > 0) {
-        assets = assets.map((a) => applyRiskComposite(a, riskIndex))
-      }
-      return applyParams(assets, params)
+    const { quotes } = await fetchLiveMarkets()
+    let assets = buildLiveAssets(quotes)
+    if (riskIndex && riskIndex.size > 0) {
+      assets = assets.map((a) => applyRiskComposite(a, riskIndex))
     }
-    const { data } = await apiClient.get<PaginatedResponse<Asset>>('/assets', { params })
-    return data
+    return applyParams(assets, params)
   },
 
   getAsset: async (id: string): Promise<AssetDetail> => {
-    if (LIVE_DATA) {
-      const { quotes } = await fetchLiveMarkets()
-      return buildLiveAssetDetail(id, quotes[id])
-    }
-    const { data } = await apiClient.get<AssetDetail>(`/assets/${id}`)
-    return data
-  },
-
-  getWatchlist: async (): Promise<Asset[]> => {
-    if (LIVE_DATA) {
-      const { quotes } = await fetchLiveMarkets()
-      return buildLiveAssets(quotes).slice(0, 5)
-    }
-    const { data } = await apiClient.get<Asset[]>('/assets/watchlist')
-    return data
-  },
-
-  addToWatchlist: async (assetId: string): Promise<void> => {
-    if (LIVE_DATA) return
-    await apiClient.post(`/assets/watchlist/${assetId}`)
-  },
-
-  removeFromWatchlist: async (assetId: string): Promise<void> => {
-    if (LIVE_DATA) return
-    await apiClient.delete(`/assets/watchlist/${assetId}`)
+    const { quotes } = await fetchLiveMarkets()
+    return buildLiveAssetDetail(id, quotes[id])
   },
 
   searchAssets: async (query: string): Promise<Asset[]> => {
-    if (LIVE_DATA) {
-      const { quotes } = await fetchLiveMarkets()
-      const q = query.toLowerCase()
-      return buildLiveAssets(quotes).filter(
-        (a) => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
-      )
-    }
-    const { data } = await apiClient.get<Asset[]>('/assets/search', { params: { q: query } })
-    return data
+    const { quotes } = await fetchLiveMarkets()
+    const q = query.toLowerCase()
+    return buildLiveAssets(quotes).filter(
+      (a) => a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)
+    )
   },
 }
 

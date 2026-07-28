@@ -1,6 +1,6 @@
 #Requires -Version 5
 # -----------------------------------------------
-#  CAEP - Crypto Asset Evaluation Platform
+#  Finance Now - Multi-Asset Financial Analytics
 #  Setup & Launch Script
 # -----------------------------------------------
 
@@ -26,7 +26,7 @@ $ENV_FILE     = Join-Path $FRONTEND_DIR ".env.local"
 function Write-Header {
     Write-Host ""
     Write-Host "================================================" -ForegroundColor Cyan
-    Write-Host "   CAEP - Crypto Asset Evaluation Platform" -ForegroundColor Cyan
+    Write-Host "   Finance Now - Multi-Asset Financial Analytics" -ForegroundColor Cyan
     Write-Host "   Setup Script" -ForegroundColor Cyan
     Write-Host "================================================" -ForegroundColor Cyan
     Write-Host ""
@@ -113,7 +113,7 @@ function Install-Deps {
 # 4. Start the dev server
 # ---------------------------------------------------
 function Start-App {
-    Write-Step "Starting CAEP..."
+    Write-Step "Starting Finance Now..."
     Write-Host ""
     Write-Host "   Open in your browser: " -NoNewline
     Write-Host "http://localhost:3000" -ForegroundColor Green

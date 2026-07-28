@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { alertsApi, type GetAlertsParams } from '@/lib/api/alerts'
 import { useAlertStore } from '@/store/useAlertStore'
@@ -62,32 +62,8 @@ export function useRecentAlerts(limit = 10) {
   return query
 }
 
-export function useMarkAlertRead() {
-  const queryClient = useQueryClient()
-  const { markRead } = useAlertStore()
-
-  return useMutation({
-    mutationFn: (alertId: string) => alertsApi.markRead(alertId),
-    onMutate: (alertId) => {
-      markRead(alertId)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ALERT_KEYS.all })
-    },
-  })
-}
-
-export function useMarkAllAlertsRead() {
-  const queryClient = useQueryClient()
-  const { markAllRead } = useAlertStore()
-
-  return useMutation({
-    mutationFn: () => alertsApi.markAllRead(),
-    onMutate: () => {
-      markAllRead()
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ALERT_KEYS.all })
-    },
-  })
-}
+// useMarkAlertRead / useMarkAllAlertsRead were removed in the M8 sweep: their
+// only consumer was the orphaned AlertFeed component, and the mutations they
+// wrapped (alertsApi.markRead/markAllRead/acknowledge) were unreachable
+// legacy-backend writes. The alert store still exposes markRead/markAllRead
+// for the live TopBar feed.

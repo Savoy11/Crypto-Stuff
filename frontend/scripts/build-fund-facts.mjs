@@ -38,7 +38,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const OUT = path.join(ROOT, 'src/lib/data/fundFacts.generated.json')
 const INDEX_URL = 'https://www.sec.gov/data-research/sec-markets-data/form-n-port-data-sets'
 // EDGAR requires a descriptive UA identifying the requester.
-const UA = { 'User-Agent': 'CAEP research dashboard (marcusowens94@gmail.com)' }
+const UA = { 'User-Agent': 'Finance Now research dashboard (marcusowens94@gmail.com)' }
 
 const log = (...a) => console.log(...a)
 
@@ -95,7 +95,7 @@ async function main() {
   // Cached in a stable location rather than a temp dir: the archive is 420 MB
   // and re-downloading it to re-check a column name is wasteful. Delete the
   // folder to force a fresh pull.
-  const work = path.join(os.tmpdir(), 'caep-nport-cache')
+  const work = path.join(os.tmpdir(), 'fn-nport-cache')
   fs.mkdirSync(work, { recursive: true })
   const zip = path.join(work, 'nport.zip')
 

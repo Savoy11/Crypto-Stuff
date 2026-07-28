@@ -33,6 +33,10 @@ export default {
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
+    // Database name deliberately NOT renamed in the Finance Now rebrand:
+    // existing local installs have their data in caep_app, and changing the
+    // fallback would silently point at an empty database. Set DATABASE_URL to
+    // use a different name.
     url: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/caep_app',
   },
   verbose: true,

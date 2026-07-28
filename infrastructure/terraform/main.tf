@@ -1,5 +1,5 @@
 ###############################################################################
-# CAEP — Crypto Asset Evaluation Platform
+# Finance Now — Crypto Asset Evaluation Platform
 # Terraform Root Module
 # AWS Provider + EKS Cluster Infrastructure
 ###############################################################################
@@ -32,12 +32,12 @@ terraform {
 
   # Remote state in S3 with DynamoDB locking
   backend "s3" {
-    bucket         = "caep-terraform-state"
+    bucket         = "fn-terraform-state"
     key            = "production/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
-    kms_key_id     = "alias/caep-terraform-state"
-    dynamodb_table = "caep-terraform-locks"
+    kms_key_id     = "alias/fn-terraform-state"
+    dynamodb_table = "fn-terraform-locks"
   }
 }
 
@@ -50,11 +50,11 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "caep"
+      Project     = "fn"
       Environment = var.environment
       ManagedBy   = "terraform"
       Owner       = "platform-team"
-      CostCenter  = "caep-infrastructure"
+      CostCenter  = "fn-infrastructure"
     }
   }
 }
@@ -66,7 +66,7 @@ provider "aws" {
 
   default_tags {
     tags = {
-      Project     = "caep"
+      Project     = "fn"
       Environment = var.environment
       ManagedBy   = "terraform"
     }
@@ -128,8 +128,8 @@ locals {
 # KMS Key for encryption at rest
 ###############################################################################
 
-resource "aws_kms_key" "caep" {
-  description             = "CAEP ${var.environment} — master encryption key"
+resource "aws_kms_key" "fn" {
+  description             = "Finance Now ${var.environment} — master encryption key"
   deletion_window_in_days = 30
   enable_key_rotation     = true
   multi_region            = false
@@ -145,19 +145,12 @@ resource "aws_kms_key" "caep" {
         }
         Action   = "kms:*"
         Resource = "*"
-      },
-      {
-        Sid    = "Allow EKS Service Account"
-        Effect = "Allow"
-        Principal = {
-          AWS = aws_iam_role.backend.arn
-        }
-        Action = [
-          "kms:Decrypt",
-          "kms:GenerateDataKey"
-        ]
-        Resource = "*"
       }
+      # No per-role statement here. Referencing aws_iam_role.backend.arn in
+      # this policy created a dependency cycle (eks → this key → backend role
+      # → eks OIDC). The root statement above delegates access control to IAM
+      # identity policies, and the backend role already gets kms:Decrypt/
+      # GenerateDataKey via its DecryptSecrets policy in iam.tf.
     ]
   })
 
@@ -166,9 +159,9 @@ resource "aws_kms_key" "caep" {
   })
 }
 
-resource "aws_kms_alias" "caep" {
+resource "aws_kms_alias" "fn" {
   name          = "alias/${local.name_prefix}"
-  target_key_id = aws_kms_key.caep.key_id
+  target_key_id = aws_kms_key.fn.key_id
 }
 
 ###############################################################################
@@ -185,7 +178,7 @@ resource "aws_ecr_repository" "backend" {
 
   encryption_configuration {
     encryption_type = "KMS"
-    kms_key         = aws_kms_key.caep.arn
+    kms_key         = aws_kms_key.fn.arn
   }
 
   tags = merge(local.common_tags, {
@@ -203,7 +196,7 @@ resource "aws_ecr_repository" "frontend" {
 
   encryption_configuration {
     encryption_type = "KMS"
-    kms_key         = aws_kms_key.caep.arn
+    kms_key         = aws_kms_key.fn.arn
   }
 
   tags = merge(local.common_tags, {
@@ -278,9 +271,9 @@ resource "aws_ecr_lifecycle_policy" "frontend" {
 ###############################################################################
 
 resource "aws_secretsmanager_secret" "backend" {
-  name                    = "caep/${var.environment}/backend"
-  description             = "CAEP backend application secrets"
-  kms_key_id              = aws_kms_key.caep.arn
+  name                    = "fn/${var.environment}/backend"
+  description             = "Finance Now backend application secrets"
+  kms_key_id              = aws_kms_key.fn.arn
   recovery_window_in_days = 30
 
   tags = merge(local.common_tags, {
@@ -289,9 +282,9 @@ resource "aws_secretsmanager_secret" "backend" {
 }
 
 resource "aws_secretsmanager_secret" "api_keys" {
-  name                    = "caep/${var.environment}/api-keys"
-  description             = "CAEP external API keys (CoinGecko, DefiLlama, Chainlink)"
-  kms_key_id              = aws_kms_key.caep.arn
+  name                    = "fn/${var.environment}/api-keys"
+  description             = "Finance Now external API keys (CoinGecko, DefiLlama, Chainlink)"
+  kms_key_id              = aws_kms_key.fn.arn
   recovery_window_in_days = 30
 
   tags = merge(local.common_tags, {
@@ -303,9 +296,9 @@ resource "aws_secretsmanager_secret" "api_keys" {
 # WAF Web ACL for ALB
 ###############################################################################
 
-resource "aws_wafv2_web_acl" "caep" {
+resource "aws_wafv2_web_acl" "fn" {
   name        = "${local.name_prefix}-waf"
-  description = "CAEP WAF rules for ALB"
+  description = "Finance Now WAF rules for ALB"
   scope       = "REGIONAL"
 
   default_action {

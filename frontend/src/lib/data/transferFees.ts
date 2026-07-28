@@ -1,4 +1,4 @@
-// Transfer fee data for the CAEP Transfer Fee Calculator.
+// Transfer fee data for the Finance Now Transfer Fee Calculator.
 // Exchange withdrawal fees are approximate and change frequently — always verify
 // on the exchange website before initiating a transfer.
 

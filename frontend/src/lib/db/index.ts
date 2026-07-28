@@ -15,7 +15,7 @@ import * as schema from './schema'
 
 declare global {
   // eslint-disable-next-line no-var
-  var __caepDbClient: ReturnType<typeof postgres> | undefined
+  var __fnDbClient: ReturnType<typeof postgres> | undefined
 }
 
 export const DATABASE_URL = process.env.DATABASE_URL ?? ''
@@ -41,10 +41,32 @@ function createClient() {
   })
 }
 
-const client = globalThis.__caepDbClient ?? createClient()
-if (process.env.NODE_ENV !== 'production') globalThis.__caepDbClient = client
+// Lazy initialization: the client is created on first query, not at import.
+// `next build`'s page-data collection imports every route module — including
+// ones that import this file — in an environment that may have no
+// DATABASE_URL (CI). Creating the client eagerly made the BUILD throw; lazily,
+// the throw only happens if an unconfigured deployment actually runs a query,
+// and every route already guards with `isDbConfigured` before doing that.
 
-export const db = drizzle(client, { schema })
+type Db = ReturnType<typeof drizzle<typeof schema>>
+
+let _db: Db | undefined
+
+function getDb(): Db {
+  if (!_db) {
+    const client = globalThis.__fnDbClient ?? createClient()
+    if (process.env.NODE_ENV !== 'production') globalThis.__fnDbClient = client
+    _db = drizzle(client, { schema })
+  }
+  return _db
+}
+
+export const db: Db = new Proxy({} as Db, {
+  get(_target, prop, _receiver) {
+    const value = Reflect.get(getDb() as object, prop)
+    return typeof value === 'function' ? (value as (...a: unknown[]) => unknown).bind(getDb()) : value
+  },
+})
 
 export { schema }
 export * from './schema'

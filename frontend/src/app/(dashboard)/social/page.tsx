@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -12,10 +13,15 @@ import { SourceLine } from '@/components/ui/SourceLine'
 import { LIVE_DATA } from '@/lib/constants'
 import type { SocialSignal, AssetSentiment } from '@/app/live-data/social/route'
 import { useAssetList } from '@/lib/hooks/useAssetList'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep-custom-subreddits', 'fn-custom-subreddits')
+
 
 // ─── Read custom subreddits saved from the Integrations page ─────────────────
 
-const SUBREDDIT_STORAGE_KEY = 'caep-custom-subreddits'
+const SUBREDDIT_STORAGE_KEY = 'fn-custom-subreddits'
 
 function useCustomSubreddits() {
   const [subreddits, setSubreddits] = useState<string[]>([])
@@ -214,7 +220,7 @@ async function fetchSocial(asset: string, extraSubs: string[]): Promise<{
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function SocialPage() {
+function SocialPageInner() {
   const [assetFilter, setAssetFilter] = useState('all')
   const subreddits = useCustomSubreddits()
   const { assets: assetList } = useAssetList()
@@ -351,5 +357,16 @@ export default function SocialPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside SocialPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function SocialPage() {
+  return (
+    <ModuleGate module="crypto">
+      <SocialPageInner />
+    </ModuleGate>
   )
 }

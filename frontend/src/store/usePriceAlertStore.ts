@@ -2,6 +2,11 @@
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep:price-alerts:v1', 'fn:price-alerts:v1')
+
 
 // User-defined price alerts across all modules (crypto + stocks + funds).
 // Alerts are one-shot: they fire once, keep a triggered record, and can be
@@ -55,6 +60,6 @@ export const usePriceAlertStore = create<PriceAlertState>()(
         alerts: s.alerts.map((x) => x.id === id ? { ...x, triggeredAt: new Date().toISOString(), triggeredPrice: price } : x),
       })),
     }),
-    { name: 'caep:price-alerts:v1' }
+    { name: 'fn:price-alerts:v1' }
   )
 )

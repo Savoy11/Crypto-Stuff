@@ -3,6 +3,19 @@
 _Read-only assessment (Wave 1, T5). Produces a recommendation; **no code changed.**
 Both pages were driven at the code level, with data sources traced end to end._
 
+> **⚠ OUTCOME (added 2026-07-28, audit L10) — the /backtests recommendation was not
+> followed.** This document recommends **KEEP / INVEST (light)** for Risk Case
+> Studies, but the page was **deleted** in 2026-07; `/backtests` now redirects to
+> `/headlines`, and CLAUDE.md's feature inventory records the removal. A reader of
+> this assessment alone would conclude the page still exists and is endorsed.
+>
+> The `/global-adoption` **CUT** recommendation was followed in substance but not
+> in full: the page and its `/live-data/cbdc-data` route are retained and
+> de-routed rather than deleted, pending a possible post-production rework.
+>
+> The analysis below is unchanged and still stands on its own merits — only the
+> dispositions differ. The deleted page is recoverable from git history.
+
 | Page | Route | Verdict | One-line rationale |
 |------|-------|---------|--------------------|
 | Global | `/global-adoption` | **CUT** (or INVEST — strategic call) | Mislabeled CBDC tracker; stale static data dressed as live via a dead scraper. |

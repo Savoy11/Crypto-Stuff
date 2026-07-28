@@ -18,8 +18,8 @@ The fastest way to run the full stack:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/caep.git
-cd caep
+git clone https://github.com/Savoy11/finance-now.git
+cd finance-now
 
 # 2. Copy environment files
 cp backend/.env.example backend/.env
@@ -137,7 +137,7 @@ npm run lint
 
 **Migration errors**: Ensure TimescaleDB extension is installed:
 ```bash
-docker exec -it caep-postgres psql -U caep -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+docker exec -it fn-postgres psql -U caep -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 ```
 
 **Frontend auth redirect loop**: Ensure `NEXT_PUBLIC_USE_MOCK=true` in `.env.local` for local development without backend.

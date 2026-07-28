@@ -1,10 +1,10 @@
-# CAEP Dev Server Restart
+# Finance Now Dev Server Restart
 # Kills whatever is on port 3000, then relaunches `npm run dev` in a new window.
 
 $FrontendDir = "$PSScriptRoot\frontend"
 $Port = 3000
 
-Write-Host "CAEP Dev Server Restart" -ForegroundColor Cyan
+Write-Host "Finance Now Dev Server Restart" -ForegroundColor Cyan
 Write-Host "========================" -ForegroundColor Cyan
 
 # Kill any process holding port 3000
@@ -20,11 +20,11 @@ if ($pid) {
 }
 
 # Launch dev server in a new titled console window
-Write-Host "Starting CAEP frontend..." -ForegroundColor Cyan
+Write-Host "Starting Finance Now frontend..." -ForegroundColor Cyan
 Start-Process powershell.exe -ArgumentList @(
     "-NoExit",
     "-Command",
-    "& { `$host.UI.RawUI.WindowTitle = 'CAEP Dev Server'; Set-Location '$FrontendDir'; npm run dev }"
+    "& { `$host.UI.RawUI.WindowTitle = 'Finance Now Dev Server'; Set-Location '$FrontendDir'; npm run dev }"
 )
 
 Write-Host "Done. Server starting at http://localhost:$Port" -ForegroundColor Green

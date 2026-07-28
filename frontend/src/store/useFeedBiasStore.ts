@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { BiasStrength } from '@/lib/watchlist/bias'
+import { migrateStorageKey } from '@/lib/utils/storageMigration'
+
+// One-time key migration for the Finance Now rename — runs before any read below.
+migrateStorageKey('caep:feed-bias', 'fn:feed-bias')
+
 
 // Per-feed watchlist bias settings.
 //
@@ -47,7 +52,7 @@ export const useFeedBiasStore = create<FeedBiasState & FeedBiasActions>()(
       reset: () => set({ strengths: {} }),
     }),
     {
-      name: 'caep:feed-bias',
+      name: 'fn:feed-bias',
       // Same reasoning as the entitlement store: a synchronous localStorage read
       // at creation makes the first client render disagree with the server and
       // costs the whole tree to a hydration mismatch. Rehydrated from Providers.

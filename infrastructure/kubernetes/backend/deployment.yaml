@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: caep-backend
-  namespace: caep
+  name: fn-backend
+  namespace: fn
   labels:
-    app: caep-backend
+    app: fn-backend
     component: backend
     version: "1.0.0"
-    app.kubernetes.io/name: caep-backend
+    app.kubernetes.io/name: fn-backend
     app.kubernetes.io/component: backend
-    app.kubernetes.io/part-of: caep
+    app.kubernetes.io/part-of: fn
   annotations:
     deployment.kubernetes.io/revision: "1"
-    caep.io/description: "FastAPI backend service — crypto analytics and scoring engine"
+    financenow.example/description: "FastAPI backend service — crypto analytics and scoring engine"
 spec:
   replicas: 3
   revisionHistoryLimit: 5
   selector:
     matchLabels:
-      app: caep-backend
+      app: fn-backend
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -27,7 +27,7 @@ spec:
   template:
     metadata:
       labels:
-        app: caep-backend
+        app: fn-backend
         component: backend
         version: "1.0.0"
       annotations:
@@ -37,7 +37,7 @@ spec:
         # Force pod restart when configmap changes
         checksum/config: "{{ include (print $.Template.BasePath '/configmap.yaml') . | sha256sum }}"
     spec:
-      serviceAccountName: caep-backend-sa
+      serviceAccountName: fn-backend-sa
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: 60
 
@@ -48,13 +48,13 @@ spec:
           whenUnsatisfiable: DoNotSchedule
           labelSelector:
             matchLabels:
-              app: caep-backend
+              app: fn-backend
         - maxSkew: 1
           topologyKey: topology.kubernetes.io/zone
           whenUnsatisfiable: ScheduleAnyway
           labelSelector:
             matchLabels:
-              app: caep-backend
+              app: fn-backend
 
       affinity:
         podAntiAffinity:
@@ -63,7 +63,7 @@ spec:
                 matchExpressions:
                   - key: app
                     operator: In
-                    values: [caep-backend]
+                    values: [fn-backend]
               topologyKey: kubernetes.io/hostname
           preferredDuringSchedulingIgnoredDuringExecution:
             - weight: 100
@@ -72,7 +72,7 @@ spec:
                   matchExpressions:
                     - key: app
                       operator: In
-                      values: [caep-backend]
+                      values: [fn-backend]
                 topologyKey: topology.kubernetes.io/zone
 
       securityContext:
@@ -90,7 +90,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z caep-postgres 5432; do
+              until nc -z fn-postgres 5432; do
                 echo "Waiting for PostgreSQL..."; sleep 2
               done
               echo "PostgreSQL is ready."
@@ -108,7 +108,7 @@ spec:
             - sh
             - -c
             - |
-              until nc -z caep-redis 6379; do
+              until nc -z fn-redis 6379; do
                 echo "Waiting for Redis..."; sleep 2
               done
               echo "Redis is ready."
@@ -121,13 +121,13 @@ spec:
               drop: [ALL]
 
         - name: run-migrations
-          image: ${ECR_REGISTRY}/caep-backend:${IMAGE_TAG}
+          image: ${ECR_REGISTRY}/fn-backend:${IMAGE_TAG}
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
-                name: caep-backend-config
+                name: fn-backend-config
             - secretRef:
-                name: caep-backend-secrets
+                name: fn-backend-secrets
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
@@ -138,7 +138,7 @@ spec:
 
       containers:
         - name: backend
-          image: ${ECR_REGISTRY}/caep-backend:${IMAGE_TAG}
+          image: ${ECR_REGISTRY}/fn-backend:${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - name: http
@@ -147,9 +147,9 @@ spec:
 
           envFrom:
             - configMapRef:
-                name: caep-backend-config
+                name: fn-backend-config
             - secretRef:
-                name: caep-backend-secrets
+                name: fn-backend-secrets
 
           resources:
             requests:
@@ -219,7 +219,7 @@ spec:
           emptyDir: {}
 
       imagePullSecrets:
-        - name: caep-ecr-credentials
+        - name: fn-ecr-credentials
 
       nodeSelector:
         kubernetes.io/os: linux

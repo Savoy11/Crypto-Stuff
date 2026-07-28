@@ -13,7 +13,7 @@ from prometheus_client import make_asgi_app
 
 from app.api.v1.router import api_router
 from app.config import settings
-from app.core.exceptions import CAEPError
+from app.core.exceptions import FinanceNowError
 from app.core.middleware import setup_middleware
 from app.db.session import close_db, get_engine
 from app.pipelines.scheduler import start_scheduler, stop_scheduler
@@ -25,7 +25,7 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: startup and shutdown hooks."""
-    logger.info("caep_starting", version=settings.APP_VERSION, env=settings.ENVIRONMENT)
+    logger.info("fn_starting", version=settings.APP_VERSION, env=settings.ENVIRONMENT)
 
     # Initialise DB engine (creates pool)
     get_engine()
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if not settings.DEBUG:
         await start_scheduler()
 
-    logger.info("caep_ready")
+    logger.info("fn_ready")
     yield
 
     # Graceful shutdown
@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         message="Server shutting down",
     )
     await close_db()
-    logger.info("caep_stopped")
+    logger.info("fn_stopped")
 
 
 def create_app() -> FastAPI:
@@ -106,13 +106,15 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------ #
     # Global exception handler
     # ------------------------------------------------------------------ #
-    @app.exception_handler(CAEPError)
-    async def caep_exception_handler(request, exc: CAEPError) -> JSONResponse:  # type: ignore[type-arg]
-        # CAEPError exposes `message`/`code`/`status_code` — NOT `detail`. The
+    @app.exception_handler(FinanceNowError)
+    async def fn_exception_handler(request, exc: FinanceNowError) -> JSONResponse:  # type: ignore[type-arg]
+        # FinanceNowError exposes `message`/`code`/`status_code` — NOT `detail`. The
         # old handler read `.detail`, which raised AttributeError inside itself
         # and turned every domain error into a bare 500.
-        logger.warning("caep_exception", message=exc.message, code=exc.code, status=exc.status_code)
-        return JSONResponse(status_code=exc.status_code, content={"detail": exc.message, "code": exc.code})
+        logger.warning("fn_exception", message=exc.message, code=exc.code, status=exc.status_code)
+        return JSONResponse(
+            status_code=exc.status_code, content={"detail": exc.message, "code": exc.code}
+        )
 
     return app
 

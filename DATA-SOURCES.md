@@ -1,11 +1,11 @@
-# CAEP — Data Source Inventory
+# Finance Now — Data Source Inventory
 
 _Auto-generated from `src/lib/data/dataSources.ts` by `npm run data-sources`. **Do not hand-edit** —
 change the registry and regenerate. This is the "where does the data come from" companion to
 `DATA-AVAILABILITY.md` (which tracks whether each surface is live). The same registry powers the
 in-app **/data-sources** page and the per-page provenance badges, so the app and the docs never diverge._
 
-_Last generated: **2026-07-24**_
+_Last generated: **2026-07-28**_
 
 ## Legend
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getVideoProviders, recordProviderFetch, type AnyActiveProvider, type ProviderMarket } from '@/lib/api/live/providers'
 import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
+import { guardQuotaRoute } from '@/lib/server/apiGuard'
 import { decodeEntities, stripTags } from '@/lib/utils/html'
 
 // Server-side proxy for the Videos feed.
@@ -179,7 +180,7 @@ async function fetchProvider(provider: AnyActiveProvider, market: ProviderMarket
   }
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; CAEP/1.0)', Accept: 'application/atom+xml, application/xml' },
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0)', Accept: 'application/atom+xml, application/xml' },
       next: { revalidate: 600 }, // channels post a few times a day at most
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -193,6 +194,12 @@ async function fetchProvider(provider: AnyActiveProvider, market: ProviderMarket
 }
 
 export async function GET(request: NextRequest) {
+  // Keyless and cheap compared to video-search, but it still fans out to every
+  // enabled channel feed on each call, so a runaway client is worth bounding.
+  // Burst limit only — no daily cap, since nothing metered is being spent.
+  const denied = guardQuotaRoute(request, 'videos', 30)
+  if (denied) return denied
+
   const marketParam = request.nextUrl.searchParams.get('market')
   // Cap is headroom for added channels (each contributes ~15), not a target —
   // the page asks for 240. Kept finite so a runaway channel list can't return

@@ -1,5 +1,3 @@
-import type { RiskBand } from './asset'
-
 export interface RiskBandConfig {
   label: string
   color: string
@@ -10,46 +8,8 @@ export interface RiskBandConfig {
   max: number
 }
 
-export interface RiskLeaderboardEntry {
-  assetId: string
-  symbol: string
-  name: string
-  assetName?: string
-  assetType: string
-  riskScore: number
-  overallScore: number
-  reserveScore: number
-  pegScore: number
-  networkScore?: number
-  securityScore?: number
-  riskBand: RiskBand
-  previousRisk: number | null
-  rankChange: number | null
-  rank: number
-  scoreDate: string
-}
-
-export interface RiskDistribution {
-  band: RiskBand
-  count: number
-  percentage: number
-  totalMarketCap: number
-}
-
-export interface RiskTrend {
-  date: string
-  avgScore: number
-  criticalCount: number
-  highCount: number
-  elevatedCount: number
-  moderateCount: number
-  lowCount: number
-}
-
-export interface RiskSummary {
-  totalAssets: number
-  avgScore: number
-  distribution: RiskDistribution[]
-  trends: RiskTrend[]
-  lastUpdated: string
-}
+// RiskLeaderboardEntry / RiskDistribution / RiskTrend / RiskSummary were
+// removed in the M8 sweep. They typed the legacy backend's risk-summary and
+// leaderboard endpoints, whose api methods were unreachable behind `LIVE_DATA`
+// and whose hooks had no consumers. The live risk surfaces (/risk-scores and
+// the coin detail page) type their own shapes off /live-data/risk-scores.

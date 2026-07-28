@@ -1,5 +1,15 @@
 # CAEP — Market Assessment & Growth Outlook
 
+> ⚠ **STALE-CLAIM WARNING (added 2026-07-28).** This assessment predates major work and
+> two of its load-bearing claims are now false: risk scoring **no longer shows N/A**
+> (live since 2026-07-18, rebranded "Safety Score"), and the "3-way scale inconsistency"
+> was **disproved and settled** — R1/R2 ratified and shipped the canonical 0–100
+> higher-is-safer scale (`docs/architecture/risk-scale-spec.md`). The app has also been
+> renamed Finance Now and gained the Macro Markets module. Treat market/competitor
+> analysis here as directional; verify any product claim against the code before
+> planning work from it. This banner exists because a stale memo has misdirected an
+> entire work stream in this repo once before (see `docs/TASK-QUEUE.md` revision note).
+
 _Prepared 2026-07-01. Grounded in a hands-on audit of the running product (live API tests
 across all 78 supported coins, per-provider data-flow attribution, and page-by-page feature
 verification) plus current competitor pricing research (July 2026)._

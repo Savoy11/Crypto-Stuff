@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Eye, Wallet, Building2, Plus, Trash2, RefreshCw,
@@ -473,7 +474,7 @@ function ExchangeTab() {
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
-export default function WalletsPage() {
+function WalletsPageInner() {
   const [tab, setTab] = useState<TabId>('watch')
   const { watched, connected, exchanges } = useWalletStore()
 
@@ -533,5 +534,16 @@ export default function WalletsPage() {
         />
       )}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside WalletsPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function WalletsPage() {
+  return (
+    <ModuleGate module="crypto">
+      <WalletsPageInner />
+    </ModuleGate>
   )
 }

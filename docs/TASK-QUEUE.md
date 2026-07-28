@@ -359,6 +359,15 @@ but do not make the change.
 ### T6 — Agent prompts: examine, test, fine-tune
 > Original items 2 + 3 merged (2 is a subset of 3). Depends on T1.
 
+> **Status: unrecorded (checked 2026-07-28, audit L11).** Unlike T5/T8–T12 there
+> is no `docs/assessments/T6-*.md`, and no commit is tagged T6 the way `53de5f9`
+> is tagged T9. Agent work has clearly happened — the roster grew from the 9
+> agents in the prompt below to 11 (macro-research, macro-screener, `013d624`),
+> and `53de5f9` corrected a stale provider count inside the assistant prompt —
+> but that landed inside broader feature commits, so whether T6 was run as a
+> discrete pass cannot be established from the repo. Treat as **not verified
+> complete**: re-run or write the assessment before relying on it.
+
 **Owns:** `src/lib/agents/**`, `.agent-prompts.json`
 
 <details><summary>Deployable prompt</summary>
@@ -414,6 +423,13 @@ prompt-level.
 
 ### T7 — Equity Stock Registry screener
 > Original item 11. Depends on T1.
+
+> **Status: unrecorded (checked 2026-07-28, audit L11).** No
+> `docs/assessments/T7-*.md` and no T7-tagged commit. The registry does now
+> carry the screener features this task describes (range filters, sortable
+> columns including beta, 50/page pagination, P/E backfilled from SEC XBRL in
+> `074d3d3`), so the outcome may have been reached — but by the equities feature
+> work, not a recorded T7 pass. Treat as **not verified complete**.
 
 **Owns:** `src/app/(dashboard)/equities/` registry components, `src/app/live-data/stock-universe/route.ts`
 

@@ -1,5 +1,9 @@
 import { create } from 'zustand'
-import type { WsStatus } from '@/lib/websocket/client'
+
+// Previously exported by lib/websocket/client.ts, which the M8 sweep removed.
+// The store is the only surviving owner of connection status, so the type
+// lives with it.
+export type WsStatus = 'connecting' | 'connected' | 'disconnected' | 'error'
 
 interface StreamState {
   connectionStatus: WsStatus

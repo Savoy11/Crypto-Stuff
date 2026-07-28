@@ -10,8 +10,8 @@ import { PopoutLayer } from '@/components/layout/PopoutLayer'
 import { CommandPalette } from '@/components/layout/CommandPalette'
 import { AssistantWidget } from '@/components/agents/AssistantWidget'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
+import { useSession }       from 'next-auth/react'
 import { useWebSocket }     from '@/lib/websocket/hooks'
-import { useAuthStore }     from '@/store/useAuthStore'
 import { useRecentAlerts }  from '@/hooks/useAlerts'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
 import { usePriceAlertMonitor } from '@/hooks/usePriceAlertMonitor'
@@ -68,15 +68,18 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter()
-  const { isAuthenticated } = useAuthStore()
+  const { status } = useSession()
+
+  // 'loading' is deliberately not treated as unauthenticated: the session is
+  // fetched after mount, so redirecting on it would bounce a signed-in user to
+  // /login on every page load.
+  const blocked = REQUIRE_AUTH && status === 'unauthenticated'
 
   useEffect(() => {
-    if (REQUIRE_AUTH && !isAuthenticated) {
-      router.push('/login')
-    }
-  }, [isAuthenticated, router])
+    if (blocked) router.push('/login')
+  }, [blocked, router])
 
-  if (REQUIRE_AUTH && !isAuthenticated) return null
+  if (REQUIRE_AUTH && status !== 'authenticated') return null
 
   return <DashboardInner>{children}</DashboardInner>
 }

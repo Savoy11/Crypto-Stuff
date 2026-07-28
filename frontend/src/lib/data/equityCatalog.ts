@@ -2,9 +2,20 @@
 // Same layer as transferFees.ts / stakingProviders.ts — pure data, no API calls.
 //
 // referencePrice / marketCapB / peRatio / dividendYieldPct / beta are
-// APPROXIMATE reference values (early 2026). Live quotes from
-// /live-data/security-quotes override price and change whenever a source is
-// reachable; the reference values keep every page rendering offline.
+// APPROXIMATE reference values, compiled 2026-07-07 (see EQUITY_REFERENCE_AS_OF
+// below). Live quotes from /live-data/security-quotes override price and change
+// whenever a source is reachable; the reference values keep every page
+// rendering offline.
+//
+// These drift, and visibly: NVDA's marketCapB was written at 4300 and is not
+// re-checked on a schedule. That is tolerable ONLY because two things hold —
+// live quotes win whenever reachable, and anything still showing a reference
+// value is tagged with an amber `ref` badge in the UI. Do not add a surface
+// that renders these numbers without that tag.
+//
+// Dated with a machine-readable constant rather than the prose "early 2026"
+// it used to carry, so consumers can compute the age instead of guessing at it.
+export const EQUITY_REFERENCE_AS_OF = '2026-07-07'
 //
 // Symbols use Yahoo Finance notation (BRK-B, not BRK.B) so one symbol string
 // works across every live source (Yahoo, FMP).

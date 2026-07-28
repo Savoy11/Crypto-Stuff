@@ -1,15 +1,15 @@
 ###############################################################################
-# CAEP — Aurora PostgreSQL 15 (Multi-AZ, encrypted, automated backups)
+# Finance Now — Aurora PostgreSQL 15 (Multi-AZ, encrypted, automated backups)
 ###############################################################################
 
 ###############################################################################
 # DB Cluster Parameter Group
 ###############################################################################
 
-resource "aws_rds_cluster_parameter_group" "caep" {
+resource "aws_rds_cluster_parameter_group" "fn" {
   name        = "${local.name_prefix}-aurora-pg15"
   family      = "aurora-postgresql15"
-  description = "CAEP Aurora PostgreSQL 15 cluster parameter group"
+  description = "Finance Now Aurora PostgreSQL 15 cluster parameter group"
 
   # TimescaleDB extension support
   parameter {
@@ -94,10 +94,10 @@ resource "aws_rds_cluster_parameter_group" "caep" {
   })
 }
 
-resource "aws_db_parameter_group" "caep" {
+resource "aws_db_parameter_group" "fn" {
   name        = "${local.name_prefix}-aurora-pg15-instance"
   family      = "aurora-postgresql15"
-  description = "CAEP Aurora PostgreSQL 15 instance parameter group"
+  description = "Finance Now Aurora PostgreSQL 15 instance parameter group"
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-aurora-pg15-instance-params"
@@ -152,7 +152,7 @@ resource "aws_secretsmanager_secret_version" "rds_password" {
   }
 }
 
-resource "aws_rds_cluster" "caep" {
+resource "aws_rds_cluster" "fn" {
   cluster_identifier          = "${local.name_prefix}-aurora"
   engine                      = "aurora-postgresql"
   engine_version              = var.rds_engine_version
@@ -170,7 +170,7 @@ resource "aws_rds_cluster" "caep" {
 
   # Storage encryption
   storage_encrypted = true
-  kms_key_id        = aws_kms_key.caep.arn
+  kms_key_id        = aws_kms_key.fn.arn
 
   # Backups
   backup_retention_period      = var.rds_backup_retention_days
@@ -185,7 +185,7 @@ resource "aws_rds_cluster" "caep" {
   enabled_cloudwatch_logs_exports = ["postgresql"]
 
   # Parameter group
-  db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.caep.name
+  db_cluster_parameter_group_name = aws_rds_cluster_parameter_group.fn.name
 
   # Serverless v2 scaling (optional — use for variable load patterns)
   # serverlessv2_scaling_configuration {
@@ -212,26 +212,26 @@ resource "aws_rds_cluster" "caep" {
 # Aurora Cluster Instances
 ###############################################################################
 
-resource "aws_rds_cluster_instance" "caep" {
+resource "aws_rds_cluster_instance" "fn" {
   count = var.rds_instance_count
 
   identifier         = "${local.name_prefix}-aurora-${count.index}"
-  cluster_identifier = aws_rds_cluster.caep.id
+  cluster_identifier = aws_rds_cluster.fn.id
   instance_class     = var.rds_instance_class
-  engine             = aws_rds_cluster.caep.engine
-  engine_version     = aws_rds_cluster.caep.engine_version
+  engine             = aws_rds_cluster.fn.engine
+  engine_version     = aws_rds_cluster.fn.engine_version
 
   # First instance is the writer; subsequent are readers
   promotion_tier = count.index == 0 ? 0 : 1
 
-  db_parameter_group_name = aws_db_parameter_group.caep.name
+  db_parameter_group_name = aws_db_parameter_group.fn.name
   db_subnet_group_name    = module.vpc.database_subnet_group_name
 
   # Monitoring
   monitoring_interval                   = 15 # Enhanced monitoring every 15 seconds
   monitoring_role_arn                   = aws_iam_role.rds_monitoring.arn
   performance_insights_enabled          = true
-  performance_insights_kms_key_id       = aws_kms_key.caep.arn
+  performance_insights_kms_key_id       = aws_kms_key.fn.arn
   performance_insights_retention_period = 7
 
   # Auto minor version upgrade
@@ -264,7 +264,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_cpu" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    DBClusterIdentifier = aws_rds_cluster.caep.cluster_identifier
+    DBClusterIdentifier = aws_rds_cluster.fn.cluster_identifier
   }
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -286,7 +286,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_connections" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    DBClusterIdentifier = aws_rds_cluster.caep.cluster_identifier
+    DBClusterIdentifier = aws_rds_cluster.fn.cluster_identifier
   }
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -307,7 +307,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    DBClusterIdentifier = aws_rds_cluster.caep.cluster_identifier
+    DBClusterIdentifier = aws_rds_cluster.fn.cluster_identifier
   }
 
   alarm_actions = [aws_sns_topic.alerts.arn]
@@ -321,7 +321,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_freeable_memory" {
 
 resource "aws_sns_topic" "alerts" {
   name              = "${local.name_prefix}-alerts"
-  kms_master_key_id = aws_kms_key.caep.id
+  kms_master_key_id = aws_kms_key.fn.id
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-alerts-topic"

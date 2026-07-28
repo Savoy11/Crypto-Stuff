@@ -48,7 +48,7 @@ function notify(alert: PriceAlert, price: number) {
   const message = `${alert.label} ${direction} $${alert.price.toLocaleString()} (now $${price.toLocaleString(undefined, { maximumFractionDigits: 2 })})`
   toast(message, { icon: '🔔', duration: 10_000 })
   if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-    try { new Notification('CAEP price alert', { body: message }) } catch { /* blocked */ }
+    try { new Notification('Finance Now price alert', { body: message }) } catch { /* blocked */ }
   }
 }
 

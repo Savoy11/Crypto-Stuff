@@ -1,11 +1,14 @@
-import apiClient from './client'
-import type { Alert, AlertFilters, AlertStats } from '@/types/alert'
+import type { Alert, AlertStats } from '@/types/alert'
 import type { PaginatedResponse } from '@/types/api'
-import { LIVE_DATA } from '@/lib/constants'
 
-// Risk alerts are a derived product with no free real-time source. In strict
-// live mode they are reported as empty (the UI shows an explicit notice)
-// rather than falling back to mock alerts.
+// Risk alerts are a derived product with no free real-time source, so these
+// read as empty and the UI shows an explicit notice rather than mock alerts.
+//
+// This module used to branch on `LIVE_DATA` and otherwise call the legacy
+// Python backend through an axios client. `LIVE_DATA` is a hardcoded `true`
+// (lib/constants.ts), so every one of those branches was unreachable; the M8
+// sweep removed them and the client with them. The live alert feed users
+// actually see comes from /live-data/alerts via hooks/useLiveAlerts.ts.
 const EMPTY_ALERTS: PaginatedResponse<Alert> = {
   data: [],
   total: 0,
@@ -36,38 +39,9 @@ export interface GetAlertsParams {
 }
 
 export const alertsApi = {
-  getAlerts: async (params: GetAlertsParams = {}): Promise<PaginatedResponse<Alert>> => {
-    if (LIVE_DATA) return EMPTY_ALERTS
-    const { data } = await apiClient.get<PaginatedResponse<Alert>>('/alerts', { params })
-    return data
-  },
+  getAlerts: async (_params: GetAlertsParams = {}): Promise<PaginatedResponse<Alert>> => EMPTY_ALERTS,
 
-  getAlertStats: async (): Promise<AlertStats> => {
-    if (LIVE_DATA) return EMPTY_ALERT_STATS
-    const { data } = await apiClient.get<AlertStats>('/alerts/stats')
-    return data
-  },
+  getAlertStats: async (): Promise<AlertStats> => EMPTY_ALERT_STATS,
 
-  markRead: async (alertId: string): Promise<void> => {
-    if (LIVE_DATA) return
-    await apiClient.patch(`/alerts/${alertId}/read`)
-  },
-
-  markAllRead: async (): Promise<void> => {
-    if (LIVE_DATA) return
-    await apiClient.post('/alerts/mark-all-read')
-  },
-
-  acknowledge: async (alertId: string): Promise<void> => {
-    if (LIVE_DATA) return
-    await apiClient.patch(`/alerts/${alertId}/acknowledge`)
-  },
-
-  getRecentAlerts: async (limit = 10): Promise<Alert[]> => {
-    if (LIVE_DATA) return []
-    const { data } = await apiClient.get<Alert[]>('/alerts/recent', { params: { limit } })
-    return data
-  },
+  getRecentAlerts: async (_limit = 10): Promise<Alert[]> => [],
 }
-
-export type { AlertFilters }

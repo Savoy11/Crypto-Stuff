@@ -1,19 +1,19 @@
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
-  name: caep-backend-hpa
-  namespace: caep
+  name: fn-backend-hpa
+  namespace: fn
   labels:
-    app: caep-backend
+    app: fn-backend
     component: autoscaler
-    app.kubernetes.io/name: caep-backend
+    app.kubernetes.io/name: fn-backend
     app.kubernetes.io/component: autoscaler
-    app.kubernetes.io/part-of: caep
+    app.kubernetes.io/part-of: fn
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: caep-backend
+    name: fn-backend
 
   minReplicas: 3
   maxReplicas: 20
@@ -37,7 +37,7 @@ spec:
     - type: Pods
       pods:
         metric:
-          name: caep_active_websocket_connections
+          name: fn_active_websocket_connections
         target:
           type: AverageValue
           averageValue: "500"
@@ -46,10 +46,10 @@ spec:
     - type: External
       external:
         metric:
-          name: caep_api_requests_per_second
+          name: fn_api_requests_per_second
           selector:
             matchLabels:
-              app: caep-backend
+              app: fn-backend
         target:
           type: AverageValue
           averageValue: "100"
@@ -80,14 +80,14 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: caep-backend-pdb
-  namespace: caep
+  name: fn-backend-pdb
+  namespace: fn
   labels:
-    app: caep-backend
+    app: fn-backend
     component: pdb
 spec:
   # Always keep at least 2 pods running during disruptions
   minAvailable: 2
   selector:
     matchLabels:
-      app: caep-backend
+      app: fn-backend

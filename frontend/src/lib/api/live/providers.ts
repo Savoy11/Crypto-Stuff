@@ -673,7 +673,7 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     id: 'anthropic',
     name: 'Anthropic (Claude)',
     category: 'llm',
-    description: 'Claude models — the default for every CAEP agent (App Assistant, Research, Data Scraper, Pump Report, and the equity agents).',
+    description: 'Claude models — the default for every Finance Now agent (App Assistant, Research, Data Scraper, Pump Report, and the equity agents).',
     features: ['Tool use', 'Long context', 'Strong reasoning'],
     requiresKey: true,
     keyUrl: 'https://console.anthropic.com/settings/keys',
@@ -788,7 +788,11 @@ function readConfigFile(): ConfigFile {
 
 function writeConfigFile(file: ConfigFile): void {
   try {
-    fs.writeFileSync(CONFIG_PATH, JSON.stringify(file, null, 2), 'utf8')
+    // 0600 like the exchange-credentials store — this file holds provider and
+    // LLM API keys. mode only applies on creation, so chmod covers files
+    // created by earlier versions with the default 0644.
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(file, null, 2), { encoding: 'utf8', mode: 0o600 })
+    fs.chmodSync(CONFIG_PATH, 0o600)
   } catch (e) {
     console.error('[providers] Failed to write config file:', e)
   }

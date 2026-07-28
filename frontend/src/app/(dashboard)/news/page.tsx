@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Settings, Loader2, Share2, Check, RefreshCw, Search, X, Info } from 'lucide-react'
@@ -201,7 +202,7 @@ async function fetchLiveNews(
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-export default function NewsPage() {
+function NewsPageInner() {
   const [assetFilter, setAssetFilter] = useState('all')
   const [categoryFilter, setCategoryFilter] = useState<NewsCategory | 'all'>('all')
   const [sentimentFilter, setSentimentFilter] = useState<'all' | 'positive' | 'neutral' | 'negative'>('all')
@@ -309,7 +310,7 @@ export default function NewsPage() {
               details={[
                 { label: 'Asset detection', text: 'Articles are tagged using coin name/ticker matching, issuer mapping (e.g. Circle → USDC), and regulatory inference (e.g. MiCA → USDC, USDT).' },
                 { label: 'Sentiment', text: 'Positive (green dot) · Neutral (grey) · Negative (red). Sentiment is inferred from headline keywords.' },
-                { label: 'Sources', text: 'CAEP aggregates live RSS and JSON feeds from The Block, CoinDesk, Cointelegraph, and others. There is no mock mode — if no feed is reachable the list is shown as empty rather than seeded with fabricated articles.' },
+                { label: 'Sources', text: 'Finance Now aggregates live RSS and JSON feeds from The Block, CoinDesk, Cointelegraph, and others. There is no mock mode — if no feed is reachable the list is shown as empty rather than seeded with fabricated articles.' },
                 { label: 'Keyword filter', text: 'Type a word or phrase to filter the feed by topic. Keywords match against each story’s headline, summary, classified category, tagged assets, sentiment, and source — so terms like "regulation" or "btc" match relevant stories even when the word isn’t in the title. Multiple keywords are combined with AND (every keyword must match); matching is case-insensitive. Adding a keyword also queries the news providers (NewsAPI, GNews) for fresh stories on that term, so the feed pulls in matching coverage rather than only filtering what is already loaded.' },
               ]}
             />
@@ -543,5 +544,16 @@ export default function NewsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside NewsPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function NewsPage() {
+  return (
+    <ModuleGate module="crypto">
+      <NewsPageInner />
+    </ModuleGate>
   )
 }

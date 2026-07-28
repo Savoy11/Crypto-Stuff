@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "caep-backend"
+name = "finance-now-backend"
 version = "1.0.0"
 description = "Crypto Asset Evaluation Platform — backend API"
-authors = ["CAEP Engineering <engineering@caep.io>"]
+authors = ["Finance Now Engineering <engineering@financenow.example>"]
 packages = [{include = "app"}]
 
 [tool.poetry.dependencies]

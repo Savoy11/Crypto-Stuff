@@ -2,7 +2,7 @@
 
 _Last updated: 2026-07-19._
 
-This describes how CAEP decides **who owns a row**, what is built and verified
+This describes how Finance Now decides **who owns a row**, what is built and verified
 today, and exactly what remains for multi-user auth when commercialization
 starts (see `docs/ROADMAP.md` Phase 6 and the Sell-Readiness Plan).
 
@@ -41,7 +41,7 @@ account has `password_hash = NULL` and **cannot be logged into** — it only own
 rows.
 
 `isLocalUserModeAllowed()` returns true in development, and in production
-**only** when `CAEP_ALLOW_LOCAL_USER=true`. That default is load-bearing:
+**only** when `FN_ALLOW_LOCAL_USER=true`. That default is load-bearing:
 without it, a public deploy would silently hand every anonymous visitor the
 same shared account, and with it everyone's portfolio and budget.
 
@@ -109,7 +109,7 @@ yet, and building it now means maintaining a login system with no users.
    tool, unacceptable when modules are paid SKUs. The `entitlements` table
    already exists; read through a server route and treat missing rows as
    "denied" rather than the current "granted".
-5. **Turn off local-user mode** in production (`CAEP_ALLOW_LOCAL_USER=false`)
+5. **Turn off local-user mode** in production (`FN_ALLOW_LOCAL_USER=false`)
    and add a signup UI.
 6. **Then** billing (Stripe → writes `entitlements`), password reset, and
    OAuth via `@auth/drizzle-adapter`.

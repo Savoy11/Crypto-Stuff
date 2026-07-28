@@ -2,7 +2,7 @@
 set -e
 
 # ─────────────────────────────────────────────
-#  CAEP — Crypto Asset Evaluation Platform
+#  Finance Now — Multi-Asset Financial Analytics
 #  Setup & Launch Script
 # ─────────────────────────────────────────────
 
@@ -18,10 +18,10 @@ FRONTEND_DIR="$SCRIPT_DIR/frontend"
 
 print_header() {
   echo ""
-  echo -e "${CYAN}${BOLD}╔══════════════════════════════════════════╗${RESET}"
-  echo -e "${CYAN}${BOLD}║   CAEP — Crypto Asset Evaluation Platform ║${RESET}"
-  echo -e "${CYAN}${BOLD}║   Setup Script                            ║${RESET}"
-  echo -e "${CYAN}${BOLD}╚══════════════════════════════════════════╝${RESET}"
+  echo -e "${CYAN}${BOLD}╔══════════════════════════════════════════════════╗${RESET}"
+  echo -e "${CYAN}${BOLD}║   Finance Now — Multi-Asset Financial Analytics  ║${RESET}"
+  echo -e "${CYAN}${BOLD}║   Setup Script                                   ║${RESET}"
+  echo -e "${CYAN}${BOLD}╚══════════════════════════════════════════════════╝${RESET}"
   echo ""
 }
 
@@ -111,7 +111,7 @@ install_deps() {
 
 # ── 5. Start the dev server ───────────────────
 start_server() {
-  step "Starting CAEP..."
+  step "Starting Finance Now..."
   echo ""
   echo -e "  ${BOLD}App will be available at:${RESET} ${GREEN}http://localhost:3000${RESET}"
   echo -e "  ${BOLD}Press Ctrl+C to stop.${RESET}"

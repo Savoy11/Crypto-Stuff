@@ -10,7 +10,7 @@ The backend HPA is pre-configured (`infrastructure/kubernetes/backend/hpa.yaml`)
 
 Monitor HPA:
 ```bash
-kubectl get hpa caep-backend-hpa -n caep -w
+kubectl get hpa fn-backend-hpa -n fn -w
 ```
 
 ## Manual Scaling Events
@@ -18,11 +18,11 @@ kubectl get hpa caep-backend-hpa -n caep -w
 **Anticipated high traffic** (institutional client onboarding, market events):
 ```bash
 # Pre-scale before event
-kubectl scale deployment caep-backend --replicas=10 -n caep
-kubectl scale deployment caep-frontend --replicas=5 -n caep
+kubectl scale deployment fn-backend --replicas=10 -n fn
+kubectl scale deployment fn-frontend --replicas=5 -n fn
 
 # Verify
-kubectl get pods -n caep | grep -E "backend|frontend"
+kubectl get pods -n fn | grep -E "backend|frontend"
 ```
 
 ## Database Scaling
@@ -30,8 +30,8 @@ kubectl get pods -n caep | grep -E "backend|frontend"
 **Add Aurora read replica**:
 ```bash
 aws rds create-db-instance \
-  --db-instance-identifier caep-reader-2 \
-  --db-cluster-identifier caep-cluster \
+  --db-instance-identifier fn-reader-2 \
+  --db-cluster-identifier fn-cluster \
   --engine aurora-postgresql \
   --db-instance-class db.r6g.large
 ```

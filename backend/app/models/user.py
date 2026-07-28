@@ -17,6 +17,14 @@ class UserRole(str, enum.Enum):
     analyst = "analyst"
     admin = "admin"
 
+    def __str__(self) -> str:
+        # str(UserRole.admin) is "UserRole.admin" by default on a str-mixin
+        # enum in Python 3.11 — which made has_role() and every
+        # str(user.role) call site (role_checker, login token minting, the
+        # alerts admin checks) see an unknown role and deny admins their own
+        # endpoints. Return the bare value so str() round-trips.
+        return self.value
+
 
 class User(Base, UUIDMixin, TimestampMixin):
     __tablename__ = "users"

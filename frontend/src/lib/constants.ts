@@ -1,11 +1,10 @@
-export const APP_NAME = 'CAEP'
-export const APP_FULL_NAME = 'Crypto Asset Evaluation Platform'
+export const APP_NAME = 'Finance Now'
+export const APP_FULL_NAME = 'Multi-Asset Financial Analytics'  // tagline shown under APP_NAME (login header)
 export const APP_VERSION = '1.1.0'
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
-export const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000/ws'
 
-// CAEP runs in live-only mode. Numeric market fields (price, market cap, volume,
+// Finance Now runs in live-only mode. Numeric market fields (price, market cap, volume,
 // 24h change, circulating supply) are sourced live from CoinGecko via the
 // /live-data/* route handlers. Metadata (name, chain, issuer, etc.) comes from
 // the static catalog (lib/data/assetCatalog.ts). Derived metrics (risk,
@@ -24,10 +23,6 @@ export const STALE_TIME_SHORT = 30_000       // 30s
 export const STALE_TIME_MEDIUM = 60_000      // 1m
 export const STALE_TIME_LONG = 300_000       // 5m
 export const GC_TIME = 600_000               // 10m
-
-export const WS_RECONNECT_INITIAL = 1_000
-export const WS_RECONNECT_MAX = 30_000
-export const WS_HEARTBEAT_INTERVAL = 25_000
 
 export const TIME_RANGE_OPTIONS = [
   { label: '1H', value: '1h' },

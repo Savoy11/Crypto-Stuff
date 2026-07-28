@@ -1,5 +1,6 @@
 'use client'
 
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -9,6 +10,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { DataBadge } from '@/components/ui/DataBadge'
 import { clsx } from 'clsx'
 import {
@@ -391,7 +393,7 @@ function WrongNetworkExplainer() {
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
 
-export default function TransferFeesPage() {
+function TransferFeesPageInner() {
   const [coinId, setCoinId] = useState<string>('usdt')
   const [amount, setAmount] = useState<string>('1000')
   const [stops, setStops]   = useState<string[]>(['binance', 'coinbase'])
@@ -525,31 +527,17 @@ export default function TransferFeesPage() {
       {/* Provenance / freshness notice for hand-maintained withdrawal fees */}
       {(() => {
         const prov = getTransferFeeProvenance()
-        const confMeta = {
-          high:   { label: 'High confidence',   chip: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' },
-          medium: { label: 'Medium confidence', chip: 'bg-amber-500/15 text-amber-300 border-amber-500/30' },
-          low:    { label: 'Low confidence',     chip: 'bg-rose-500/15 text-rose-300 border-rose-500/30' },
-        }[prov.confidence]
         return (
-          <div
-            className={clsx(
-              'flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border px-3 py-2 text-xs',
-              prov.stale
-                ? 'border-amber-500/30 bg-amber-500/5 text-amber-300/90'
-                : 'border-slate-700/60 bg-slate-800/30 text-slate-400'
-            )}
+          <ProvenanceNotice
+            label="Exchange withdrawal fees"
+            staleLabel="Withdrawal fees may be out of date"
+            confidence={prov.confidence}
+            stale={prov.stale}
           >
-            <span className="font-medium">
-              {prov.stale ? '⚠ Withdrawal fees may be out of date' : 'Exchange withdrawal fees'}
-            </span>
-            <span className={clsx('px-1.5 py-0.5 rounded border text-[10px] font-semibold', confMeta.chip)}>
-              {confMeta.label}
-            </span>
-            <span className="opacity-80">
-              — {prov.source.toLowerCase()}, verified {new Date(TRANSFER_FEES_LAST_VERIFIED).toLocaleDateString()} ({transferFeesAgeDays()} days ago).
-              Network gas is live; withdrawal fees are static estimates — always confirm on the exchange before sending.
-            </span>
-          </div>
+            — {prov.source.toLowerCase()}, verified{' '}
+            {new Date(TRANSFER_FEES_LAST_VERIFIED).toLocaleDateString()} ({transferFeesAgeDays()} days ago).
+            Network gas is live; withdrawal fees are static estimates — always confirm on the exchange before sending.
+          </ProvenanceNotice>
         )
       })()}
 
@@ -914,5 +902,16 @@ export default function TransferFeesPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+// Entitlement gate. Wrapping here rather than inside TransferFeesPageInner's JSX is
+// deliberate: a disabled module must not mount the component at all, so its
+// queries and stores never run for a user who cannot see the results.
+export default function TransferFeesPage() {
+  return (
+    <ModuleGate module="crypto">
+      <TransferFeesPageInner />
+    </ModuleGate>
   )
 }

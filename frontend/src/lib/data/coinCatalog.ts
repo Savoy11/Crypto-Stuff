@@ -1,7 +1,7 @@
-// Coins already tracked in CAEP — excluded from discovery recommendations.
+// Coins already tracked in Finance Now — excluded from discovery recommendations.
 // Add CoinGecko IDs here whenever a coin is formally added to the platform.
 
-export const CAEP_TRACKED_IDS = new Set([
+export const FN_TRACKED_IDS = new Set([
   // Core 16 (transfer fee calculator + staking)
   'bitcoin', 'ethereum', 'tether', 'usd-coin', 'binancecoin', 'solana',
   'dai', 'ripple', 'litecoin', 'tron', 'dogecoin', 'matic-network',

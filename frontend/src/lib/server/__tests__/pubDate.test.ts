@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parsePubDate } from '@/app/live-data/macro-news/route'
+import { parsePubDate } from '@/lib/server/pubDate'
 
 // Regression cover for the Investing.com timestamp bug: a zone-less pubDate was
 // read as LOCAL time, so on a UTC−4 host every article landed ~4h in the future,

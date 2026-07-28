@@ -2,108 +2,94 @@
 
 _Context: CI had been red on every recent PR (including #20, which merged anyway).
 The failures were chronic **backend/infrastructure** debt, unrelated to the
-frontend PRs they were blocking. PR #22 (`claude/new-session-h5t7gn`) fixes the
-mechanical/contained issues and documents the rest. The CI workflow
-(`.github/workflows/ci.yml`) runs only on pull requests._
+frontend PRs they were blocking. PR #22 (`claude/new-session-h5t7gn`) fixed the
+mechanical/contained issues and documented the rest as F-A/F-B/F-C. The CI
+workflow (`.github/workflows/ci.yml`) runs only on pull requests._
 
-## Job status after PR #22
+**All three follow-ups from PR #22 are now resolved.** This document previously
+still listed them as blockers long after they had been fixed, which is its own
+kind of stale — a remediation doc that over-reports breakage sends people to
+diagnose problems that no longer exist. Status below re-verified 2026-07-28.
+
+## Job status
 
 | Job | Status | Notes |
 |-----|--------|-------|
-| Frontend Check (ESLint + TS + Build) | 🟢 green | was already passing |
-| Backend Lint (ruff + mypy) | 🟢 green | ~250 ruff findings resolved; see below |
+| Frontend Check (ESLint + TS + Build) | 🟢 green | |
+| Backend Lint (ruff + mypy) | 🟢 green | ~250 ruff findings resolved in PR #22 |
 | Security Scan / Trivy | 🟢 green | |
-| Backend Tests (pytest) | 🔴 red | migrations now pass; blocked on pre-existing app bug — see F-A |
-| Terraform Validate | 🔴 red | 3 layers fixed; blocked on a dependency cycle — see F-B |
-| Docker Build Test | 🔴 red | Dockerfile/CI target mismatch — see F-C (**priority**) |
-
-## Fixed in PR #22
-
-- **Terraform CLI pin** `1.6.6 → 1.9.8` — `variables.tf` uses a cross-variable
-  reference in a `validation` block, allowed only from TF 1.9.
-- **Terraform WAF blocks** — `main.tf` had single-line nested blocks
-  (`override_action { none {} }`, `action { block {} }`); rewritten multi-line.
-- **Terraform `fmt`** — normalized 6 files for 1.9.8's stricter formatter.
-- **Terraform eks module** pinned `~> 20.4 → ~> 19.21` to match the v19-style
-  `aws_auth_*` arguments the config uses (see F-B for the follow-on decision).
-- **Migration enum double-create** (`001_initial.py`) — enums were created
-  explicitly and then again by inline `sa.Enum(...)` columns → `type "userrole"
-  already exists`. Now `create_type=False` + shared enum objects.
-- **Migration duplicate constraint** (`002_scoring_fixes.py`) — re-added a
-  UNIQUE constraint that `001` already creates → made idempotent
-  (`DROP CONSTRAINT IF EXISTS` first).
-- **Backend lint** — F401/I001/format across the backend, plus mechanical
-  E712/UP038/C416/B904/B007, dead-code F841 removals, and the
-  `CAEPException → CAEPError` (N818) rename.
-- **Re-export regression fix** — ruff's F401 autofix had stripped re-exports
-  from 6 package `__init__.py` files; restored, and `per-file-ignore`
-  (`"__init__.py" = ["F401"]`) added to `backend/pyproject.toml` so it can't recur.
+| Backend Tests (pytest + coverage) | 🟢 green | suite runs; 82 tests collected. Was F-A |
+| Terraform Validate | 🟢 green | dependency cycle broken. Was F-B |
+| Docker Build Test | 🟢 green | CI targets match the real stage names. Was F-C |
 
 ---
 
-## Follow-ups (prioritized)
+## Resolved
 
-### F-C — Docker Build Test  ⭐ PRIORITY (decision: keep Docker)
+### F-C — Docker Build Test → fixed 2026-07-20 (`0ce5cb6`)
 
-**Decision:** stay on Docker; troubleshoot when local Docker access is available
-(build verification needs a running daemon).
+`ci.yml` built both images with `--target production`, a stage neither
+Dockerfile defines. Fixed by option 1 (align CI to the real stages) rather than
+renaming the stages:
 
-**Exact first error (from CI):**
-```
-ERROR: failed to solve: target stage "production" could not be found
-```
-**Root cause (already diagnosed, static — no daemon needed):** `ci.yml` builds
-both images with `--target production`, but neither Dockerfile defines that stage:
-- `backend/Dockerfile` stages: `builder`, `runtime`
-- `frontend/Dockerfile` stages: `deps`, `builder`, `runner`
-- `ci.yml:265` and `ci.yml:279` both pass `target: production`
+- `ci.yml:278` → `target: runtime` (matches `backend/Dockerfile`: `builder`, `runtime`)
+- `ci.yml:294` → `target: runner` (matches `frontend/Dockerfile`: `deps`, `builder`, `runner`)
 
-**Fix options** (either works; pick one convention):
-1. Align CI to the real stages — backend `target: runtime`, frontend `target: runner`; or
-2. Add `AS production` as the final stage name in both Dockerfiles (or alias it).
+PR #22 warned the real image build had never run in CI and might surface further
+errors behind the build-definition fix. It did not — the job has been green since.
 
-**Expect more behind it:** this only unblocks the *build definition*. The actual
-image build (pip install, `next build`, etc.) has never run in CI and may surface
-further errors — verify locally with Docker before assuming green.
+### F-A — Backend Tests → fixed 2026-07-28 (`8ffea21`)
 
-### F-A — Backend Tests (pytest)
+pytest failed at **collection** because `app/scoring/engine.py:34` imported
+`get_weights_for_asset_type` from `app.scoring.weights`, which never defined it.
+The function now exists at `weights.py:85` and the suite is importable.
 
-`alembic upgrade head` now passes (both migration fixes above). pytest then fails
-at **collection** on a pre-existing bug — confirmed absent from `main`, i.e. not
-introduced here:
-```
-ImportError: cannot import name 'get_weights_for_asset_type'
-from 'app.scoring.weights'   (imported at app/scoring/engine.py:31)
-```
-`weights.py` defines `ScoringWeights`, `DEFAULT_WEIGHTS`, `RISK_BAND_THRESHOLDS`,
-`CONFIDENCE_THRESHOLDS` — but never `get_weights_for_asset_type`. The scoring
-engine has therefore never been importable; the test suite has **never run** in CI
-(the migration always died first, masking this).
+The warning that this was "resurrect a never-run suite, not a one-line fix" was
+accurate: `8ffea21`'s message is *"make the backend suite real again"*, and it
+carried the surrounding work, not just the missing function.
 
-**Needs the scoring-module owner** to decide: implement
-`get_weights_for_asset_type(asset_type)` (per how `engine.py` uses it) or fix the
-import. Likely more import/logic bugs and real test-assertion failures behind it —
-this is "resurrect a never-run suite," not a one-line fix.
+Current state: **82 tests collected, suite passes in CI.** Verified locally on
+2026-07-28 at 67 passed / 15 errored, where all 15 errors are
+`ConnectionRefusedError` on `127.0.0.1:5432` — CI supplies Postgres through
+GitHub Actions `services:` (`timescale/timescaledb:latest-pg15`), which a plain
+local checkout does not have. Those 15 are not judged from a local run.
 
-Note: the pytest DB comes from GitHub Actions `services:` (Postgres/Redis) on the
-runner — **not** local Docker — so this is unblocked by the Docker decision.
+### F-B — Terraform Validate → fixed 2026-07-28 (`8ffea21`)
 
-### F-B — Terraform Validate
+The `kms → iam_role → eks → kms` cycle is broken, and broken the safe way PR #22
+argued for rather than by widening the key policy: `aws_kms_key.fn`'s policy now
+carries only the account-root statement, with a comment at `main.tf:149-153`
+explaining why no per-role statement may be added back. The backend role gets
+`kms:Decrypt` / `GenerateDataKey` / `DescribeKey` from its own identity policy
+(`iam.tf:112-120`, scoped to `aws_kms_key.fn.arn`), which removes the kms→role
+edge without granting anything broader.
 
-After the CLI/WAF/eks fixes, `terraform validate` now builds the full graph and
-reports a **dependency cycle** among the security resources:
-```
-aws_kms_key.caep  →  aws_iam_role.backend  →  module.eks  →  aws_kms_key.caep
-```
-- `aws_kms_key.caep` key policy names `aws_iam_role.backend` as a principal (`main.tf:153`)
-- `aws_iam_role.backend` trusts the EKS OIDC provider (`iam.tf` — `module.eks.oidc_provider_arn`)
-- `module.eks` uses `aws_kms_key.caep.arn` for secret encryption (`eks.tf:25`)
+The Terraform CLI stays pinned at 1.9.8 (`ci.yml:366`) for the cross-variable
+`validation` block.
 
-**Needs a security-infra decision.** Typical break: grant the role KMS access via
-an IAM policy on the role + an account-root key policy, instead of naming the role
-directly in the key policy (removes kms→role edge). Do this deliberately — a naive
-break can widen the key policy and weaken posture.
+Note: the KMS resource is `aws_kms_key.fn`, not `.caep` — renamed in the
+2026-07-28 rebrand (`b8fc320`). PR #22's cycle description used the old name.
 
-Also open: the eks module is pinned back to v19.21 to match the existing
-`aws_auth_*` config. Migrating to v20 (`authentication_mode` + `access_entries`)
-is a separate, deliberate follow-up.
+---
+
+## Open
+
+### Coverage floor is below where it should be
+
+`ci.yml` runs pytest with `--cov-fail-under=45` against a measured ~51%. The
+inline comment is explicit that this is measured reality rather than a target,
+and that raising it should come with new tests instead of a broken gate. That
+work is still outstanding.
+
+**Inconsistency worth fixing alongside it:** `backend/pyproject.toml:67` still
+sets `addopts = "... --cov-fail-under=80"`. CI overrides it on the command line,
+so a developer running a bare `pytest` locally fails an 80% gate that CI does not
+enforce — the local run reports *"Required test coverage of 80% not reached"* on
+a suite CI calls green. Pick one number and let both read it.
+
+### eks module pinned to v19
+
+`infrastructure/terraform/eks.tf:7` pins `terraform-aws-modules/eks/aws` at
+`~> 19.21` to match the existing `aws_auth_*` arguments. Migrating to v20
+(`authentication_mode` + `access_entries`) remains a separate, deliberate
+follow-up — unchanged since PR #22.
