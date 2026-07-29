@@ -59,6 +59,18 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW: int = 60  # seconds
 
     # ------------------------------------------------------------------ #
+    # Metrics endpoint access
+    # ------------------------------------------------------------------ #
+    # Extra source IPs allowed to scrape /metrics, on top of loopback. Set this
+    # to the Prometheus scraper's address when it is not co-located.
+    METRICS_ALLOWED_IPS: list[str] = []
+    # Whether to derive the client IP from X-Forwarded-For. Only enable this
+    # behind a proxy that OVERWRITES the header — if anything can reach the app
+    # directly, a client sets `X-Forwarded-For: 127.0.0.1` and walks past the
+    # allowlist. Off by default so the guard is not silently bypassable.
+    METRICS_TRUST_FORWARDED_FOR: bool = False
+
+    # ------------------------------------------------------------------ #
     # CORS
     # ------------------------------------------------------------------ #
     CORS_ORIGINS: list[str] = Field(default=["http://localhost:3000", "http://localhost:8080"])
