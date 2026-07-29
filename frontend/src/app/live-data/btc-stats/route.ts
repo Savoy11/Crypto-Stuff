@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import { normaliseHashrate } from '@/lib/server/btcHashrate'
 
 // Bitcoin network statistics from multiple free sources:
-// - Blockchain.info: hashrate, difficulty, mempool, block count
+// - Blockchain.info: hashrate (GH/s — see lib/server/btcHashrate.ts), difficulty,
+//   mempool, block count
 // - Mempool.space: fee estimates, mempool size, block times
 // - Binance: BTC dominance approximation via market cap
 //
@@ -58,7 +60,11 @@ export async function GET(): Promise<NextResponse> {
       hash_rate: number; difficulty: number; n_blocks_total: number;
       minutes_between_blocks: number; n_tx: number
     }
-    hashrateTHs = s.hash_rate / 1e12
+    // NOT `/1e12`. blockchain.info sends GH/s, so that read a gigahash figure
+    // as hashes and under-reported by 10^9 — the audit saw `0 EH/s` twice while
+    // block height advanced normally. normaliseHashrate() infers the unit from
+    // magnitude and returns null rather than a number it cannot justify.
+    hashrateTHs = normaliseHashrate(s.hash_rate).hashrateTHs
     difficulty = s.difficulty
     if (!blockHeight) blockHeight = s.n_blocks_total
     avgBlockTimeSec = s.minutes_between_blocks ? s.minutes_between_blocks * 60 : null

@@ -165,7 +165,7 @@ added 2026-07-29; their rows stay ⬜ **Not measured** until the next run.
 | Fear & Greed Index | 🟢 Live | alternative.me | |
 | Funding rates + open interest | 🟢 Live | **OKX** (Binance fapi is 451 here) | 10 instruments. |
 | DeFi TVL | 🟢 Live | DefiLlama | 50 protocols. |
-| BTC network stats | 🟢 Live | mempool.space | Height, hashrate, difficulty, mempool. |
+| BTC network stats | 🟢 Live | blockchain.info + mempool.space | Height, hashrate, difficulty, mempool. Hashrate **unit is inferred from magnitude** (`lib/server/btcHashrate.ts`), not assumed: the upstream sends GH/s and a hardcoded `/1e12` reported `0 EH/s` while block height advanced normally (fixed 2026-07-29). Returns `null` — rendered as not-available — rather than a figure it cannot justify. A wrong field inside an otherwise healthy payload is the one failure the REAL/FALLBACK split cannot catch. |
 | Reserves / collateralization | 🟢 Live | DefiLlama Stablecoins API | 9 stablecoins. Composition breakdown is **approximate / derived** from chain distribution, not issuer attestation. |
 | Risk scores | 🟢 Derived | DefiLlama + CoinGecko + curated disclosures + news | Live-computed composites via `src/lib/risk`. Pillars without data show N/A and drop coverage/confidence. |
 | Alerts | 🟢 Live | Derived from live market thresholds | Generated from live price/peg movement, not a stored backend. |
