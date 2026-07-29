@@ -21,6 +21,28 @@ Finance Now implements a defense-in-depth security posture designed to meet ente
 
 ## Authentication Flow
 
+> ⚠ **Scope: this diagram is the BACKEND's auth flow, not the application's.**
+> Corrected 2026-07-28 — it previously read as *the* way Finance Now authenticates,
+> which has not been true since the audit's M2 remediation.
+>
+> **What the app actually does:** the Next.js frontend signs in through **Auth.js**
+> (`next-auth` v5) with a Credentials provider and a **JWT session strategy**,
+> against its own `users` table — see `frontend/src/lib/auth/config.ts`. There is
+> no access/refresh token pair, no Redis refresh store, and no `Authorization:
+> Bearer` header on the path a user actually takes. `getCurrentUserId()`
+> (`lib/auth/session.ts`) is what DB-backed features read.
+>
+> M2 found the two stacks resolved *different identities* and deleted the
+> frontend's half: `useAuthStore`, `lib/api/auth.ts`, the legacy auth DTOs, and
+> the axios token/refresh interceptors are gone. The login wall itself is
+> currently off, with local-user mode gated behind `FN_ALLOW_LOCAL_USER`.
+>
+> **The flow below is still real** — `backend/app/api/v1/auth.py` implements
+> `/login`, `/refresh`, `/logout`, `/me` and MFA enrolment, and the RBAC matrix
+> that follows describes those endpoints accurately. But `LIVE_DATA` is hardcoded
+> `true`, so the frontend never calls them. Treat this section as documentation of
+> the optional backend service, and do not reason about the app's sign-in from it.
+
 ```
 Client                    Backend                  Redis
   │                          │                       │
@@ -147,6 +169,14 @@ Exceeded limits return `429 Too Many Requests` with `Retry-After` header.
 - [ ] Enable RDS automated backups (7-day retention minimum)
 - [ ] Verify TLS certificate auto-renewal
 - [ ] Enable CloudTrail for AWS API audit logging
-- [ ] Run `pip audit` and `npm audit` in CI
-- [ ] Configure Dependabot for weekly dependency updates
+- [x] Run `pip audit` and `npm audit` in CI — done, with a caveat worth knowing:
+      the Security Scan job runs `npm audit --audit-level=high`, `safety check`
+      (the pip-audit equivalent) **and** a Trivy filesystem scan. The first two
+      are `|| true`, so they report without gating; **only Trivy actually fails
+      the build.** Removing those `|| true`s is the follow-up, and it is not free
+      — `npm audit` currently reports 23 dev-tooling advisories that have no
+      non-breaking fix, so it would fail CI on day one.
+- [x] Configure Dependabot for weekly dependency updates — `.github/dependabot.yml`
+      covers npm (frontend + mcp-server), pip (backend), GitHub Actions, and the
+      frontend Docker base image.
 - [ ] Perform penetration test before production launch

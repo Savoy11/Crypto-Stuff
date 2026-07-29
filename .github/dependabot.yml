@@ -1,0 +1,85 @@
+# Dependabot — weekly dependency updates.
+#
+# Added 2026-07-28, closing the last unticked item in docs/architecture/security.md
+# that was actionable from the repo. The week that preceded it is the argument for
+# it: three critical advisories (@auth/core, next-auth, and a CVSS 9.1 Next.js
+# middleware authorization bypass) sat in the tree until someone ran `npm audit`
+# by hand. Every one of them would have arrived as a PR.
+#
+# Grouping is deliberate. Ungrouped, this repo would open ~15 PRs a week across
+# four ecosystems and they would be ignored, which is worse than not running it.
+# Patch and minor updates are batched per ecosystem; majors come through on their
+# own because they are the ones that need reading.
+
+version: 2
+
+updates:
+  # ── Frontend (Next.js app) ────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      frontend-patch-minor:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    ignore:
+      # Next majors are a migration, not an update — 14 -> 15 needed async
+      # `params` changes across six files and a postcss override. Track those
+      # deliberately rather than as a surprise PR.
+      - dependency-name: next
+        update-types: [version-update:semver-major]
+      # React majors drag the whole chart/UI stack (recharts, lightweight-charts)
+      # with them.
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+
+  # ── MCP server ────────────────────────────────────────────────────────────
+  - package-ecosystem: npm
+    directory: /mcp-server
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      mcp-patch-minor:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # ── Backend (Poetry) ──────────────────────────────────────────────────────
+  # Dependabot's pip ecosystem reads pyproject.toml/poetry.lock.
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      backend-patch-minor:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  # ── GitHub Actions ────────────────────────────────────────────────────────
+  # The CI logs already carry deprecation warnings for actions pinned to Node 20
+  # runtimes; this is how those stop accumulating silently.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # ── Docker base image ─────────────────────────────────────────────────────
+  - package-ecosystem: docker
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
