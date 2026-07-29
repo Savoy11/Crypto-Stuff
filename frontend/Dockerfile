@@ -9,7 +9,16 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
-RUN npm ci --only=production && npm cache clean --force
+# ALL dependencies, not --only=production. The builder stage below reuses this
+# node_modules to run `next build`, and the build needs devDependencies —
+# @types/node, @types/react and the eslint config among them — to typecheck.
+#
+# With --only=production, Next 15 detects the missing @types, tries to install
+# them mid-build, and the build dies. It survived on Next 14 only because that
+# version did not attempt the auto-install. Nothing is bloated by this: the
+# final image is built from `output: 'standalone'`, which bundles just the
+# modules the server actually needs, so devDependencies never reach the runner.
+RUN npm ci && npm cache clean --force
 
 # Stage 2: Builder
 FROM node:22-alpine AS builder
