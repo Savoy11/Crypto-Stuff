@@ -23,6 +23,7 @@ from app.core.security import (
     verify_mfa_code,
     verify_password,
     verify_token,
+    verify_token_not_revoked,
 )
 from app.dependencies import CurrentUser, DBSession, require_role
 from app.models.audit_log import AuditLog
@@ -195,7 +196,12 @@ async def refresh_token(
 ) -> dict:
     """Exchange a valid refresh token for a new access token."""
     try:
-        payload = verify_token(body.refresh_token, expected_type="refresh")
+        # NOT plain verify_token. /logout blocklists the refresh token's jti,
+        # and this endpoint used to skip that check entirely — so a logged-out
+        # refresh token kept minting fresh access tokens for its full 7-day
+        # life. This is the single most important call site of the blocklist:
+        # without it, revocation is decorative.
+        payload = await verify_token_not_revoked(body.refresh_token, expected_type="refresh")
     except Exception:
         raise http_401("Invalid or expired refresh token") from None
 
@@ -219,7 +225,30 @@ async def refresh_token(
     )
 
 
-@router.post("/logout", response_model=dict, summary="Revoke refresh token")
+async def _revoke_jti(token: str, expected_type: str) -> bool:
+    """
+    Add one token's jti to the blocklist for its remaining lifetime.
+
+    The TTL matches the token's own expiry, so entries clean themselves up:
+    blocklisting can never outgrow the set of tokens that are still valid.
+    Returns False when the token is unusable — callers proceed regardless,
+    since a logout must not fail because the client sent a stale token.
+    """
+    try:
+        payload = verify_token(token, expected_type=expected_type)
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if not jti or not exp:
+            return False
+        redis = await get_redis()
+        ttl = max(1, int(exp) - int(datetime.now(UTC).timestamp()))
+        await redis.setex(f"blocklist:{jti}", ttl, "1")
+        return True
+    except Exception:
+        return False
+
+
+@router.post("/logout", response_model=dict, summary="Revoke access + refresh tokens")
 async def logout(
     request: Request,
     body: LogoutRequest,
@@ -227,20 +256,25 @@ async def logout(
     db: DBSession,
 ) -> dict:
     """
-    Logout and revoke the supplied refresh token by adding its JTI to a
-    Redis blocklist. The blocklist TTL matches the token's remaining lifetime.
+    Logout by blocklisting BOTH the supplied refresh token and the access token
+    that authorised this call. Each entry's TTL matches its token's remaining
+    lifetime.
+
+    Revoking only the refresh token — which is all this did until 2026-07-29 —
+    leaves the current access token working until it expires on its own. That
+    was a 30-minute window in which a "logged out" session still had full API
+    access; the lifetime is now 10 minutes, and blocklisting the access token
+    closes even that.
     """
-    try:
-        payload = verify_token(body.refresh_token, expected_type="refresh")
-        jti = payload.get("jti")
-        exp = payload.get("exp")
-        if jti and exp:
-            redis = await get_redis()
-            ttl = max(1, int(exp) - int(datetime.now(UTC).timestamp()))
-            await redis.setex(f"blocklist:{jti}", ttl, "1")
-    except Exception:
-        # Even if the token is already invalid, proceed with logout
-        pass
+    await _revoke_jti(body.refresh_token, "refresh")
+
+    # The bearer token on this very request. Read from the header rather than
+    # taking it as a parameter: `CurrentUser` has already validated it, so it
+    # is known-good, and asking the client to send its own access token back in
+    # the body would be a needless way to get it wrong.
+    auth_header = request.headers.get("authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        await _revoke_jti(auth_header[7:].strip(), "access")
 
     await _log_audit(db, current_user.id, "logout", "auth", request)
     return _build_response({"message": "Logged out successfully"})

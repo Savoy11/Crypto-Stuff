@@ -20,7 +20,7 @@ from app.core.exceptions import (
     http_403,
 )
 from app.core.rate_limiter import SlidingWindowRateLimiter, get_redis
-from app.core.security import has_role, verify_token
+from app.core.security import has_role, verify_token_not_revoked
 from app.db.session import get_db_session
 from app.models.user import User
 
@@ -63,7 +63,7 @@ async def get_current_user(
 
     token = credentials.credentials
     try:
-        payload = verify_token(token, expected_type="access")
+        payload = await verify_token_not_revoked(token, expected_type="access")
     except TokenExpiredError:
         raise http_401("Access token has expired") from None
     except InvalidTokenError:

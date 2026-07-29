@@ -4,7 +4,7 @@
 **Scope:** Full-stack (backend API, scoring engine, data pipelines, infrastructure, frontend)
 
 > **Verified against the tree on 2026-07-29.** Every "✅ Fixed" claim below was
-> re-checked in source rather than taken on trust. **15 of 18 hold. Two were
+> re-checked in source rather than taken on trust. **14 of 18 hold. Three were
 > false and one was ineffective** — see the Verification column. The 58 roadmap
 > checkboxes were also checked: all are genuinely unticked, and none of the
 > code-verifiable ones are implemented, so nothing is stale in that direction.
@@ -12,15 +12,25 @@
 > This matters because a scorecard is read as evidence. An unticked box that is
 > actually done costs credibility; a ticked box that is actually undone costs
 > more than that, because it stops anyone from looking again.
+>
+> **The count changed from 15 to 14 later the same day, and how is worth
+> recording.** Item #3 (JWT revocation) was first marked as holding because the
+> blocklist writer and the blocklist checker both existed in source. They did —
+> but nothing called the checker, so logout revoked nothing. Confirming that
+> each part is present is not confirming they are connected, and a
+> parts-inventory reads exactly like a working system right up until someone
+> traces a call. **Verify a claim by following the path a request takes, not by
+> grepping for the pieces it should contain.**
 
 ---
 
 ## Overall Score: 74 / 100 → POST-AUDIT: 89 / 100
 
-⚠ **The post-audit score was computed from the fix claims, three of which did
-not hold.** Infrastructure in particular was credited for image pinning and a
-Redis eviction fix that were not in effect. Treat 89 as unverified until the
-score is recomputed.
+⚠ **The post-audit score was computed from the fix claims, four of which did
+not hold.** Security & Auth was credited for JWT revocation that was never
+wired up and for a `/metrics` guard that was bypassable; Infrastructure for
+image pinning and a Redis eviction fix that were not in effect. Treat 89 as
+unverified until the score is recomputed.
 
 ---
 
@@ -28,7 +38,7 @@ score is recomputed.
 
 | Dimension | Pre-Audit | Post-Audit | Weight | Notes |
 |-----------|-----------|------------|--------|-------|
-| Security & Auth | 62 | 91 | 20% | Token revocation and lockout verified. **Metrics guard was bypassable** via a spoofed `X-Forwarded-For` until 2026-07-29 |
+| Security & Auth | 62 | 91 | 20% | **91 is not defensible.** Lockout verified, but **token revocation was never wired up** (blocklist written, never read) and the **metrics guard was bypassable** via a spoofed `X-Forwarded-For`. Both fixed 2026-07-29; the score predates the fixes and was earned by neither |
 | Data Integrity | 55 | 88 | 15% | schema type mismatch, missing UNIQUE, upsert race — all three verified in migration 002 / `scoring/engine.py` |
 | Scalability | 68 | 78 | 15% | WebSocket horizontal scaling still requires Redis pub/sub (deferred; `streaming/manager.py` has no backplane) |
 | Quant Methodology | 70 | 87 | 15% | Event rate normalization, staleness decay, per-asset-type weights — all three verified |
@@ -49,7 +59,7 @@ file and line that proves or disproves it.
 |---|----------|-------|---------|---------------------|
 | 1 | 🔴 CRASH | `broadcast_system_status` called with wrong arity on shutdown | ✅ Fixed | ✅ Holds — `main.py:42` passes all three params `manager.py:267` declares |
 | 2 | 🔴 CRASH | `score_date` column type DateTime vs Date mismatch | ✅ Fixed (migration 002) | ✅ Holds — `002_scoring_fixes.py:20` alters to `date` |
-| 3 | 🔴 SECURITY | JWT tokens not revoked on logout | ✅ Fixed (Redis JTI blocklist) | ✅ Holds — `auth.py:240` writes, `security.py:155` checks. **Caveat:** `security.py:160` fails *open* when Redis is down, so an outage un-revokes every logged-out token |
+| 3 | 🔴 SECURITY | JWT tokens not revoked on logout | ✅ Fixed (Redis JTI blocklist) | ❌ **False — and this verification pass got it wrong first time.** Re-checked 2026-07-29 and marked "Holds" on the grounds that `auth.py` wrote the entry and `security.py` had a checker. It did. But `verify_token_not_revoked` had **zero call sites**: `get_current_user`, the WebSocket handshake and `/refresh` all used plain `verify_token`, so the blocklist was **write-only** and logout revoked nothing. Checking that the parts exist is not checking that they are connected — the same error the scorecard itself made, repeated. Wired up, access tokens now blocklisted at logout too, lifetime cut 30→10 min, 7 tests incl. one that fails when unwired |
 | 4 | 🔴 SECURITY | Account lockout never triggered on failed logins | ✅ Fixed | ✅ Holds — `auth.py:110–138`, 30-minute lockout |
 | 5 | 🔴 SECURITY | `/metrics` endpoint publicly exposed | ✅ Fixed (IP allowlist guard) | ⚠️ **Was ineffective.** The guard preferred `X-Forwarded-For` unconditionally, so any caller could send `X-Forwarded-For: 127.0.0.1` and scrape it. Its docstring also promised "explicitly configured IPs" that did not exist. Both fixed 2026-07-29 (`METRICS_TRUST_FORWARDED_FOR`, `METRICS_ALLOWED_IPS`) |
 | 6 | 🟠 DATA | Race condition in score upsert (SELECT + INSERT) | ✅ Fixed (ON CONFLICT DO UPDATE) | ✅ Holds — `scoring/engine.py:447` |
@@ -66,18 +76,34 @@ file and line that proves or disproves it.
 | 17 | 🟡 SECURITY | Wildcard CORS allow-headers | ✅ Fixed (explicit header list) | ✅ Holds — `config.py:67–73`, five named headers |
 | 18 | 🟡 METRIC | `REQUEST_IN_PROGRESS` wrong Prometheus type (Counter) | ✅ Fixed (Gauge) | ✅ Holds — `core/middleware.py:39`, with matching `.inc()`/`.dec()` |
 
-### Follow-up raised by the #9 verification
+### Blocklist durability — resolved 2026-07-29
 
-Neither eviction policy protects the JWT blocklist: `blocklist:{jti}` carries a
-TTL, so LRU can drop it early and silently un-revoke a logged-out token. The
-policy swap does not address this and neither does anything else in the tree.
+The #9 verification raised this as an open design question: `blocklist:{jti}`
+carries a TTL, so LRU can drop it early and silently un-revoke a logged-out
+token, and neither eviction policy prevents that.
 
-`noeviction` would prevent it, and is **not** a safe drop-in: `rate_limit_dependency`
+Investigating it is what turned up the larger problem behind #3 — the blocklist
+was never read at all, so eviction was the *second* reason revocation did not
+work. Both are now addressed:
+
+- **Wired.** `verify_token_not_revoked` is called by `get_current_user`, the
+  WebSocket handshake, and `/refresh`. Logout blocklists the access token as
+  well as the refresh token.
+- **Bounded.** `ACCESS_TOKEN_EXPIRE_MINUTES` cut 30 → 10. This is the load-
+  bearing choice: the expiry is the only limit that holds when Redis is
+  unreachable, so it caps exposure in *every* failure mode — eviction, outage,
+  and theft alike — rather than defending one path.
+- **Explicit.** A failed blocklist lookup logs a warning and, by default,
+  allows the request: a Redis outage degrades revocation instead of locking
+  every user out. `BLOCKLIST_FAIL_CLOSED=true` inverts that for deployments
+  running Redis HA.
+
+`noeviction` on the shared instance remains **unsafe** — `rate_limit_dependency`
 (`dependencies.py:168`) has no error handling, so a memory-full instance would
-raise on every rate-limited endpoint and 500 the API. A real fix is a design
-change — an isolated Redis DB for the blocklist under `noeviction`, or short
-enough access-token lifetimes that revocation stops being load-bearing. Not
-attempted here; recorded so the next pass does not re-derive it.
+500 every rate-limited endpoint. An isolated Redis DB for the blocklist under
+`noeviction` is still the belt-and-braces option; it is a deployment change, is
+no longer load-bearing given the 10-minute lifetime, and was deliberately not
+attempted here.
 
 ---
 

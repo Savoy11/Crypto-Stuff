@@ -34,8 +34,28 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(64))
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # 10, not 30. A JWT is self-validating, so the only bound on a stolen or
+    # logged-out access token that the server can always enforce is its expiry —
+    # the revocation blocklist depends on Redis being reachable, and fails open
+    # when it is not (see BLOCKLIST_FAIL_CLOSED). Shortening this shrinks the
+    # exposure window in every failure mode at once, including the ones
+    # revocation cannot cover. The cost is more /refresh calls, which are cheap:
+    # one signature check plus one indexed user lookup.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # What to do when the Redis revocation blocklist cannot be reached.
+    #
+    # False (default) — allow the request and log a warning. A Redis outage
+    # degrades revocation rather than locking every user out; the 10-minute
+    # access-token lifetime above is what bounds the damage. This is the
+    # deliberate trade, not an oversight.
+    #
+    # True — reject. Choose this only if a Redis outage causing a total auth
+    # outage is preferable to a logged-out token surviving that outage, and
+    # only with Redis deployed for high availability.
+    BLOCKLIST_FAIL_CLOSED: bool = False
 
     # ------------------------------------------------------------------ #
     # Database

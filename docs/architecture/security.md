@@ -62,9 +62,12 @@ Client                    Backend                  Redis
   │──POST /auth/refresh──────►│                       │
   │  {refresh_token}         │──lookup refresh───────►│
   │                          │◄─found, valid──────────│
-  │                          │ rotate refresh token   │
+  │                          │ (no rotation — see A07) │
   │◄─200 {new access}────────│                       │
 ```
+
+> The diagram's `/refresh` step said "rotate refresh token". It does not — the
+> handler returns a new access token only. Corrected 2026-07-29.
 
 ---
 
@@ -124,7 +127,7 @@ Secrets are **never** committed to source control.
 | A04 | Insecure Design | Threat modeled; least-privilege IAM; immutable audit logs |
 | A05 | Security Misconfiguration | Security headers middleware; Dockerfile non-root user |
 | A06 | Vulnerable Components | Dependabot; `pip audit`; weekly dependency scan |
-| A07 | Auth Failures | Refresh token rotation; Redis-backed revocation; MFA support |
+| A07 | Auth Failures | Redis-backed revocation (wired 2026-07-29 — see Token revocation); 10-min access tokens; account lockout; MFA support. ⚠ **No refresh-token rotation** — this row claimed it and `/refresh` does not do it: it issues a new access token and leaves the refresh token unchanged for its full 7 days, so a stolen one is reusable and undetectable. Rotation with reuse-detection is an open follow-up |
 | A08 | Integrity Failures | Content-Security-Policy; signed Docker images |
 | A09 | Logging Failures | Structured JSON logs; centralized CloudWatch; audit trail |
 | A10 | SSRF | No user-controlled URLs; allowlist for external API calls |
@@ -156,6 +159,63 @@ Redis sliding-window rate limiter:
 - API Key: configurable per key (default 200 req/min)
 
 Exceeded limits return `429 Too Many Requests` with `Retry-After` header.
+
+---
+
+## Token revocation
+
+A JWT is self-validating — the server verifies the signature and expiry without
+a lookup, which is what makes it fast and also why logging out cannot, by
+itself, invalidate one. So `/logout` writes `blocklist:<jti>` to Redis with a
+TTL matching the token's own expiry (entries therefore clean themselves up and
+the blocklist can never outgrow the set of still-valid tokens), and every
+authenticated path checks it via **`verify_token_not_revoked`**.
+
+> ⚠ **Use `verify_token_not_revoked`, never plain `verify_token`, on any path
+> that authenticates a caller.** Until 2026-07-29 that function had zero call
+> sites: the blocklist was written on every logout and read by nothing, so
+> revocation did not work for six weeks while being recorded as a completed
+> control. `get_current_user`, the WebSocket handshake and `/refresh` now all
+> call it. `/refresh` is the most important of the three — a live refresh token
+> mints new access tokens for its full 7 days.
+
+Logout revokes **both** tokens. Blocklisting only the refresh token, as it did
+originally, leaves the current access token working until its own expiry.
+
+### Why access tokens are 10 minutes
+
+`ACCESS_TOKEN_EXPIRE_MINUTES` is **10**, down from 30, and this is a security
+control rather than a tuning choice. The blocklist depends on Redis being
+reachable and **fails open** when it is not (below), so the token's expiry is
+the only bound that always holds. Shortening it caps exposure in every failure
+mode at once — eviction, Redis outage, and a straightforwardly stolen token —
+where revocation only covers the paths it can reach. The cost is more `/refresh`
+calls: one signature check plus one indexed user lookup each.
+
+Do not raise it back toward 30 without also removing the fail-open behaviour,
+and a test asserts it stays ≤ 15.
+
+### Fail-open, deliberately
+
+If Redis cannot be reached, the blocklist check logs `blocklist_check_failed`
+and allows the request. A Redis outage degrades revocation rather than becoming
+a total auth outage; the 10-minute lifetime is what bounds the damage. Set
+`BLOCKLIST_FAIL_CLOSED=true` to reject instead — sensible only with Redis
+deployed for high availability.
+
+### Known gap: eviction
+
+Redis evicts least-recently-used keys under memory pressure, and a blocklist
+entry is by nature never read again after the first check, so it is exactly
+what LRU discards first — silently un-revoking that token. `volatile-lru` does
+**not** help (every key this app writes has a TTL, so both policies evict from
+the same set), and `noeviction` on the shared instance is unsafe because
+`rate_limit_dependency` has no error handling and a full instance would 500
+every rate-limited endpoint.
+
+The belt-and-braces fix is an isolated Redis DB for the blocklist under
+`noeviction`. It is a deployment change and is not load-bearing given the
+10-minute lifetime, so it is recorded rather than done.
 
 ---
 
