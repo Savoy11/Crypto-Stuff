@@ -54,8 +54,20 @@ export async function GET(req: NextRequest) {
       (providerFilter.includes('rss') && p.isCustom)
     )
   }
+  // Two different failures used to look identical to a caller, and the
+  // difference is the whole diagnosis. `reason` names which one it is.
+  //
+  // 'no-providers' is a CONFIG state: nothing was even attempted. That is what
+  // the 2026-07-29 audit run actually hit, while /api/v1/news reported "all
+  // news providers failed upstream" — sending everyone to check RSS feeds that
+  // were never fetched.
   if (providers.length === 0) {
-    return NextResponse.json({ ok: false, articles: [], providers: [] })
+    return NextResponse.json({
+      ok: false,
+      reason: 'no-providers' as const,
+      articles: [],
+      providers: [],
+    })
   }
 
   const results = await Promise.allSettled(
@@ -82,6 +94,18 @@ export async function GET(req: NextRequest) {
       })
     }
   })
+
+  // Every provider was tried and every one threw — an upstream outage, which is
+  // a different problem from having none configured. Previously this returned
+  // ok:true with an empty list, i.e. indistinguishable from "no news today".
+  if (results.every((r) => r.status === 'rejected')) {
+    return NextResponse.json({
+      ok: false,
+      reason: 'all-failed' as const,
+      articles: [],
+      providers: providers.map((p) => ({ id: p.id, name: p.name })),
+    })
+  }
 
   allArticles.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
@@ -323,11 +347,48 @@ function detectCategory(text: string): LiveNewsArticle['category'] {
 
 // ─── Dispatcher ───────────────────────────────────────────────────────────────
 
+/**
+ * Publisher RSS for the keyless built-ins. These carry the default crypto feed
+ * so it does not depend on an API plan — see the note beside their definitions
+ * in providers.ts for why that became necessary.
+ */
+const BUILTIN_RSS_FEEDS: Record<string, { url: string; source: string }> = {
+  'coindesk-rss':        { url: 'https://www.coindesk.com/arc/outboundfeeds/rss/', source: 'CoinDesk' },
+  'cointelegraph-rss':   { url: 'https://cointelegraph.com/rss',                   source: 'Cointelegraph' },
+  'decrypt-rss':         { url: 'https://decrypt.co/feed',                         source: 'Decrypt' },
+  'bitcoinmagazine-rss': { url: 'https://bitcoinmagazine.com/feed',                source: 'Bitcoin Magazine' },
+}
+
+/**
+ * Fetch and parse one keyless publisher feed.
+ *
+ * Throws on any failure so the caller's `Promise.allSettled` records it against
+ * the provider and the Integrations page shows which feed is down — a dead feed
+ * must be visible, not silently absent.
+ */
+async function fetchBuiltinRss(providerId: string, limit: number): Promise<LiveNewsArticle[]> {
+  const feed = BUILTIN_RSS_FEEDS[providerId]
+  if (!feed) return []
+  const res = await fetch(feed.url, {
+    headers: {
+      // Several publisher feeds reject the default undici UA outright.
+      'User-Agent': 'Mozilla/5.0 (compatible; FinanceNow/1.0; +https://github.com/Savoy11/Finance-Now)',
+      Accept: 'application/rss+xml, application/atom+xml, application/xml, text/xml, */*',
+    },
+    signal: AbortSignal.timeout(10_000),
+    next: { revalidate: 300 },
+  })
+  if (!res.ok) throw new Error(`${feed.source}: HTTP ${res.status}`)
+  // parseRssFeed only reads `name` off the provider, for source attribution.
+  return parseRssFeed(await res.text(), { name: feed.source } as CustomProviderDef, limit)
+}
+
 async function fetchFromProvider(provider: AnyActiveProvider, asset: string, limit: number, search: string): Promise<LiveNewsArticle[]> {
   const key = provider.config.apiKey
   if (provider.isCustom) {
     return fetchCustomProvider(provider as AnyActiveProvider & CustomProviderDef, key, asset, limit)
   }
+  if (provider.id in BUILTIN_RSS_FEEDS) return fetchBuiltinRss(provider.id, limit)
   switch (provider.id) {
     case 'cryptopanic': return fetchCryptoPanic(key, asset, limit)
     case 'messari':     return key ? fetchMessari(key, asset, limit) : []

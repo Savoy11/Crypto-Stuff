@@ -180,7 +180,7 @@ added 2026-07-29; their rows stay ⬜ **Not measured** until the next run.
 | Staking APR — stETH / rETH / mSOL / jitoSOL | 🟢 Live | Lido, Rocket Pool, Marinade, Jito | **jitoSOL was restored 2026-07-20**: the old `/api/v1/apy` endpoint 404s and had silently pinned it to a 7.5% static estimate — ~41% above the real 5.32%. Now reads `/api/v1/stake_pool_stats`. |
 | Staking APR — all other providers | 🟡 Partial | static estimates | **47 of 51 rates** (re-measured 2026-07-29). PR #37 grew the catalog from 28 to 51 providers without adding live rate sources, so live coverage went 4/28 → **4/51**. Each estimate carries `sources[key] = 'estimate'`. Improving this ratio is the open work, not the catalog size. |
 | Staking discovery | 🟢 Live | DefiLlama + Yearn + Pendle + Beefy | 95 pools. **Slow: ~18 s.** |
-| News + sentiment + categories | 🔴 **FAILING (2026-07-29)** | Multi-provider RSS/JSON | **Returns no articles.** `/api/v1/news` fails the same way with `HTTP 502: all news providers failed upstream` — two independent code paths, same verdict, so this is the feeds rather than the route. Breaks `/news`, the crypto half of `/headlines`, and the agents' news tool. Highest-priority item from this run. Articles use `headline` (not `title`); sentiment/category are heuristic classifiers (labeled derived). |
+| News + sentiment + categories | 🟡 **Fix shipped 2026-07-29, unverified** | 4 keyless publisher RSS feeds + optional keyed providers | The 2026-07-29 outage was **structural, not a feed failure**: every built-in crypto news provider required an API key, and CryptoPanic's free tier — the one carrying this — ended April 2026. With no key saved all four resolved to `disabled`, so the route found zero providers and returned `ok:false`, which `/api/v1/news` reported as "all news providers failed upstream". Fixed by adding keyless RSS built-ins (CoinDesk, Cointelegraph, Decrypt, Bitcoin Magazine), matching what equities and macro already had. **The four feed URLs could not be reached from the dev container — re-run `npm run audit` to confirm they resolve.** Articles use `headline` (not `title`); sentiment/category are heuristic classifiers (labeled derived). |
 | Social sentiment (crypto) | 🟡 Partial | Reddit **Atom/RSS** feeds | Reddit's JSON API 403s server-side; the `.rss` feeds work but 429 aggressively (~1 request per window per IP), so coverage is partial by nature. |
 | Videos | 🟢 Live | RSS | 60 videos. |
 | Video search / analyze | 🔑 Key-gated | YouTube Data API | Reports `configured: false`; returns empty rather than fabricating. |
@@ -354,8 +354,12 @@ minimum** for free-tier polling without hitting 429.
     "Run of 2026-07-29" above. The code-derived half had landed 2026-07-28 (route count 51 → 56, the Stooq
     rung, a Macro section); this run supplied the measurements. It also corrected a claim this file had made
     without measuring: staking live coverage is **4 of 51**, not "better than 4 of 28".
-14. 🔴 **Fix the news outage.** `news` and `v1 news` both fail — no articles / HTTP 502 upstream. Two code
-    paths, one verdict, so this is the feeds. Highest-priority item from the 2026-07-29 run.
+14. 🟡 **News outage — fix shipped 2026-07-29, needs verifying.** The diagnosis in this entry was wrong when
+    written: "two code paths, one verdict, so this is the feeds". Both paths read the same route, and that
+    route returned `ok:false` for a *config* reason — zero enabled providers — not a fetch failure. Every
+    built-in crypto news provider requires a key and CryptoPanic's free tier ended April 2026, so the feed had
+    no keyless default left. Four keyless publisher RSS built-ins now restore one. Confirm with `npm run audit`
+    that `news` reports REAL; the feed URLs are unreachable from the dev container.
 15. ⏳ **Raise live staking coverage.** 4 of 51 rates are live. PR #37 grew the catalog, not the live
     sources. The estimates are labeled honestly, but 92% of the table is estimated.
 16. ⏳ **Re-run for Macro.** The harness gained 4 macro checks on 2026-07-29 and has not been run with them

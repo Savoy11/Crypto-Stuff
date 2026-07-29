@@ -181,6 +181,64 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     keyUrl: 'https://gnews.io/pricing',
   },
 
+  // ── Crypto news, keyless RSS ──
+  //
+  // Added 2026-07-29 after the audit run found /live-data/news returning
+  // nothing. The cause was structural, not a broken feed: every crypto news
+  // provider above requires an API key, and CryptoPanic's free tier — the one
+  // that had been carrying this — ended April 2026. With no key saved, all four
+  // resolve to `disabled`, the route finds zero providers, and returns ok:false.
+  // Crypto was the only module in this position; equities (Yahoo/MarketWatch/
+  // CNBC) and macro (8 feeds) both ship keyless RSS built-ins already.
+  //
+  // These are publisher RSS feeds: no key, no quota, no account. They restore a
+  // working default so the feed does not depend on anyone buying an API plan,
+  // and the keyed providers stay available as upgrades for tagging and search.
+  {
+    id: 'coindesk-rss',
+    name: 'CoinDesk',
+    category: 'news',
+    description: 'CoinDesk headlines over public RSS. Keyless, no quota — part of the default crypto news set.',
+    features: ['Breaking news', 'Markets & policy coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://www.coindesk.com/',
+    priority: 1,
+  },
+  {
+    id: 'cointelegraph-rss',
+    name: 'Cointelegraph',
+    category: 'news',
+    description: 'Cointelegraph headlines over public RSS. Keyless, no quota.',
+    features: ['Breaking news', 'Altcoin coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://cointelegraph.com/',
+    priority: 2,
+  },
+  {
+    id: 'decrypt-rss',
+    name: 'Decrypt',
+    category: 'news',
+    description: 'Decrypt headlines over public RSS. Keyless, no quota.',
+    features: ['Breaking news', 'DeFi & NFT coverage', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://decrypt.co/',
+    priority: 3,
+  },
+  {
+    id: 'bitcoinmagazine-rss',
+    name: 'Bitcoin Magazine',
+    category: 'news',
+    description: 'Bitcoin Magazine headlines over public RSS. Keyless, no quota — Bitcoin-weighted, balancing the altcoin-heavy feeds.',
+    features: ['Bitcoin-focused', 'Long-form and news', 'No key needed'],
+    requiresKey: false,
+    freeTierLabel: 'Keyless — already active',
+    keyUrl: 'https://bitcoinmagazine.com/',
+    priority: 4,
+  },
+
   // ── Equity quotes (market: 'equities') ──
   // Providers are tried in priority order; the first that returns quotes wins.
   // Keyed providers only enter the ladder once a key is saved (or env var set).
@@ -918,21 +976,46 @@ export function updateCustomProvider(providerId: string, patch: Omit<CustomProvi
 
 const marketOf = (p: { market?: ProviderMarket }): ProviderMarket => p.market ?? 'crypto'
 
+/**
+ * Should this provider be tried by the data pipeline?
+ *
+ * `'active'` and `'error'` both qualify; `'disabled'` and `'unconfigured'` do not.
+ *
+ * Including `'error'` is deliberate and was a bug fix. `lastStatus: 'error'` is
+ * written by exactly one thing — a failed **Test** press on the Integrations
+ * page — and it never expires. Gating the pipeline on `status === 'active'`
+ * therefore meant one bad moment while testing benched a provider *permanently*:
+ * no retry, no decay, and nothing in the UI saying the data path had been shut
+ * off rather than the feed being empty. Test every crypto news provider during a
+ * network blip and the news feed goes dark forever, which is exactly what
+ * happened (the 2026-07-29 audit run reported `news` FAIL / `v1 news` 502 with
+ * all 15 built-in providers benched).
+ *
+ * A test result is a diagnostic for the operator, not a circuit breaker. Every
+ * consumer already fetches through `Promise.allSettled` with a timeout and
+ * records the outcome, so retrying a genuinely broken provider costs one failed
+ * request per refresh and surfaces honestly on the Integrations page — strictly
+ * better than a silent, permanent outage. `'disabled'` still means disabled:
+ * that one is an explicit user decision, so it is respected.
+ */
+const servesData = (p: { status: ProviderStatus }): boolean =>
+  p.status === 'active' || p.status === 'error'
+
 /** Enabled crypto price providers ordered by priority. */
 export function getPriceProviders(): AnyActiveProvider[] {
   return getAllProviders()
-    .filter((p) => p.category === 'price' && marketOf(p) === 'crypto' && p.status === 'active')
+    .filter((p) => p.category === 'price' && marketOf(p) === 'crypto' && servesData(p))
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
 /** Enabled crypto news providers. */
 export function getNewsProviders(): AnyActiveProvider[] {
-  return getAllProviders().filter((p) => p.category === 'news' && marketOf(p) === 'crypto' && p.status === 'active')
+  return getAllProviders().filter((p) => p.category === 'news' && marketOf(p) === 'crypto' && servesData(p))
 }
 
 /** Enabled crypto social providers. */
 export function getSocialProviders(): AnyActiveProvider[] {
-  return getAllProviders().filter((p) => p.category === 'social' && marketOf(p) === 'crypto' && p.status === 'active')
+  return getAllProviders().filter((p) => p.category === 'social' && marketOf(p) === 'crypto' && servesData(p))
 }
 
 /**
@@ -959,21 +1042,21 @@ export function getEquityQuoteProviders(): AnyActiveProvider[] {
  */
 export function getVideoProviders(market: ProviderMarket): AnyActiveProvider[] {
   return getAllProviders()
-    .filter((p) => p.category === 'video' && marketOf(p) === market && p.status === 'active')
+    .filter((p) => p.category === 'video' && marketOf(p) === market && servesData(p))
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
 /** All active equity providers for a category, built-ins sorted by priority, customs appended. */
 export function getEquityProviders(category: ProviderCategory): AnyActiveProvider[] {
   return getAllProviders()
-    .filter((p) => p.category === category && marketOf(p) === 'equities' && p.status === 'active')
+    .filter((p) => p.category === category && marketOf(p) === 'equities' && servesData(p))
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
 /** All active macro providers for a category — same contract as getEquityProviders. */
 export function getMacroProviders(category: ProviderCategory): AnyActiveProvider[] {
   return getAllProviders()
-    .filter((p) => p.category === category && marketOf(p) === 'macro' && p.status === 'active')
+    .filter((p) => p.category === category && marketOf(p) === 'macro' && servesData(p))
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
