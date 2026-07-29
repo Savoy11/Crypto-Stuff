@@ -42,6 +42,7 @@ import { useAsset, useRiskScoreIndex } from '@/hooks/useAssets'
 import { applyRiskComposite } from '@/lib/api/live/riskScores'
 import { PegDeviationChart } from '@/components/analytics/PegDeviationChart'
 import { ReserveComposition } from '@/components/analytics/ReserveComposition'
+import { ReserveProvenance, normalisePegMechanism } from '@/components/analytics/reserves'
 import { ScoreBreakdown } from '@/components/analytics/ScoreBreakdown'
 import { HistoricalScoreChart } from '@/components/analytics/HistoricalScoreChart'
 import { LiquidityDepthChart } from '@/components/analytics/LiquidityDepthChart'
@@ -948,6 +949,13 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
 
   return (
     <div className="space-y-6">
+      {/* Same disclosure the Coins tab carries. This surface showed attester,
+          attestation date and collateralization — all from a curated snapshot —
+          with no age on them at all, which is the pattern audit findings H2, M5
+          and L2 were each about: a static snapshot rendered beside live data
+          reads as live. */}
+      <ReserveProvenance />
+
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard
           title="Circulating Supply"
@@ -961,7 +969,11 @@ function LiveReservesView({ liveAsset }: { liveAsset: LiveReserveAsset }) {
         />
         <MetricCard
           title="Peg Mechanism"
-          value={liveAsset.pegMechanism.replace('_', '-')}
+          // `.replace('_', '-')` replaced only the FIRST underscore, so a
+          // hypothetical multi-word key would half-convert. Shared normaliser
+          // handles every separator and lower-cases, matching the badge on the
+          // Coins tab so one coin never reads two ways in two places.
+          value={normalisePegMechanism(liveAsset.pegMechanism)}
           accentColor="#8b5cf6"
         />
         <MetricCard
