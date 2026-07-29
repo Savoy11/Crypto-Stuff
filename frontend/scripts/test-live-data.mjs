@@ -558,6 +558,63 @@ const tests = [
     return `${(j.changes ?? j.diffs ?? []).length} quarter-over-quarter changes`
   }},
 
+  // ── Macro ───────────────────────────────────────────────────────────────────
+  //
+  // The Macro module shipped 2026-07-21 and this harness was never extended to
+  // cover it, so four routes went untested for a week and DATA-AVAILABILITY.md
+  // had no rows it could honestly fill — running the audit could not answer a
+  // question the audit never asked. Added 2026-07-29.
+  //
+  // All four upstreams are keyless, so there is no UNCONFIGURED path here: a
+  // failure is a real failure.
+
+  { group: 'macro', path: '/live-data/macro-news?limit=20', name: 'macro-news (8 RSS feeds)', check: (j) => {
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
+    const a = j.articles ?? []
+    if (a.length === 0) throw new Error('no articles — all 8 macro feeds failed upstream')
+    // The pillar classifier is the point of this route: articles matching no
+    // pillar are dropped, so a feed that returns only unclassifiable items
+    // looks identical to a dead feed unless we count pillars.
+    const pillars = new Set(a.map((x) => x.pillar).filter(Boolean))
+    if (pillars.size === 0) return fallback(`${a.length} articles but none classified into a pillar`)
+    if (pillars.size === 1) return fallback(`${a.length} articles, only one pillar (${[...pillars][0]}) — other feeds likely down`)
+    return `${a.length} articles across ${pillars.size} pillars (${[...pillars].join(', ')})`
+  }},
+
+  { group: 'macro', path: '/live-data/fx-rates', name: 'fx-rates (ECB official tier)', check: (j) => {
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
+    const n = Object.keys(j.rates ?? {}).length
+    if (n === 0) throw new Error('no rates returned')
+    if (j.source !== 'frankfurter-ecb') return fallback(`${n} rates from unexpected source=${j.source}`)
+    // ECB publishes ~30 reference currencies; materially fewer means a partial
+    // response being presented as the complete official set.
+    if (n < 25) return fallback(`only ${n} currencies — ECB publishes ~30, this looks partial`)
+    return `${n} currencies, date=${j.date}, source=${j.source}`
+  }},
+
+  { group: 'macro', path: '/live-data/fx-rates-extended', name: 'fx-rates-extended (community tier)', check: (j) => {
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
+    const n = Object.keys(j.rates ?? {}).length
+    if (n === 0) throw new Error('no extended rates returned')
+    // `missing` is the route's own honesty signal: allowlisted codes the feed
+    // did not price. Non-empty means the converter silently offers fewer
+    // currencies than the UI implies.
+    const missing = (j.missing ?? []).length
+    if (missing > 0) return fallback(`${n} currencies but ${missing} allowlisted codes unpriced (${(j.missing ?? []).slice(0, 5).join(', ')}…)`)
+    return `${n} extended currencies, date=${j.date}`
+  }},
+
+  { group: 'macro', path: '/live-data/treasury-yield-curve', name: 'treasury-yield-curve (treasury.gov)', check: (j) => {
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
+    const pts = Object.keys(j.latest?.points ?? j.latest ?? {}).length
+    if (!j.latest) throw new Error('no latest curve snapshot')
+    if (j.source !== 'treasury-gov') return fallback(`curve from unexpected source=${j.source}`)
+    if (j.spread2s10s == null || j.spread3m10y == null) {
+      return fallback(`curve present but spreads not computed (2s10s=${j.spread2s10s}, 3m10y=${j.spread3m10y})`)
+    }
+    return `${pts} maturities, 2s10s=${j.spread2s10s}, 3m10y=${j.spread3m10y}, shape=${j.shape}`
+  }},
+
   // ── Config / infra ──────────────────────────────────────────────────────────
   { group: 'infra', path: '/live-data/config', name: 'config (no key leakage)', quick: true, check: (j) => {
     if (!Array.isArray(j.providers)) throw new Error('no providers array')

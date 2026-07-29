@@ -17,23 +17,26 @@ what is — and is not — backed by real data, with no fabricated figures prese
 > `npm run smoke` runs the fast CI subset. **Do not hand-edit the statuses below
 > without re-running the audit** — that is how this file went stale last time.
 
-> ⚠ **REGENERATION NEEDED (flagged 2026-07-28, audit finding H3).** This report predates
-> two shipped changes and is stale in exactly the way its own warning above describes:
+> ✅ **RE-MEASURED 2026-07-29 on the owner's machine** (`npm run audit`, app on
+> localhost:3000, tree at `d79c5d2`). This closes the regeneration flagged as audit finding
+> H3. Headline: **72 checks — 56 REAL, 8 FALLBACK, 3 UNCONFIGURED, 1 EMPTY, 4 FAIL.**
 >
-> 1. **The Macro Markets module was entirely absent** — `/live-data/macro-news`, `fx-rates`,
->    `fx-rates-extended`, and `treasury-yield-curve` (all shipped 2026-07-21) had no rows.
->    Placeholder rows were added 2026-07-28 marked ⬜ **Not measured**; they still need a real
->    audit run to get statuses. The route-count claim was also wrong (**56** route files on
->    disk, not 51 — and not the 57 this warning first claimed); that line is now corrected
->    and statically re-verified.
-> 2. **The staking section is wrong** — the 2026-07-24 staking-rates rewrite (PR #37)
->    added DefiLlama Yields plus ~10 native-rate sources; "only 4 of 28 live" no longer
->    holds. `DATA-SOURCES.md` has the current story; the two docs disagree until this one
->    is regenerated.
+> Two things the run corrected that this document had asserted without measuring:
 >
-> Statuses are IP-dependent (see CLAUDE.md), so regeneration must happen **on the owner's
-> machine**: `npm run audit` with the app running, then update this file from the output.
-> Until then, trust per-row statuses here only for surfaces unchanged since 2026-07-20.
+> 1. **The staking claim was wrong in the other direction.** The 2026-07-28 warning here
+>    said PR #37's rewrite meant "only 4 of 28 live" no longer held. Measured, it is
+>    **4 of 51 live** — the rewrite added providers to the catalog without adding live rate
+>    sources, so the *proportion* got worse, not better. The warning was itself an
+>    unverified claim, which is precisely the failure mode this file exists to prevent.
+> 2. **The macro rows could never have been filled by running the audit** — the harness had
+>    **no macro checks at all**. Four routes shipped 2026-07-21 and were never added to
+>    `scripts/test-live-data.mjs`, so the doc gap and the harness gap were the same gap.
+>    Macro coverage was added 2026-07-29 (4 checks); the rows below stay ⬜ **Not measured**
+>    until the next run exercises them.
+>
+> Statuses remain IP-dependent (see CLAUDE.md) — this run is from the owner's network, where
+> Binance.com is geo-blocked and Reddit rate-limits. A datacenter run produces different,
+> systematically worse answers.
 
 ## Legend
 
@@ -91,7 +94,7 @@ field will treat catalog/reference/estimate values as live readings.
 | `ohlcv` | `source: "binance"` | **Binance.US**, a different venue with its own liquidity and prices | `venue: "binance-us"` (added 2026-07-20) |
 | `stock-universe` | 79 stocks, `ok: true` | Curated `equityCatalog.ts` fallback — the real universe is thousands | `source: "catalog"` |
 | `stock-outliers` | Sector z-score screener | Screens only those 79 catalog names, so "outlier" means outlier within a hand-picked large-cap set | inherits `stock-universe` |
-| `staking-rates` | 28 APRs, `ok: true` | **Only 4 are live** (stETH, rETH, mSOL, jitoSOL); the other 24 are static estimates | `sources: { key: "live" \| "estimate" }` |
+| `staking-rates` | **51** APRs, `ok: true` | **Only 4 are live** (stETH, rETH, mSOL, jitoSOL); the other **47** are static estimates. Re-measured 2026-07-29 — the catalog grew 28→51 without new live sources | `sources: { key: "live" \| "estimate" }` |
 | `network-fees` | 18 networks with USD fees | **Only Bitcoin's fee is live.** Every other chain is static gas × live price | per-network `source: "estimate"`, `btcFeeSource` |
 | `cbdc-data` | 55 countries | Entirely the static table; the live CBDC news feed did not resolve | `source: "fallback"` |
 | `fund-holdings` (SPY) | 5 holdings | Catalog's indicative top holdings. **Expected** — SPY is a unit investment trust and files no N-PORT | `source: "catalog"`, `full: false` |
@@ -100,6 +103,54 @@ field will treat catalog/reference/estimate values as live readings.
 
 **The audit harness now fails-loud on all of these** (🟡 FALLBACK), so they cannot pass
 silently again. Run `npm run audit:strict` to make them exit non-zero.
+
+---
+
+## Run of 2026-07-29 — measured results
+
+`npm run audit`, owner's machine, app on localhost:3000, tree at `d79c5d2`.
+**72 checks: 56 REAL · 8 FALLBACK · 3 UNCONFIGURED · 1 EMPTY · 4 FAIL.**
+
+### 🔴 Failures (4) — act on these
+
+| Check | Verdict |
+|-------|---------|
+| `news` | **No articles returned.** |
+| `v1 news` | **HTTP 502 — all news providers failed upstream.** Same fault as above through a second code path, which is what rules out the route and points at the feeds. |
+| `coin-discovery` | **HTTP 503** — CoinGecko markets unavailable, page 1 returned HTTP 429 (rate limited). |
+| `portfolio-history` | **No historical prices** (`source=error`). Almost certainly the same CoinGecko rate-limiting. |
+
+News failing in both layers is the headline: it takes out `/news`, the crypto half of
+`/headlines`, and the `get_crypto_news` agent tool. The two CoinGecko failures may be a
+transient quota trip — re-run before treating them as structural.
+
+### 🟡 Silent degradation (8) — 200 OK, not the intended source
+
+`ohlcv` btc/xrp/eth (Binance.com geo-blocked → Binance.US, a different venue) ·
+`chart` (synthetic OHLC, correctly marked `synthetic: true`) ·
+`cbdc-data` (static table; live feed unavailable) ·
+`stock-universe` (79 curated names — FMP screener needs a paid plan) ·
+`stock-outliers` (66 evaluable names across 7 sectors, inherited) ·
+`fund-holdings` SPY (expected — a UIT files no N-PORT).
+
+### 🔑 Unconfigured (3) — honestly reported
+
+`video-search` and `market-calendar` (no YouTube / FMP key) · `fund-holdings-history` for
+SPY (no N-PORT series *and* no FMP key).
+
+### ⚪ Empty (1)
+
+`wallet exchange-connections` — 0 configured, which is correct for a fresh install.
+
+### 🐢 Slow (>3s)
+
+`staking-discovery` **21.7s** · `fund-universe` **12.0s** (14 MB payload) ·
+`staking-rates` **6.1s**. The first two are the standing pagination/performance items.
+
+### What this run could not answer
+
+The four **Macro** routes were not exercised — the harness had no macro group. Coverage was
+added 2026-07-29; their rows stay ⬜ **Not measured** until the next run.
 
 ---
 
@@ -127,9 +178,9 @@ silently again. Run `npm run audit:strict` to make them exit non-zero.
 | Feature / Page | Status | Source | Notes |
 |----------------|--------|--------|-------|
 | Staking APR — stETH / rETH / mSOL / jitoSOL | 🟢 Live | Lido, Rocket Pool, Marinade, Jito | **jitoSOL was restored 2026-07-20**: the old `/api/v1/apy` endpoint 404s and had silently pinned it to a 7.5% static estimate — ~41% above the real 5.32%. Now reads `/api/v1/stake_pool_stats`. |
-| Staking APR — all other providers | 🟡 Partial | static estimates | 24 of 28 rates. Each carries `sources[key] = 'estimate'`. |
+| Staking APR — all other providers | 🟡 Partial | static estimates | **47 of 51 rates** (re-measured 2026-07-29). PR #37 grew the catalog from 28 to 51 providers without adding live rate sources, so live coverage went 4/28 → **4/51**. Each estimate carries `sources[key] = 'estimate'`. Improving this ratio is the open work, not the catalog size. |
 | Staking discovery | 🟢 Live | DefiLlama + Yearn + Pendle + Beefy | 95 pools. **Slow: ~18 s.** |
-| News + sentiment + categories | 🟢 Live | Multi-provider RSS/JSON | Articles use `headline` (not `title`). Sentiment/category are heuristic classifiers (labeled derived). |
+| News + sentiment + categories | 🔴 **FAILING (2026-07-29)** | Multi-provider RSS/JSON | **Returns no articles.** `/api/v1/news` fails the same way with `HTTP 502: all news providers failed upstream` — two independent code paths, same verdict, so this is the feeds rather than the route. Breaks `/news`, the crypto half of `/headlines`, and the agents' news tool. Highest-priority item from this run. Articles use `headline` (not `title`); sentiment/category are heuristic classifiers (labeled derived). |
 | Social sentiment (crypto) | 🟡 Partial | Reddit **Atom/RSS** feeds | Reddit's JSON API 403s server-side; the `.rss` feeds work but 429 aggressively (~1 request per window per IP), so coverage is partial by nature. |
 | Videos | 🟢 Live | RSS | 60 videos. |
 | Video search / analyze | 🔑 Key-gated | YouTube Data API | Reports `configured: false`; returns empty rather than fabricating. |
@@ -138,7 +189,7 @@ silently again. Run `npm run audit:strict` to make them exit non-zero.
 | Feature / Page | Status | Source | Notes |
 |----------------|--------|--------|-------|
 | Portfolio prices | 🟢 Live | CoinGecko | `source: live \| partial \| error`. |
-| Portfolio history | 🟢 Live | CoinGecko history | Requires `ids` + `date`. **Now returns HTTP 400 on missing/invalid params** (previously 200 with `source:'error'`, indistinguishable from a genuine data gap). |
+| Portfolio history | 🔴 **FAILING (2026-07-29)** | CoinGecko history | **No historical prices, `source=error`.** The param validation is fine — the missing-params case still correctly returns HTTP 400 — so this is the upstream call, not the handler. Likely the same CoinGecko rate-limiting that fails `coin-discovery`. |
 | Wallet — BTC / ETH / SOL / TRON / XRP | 🟢 Live | Public explorers + JSON-RPC | **ETH/EVM fixed 2026-07-20:** was hard-502ing on Ethereum and Polygon because each chain had a single RPC and `cloudflare-eth.com` / `polygon-rpc.com` both broke. Now walks a fallback ladder and reports the serving endpoint in `rpc`. All 7 EVM chains verified. |
 | Exchange connections | 🟢 Live | local credential store | Empty until the user configures one. |
 | Pump report metrics | 🟢 Live | derived | 20 metrics. `scan`/`investigate`/`chat` are POST-only (405 on GET is correct). |
@@ -299,13 +350,16 @@ minimum** for free-tier polling without hitting 429.
 12. ✅ ~~Bring the 8 bare-`Promise.all` routes onto `Promise.allSettled`.~~ Done 2026-07-22 — 7 were already
     correct (sequential fallback ladders that must not be parallelised, or not multi-fetch at all); the real
     bug was `sec-filings` discarding collected filings when an archive page threw. See the conventions audit above.
-13. ⏳ **Regenerate this report** (audit finding H3). Partially addressed 2026-07-28 with the corrections that
-    can be made from the code alone — route count (51 → 56, statically re-verified), the Stooq rung (removed
-    from the ladder, not merely dead), and a Macro section that exists rather than being silently missing.
-    What remains genuinely needs `npm run audit` against a running server **on the owner's machine**: every
-    ⬜ Not measured row, the staking counts (PR #37 invalidated "24 of 28 estimates"), and re-confirmation of
-    the 🟢/🟡 rows last observed 2026-07-20. Availability is IP-dependent — a datacenter run would write a
-    systematically wrong baseline, which is worse than the stale one it replaced.
+13. ✅ ~~**Regenerate this report** (audit finding H3).~~ Done 2026-07-29 on the owner's machine — see
+    "Run of 2026-07-29" above. The code-derived half had landed 2026-07-28 (route count 51 → 56, the Stooq
+    rung, a Macro section); this run supplied the measurements. It also corrected a claim this file had made
+    without measuring: staking live coverage is **4 of 51**, not "better than 4 of 28".
+14. 🔴 **Fix the news outage.** `news` and `v1 news` both fail — no articles / HTTP 502 upstream. Two code
+    paths, one verdict, so this is the feeds. Highest-priority item from the 2026-07-29 run.
+15. ⏳ **Raise live staking coverage.** 4 of 51 rates are live. PR #37 grew the catalog, not the live
+    sources. The estimates are labeled honestly, but 92% of the table is estimated.
+16. ⏳ **Re-run for Macro.** The harness gained 4 macro checks on 2026-07-29 and has not been run with them
+    yet; those rows are still ⬜ Not measured.
 
 ## Validation
 
