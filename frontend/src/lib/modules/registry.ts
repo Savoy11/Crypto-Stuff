@@ -28,6 +28,7 @@ import {
   Banknote,
   Percent,
   Network,
+  Vault,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -96,6 +97,18 @@ export const MODULES: SuiteModule[] = [
     optional: true,
     navItems: [
       { href: '/assets', label: 'Coins', icon: Database },
+      // Sits next to Coins because it is the standalone view of the same
+      // stablecoin reserve data as that page's "Reserve Monitor" tab, and both
+      // use the Vault icon. It had no nav entry and no inbound link from
+      // anywhere in src/ — a live, working page reachable only by typing the
+      // URL. `/risk-scores` is also nav-less but deliberately so: it is linked
+      // from every coin detail page. This one was linked from nothing.
+      //
+      // The overlap with the Coins tab is real and predates this entry; see the
+      // note in CLAUDE.md's feature inventory. Listing it is the smaller of two
+      // wrongs — a duplicate surface beats an unreachable one — but the pair
+      // still wants a decision rather than being left as-is.
+      { href: '/reserves', label: 'Reserves', icon: Vault },
       { href: '/news', label: 'News', icon: Newspaper },
       { href: '/social', label: 'Social', icon: MessageSquare },
       { href: '/wallets', label: 'Wallets', icon: Wallet },

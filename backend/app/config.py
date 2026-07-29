@@ -59,16 +59,24 @@ class Settings(BaseSettings):
     RATE_LIMIT_WINDOW: int = 60  # seconds
 
     # ------------------------------------------------------------------ #
-    # Metrics endpoint access
+    # Proxy trust
     # ------------------------------------------------------------------ #
+    # Whether to treat X-Forwarded-For as the client's real address.
+    #
+    # Only enable behind a proxy that OVERWRITES the header. If anything can
+    # reach the app directly, the header is attacker-controlled: a client sends
+    # `X-Forwarded-For: 127.0.0.1` and both walks past the /metrics allowlist
+    # and writes a false client_ip into every log line. Off by default, so
+    # neither is silently spoofable.
+    #
+    # Deliberately one flag rather than one per consumer: "is this header
+    # trustworthy?" is a property of the deployment's network topology, and the
+    # answer cannot differ between two readers of the same header.
+    TRUST_FORWARDED_FOR: bool = False
+
     # Extra source IPs allowed to scrape /metrics, on top of loopback. Set this
     # to the Prometheus scraper's address when it is not co-located.
     METRICS_ALLOWED_IPS: list[str] = []
-    # Whether to derive the client IP from X-Forwarded-For. Only enable this
-    # behind a proxy that OVERWRITES the header — if anything can reach the app
-    # directly, a client sets `X-Forwarded-For: 127.0.0.1` and walks past the
-    # allowlist. Off by default so the guard is not silently bypassable.
-    METRICS_TRUST_FORWARDED_FOR: bool = False
 
     # ------------------------------------------------------------------ #
     # CORS

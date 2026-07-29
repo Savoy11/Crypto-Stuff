@@ -159,6 +159,30 @@ Exceeded limits return `429 Too Many Requests` with `Retry-After` header.
 
 ---
 
+## Proxy trust (`X-Forwarded-For`)
+
+`X-Forwarded-For` is a **claim by the caller**, not a fact, unless a proxy in
+front of the app overwrites it. `settings.TRUST_FORWARDED_FOR` (default
+**`False`**) is the single switch that says whether this deployment has such a
+proxy. One flag, not one per consumer: the answer is a property of the network
+topology and cannot differ between two readers of the same header.
+
+Two places consume it, and both were wrong until 2026-07-29:
+
+| Consumer | Was | Now |
+|---|---|---|
+| `/metrics` IP allowlist (`main.py`) | Preferred the header unconditionally — **any caller could send `X-Forwarded-For: 127.0.0.1` and scrape it**, defeating the allowlist entirely | Peer address decides; header honoured only when `TRUST_FORWARDED_FOR` is set. `METRICS_ALLOWED_IPS` adds non-loopback scrapers |
+| Request log `client_ip` (`core/middleware.py`) | Same pattern, so the field an investigation pivots on was caller-controlled | Logs the peer address as `client_ip`; an untrusted claim is logged separately as `claimed_forwarded_for`, keeping the diagnostic value without letting it masquerade as verified |
+
+**When deploying behind an ALB / ingress / reverse proxy**, set
+`TRUST_FORWARDED_FOR=true` — but only after confirming the proxy *overwrites*
+rather than appends, and that nothing can reach the app directly, or the
+protection is gone again. Both behaviours are covered by tests
+(`tests/test_api/test_metrics_guard.py`, `tests/test_api/test_request_logging_ip.py`),
+each verified to fail against the pre-fix code.
+
+---
+
 ## Hardening Checklist
 
 - [ ] Change default `SECRET_KEY` before production deployment

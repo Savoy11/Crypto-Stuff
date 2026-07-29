@@ -87,7 +87,7 @@ def create_app() -> FastAPI:
         # was there to protect. Trust it only behind a proxy that overwrites it.
         peer_ip = req.client.host if req.client else ""
         client_ip = peer_ip
-        if settings.METRICS_TRUST_FORWARDED_FOR:
+        if settings.TRUST_FORWARDED_FOR:
             forwarded = req.headers.get("x-forwarded-for", "").split(",")[0].strip()
             client_ip = forwarded or peer_ip
         allowed_ips = {"127.0.0.1", "::1", "localhost", *settings.METRICS_ALLOWED_IPS}

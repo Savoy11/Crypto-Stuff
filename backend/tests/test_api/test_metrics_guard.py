@@ -43,7 +43,7 @@ def _client(app, peer_ip: str) -> AsyncClient:
 @pytest.mark.asyncio
 async def test_spoofed_forwarded_for_does_not_grant_access(prod_app, monkeypatch):
     """The original bypass: claim to be localhost via a header anyone can set."""
-    monkeypatch.setattr(settings, "METRICS_TRUST_FORWARDED_FOR", False)
+    monkeypatch.setattr(settings, "TRUST_FORWARDED_FOR", False)
     async with _client(prod_app, "203.0.113.9") as ac:
         resp = await ac.get("/metrics/", headers={"X-Forwarded-For": "127.0.0.1"})
     assert resp.status_code == 403
@@ -51,7 +51,7 @@ async def test_spoofed_forwarded_for_does_not_grant_access(prod_app, monkeypatch
 
 @pytest.mark.asyncio
 async def test_loopback_peer_is_allowed(prod_app, monkeypatch):
-    monkeypatch.setattr(settings, "METRICS_TRUST_FORWARDED_FOR", False)
+    monkeypatch.setattr(settings, "TRUST_FORWARDED_FOR", False)
     async with _client(prod_app, "127.0.0.1") as ac:
         resp = await ac.get("/metrics/")
     assert resp.status_code == 200
@@ -59,7 +59,7 @@ async def test_loopback_peer_is_allowed(prod_app, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_unknown_peer_is_refused(prod_app, monkeypatch):
-    monkeypatch.setattr(settings, "METRICS_TRUST_FORWARDED_FOR", False)
+    monkeypatch.setattr(settings, "TRUST_FORWARDED_FOR", False)
     async with _client(prod_app, "203.0.113.9") as ac:
         resp = await ac.get("/metrics/")
     assert resp.status_code == 403
@@ -68,7 +68,7 @@ async def test_unknown_peer_is_refused(prod_app, monkeypatch):
 @pytest.mark.asyncio
 async def test_configured_ip_is_allowed(prod_app, monkeypatch):
     """The docstring promised "explicitly configured IPs"; now they exist."""
-    monkeypatch.setattr(settings, "METRICS_TRUST_FORWARDED_FOR", False)
+    monkeypatch.setattr(settings, "TRUST_FORWARDED_FOR", False)
     monkeypatch.setattr(settings, "METRICS_ALLOWED_IPS", ["10.0.0.7"])
     async with _client(prod_app, "10.0.0.7") as ac:
         resp = await ac.get("/metrics/")
@@ -79,7 +79,7 @@ async def test_configured_ip_is_allowed(prod_app, monkeypatch):
 async def test_forwarded_for_is_honoured_when_explicitly_trusted(prod_app, monkeypatch):
     """Opting in is still supported — for deployments behind a proxy that
     overwrites the header. The point of the fix is that it is a choice."""
-    monkeypatch.setattr(settings, "METRICS_TRUST_FORWARDED_FOR", True)
+    monkeypatch.setattr(settings, "TRUST_FORWARDED_FOR", True)
     async with _client(prod_app, "203.0.113.9") as ac:
         resp = await ac.get("/metrics/", headers={"X-Forwarded-For": "127.0.0.1"})
     assert resp.status_code == 200
