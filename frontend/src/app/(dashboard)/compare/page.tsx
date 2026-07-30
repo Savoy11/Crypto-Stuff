@@ -24,6 +24,7 @@ import {
   type NamedSeries,
 } from '@/lib/utils/compareStats'
 import type { SecurityChartResponse } from '@/app/live-data/security-chart/route'
+import { FundOverlapSection } from '@/components/markets/FundOverlapSection'
 
 // Cross-module comparison of 2–6 stocks, ETFs, funds AND crypto: a normalized
 // growth-of-100 chart, computed window performance (return / volatility /
@@ -365,6 +366,9 @@ function CompareInner() {
           </table>
         </div>
       )}
+
+      {/* Holdings overlap — funds only; a stock has no portfolio to compare. */}
+      <FundOverlapSection symbols={symbols.filter((s) => OPTION_BY_SYMBOL.get(s)?.kind === 'fund')} />
 
       {/* Reference fundamentals */}
       <div className="rounded-card border border-border bg-bg-card overflow-x-auto">

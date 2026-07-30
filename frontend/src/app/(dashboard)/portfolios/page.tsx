@@ -28,6 +28,7 @@ import { getEquity } from '@/lib/data/equityCatalog'
 import { getFund } from '@/lib/data/fundCatalog'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
 import type { PortfolioHistoryResponse } from '@/app/live-data/portfolio-history/route'
+import { PortfolioLookThrough } from '@/components/portfolio/PortfolioLookThrough'
 
 // ─── Formatting helpers ───────────────────────────────────────────────────────
 
@@ -570,7 +571,7 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
 
 // ─── Portfolio detail view ────────────────────────────────────────────────────
 
-type DetailTab = 'overview' | 'analysis' | 'backtest'
+type DetailTab = 'overview' | 'analysis' | 'look-through' | 'backtest'
 
 function PortfolioDetail({ portfolio, onEdit, onBack }: {
   portfolio: Portfolio
@@ -606,7 +607,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
     return { income, covered }
   }, [holdings])
 
-  const TAB_LABELS: Record<DetailTab, string> = { overview: 'Overview', analysis: 'Analysis', backtest: 'Backtest' }
+  const TAB_LABELS: Record<DetailTab, string> = { overview: 'Overview', analysis: 'Analysis', 'look-through': 'Look-through', backtest: 'Backtest' }
 
   return (
     <div className="space-y-5">
@@ -662,7 +663,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-bg-elevated p-1 rounded-lg w-fit">
-        {(['overview', 'analysis', 'backtest'] as DetailTab[]).map(t => (
+        {(['overview', 'analysis', 'look-through', 'backtest'] as DetailTab[]).map(t => (
           <button key={t} onClick={() => setTab(t)}
             className={clsx('px-4 py-1.5 rounded-md text-sm font-medium transition-colors', tab === t ? 'bg-bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary')}>
             {TAB_LABELS[t]}
@@ -861,6 +862,9 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
           </div>
         </div>
       )}
+
+      {/* ── Look-through ── */}
+      {tab === 'look-through' && <PortfolioLookThrough portfolio={portfolio} />}
 
       {/* ── Backtest ── */}
       {tab === 'backtest' && <BacktestPanel portfolio={portfolio} />}

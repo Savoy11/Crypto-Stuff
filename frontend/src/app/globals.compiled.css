@@ -939,6 +939,10 @@ ul, ol {
   margin-right: 0.5rem;
 }
 
+.mr-3 {
+  margin-right: 0.75rem;
+}
+
 .mr-auto {
   margin-right: auto;
 }
@@ -981,6 +985,10 @@ ul, ol {
 
 .mt-auto {
   margin-top: auto;
+}
+
+.mt-px {
+  margin-top: 1px;
 }
 
 .mt-topbar {
@@ -3475,6 +3483,11 @@ ul, ol {
 .text-accent-red {
   --tw-text-opacity: 1;
   color: rgb(239 68 68 / var(--tw-text-opacity, 1));
+}
+
+.text-amber-200 {
+  --tw-text-opacity: 1;
+  color: rgb(253 230 138 / var(--tw-text-opacity, 1));
 }
 
 .text-amber-300 {
