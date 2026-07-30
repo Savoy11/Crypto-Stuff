@@ -913,6 +913,116 @@ data is deletion.
 
 ---
 
+## Wave 4 — Improvement-agent intake (2026-07-30)
+
+Filed from the first `code-auditor` and `opportunity-scout` outputs (PR #61) plus the
+review of that PR, after owner approval in session on 2026-07-30. Sources:
+`docs/audits/2026-07-30-audit.md` (verified findings — independently re-verified in
+source before filing), `docs/PRELIMINARY-FINDINGS-2026-07-30.md` (**leads only** — each
+must be verified in source before fixing; they came from stand-in agents and do not meet
+the auditor's evidence bar), and `docs/proposals/2026-07-30-proposals.md` (both APPROVED).
+Lenses: *Importance / Efficiency / Practicality*.
+
+### Verified defects (from the real audit — fix directly)
+
+- [ ] **W4-A1 · `P1` — Always-green "Live" indicator.** `lib/websocket/hooks.ts:19` is the
+      only writer of connection status and unconditionally sets `'connected'`; StatusBar and
+      Sidebar render it green on every screen and can never report a degraded feed. Drive it
+      from React Query's global error/fetching state, or delete the indicator and the
+      unreachable `'connecting'/'disconnected'/'error'` branches. A shim that only reports
+      success is worse than no indicator. *(High / High / High)*
+- [ ] **W4-A2 · `P2` — Broken auth re-enable recipe.** `(dashboard)/layout.tsx` documents
+      `REQUIRE_AUTH = !LIVE_DATA`, which is permanently `false`; `(auth)/login/page.tsx`
+      carries the correct recipe. Delete the wrong one, and revisit the "until the risk
+      framework is done" condition — satisfied 2026-07-19. *(Med / High / High)*
+
+### Approved proposals (build work)
+
+- [ ] **W4-B1 · `P1` — Fund look-through.** Weighted N-PORT holdings are already fetched in
+      full per fund (`/live-data/fund-holdings`) and no screen combines them with portfolio
+      weights. Build: true underlying-issuer exposure across held funds + direct positions,
+      and pairwise fund-overlap on `/compare`. Feeds Portfolio Builder's concentration check
+      its missing input. Coverage must travel per fund (full N-PORT ≠ Yahoo top-10 — never
+      blend unlabeled). Grounding: proposal 1, `docs/proposals/2026-07-30-proposals.md`.
+      APPROVED 2026-07-30. *(High / High / Good)*
+- [ ] **W4-B2 · `P2` — Macro Technical Analysis page.** `/macro/technical-analysis`
+      parameterised over the 45 macro instruments, reusing the shared TA engine — the
+      ROADMAP "What must be built" item 2 that was specified but never built (the 2026-07-21
+      SHIPPED note overstates; fix that note as part of this). Respect `quoteBasis` /
+      `valueFormat: 'plain'`; screen thin contracts out of any scanner. Grounding: proposal
+      2, same file. APPROVED 2026-07-30. *(Med / High / Very good)*
+
+### Leads — verify in source first, then fix (from the stand-in findings)
+
+- [ ] **W4-C1 · `P1` — PlanMonitor false all-clear.** `portfolioUtils.ts`: a holding with a
+      live price but no entry price is valued at target, so drift can compare the plan
+      against itself (`driftPts: 0`, `hold` everywhere, `pricedPct` 100). Mechanism
+      confirmed; end-to-end consequence NOT yet verified — verify first. CLAUDE.md's stated
+      rule ("no live price → excluded, never valued at cost") was implemented against a
+      missing price but not a missing cost basis. Highest-consequence lead: premium module's
+      core monitoring feature.
+- [ ] **W4-C2 · `P2` — `<ModuleGate>` inside JSX on `equities/[symbol]` and
+      `funds/[symbol]`.** Hooks run before the gate returns; verify whether queries poll
+      while locked, then move the gate to the component boundary per the documented rule.
+- [ ] **W4-C3 · `P2` — Custom Atom feeds parse to zero articles** on `market-news` and
+      `macro-news` (`parseRss` matches `<item>`; Atom uses `<entry>`; the crypto route
+      reportedly handles both). Three parser copies, one fixed — consider consolidating.
+- [ ] **W4-C4 · `P2` — Quote ladder returns on partial success.** A rate-limited provider
+      returning 12 of 50 quotes stops the ladder; the other 38 fall to catalog reference
+      without Yahoo being asked. Fix is a per-symbol residual pass — explicitly NOT
+      `allSettled` over the ladder (see the failure-boundary conventions).
+- [ ] **W4-C5 · `P2` — Unguarded `new Date(pubDate).toISOString()`** in an RSS path can
+      throw on one malformed date and lose the whole feed; a guarded sibling reportedly
+      exists ~56 lines later in the same file. Also: `lib/server/pubDate.ts` is wired into
+      only 1 of 3 RSS routes, so future-stamped articles can make `isBreaking` trivially
+      true on the others.
+- [ ] **W4-C6 · `P2` — Treasury yield curve year-boundary gap.** The route queries only the
+      current calendar year with no `year-1` fallback — reportedly unavailable each January
+      until the first business day publishes. (Route logic now lives in
+      `lib/server/treasuryCurve.ts` — fix it there; both consumers inherit.)
+- [ ] **W4-C7 · `P2` — `fundCatalog.ts` has no provenance machinery** while its expense
+      ratios are computed on (`computeFeeDrag`, builder fee math, `reviewPlan` fee-creep).
+      Apply the transferFees pattern (`*_LAST_VERIFIED`, staleness window, injectable now,
+      `<ProvenanceNotice>`).
+- [ ] **W4-C8 · `P2` — Smaller verified-quickly items, batched:** `?agent=macro-screener`
+      deep link runs the crypto agent (`initialMarket` match list); reference market caps
+      render without the amber `ref` tag (tag covers price only; providers below FMP return
+      `marketCap: null` so this is the normal path); nine divergent `timeAgo`
+      implementations, several rendering negative ages; `EQUITY_REFERENCE_AS_OF` has no
+      consumers; CLAUDE.md says portfolioBuilder has 55 tests (82 on disk).
+- [ ] **W4-C9 · `P2` — Untested dollar-figure logic:** `computeNetworkFees()` (declared
+      single source of truth for two API layers) and `computeFeeDrag()` have no tests.
+      Write them before anything touches either.
+
+### Owner decisions + agent-hygiene follow-ups (from the PR #61 review)
+
+- [ ] **W4-D1 · `P1` — DECIDE: affiliate policy contradiction.** Both agent definitions
+      declare "no affiliate links in Finance Now" as settled policy; `docs/ROADMAP.md`
+      carries the owner-authored "Affiliate links — P2, gated on integrity rules" plan and
+      `docs/BUSINESS-CHECKLIST.md` expects affiliate 1099s. One side must yield: either
+      strike the ROADMAP/BUSINESS-CHECKLIST sections as superseded, or soften the agents'
+      policy line to "not until the integrity rules ship." Until decided, the scout refuses
+      that territory and the auditor would flag any implementation.
+- [ ] **W4-D2 · `P2` — Move the `npm run audit` IP-dependence caveat into
+      `.claude/agents/code-auditor.md` itself** (currently only in PR #61's body — a future
+      run reads only the agent file). One line: owner-machine only; otherwise skip and
+      record why. Also add CLAUDE.md and `docs/agents/code-checker.md`'s do-not-fix registry
+      to the auditor's Step-1 reading list, so deliberate decisions aren't filed as defects.
+- [ ] **W4-D3 · `P2` — Name the four-agent division of labor** in
+      `docs/IMPROVEMENT-AGENT-SETUP.md` and CLAUDE.md's agent-charters note: code-checker
+      (diff/PR review) vs code-auditor (repo-wide audits); checklist-steward (all status
+      ledgers, approval-gated) vs opportunity-scout FILE mode (TASK-QUEUE inserts,
+      approval-gated). Both TASK-QUEUE writers must read each other's outputs
+      (`docs/audits/rejected-proposals.md` ↔ steward annotations).
+
+### Owner-machine only (do not attempt from a container)
+
+- Staking 4/51 live-coverage root cause (the 6s-abort theory is an unobserved inference) ·
+  provider licensing claims · any REAL-vs-FALLBACK re-measurement, including the
+  fund-universe payload size recorded as pending in DATA-AVAILABILITY item 11.
+
+---
+
 ## Phase 2 — Queued, not yet scoped
 
 Deliberately not broken down until Phase 1 lands, since Phase 1 findings will shape both.
