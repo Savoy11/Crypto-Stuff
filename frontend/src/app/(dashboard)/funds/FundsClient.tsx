@@ -15,6 +15,7 @@ import {
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
+import { useScreenerUrl } from '@/lib/hooks/useScreenerUrl'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
 import type { SecurityReturnsResponse } from '@/app/live-data/security-returns/route'
 import type { DiscoveredFund, FundUniverseEntry, FundUniverseResponse } from '@/app/live-data/fund-universe/route'
@@ -159,6 +160,45 @@ export function FundsClient() {
   const [ranges, setRanges] = useState<Ranges>(EMPTY_RANGES)
   const setRange = (key: RangeKey) => (next: { min: string; max: string }) =>
     setRanges((prev) => ({ ...prev, [key]: next }))
+
+  // Deep-linkable screener state — /funds?type=etf&cat=sector&r_expense=:0.2
+  // Ranges serialize one param per dimension as "min:max" (either side blank).
+  useScreenerUrl(
+    {
+      type, cat: category, issuer, style, industry, risk: riskLevel, strategy,
+      curated: curatedOnly ? '1' : '', q: search, sort: sortKey, dir: sortAsc ? 'asc' : 'desc',
+      ...Object.fromEntries((Object.keys(ranges) as RangeKey[]).map((k) => {
+        const r = ranges[k]
+        return [`r_${k}`, r.min === '' && r.max === '' ? '' : `${r.min}:${r.max}`]
+      })),
+    },
+    {
+      type: 'all', cat: 'all', issuer: 'all', style: 'all', industry: 'all', risk: 'all', strategy: 'all',
+      curated: '', q: '', sort: 'aum', dir: 'desc',
+      ...Object.fromEntries((Object.keys(EMPTY_RANGES) as RangeKey[]).map((k) => [`r_${k}`, ''])),
+    },
+    (p) => {
+      if (p.type === 'etf' || p.type === 'mutual') setType(p.type)
+      if (p.cat && (p.cat === 'all' || p.cat in FUND_CATEGORY_INFO)) setCategory(p.cat as FundCategoryId | 'all')
+      if (p.issuer) setIssuer(p.issuer)
+      if (p.style === 'index' || p.style === 'active') setStyle(p.style)
+      if (p.industry) setIndustry(p.industry)
+      if (p.risk && (p.risk === 'all' || p.risk in FUND_RISK_INFO)) setRiskLevel(p.risk as FundRiskLevel | 'all')
+      if (p.strategy && (p.strategy === 'all' || p.strategy in FUND_STRATEGY_INFO)) setStrategy(p.strategy as FundStrategy | 'all')
+      if (p.curated === '1') setCuratedOnly(true)
+      if (p.q) setSearch(p.q)
+      if (p.sort && ['symbol', 'category', 'price', 'expense', 'aum', 'yield', 'm1', 'm3', 'ytd', 'y1'].includes(p.sort)) setSortKey(p.sort as SortKey)
+      if (p.dir) setSortAsc(p.dir === 'asc')
+      const rangePatch: Partial<Ranges> = {}
+      for (const k of Object.keys(EMPTY_RANGES) as RangeKey[]) {
+        const v = p[`r_${k}`]
+        if (!v || !v.includes(':')) continue
+        const [min, max] = v.split(':', 2)
+        rangePatch[k] = { min, max }
+      }
+      if (Object.keys(rangePatch).length > 0) setRanges((prev) => ({ ...prev, ...rangePatch }))
+    },
+  )
 
   const returnsFilterActive = RETURN_KEYS.some((k) => rangeActive(ranges[k]))
   const activeFilterCount =
