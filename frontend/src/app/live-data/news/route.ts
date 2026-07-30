@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getNewsProviders, recordProviderFetch, type AnyActiveProvider, type CustomProviderDef } from '@/lib/api/live/providers'
 import { ASSET_LIST } from '@/lib/data/assetList'
 import { pinnedFetch } from '@/lib/server/pinnedFetch'
-import { decodeEntities, stripCdata, stripTags } from '@/lib/utils/html'
+import { parseFeedItems } from '@/lib/server/feedParse'
+import { decodeEntities } from '@/lib/utils/html'
 
 export const dynamic = 'force-dynamic'
 
@@ -472,47 +473,23 @@ async function fetchCustomProvider(
 }
 
 function parseRssFeed(xml: string, provider: CustomProviderDef, limit: number): LiveNewsArticle[] {
-  // Support both RSS 2.0 <item> and Atom <entry> elements
-  const rssItems  = [...xml.matchAll(/<item[^>]*>([\s\S]*?)<\/item>/gi)]
-  const atomItems = [...xml.matchAll(/<entry[^>]*>([\s\S]*?)<\/entry>/gi)]
-  const items = (rssItems.length >= atomItems.length ? rssItems : atomItems).slice(0, limit)
-  const isAtom = rssItems.length < atomItems.length
-
-  return items.map((m, i): LiveNewsArticle => {
-    const inner = m[1]
-    const title = decodeEntities(stripCdata(inner.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? ''))
-    // Atom uses <link href="..."/> while RSS uses <link>url</link>
-    const link = isAtom
-      ? (inner.match(/<link[^>]*href="([^"]+)"/i)?.[1] ?? '#')
-      : stripCdata(inner.match(/<link[^>]*>([\s\S]*?)<\/link>/i)?.[1] ?? '#')
-    // Atom uses <updated> or <published>; RSS uses <pubDate>
-    const pubDate = inner.match(/<pubDate[^>]*>([\s\S]*?)<\/pubDate>/i)?.[1]
-      ?? inner.match(/<published[^>]*>([\s\S]*?)<\/published>/i)?.[1]
-      ?? inner.match(/<updated[^>]*>([\s\S]*?)<\/updated>/i)?.[1]
-      ?? ''
-    // Atom uses <content> or <summary>; RSS uses <description>
-    const desc = stripCdata(
-      inner.match(/<content[^>]*>([\s\S]*?)<\/content>/i)?.[1]
-      ?? inner.match(/<summary[^>]*>([\s\S]*?)<\/summary>/i)?.[1]
-      ?? inner.match(/<description[^>]*>([\s\S]*?)<\/description>/i)?.[1]
-      ?? ''
-    )
-    const sourceName = decodeEntities(stripCdata(inner.match(/<source[^>]*>([\s\S]*?)<\/source>/i)?.[1] ?? provider.name))
-
-    // Decode after stripping tags so an escaped &lt;b&gt; survives as literal
-    // text rather than becoming a tag that the strip pass then eats.
-    const cleanDesc = decodeEntities(stripTags(desc))
-    const text = title + ' ' + cleanDesc
+  // Item extraction is shared (lib/server/feedParse.ts) — this route's copy was
+  // the only one of three that handled Atom, which is why it became the basis
+  // for the shared version (W4-C3). It kept one bug the shared version fixes:
+  // `new Date(pubDate).toISOString()` throws RangeError on a malformed date,
+  // taking the whole feed with it (W4-C5).
+  return parseFeedItems(xml).slice(0, limit).map((item, i): LiveNewsArticle => {
+    const text = `${item.title} ${item.summary}`
 
     return {
       id: `${provider.id}-${i}-${Date.now()}`,
-      headline: title,
-      summary: cleanDesc.slice(0, 280),
-      source: sourceName,
+      headline: item.title,
+      summary: item.summary.slice(0, 280),
+      source: item.sourceName ?? provider.name,
       provider: provider.id,
       providerLabel: provider.name,
-      publishedAt: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-      url: link.trim(),
+      publishedAt: new Date(item.publishedAt).toISOString(),
+      url: item.url,
       sentiment: detectSentiment(text),
       category: detectCategory(text),
       relatedAssets: detectRelatedAssets(text),

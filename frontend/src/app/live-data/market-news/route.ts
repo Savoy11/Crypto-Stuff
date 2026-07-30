@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import { getEquityProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickDate, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
-import { decodeEntities, stripCdata } from '@/lib/utils/html'
+import { parseFeedItems } from '@/lib/server/feedParse'
 
 // Server-side proxy for stock-market news (equities & funds modules).
 //   GET /live-data/market-news                → general market headlines
@@ -67,30 +67,19 @@ function yahooTickerFeedUrl(symbol: string): string {
 
 // ─── RSS parsing ──────────────────────────────────────────────────────────────
 
-function extractTag(item: string, tag: string): string {
-  const match = item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))
-  return match ? decodeEntities(stripCdata(match[1])) : ''
-}
-
+// Item extraction is shared (lib/server/feedParse.ts). The local copy this
+// replaces matched only <item>, so an Atom feed parsed to zero articles, and
+// stamped dates with an unguarded `new Date(raw).toISOString()` that throws on
+// one malformed date and loses the whole feed — see W4-C3/W4-C5.
 function parseRss(xml: string, source: string): Omit<MarketArticle, 'sentiment' | 'category' | 'relatedSymbols' | 'isBreaking'>[] {
-  const items = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? []
-  return items.map((item) => {
-    const title = extractTag(item, 'title')
-    const url = extractTag(item, 'link')
-    const pubDate = extractTag(item, 'pubDate')
-    const description = extractTag(item, 'description')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    return {
-      id: `${source}:${url || title}`.slice(0, 200),
-      title,
-      url,
-      source,
-      publishedAt: pubDate ? new Date(pubDate).toISOString() : new Date().toISOString(),
-      summary: description.slice(0, 280),
-    }
-  }).filter((a) => a.title && a.url)
+  return parseFeedItems(xml).map((item) => ({
+    id: `${source}:${item.url || item.title}`.slice(0, 200),
+    title: item.title,
+    url: item.url,
+    source,
+    publishedAt: new Date(item.publishedAt).toISOString(),
+    summary: item.summary.slice(0, 280),
+  }))
 }
 
 // ─── Sentiment ────────────────────────────────────────────────────────────────
