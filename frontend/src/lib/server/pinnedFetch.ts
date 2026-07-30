@@ -20,14 +20,15 @@
 // drift apart. Importing both from the same package makes that a non-issue,
 // and it stops a Node upgrade from silently disabling the pin.
 //
-// ⚠ undici is pinned to the 7.x line, and must stay there while this app
-// targets Node 20 (CI's setup-node and all three Dockerfile stages are
-// node:20-alpine). undici 8 declares `engines.node >= 22.19.0` and calls
-// `worker_threads.markAsUncloneable` unconditionally, so on Node 20 the build
-// dies collecting page data with `TypeError: s.util.markAsUncloneable is not a
-// function` — which a Node 22 dev machine will not reproduce. undici 7
-// feature-detects the same API and no-ops without it. Move to 8 only together
-// with the Node 22 base image.
+// On the undici major: this sits on 7.x. It had to while the app targeted
+// Node 20 — undici 8 declares `engines.node >= 22.19.0` and calls
+// `worker_threads.markAsUncloneable` unconditionally, so the build died
+// collecting page data with `TypeError: markAsUncloneable is not a function`,
+// which a Node 22 dev machine does not reproduce. That constraint is gone now
+// that CI and all three Dockerfile stages run Node 22, so 8 is available; 7 is
+// kept because nothing in 8 is needed here and neither line carries an
+// advisory. If you do move, `engines.node` in package.json is already the
+// floor undici 8 wants.
 
 import { Agent, fetch as undiciFetch } from 'undici'
 import { isPrivateAddress, resolvePublicAddresses } from '@/lib/server/urlSafety'

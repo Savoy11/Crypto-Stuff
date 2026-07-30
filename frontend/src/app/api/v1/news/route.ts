@@ -44,12 +44,24 @@ export async function GET(req: NextRequest) {
           relatedAssets: string[]
           summary?: string
         }>
+        reason?: 'no-providers' | 'all-failed'
       }
-      // The internal route signals a total provider failure as HTTP 200 with
-      // ok:false — checking only res.ok would let that through as "no news",
-      // which is the exact confusion this route is trying to remove. Caught by
-      // probing during a real outage, not by reading.
-      if (data.ok === false) upstreamError = 'all news providers failed upstream'
+      // The internal route signals failure as HTTP 200 with ok:false — checking
+      // only res.ok would let that through as "no news", which is the exact
+      // confusion this route exists to remove. Caught by probing during a real
+      // outage, not by reading.
+      //
+      // `reason` distinguishes the two cases, and the distinction is the whole
+      // diagnosis. This used to report "all news providers failed upstream"
+      // unconditionally; the 2026-07-29 audit hit it while the real cause was
+      // that no provider was enabled to fail in the first place, which sent the
+      // investigation to RSS feeds that were never fetched.
+      if (data.ok === false) {
+        upstreamError =
+          data.reason === 'no-providers'
+            ? 'no crypto news providers are enabled — check Integrations; a provider whose Test failed is no longer benched, so this now means enabled=false or no API key'
+            : 'all enabled news providers failed upstream'
+      }
       articles = (data.articles ?? [])
         .filter(a => !sentiment || a.sentiment === sentiment)
         .slice(0, limit)

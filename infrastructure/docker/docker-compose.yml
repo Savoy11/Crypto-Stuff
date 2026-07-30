@@ -77,7 +77,7 @@ services:
     restart: unless-stopped
 
   postgres:
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:2.28.3-pg15
     container_name: fn-postgres
     environment:
       POSTGRES_DB: caep

@@ -3,13 +3,15 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
 import { getRatesEntry } from '@/lib/data/ratesCatalog'
 import { RatesDetailClient } from './RatesDetailClient'
 
-export default function RatesDetailPage({ params }: { params: { slug: string } }) {
-  const entry = getRatesEntry(params.slug)
+export default async function RatesDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  // Next 15: route params are a Promise. See the note in the Next 15 commit.
+  const { slug } = await params
+  const entry = getRatesEntry(slug)
   if (!entry) notFound()
 
   return (
     <ModuleGate module="macro">
-      <RatesDetailClient slug={params.slug} />
+      <RatesDetailClient slug={slug} />
     </ModuleGate>
   )
 }

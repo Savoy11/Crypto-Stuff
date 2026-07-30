@@ -26,11 +26,12 @@ function dbUnavailable() {
   )
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   if (!isDbConfigured) return dbUnavailable()
   const userId = await getCurrentUserId()
   if (!userId) return NextResponse.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
-  if (!WATCHLIST_UUID_RE.test(params.id)) return NextResponse.json({ ok: false, error: 'Invalid watchlist id' }, { status: 400 })
+  if (!WATCHLIST_UUID_RE.test(id)) return NextResponse.json({ ok: false, error: 'Invalid watchlist id' }, { status: 400 })
 
   let body: unknown
   try {
@@ -42,19 +43,20 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   const v = validateWatchlist(body as IncomingWatchlist)
   if ('error' in v) return NextResponse.json({ ok: false, error: v.error }, { status: 400 })
 
-  const replaced = await replaceWatchlist(userId, params.id, v)
+  const replaced = await replaceWatchlist(userId, id, v)
   if (!replaced) return NextResponse.json({ ok: false, error: 'Watchlist not found' }, { status: 404 })
   return NextResponse.json({ ok: true })
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   if (!isDbConfigured) return dbUnavailable()
   const userId = await getCurrentUserId()
   if (!userId) return NextResponse.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
-  if (!WATCHLIST_UUID_RE.test(params.id)) return NextResponse.json({ ok: false, error: 'Invalid watchlist id' }, { status: 400 })
+  if (!WATCHLIST_UUID_RE.test(id)) return NextResponse.json({ ok: false, error: 'Invalid watchlist id' }, { status: 400 })
 
   const deleted = await db.delete(watchlists)
-    .where(and(eq(watchlists.id, params.id), eq(watchlists.userId, userId)))
+    .where(and(eq(watchlists.id, id), eq(watchlists.userId, userId)))
     .returning({ id: watchlists.id })
   if (deleted.length === 0) return NextResponse.json({ ok: false, error: 'Watchlist not found' }, { status: 404 })
   return NextResponse.json({ ok: true })

@@ -55,8 +55,12 @@ spec:
             - everysec
             - --maxmemory
             - "1gb"
+            # Matches dev/prod compose. Not a security fix on its own: every
+            # key this app writes already carries a TTL, so volatile-lru and
+            # allkeys-lru evict from the same set. See the note in
+            # infrastructure/docker/docker-compose.prod.yml.
             - --maxmemory-policy
-            - allkeys-lru
+            - volatile-lru
             - --loglevel
             - warning
             - --save

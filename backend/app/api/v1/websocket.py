@@ -6,7 +6,7 @@ from __future__ import annotations
 import structlog
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect, status
 
-from app.core.security import verify_token
+from app.core.security import verify_token_not_revoked
 from app.streaming.events import EventType, SubscriptionConfirmedEvent
 from app.streaming.manager import connection_manager
 
@@ -29,7 +29,7 @@ async def stream_endpoint(
     """
     # Authenticate before accepting the connection
     try:
-        payload = verify_token(token, expected_type="access")
+        payload = await verify_token_not_revoked(token, expected_type="access")
         user_id: str = payload["sub"]
     except Exception as exc:
         logger.warning("ws_auth_failed", error=str(exc))

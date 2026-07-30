@@ -75,15 +75,22 @@ def create_app() -> FastAPI:
     metrics_app = make_asgi_app()
 
     async def metrics_guard(scope, receive, send):  # type: ignore[type-arg]
-        """Allow /metrics only from localhost or explicitly configured IPs."""
+        """Allow /metrics only from loopback or settings.METRICS_ALLOWED_IPS."""
         from starlette.requests import Request as SRequest
         from starlette.responses import Response as SResponse
 
         req = SRequest(scope, receive)
-        client_ip = req.headers.get("x-forwarded-for", "").split(",")[0].strip() or (
-            req.client.host if req.client else ""
-        )
-        allowed_ips = {"127.0.0.1", "::1", "localhost"}
+        # The peer address is the only value a client cannot choose. Read
+        # X-Forwarded-For only when explicitly opted in: this guard previously
+        # preferred that header unconditionally, so any caller could send
+        # `X-Forwarded-For: 127.0.0.1` and scrape the endpoint the allowlist
+        # was there to protect. Trust it only behind a proxy that overwrites it.
+        peer_ip = req.client.host if req.client else ""
+        client_ip = peer_ip
+        if settings.TRUST_FORWARDED_FOR:
+            forwarded = req.headers.get("x-forwarded-for", "").split(",")[0].strip()
+            client_ip = forwarded or peer_ip
+        allowed_ips = {"127.0.0.1", "::1", "localhost", *settings.METRICS_ALLOWED_IPS}
         if client_ip not in allowed_ips and not settings.DEBUG:
             resp = SResponse(content="Forbidden", status_code=403)
             await resp(scope, receive, send)

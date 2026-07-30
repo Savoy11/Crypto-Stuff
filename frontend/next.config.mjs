@@ -46,6 +46,16 @@ const nextConfig = {
       // Risk Case Studies removed (2026-07): static educational replay with no
       // clear user value — page deleted, deep links land on Headlines.
       { source: '/backtests', destination: '/headlines', permanent: false },
+      // Reserve Transparency Monitor folded into the Coins page (2026-07-29).
+      // It duplicated /assets' "Reserve Monitor" tab — same route, same table,
+      // same detail panel — while being the only copy that carried the
+      // provenance disclosure and the peg-mechanism fix. One surface now, with
+      // those corrections, in components/analytics/reserves.
+      //
+      // Unlike the two redirects above this preserves the destination content:
+      // ?tab=reserves opens the same monitor the old URL showed, so bookmarks
+      // still work rather than dumping the reader on an unrelated page.
+      { source: '/reserves', destination: '/assets?tab=reserves', permanent: false },
     ]
   },
   async headers() {

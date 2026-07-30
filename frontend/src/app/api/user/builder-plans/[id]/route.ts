@@ -24,11 +24,12 @@ function dbUnavailable() {
   )
 }
 
-export async function PATCH(request: Request, { params }: { params: { id: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   if (!isDbConfigured) return dbUnavailable()
   const userId = await getCurrentUserId()
   if (!userId) return NextResponse.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
-  if (!UUID_RE.test(params.id)) return NextResponse.json({ ok: false, error: 'Invalid plan id' }, { status: 400 })
+  if (!UUID_RE.test(id)) return NextResponse.json({ ok: false, error: 'Invalid plan id' }, { status: 400 })
 
   let body: Record<string, unknown>
   try {
@@ -59,7 +60,7 @@ export async function PATCH(request: Request, { params }: { params: { id: string
 
   const [row] = await db.update(builderPlans)
     .set(updates)
-    .where(and(eq(builderPlans.id, params.id), eq(builderPlans.userId, userId)))
+    .where(and(eq(builderPlans.id, id), eq(builderPlans.userId, userId)))
     .returning()
   if (!row) return NextResponse.json({ ok: false, error: 'Plan not found' }, { status: 404 })
 
@@ -76,14 +77,15 @@ export async function PATCH(request: Request, { params }: { params: { id: string
   })
 }
 
-export async function DELETE(_request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   if (!isDbConfigured) return dbUnavailable()
   const userId = await getCurrentUserId()
   if (!userId) return NextResponse.json({ ok: false, error: 'Not authenticated' }, { status: 401 })
-  if (!UUID_RE.test(params.id)) return NextResponse.json({ ok: false, error: 'Invalid plan id' }, { status: 400 })
+  if (!UUID_RE.test(id)) return NextResponse.json({ ok: false, error: 'Invalid plan id' }, { status: 400 })
 
   const deleted = await db.delete(builderPlans)
-    .where(and(eq(builderPlans.id, params.id), eq(builderPlans.userId, userId)))
+    .where(and(eq(builderPlans.id, id), eq(builderPlans.userId, userId)))
     .returning({ id: builderPlans.id })
   if (deleted.length === 0) return NextResponse.json({ ok: false, error: 'Plan not found' }, { status: 404 })
   return NextResponse.json({ ok: true })

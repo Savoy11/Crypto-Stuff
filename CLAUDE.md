@@ -64,7 +64,7 @@ frontend/src/
 │   │   ├── coin-discovery/page.tsx
 │   │   ├── technical-analysis/page.tsx
 │   │   ├── risk-scores/page.tsx
-│   │   ├── reserves/page.tsx
+│   │   │  # (no reserves/ — folded into assets/ as ?tab=reserves, 2026-07-29)
 │   │   │
 │   │   │  # ── Optional modules (each gated by its own <ModuleGate>) ──
 │   │   ├── equities/               # EQUITIES MODULE — registry, [symbol], news, social, TA, backtests, calendar
@@ -449,7 +449,7 @@ Risk/status color convention used across the app:
 | Coins (Coin Registry) | `/assets` | 🟢 Live | Nav label "Coins"; route path kept as `/assets` to preserve deep links. Market-breadth KPIs, asset-type chips + inline screener, sortable/paginated table (Stock-Registry-standard layout), canonical Safety Score column, Reserve Monitor tab. Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
 | Coin Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-coin news |
 | Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk`. **No sidebar entry** — in the crypto module's `routePrefixes` but not its `navItems`; reached from the coin detail page's "full leaderboard & methodology" link |
-| Reserves | `/reserves` | 🟢 Live | DefiLlama stablecoin supply + collateralization (`/live-data/reserves`). **No sidebar entry and no inbound links** — reachable only by direct URL. The Coins page's "Reserve Monitor" is a tab inside `/assets`, not a link here. Either link it or fold it in |
+| Reserves | `/assets?tab=reserves` | 🟢 Live | Reserve Transparency Monitor — DefiLlama stablecoin supply + collateralization (`/live-data/reserves`). **A tab inside Coins, not a page.** The standalone `/reserves` page was folded in on 2026-07-29 (`/reserves` → `/assets?tab=reserves`, `next.config.mjs`); no separate nav entry. ⚠ **All reserve UI lives in `components/analytics/reserves.tsx` — do not re-inline it.** Three hand-maintained copies existed and only the orphaned page ever got the fixes, so the two surfaces users actually reach carried the bugs: peg-mechanism badges keyed on `_` while the feed sends `-` (8 of 9 coins unstyled), a KPI reading "Verified Attestations … by third-party auditor" for something nobody verifies, a header claiming the whole table was live when only supply is, and no provenance at all. `ReserveProvenance` is mandatory on any surface showing attester/date/collateralization — those come from the `stablecoinMeta` snapshot, not the live feed |
 | Alerts | TopBar bell | 🟢 Live | `/live-data/alerts` — stablecoin depegs + major-asset 24h moves; surfaced in the TopBar bell (no standalone page) |
 | Watchlist | `/watchlist` | 🟢 Live | Cross-module: coins, stocks, ETFs & funds, and macro instruments in named lists with live prices. **DB-backed** via `/api/user/watchlists` (+`/[id]` PUT/DELETE) through `useWatchlistStore` (optimistic, client-UUID ids, one-time localStorage import that MERGES even into a non-empty account — see store comment). Feed bias (`lib/watchlist/bias.ts`) and the Daily Brief read the store, not localStorage |
 | News | `/news` | 🟢 Live | Multi-provider RSS/JSON; sentiment + asset detection |

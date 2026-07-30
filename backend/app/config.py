@@ -34,8 +34,28 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(64))
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+
+    # 10, not 30. A JWT is self-validating, so the only bound on a stolen or
+    # logged-out access token that the server can always enforce is its expiry —
+    # the revocation blocklist depends on Redis being reachable, and fails open
+    # when it is not (see BLOCKLIST_FAIL_CLOSED). Shortening this shrinks the
+    # exposure window in every failure mode at once, including the ones
+    # revocation cannot cover. The cost is more /refresh calls, which are cheap:
+    # one signature check plus one indexed user lookup.
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # What to do when the Redis revocation blocklist cannot be reached.
+    #
+    # False (default) — allow the request and log a warning. A Redis outage
+    # degrades revocation rather than locking every user out; the 10-minute
+    # access-token lifetime above is what bounds the damage. This is the
+    # deliberate trade, not an oversight.
+    #
+    # True — reject. Choose this only if a Redis outage causing a total auth
+    # outage is preferable to a logged-out token surviving that outage, and
+    # only with Redis deployed for high availability.
+    BLOCKLIST_FAIL_CLOSED: bool = False
 
     # ------------------------------------------------------------------ #
     # Database
@@ -57,6 +77,26 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     RATE_LIMIT_REQUESTS: int = 100
     RATE_LIMIT_WINDOW: int = 60  # seconds
+
+    # ------------------------------------------------------------------ #
+    # Proxy trust
+    # ------------------------------------------------------------------ #
+    # Whether to treat X-Forwarded-For as the client's real address.
+    #
+    # Only enable behind a proxy that OVERWRITES the header. If anything can
+    # reach the app directly, the header is attacker-controlled: a client sends
+    # `X-Forwarded-For: 127.0.0.1` and both walks past the /metrics allowlist
+    # and writes a false client_ip into every log line. Off by default, so
+    # neither is silently spoofable.
+    #
+    # Deliberately one flag rather than one per consumer: "is this header
+    # trustworthy?" is a property of the deployment's network topology, and the
+    # answer cannot differ between two readers of the same header.
+    TRUST_FORWARDED_FOR: bool = False
+
+    # Extra source IPs allowed to scrape /metrics, on top of loopback. Set this
+    # to the Prometheus scraper's address when it is not co-located.
+    METRICS_ALLOWED_IPS: list[str] = []
 
     # ------------------------------------------------------------------ #
     # CORS

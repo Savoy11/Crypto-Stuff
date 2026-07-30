@@ -91,7 +91,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-        client_ip = self._get_client_ip(request)
+        client_ip, forwarded_for = self._client_addresses(request)
 
         bound_logger = logger.bind(
             request_id=request_id,
@@ -100,6 +100,12 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             client_ip=client_ip,
             user_agent=request.headers.get("user-agent", ""),
         )
+        if forwarded_for:
+            # Named so the field itself says the value is a claim, not a
+            # finding. Dropping it would lose the only signal about clients
+            # behind a proxy; merging it into client_ip is what made the field
+            # spoofable in the first place.
+            bound_logger = bound_logger.bind(claimed_forwarded_for=forwarded_for)
 
         bound_logger.info("request_started")
         normalized = self._normalize_path(path)
@@ -137,13 +143,29 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             REQUEST_IN_PROGRESS.labels(method=request.method, endpoint=normalized).dec()
 
     @staticmethod
-    def _get_client_ip(request: Request) -> str:
-        forwarded = request.headers.get("x-forwarded-for")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
-        if request.client:
-            return request.client.host
-        return "unknown"
+    def _client_addresses(request: Request) -> tuple[str, str | None]:
+        """
+        Resolve the address to log, plus any address the client merely *claims*.
+
+        This used to return `X-Forwarded-For or peer` unconditionally, which
+        made `client_ip` — the field an investigation pivots on — settable by
+        the caller. Same defect as the /metrics allowlist bypass; milder, since
+        it misleads rather than grants, but a log you cannot trust to attribute
+        a request is worse than one that says less.
+
+        Returns `(client_ip, forwarded_for)`:
+          - `client_ip` is the peer address, which no client can choose, unless
+            TRUST_FORWARDED_FOR says a proxy is overwriting the header.
+          - `forwarded_for` is the untrusted claim, returned only when it is
+            *not* being trusted, so it can be logged under its own name. The
+            header is still useful for tracing real clients behind a proxy —
+            it just must not masquerade as the verified address.
+        """
+        peer = request.client.host if request.client else "unknown"
+        forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or None
+        if settings.TRUST_FORWARDED_FOR:
+            return (forwarded or peer), None
+        return peer, forwarded
 
     @staticmethod
     def _normalize_path(path: str) -> str:

@@ -143,23 +143,43 @@ async def verify_token_not_revoked(
 ) -> dict[str, Any]:
     """
     Decode, validate, and check against the Redis JTI revocation blocklist.
-    Use this variant for refresh-token flows where revocation must be enforced.
+
+    ⚠ Use this, NOT `verify_token`, on any path that authenticates a caller.
+
+    Until 2026-07-29 this function had **zero call sites**. `/logout` wrote
+    `blocklist:<jti>` and nothing ever read it, so the blocklist was write-only
+    and logout revoked nothing: `get_current_user`, the WebSocket handshake and
+    `/refresh` all used the plain `verify_token`. The 2026-06-14 scorecard
+    recorded revocation as fixed because the writer and this checker both
+    existed — the parts were there, the wiring was not.
     """
     payload = verify_token(token, expected_type)
     jti = payload.get("jti")
-    if jti:
-        try:
-            from app.core.rate_limiter import get_redis
+    if not jti:
+        return payload
 
-            redis_client = await get_redis()
-            revoked = await redis_client.exists(f"blocklist:{jti}")
-            if revoked:
-                raise InvalidTokenError()
-        except InvalidTokenError:
-            raise
-        except Exception:
-            # Redis unavailable: fail open with a warning (log but don't block)
-            logger.warning("blocklist_check_failed", jti=jti)
+    try:
+        from app.core.rate_limiter import get_redis
+
+        redis_client = await get_redis()
+        revoked = await redis_client.exists(f"blocklist:{jti}")
+    except Exception:
+        # Redis unreachable. Failing open keeps a Redis outage from becoming a
+        # total auth outage; the short access-token lifetime is what bounds the
+        # window. Deployments that would rather reject set BLOCKLIST_FAIL_CLOSED.
+        # Logged either way — a revocation check that silently stopped running
+        # is exactly the kind of thing that goes unnoticed for months.
+        logger.warning(
+            "blocklist_check_failed",
+            jti=jti,
+            fail_closed=settings.BLOCKLIST_FAIL_CLOSED,
+        )
+        if settings.BLOCKLIST_FAIL_CLOSED:
+            raise InvalidTokenError() from None
+        return payload
+
+    if revoked:
+        raise InvalidTokenError()
     return payload
 
 

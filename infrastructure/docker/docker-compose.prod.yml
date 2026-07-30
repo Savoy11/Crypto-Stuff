@@ -68,7 +68,7 @@ services:
 
   postgres:
     # In production, use AWS RDS Aurora — this is only for standalone deployments
-    image: timescale/timescaledb:latest-pg15
+    image: timescale/timescaledb:2.28.3-pg15
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -102,7 +102,17 @@ services:
         --appendonly yes
         --appendfsync everysec
         --maxmemory 2gb
-        --maxmemory-policy allkeys-lru
+        # Matches dev (docker-compose.yml). Note this is NOT the security fix the
+        # 2026-06-14 scorecard claimed it was: both Redis writers already set a
+        # TTL (rate_limiter.py `expire`, auth.py `setex`), so every key is
+        # volatile and the two policies pick from an identical candidate set.
+        # Kept for dev/prod parity and so a future TTL-less key is exempt by
+        # default. The real exposure is unchanged and tracked in
+        # docs/audit/production-readiness-scorecard.md: LRU can drop a
+        # blocklist:{jti} before it expires, un-revoking a logged-out token.
+        # noeviction would prevent that but `rate_limit_dependency` has no
+        # error handling, so a full instance would 500 every limited endpoint.
+        --maxmemory-policy volatile-lru
         --requirepass ${REDIS_PASSWORD}
         --loglevel warning
         --save 900 1

@@ -91,10 +91,18 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: [
       '/assets', '/news', '/social', '/wallets',
       '/transfer-fees', '/staking', '/staking-discovery', '/coin-discovery',
-      '/technical-analysis', '/risk-scores', '/reserves',
+      '/technical-analysis', '/risk-scores',
+      // '/reserves' is gone: the page was folded into the Coins tab and the
+      // route now redirects to /assets?tab=reserves (next.config.mjs). Leaving
+      // the prefix here would be harmless but misleading — nothing owns it.
     ],
     optional: true,
     navItems: [
+      // Deliberately no "Reserves" entry. The Reserve Transparency Monitor is
+      // a tab inside Coins (/assets?tab=reserves) as of 2026-07-29 — it used to
+      // be a standalone page that duplicated that tab, and was the only copy
+      // carrying the provenance disclosure and the peg-mechanism fix. One
+      // surface now; the shared UI lives in components/analytics/reserves.
       { href: '/assets', label: 'Coins', icon: Database },
       { href: '/news', label: 'News', icon: Newspaper },
       { href: '/social', label: 'Social', icon: MessageSquare },
