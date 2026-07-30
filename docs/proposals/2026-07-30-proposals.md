@@ -18,7 +18,7 @@ reason for anything rejected. Then run the scout in FILE mode.
 
 ## 1. Fund look-through: what you actually own across your funds · proposed `P1` · target section: `docs/TASK-QUEUE.md` → "Phase 2 — Queued, not yet scoped"
 
-**Status:** PENDING
+**Status:** APPROVED — owner, 2026-07-30 (in session, both proposals approved together; filed into docs/TASK-QUEUE.md the same day)
 
 **What:** Multiply the weighted holdings we already fetch per fund by a user's portfolio
 weights, and surface the result as (a) a true underlying-issuer exposure list, (b) a pairwise
@@ -65,7 +65,7 @@ source ladder) is already built and shipped. · *Practicality:* Good — one hon
 
 ## 2. Macro technical-analysis page (close the third-module TA gap) · proposed `P2` · target section: `docs/TASK-QUEUE.md` → "Phase 2 — Queued, not yet scoped"
 
-**Status:** PENDING
+**Status:** APPROVED — owner, 2026-07-30 (in session, both proposals approved together; filed into docs/TASK-QUEUE.md the same day)
 
 **What:** A `/macro/technical-analysis` page parameterised over the 45 macro instruments,
 reusing the shared candlestick/indicator engine, with a nav entry in the macro module.
