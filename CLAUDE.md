@@ -7,7 +7,7 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus five optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus six optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), **Budget** (`/budget`, the first personal-finance pillar — accounts, CSV import, monthly budgets), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
@@ -76,6 +76,7 @@ frontend/src/
 │   │   ├── equities/               # EQUITIES MODULE — registry, [symbol], news, social, TA, backtests, calendar
 │   │   ├── macro/                  # MACRO MODULE — overview, news, commodities, currencies, rates (+ [slug] detail)
 │   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
+│   │   ├── budget/                 # BUDGET MODULE — monthly budgets vs actuals; transactions/ = accounts + CSV import
 │   │   ├── portfolio-builder/      # PREMIUM module — own entitlement
 │   │   └── global-adoption/        # De-routed (T5) — redirects to /headlines; page retained
 │   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 56 routes
@@ -156,6 +157,8 @@ frontend/src/
 │   │   ├── stablecoinMeta.ts       # Curated issuer metadata (+ provenance)
 │   │   ├── portfolioBuilder.ts     # Portfolio Builder engine (pure TS, vitest-tested)
 │   │   └── assetCatalog.ts         # Coin reference metadata
+│   ├── budget/                     # Budget module pure logic (vitest-tested): csv.ts (parse+mapping),
+│   │                               #   categorize.ts (first-match rules), recurring.ts (cadence detection)
 │   ├── agents/                     # Agent runner, prompts, tools
 │   ├── server/                     # Server-only helpers (apiGuard, edgar, secFundamentals, customFeeds…)
 │   ├── api/                        # API client functions
@@ -474,6 +477,7 @@ Risk/status color convention used across the app:
 | Data Sources | `/data-sources` | — | Per-provider status and utilization, read from the provider registry |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
+| Budget | `/budget`, `/budget/transactions` | 🟢 User data | BUDGET module (ROADMAP Phase 2): accounts (balance = opening anchor + transactions), manual entry, idempotent CSV import (import-hash dedupe; saved per-bank column mappings auto-matched by header signature), rule-based auto-categorization (first-match-wins, server-side), monthly budgets vs actuals (unbudgeted ≠ $0), recurring detection (suggestions until confirmed). Pure logic in `lib/budget/` (vitest), persistence via `/api/user/budget/*`. No external providers — no SourceLine on these pages |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
 
