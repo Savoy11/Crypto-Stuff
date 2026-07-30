@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchSecurityQuotes, type SecurityQuote, type QuoteSource } from '@/lib/api/live/marketData'
-import { EQUITY_CATALOG, getEquity } from '@/lib/data/equityCatalog'
-import { FUND_CATALOG, getFund } from '@/lib/data/fundCatalog'
+import { fetchSecurityQuotes, referenceSecurityQuotes, type SecurityQuote, type QuoteSource } from '@/lib/api/live/marketData'
+import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
+import { FUND_CATALOG } from '@/lib/data/fundCatalog'
 
 // Server-side proxy for equity / ETF / mutual-fund quotes.
 //   GET /live-data/security-quotes?symbols=AAPL,SPY,VTSAX
@@ -18,20 +18,6 @@ export interface SecurityQuotesResponse {
   updatedAt: string
   source: QuoteSource
   quotes: Record<string, SecurityQuote>
-}
-
-function referenceQuotes(symbols: string[]): Record<string, SecurityQuote> {
-  const quotes: Record<string, SecurityQuote> = {}
-  for (const raw of symbols) {
-    const symbol = raw.toUpperCase()
-    const ref = getEquity(symbol)?.referencePrice ?? getFund(symbol)?.referencePrice
-    if (ref == null) continue
-    quotes[symbol] = {
-      symbol, price: ref, change: null, changePercent: null,
-      previousClose: null, marketCap: null, volume: null, reference: true,
-    }
-  }
-  return quotes
 }
 
 export async function GET(request: NextRequest) {
@@ -56,7 +42,7 @@ export async function GET(request: NextRequest) {
     const { quotes, source } = await fetchSecurityQuotes(symbols)
     // Backfill any symbols the live source missed with reference prices
     const missing = symbols.filter((s) => !quotes[s.toUpperCase()])
-    const backfill = referenceQuotes(missing)
+    const backfill = referenceSecurityQuotes(missing)
     return NextResponse.json({
       ok: true,
       updatedAt: new Date().toISOString(),
@@ -68,7 +54,7 @@ export async function GET(request: NextRequest) {
       ok: true,
       updatedAt: new Date().toISOString(),
       source: 'reference',
-      quotes: referenceQuotes(symbols),
+      quotes: referenceSecurityQuotes(symbols),
     } satisfies SecurityQuotesResponse)
   }
 }

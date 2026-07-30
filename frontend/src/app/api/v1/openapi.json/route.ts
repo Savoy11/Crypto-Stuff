@@ -20,7 +20,9 @@ const SPEC = {
     { name: 'transfer', description: 'Transfer fee routing between exchanges and wallets' },
     { name: 'staking',  description: 'Staking opportunities with APY and risk scoring' },
     { name: 'network',  description: 'Blockchain network gas fees' },
-    { name: 'news',     description: 'Crypto news with sentiment and asset tagging' },
+    { name: 'news',       description: 'Crypto news with sentiment and asset tagging' },
+    { name: 'securities', description: 'Stock / ETF / mutual-fund / macro-instrument quotes and history' },
+    { name: 'macro',      description: 'Treasury yield curve and official FX reference rates' },
   ],
   paths: {
     '/prices': {
@@ -125,6 +127,63 @@ const SPEC = {
             description: 'News articles',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/NewsResponse' } } },
           },
+        },
+      },
+    },
+    '/securities/quotes': {
+      get: {
+        tags: ['securities'],
+        summary: 'Get quotes for securities and macro instruments',
+        description: 'Quotes for anything the security ladder prices: stocks, ETFs, mutual funds, commodity/rate futures (GC=F, ZN=F), FX pairs (EURUSD=X), and yield indices (^TNX). Symbols use Yahoo notation. Served by the same registry-driven provider ladder the UI reads (FMP → … → Yahoo → catalog reference); reference-priced quotes carry `reference: true` and must not be treated as live.',
+        parameters: [
+          { name: 'symbols', in: 'query', required: true, description: 'Comma-separated tickers in Yahoo notation, max 25 (e.g. AAPL,VOO,GC=F,^TNX)', schema: { type: 'string', example: 'AAPL,VOO,GC=F' } },
+        ],
+        responses: {
+          '200': { description: 'Quotes keyed by symbol', content: { 'application/json': { schema: { $ref: '#/components/schemas/SecurityQuotesResponse' } } } },
+          '400': { description: 'Missing or invalid symbols parameter', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '502': { description: 'No provider could serve the batch', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/securities/history': {
+      get: {
+        tags: ['securities'],
+        summary: 'Get daily close-price history',
+        description: 'Daily close-only series for any Yahoo-quotable symbol (stocks, ETFs, mutual funds, futures, FX pairs, yield indices), oldest first, with previous close and 52-week range.',
+        parameters: [
+          { name: 'symbol', in: 'query', required: true, description: 'Ticker in Yahoo notation', schema: { type: 'string', example: 'AAPL' } },
+          { name: 'range',  in: 'query', description: 'Lookback window', schema: { type: 'string', enum: ['1mo', '3mo', '6mo', '1y', '5y', 'max'], default: '1y' } },
+        ],
+        responses: {
+          '200': { description: 'Price history', content: { 'application/json': { schema: { $ref: '#/components/schemas/SecurityHistoryResponse' } } } },
+          '400': { description: 'Missing symbol or invalid range', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '502': { description: 'No history available for the symbol', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/macro/yield-curve': {
+      get: {
+        tags: ['macro'],
+        summary: 'Get the official US Treasury par yield curve',
+        description: 'The treasury.gov daily par curve — 13 maturities from 1M to 30Y — with ~1-month and start-of-year lookback snapshots, the 2s10s and 3m10y spreads, and a shape classification (normal / flat / inverted). Published once per business day.',
+        responses: {
+          '200': { description: 'Yield curve with spreads', content: { 'application/json': { schema: { $ref: '#/components/schemas/YieldCurveResponse' } } } },
+          '502': { description: 'treasury.gov unreachable or unparsable', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
+    '/macro/fx-rates': {
+      get: {
+        tags: ['macro'],
+        summary: 'Get daily ECB reference FX rates',
+        description: 'Official-tier daily reference rates (ECB via frankfurter.dev), USD base, ~30 currencies. The UI\'s community-sourced extended tier is deliberately not exposed here — this endpoint returns central-bank reference data or an error, never a blended source.',
+        parameters: [
+          { name: 'symbols', in: 'query', description: 'Comma-separated ISO codes to filter (e.g. EUR,JPY,GBP). 400s if a code is outside the ECB set.', schema: { type: 'string', example: 'EUR,JPY,GBP' } },
+        ],
+        responses: {
+          '200': { description: 'Reference rates', content: { 'application/json': { schema: { $ref: '#/components/schemas/FxRatesResponse' } } } },
+          '400': { description: 'A requested code is not in the ECB reference set', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+          '502': { description: 'Reference rates unavailable', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
         },
       },
     },
@@ -320,6 +379,94 @@ const SPEC = {
             },
           },
           total:     { type: 'integer' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      SecurityQuotesResponse: {
+        type: 'object',
+        properties: {
+          quotes: {
+            type: 'object',
+            description: 'Keyed by requested symbol.',
+            additionalProperties: {
+              type: 'object',
+              properties: {
+                symbol:        { type: 'string' },
+                reference:     { type: 'boolean', description: 'True when this is a static catalog reference price, NOT a live reading.' },
+                price:         { type: 'number' },
+                change:        { type: 'number', nullable: true, description: 'Absolute change vs previous close.' },
+                changePercent: { type: 'number', nullable: true },
+                previousClose: { type: 'number', nullable: true },
+                marketCap:     { type: 'number', nullable: true },
+                volume:        { type: 'number', nullable: true },
+              },
+            },
+          },
+          source:    { type: 'string', description: "Provider id that served the batch, or 'reference' for catalog prices." },
+          missing:   { type: 'array', items: { type: 'string' }, description: 'Symbols requested but not returned by any provider.' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      SecurityHistoryResponse: {
+        type: 'object',
+        properties: {
+          symbol:   { type: 'string' },
+          range:    { type: 'string', enum: ['1mo', '3mo', '6mo', '1y', '5y', 'max'] },
+          currency: { type: 'string', example: 'USD' },
+          points: {
+            type: 'array',
+            description: 'Daily closes, oldest first.',
+            items: {
+              type: 'object',
+              properties: {
+                date:  { type: 'string', format: 'date', example: '2026-07-01' },
+                close: { type: 'number' },
+              },
+            },
+          },
+          previousClose:     { type: 'number', nullable: true },
+          fiftyTwoWeekHigh:  { type: 'number', nullable: true },
+          fiftyTwoWeekLow:   { type: 'number', nullable: true },
+          updatedAt:         { type: 'string', format: 'date-time' },
+        },
+      },
+      YieldCurveResponse: {
+        type: 'object',
+        properties: {
+          latest:    { $ref: '#/components/schemas/CurveSnapshot' },
+          monthAgo:  { $ref: '#/components/schemas/CurveSnapshot' },
+          yearStart: { $ref: '#/components/schemas/CurveSnapshot' },
+          spread2s10s: { type: 'number', nullable: true, description: '10Y minus 2Y, percentage points — the classic recession signal.' },
+          spread3m10y: { type: 'number', nullable: true, description: "10Y minus 3M — the Fed's preferred version." },
+          shape:     { type: 'string', enum: ['normal', 'flat', 'inverted'] },
+          source:    { type: 'string', enum: ['treasury-gov'] },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      CurveSnapshot: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', format: 'date' },
+          points: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                label:    { type: 'string', example: '10Y' },
+                years:    { type: 'number', example: 10 },
+                yieldPct: { type: 'number', example: 4.25 },
+              },
+            },
+          },
+        },
+      },
+      FxRatesResponse: {
+        type: 'object',
+        properties: {
+          date:      { type: 'string', format: 'date', description: 'ECB publication date of the reference rates.' },
+          base:      { type: 'string', enum: ['USD'] },
+          rates:     { type: 'object', additionalProperties: { type: 'number' }, description: 'ISO code → units per 1 USD. USD included at 1.', example: { USD: 1, EUR: 0.92, JPY: 155.3 } },
+          source:    { type: 'string', enum: ['frankfurter-ecb'] },
           updatedAt: { type: 'string', format: 'date-time' },
         },
       },

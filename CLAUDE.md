@@ -566,6 +566,10 @@ A separate, agent-optimised REST API lives at `/api/v1/`. It is distinct from `/
 | `GET /api/v1/transfer/routes?from=binance&to=coinbase&coin=usdt&amount=1000` | Transfer route finder |
 | `GET /api/v1/staking/opportunities?coin=eth&category=liquid&max_risk=5` | Staking options with risk scores |
 | `GET /api/v1/news?coin=btc&sentiment=negative&limit=10` | News with sentiment/category tagging |
+| `GET /api/v1/securities/quotes?symbols=AAPL,VOO,GC=F` | Stock/ETF/fund/macro quotes (Yahoo notation, max 25; same ladder + reference fallback as the UI, `reference: true` rows labeled) |
+| `GET /api/v1/securities/history?symbol=AAPL&range=1y` | Daily close history for any quotable symbol (1mo–max) |
+| `GET /api/v1/macro/yield-curve` | Official treasury.gov 13-maturity par curve + 2s10s/3m10y spreads + shape |
+| `GET /api/v1/macro/fx-rates?symbols=EUR,JPY` | Daily ECB reference FX (official tier only — extended community tier deliberately not exposed) |
 | `GET /api/v1/openapi.json` | Full OpenAPI 3.0 spec |
 
 ### CORS helper
@@ -593,6 +597,10 @@ A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes Finan
 | `get_staking_opportunities` | Staking options filtered by coin, category, max risk |
 | `compare_staking_risk` | Side-by-side risk comparison of staking providers |
 | `get_crypto_news` | Recent news with sentiment, category, and coin tags |
+| `get_security_quotes` | Stock/ETF/fund/macro quotes (Yahoo notation; reference prices flagged) |
+| `get_security_history` | Daily close history + 52-week range for any quotable symbol |
+| `get_yield_curve` | Official Treasury par curve with spreads and shape |
+| `get_fx_rates` | Daily ECB reference FX rates (official tier) |
 
 ### Setup (build once)
 ```bash

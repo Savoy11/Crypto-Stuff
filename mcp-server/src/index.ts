@@ -381,6 +381,126 @@ server.tool(
   }
 )
 
+// ─── Tool: get_security_quotes ────────────────────────────────────────────────
+
+server.tool(
+  'get_security_quotes',
+  'Get quotes for stocks, ETFs, mutual funds, and macro instruments (commodity/rate futures like GC=F or ZN=F, FX pairs like EURUSD=X, yield indices like ^TNX). Symbols use Yahoo notation (BRK-B, not BRK.B). Quotes marked reference are static catalog prices, not live readings.',
+  {
+    symbols: z.string().describe('Comma-separated tickers in Yahoo notation, max 25. E.g. "AAPL,VOO,GC=F,^TNX".'),
+  },
+  async ({ symbols }) => {
+    const data = await get<{
+      quotes: Record<string, { symbol: string; reference?: boolean; price: number; change: number | null; changePercent: number | null; marketCap: number | null; volume: number | null }>
+      source: string
+      missing: string[]
+      updatedAt: string
+    }>(`/securities/quotes?symbols=${encodeURIComponent(symbols)}`)
+
+    const lines = Object.values(data.quotes).map(q => {
+      const chg = q.changePercent != null ? ` (${q.changePercent >= 0 ? '+' : ''}${q.changePercent.toFixed(2)}%)` : ''
+      const ref = q.reference ? ' — ⚠ reference price, not live' : ''
+      return `• **${q.symbol}**: $${q.price.toLocaleString('en-US', { maximumFractionDigits: 4 })}${chg}${ref}`
+    }).join('\n')
+    const missing = data.missing.length > 0 ? `\n\nNo quote available for: ${data.missing.join(', ')}` : ''
+    return {
+      content: [{
+        type: 'text',
+        text: `**Security Quotes** (source: ${data.source}, updated: ${new Date(data.updatedAt).toLocaleTimeString()})\n\n${lines}${missing}`,
+      }],
+    }
+  }
+)
+
+// ─── Tool: get_security_history ───────────────────────────────────────────────
+
+server.tool(
+  'get_security_history',
+  'Get daily close-price history for any quotable security or macro instrument (stocks, ETFs, mutual funds, futures, FX pairs, yield indices). Returns the series summary plus recent closes and the 52-week range.',
+  {
+    symbol: z.string().describe('Ticker in Yahoo notation, e.g. "AAPL", "VOO", "GC=F".'),
+    range: z.enum(['1mo', '3mo', '6mo', '1y', '5y', 'max']).optional().describe('Lookback window (default 1y).'),
+  },
+  async ({ symbol, range }) => {
+    const qs = `?symbol=${encodeURIComponent(symbol)}${range ? `&range=${range}` : ''}`
+    const data = await get<{
+      symbol: string; range: string; currency: string
+      points: Array<{ date: string; close: number }>
+      previousClose: number | null; fiftyTwoWeekHigh: number | null; fiftyTwoWeekLow: number | null
+    }>(`/securities/history${qs}`)
+
+    const pts = data.points
+    if (pts.length === 0) {
+      return { content: [{ type: 'text', text: `No price history available for ${data.symbol}.` }] }
+    }
+    const first = pts[0], last = pts[pts.length - 1]
+    const totalPct = first.close > 0 ? ((last.close - first.close) / first.close) * 100 : 0
+    const recent = pts.slice(-10).map(p => `${p.date}: ${p.close.toLocaleString('en-US', { maximumFractionDigits: 4 })}`).join('\n')
+    const range52 = data.fiftyTwoWeekLow != null && data.fiftyTwoWeekHigh != null
+      ? `\n52-week range: ${data.fiftyTwoWeekLow.toLocaleString()} – ${data.fiftyTwoWeekHigh.toLocaleString()}`
+      : ''
+    return {
+      content: [{
+        type: 'text',
+        text: `**${data.symbol} — ${data.range} history** (${data.currency}, ${pts.length} daily closes)\n\n`
+          + `${first.date} → ${last.date}: ${first.close.toLocaleString()} → ${last.close.toLocaleString()} (${totalPct >= 0 ? '+' : ''}${totalPct.toFixed(2)}%)${range52}\n\n`
+          + `Last 10 closes:\n${recent}`,
+      }],
+    }
+  }
+)
+
+// ─── Tool: get_yield_curve ────────────────────────────────────────────────────
+
+server.tool(
+  'get_yield_curve',
+  'Get the official US Treasury daily par yield curve (13 maturities, 1M–30Y, from treasury.gov) with the 2s10s and 3m10y spreads and a shape classification (normal/flat/inverted). The authoritative curve, published once per business day.',
+  {},
+  async () => {
+    const data = await get<{
+      latest: { date: string; points: Array<{ label: string; yieldPct: number }> }
+      spread2s10s?: number; spread3m10y?: number; shape?: string
+    }>(`/macro/yield-curve`)
+
+    const points = data.latest.points.map(p => `${p.label.padStart(3)}: ${p.yieldPct.toFixed(2)}%`).join('\n')
+    const spreads = [
+      data.spread2s10s != null ? `2s10s: ${data.spread2s10s >= 0 ? '+' : ''}${data.spread2s10s.toFixed(2)}pp` : null,
+      data.spread3m10y != null ? `3m10y: ${data.spread3m10y >= 0 ? '+' : ''}${data.spread3m10y.toFixed(2)}pp` : null,
+      data.shape ? `shape: ${data.shape}` : null,
+    ].filter(Boolean).join(' · ')
+    return {
+      content: [{
+        type: 'text',
+        text: `**US Treasury Par Yield Curve** (${data.latest.date}, source: treasury.gov)\n\n${points}\n\n${spreads}`,
+      }],
+    }
+  }
+)
+
+// ─── Tool: get_fx_rates ───────────────────────────────────────────────────────
+
+server.tool(
+  'get_fx_rates',
+  'Get daily ECB reference FX rates (USD base, ~30 currencies, official central-bank tier). Rates are units per 1 USD, published once per business day. Errors on codes outside the ECB set rather than falling back to community data.',
+  {
+    symbols: z.string().optional().describe('Comma-separated ISO codes to filter, e.g. "EUR,JPY,GBP". Omit for the full ECB set.'),
+  },
+  async ({ symbols }) => {
+    const qs = symbols ? `?symbols=${encodeURIComponent(symbols)}` : ''
+    const data = await get<{ date: string; base: string; rates: Record<string, number> }>(`/macro/fx-rates${qs}`)
+    const lines = Object.entries(data.rates)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([code, rate]) => `${code}: ${rate.toLocaleString('en-US', { maximumFractionDigits: 6 })}`)
+      .join('\n')
+    return {
+      content: [{
+        type: 'text',
+        text: `**ECB Reference FX Rates** (${data.date}, base ${data.base} — units per 1 USD)\n\n${lines}`,
+      }],
+    }
+  }
+)
+
 // ─── Tool: run_audit ─────────────────────────────────────────────────────────
 
 import { execFile } from 'child_process'
