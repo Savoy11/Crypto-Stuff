@@ -11,6 +11,12 @@ An institutional-grade financial analytics suite built with Next.js 15 (App Rout
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
+**Agent charters:** deployed maintenance agents follow `docs/agents/` —
+`checklist-steward.md` (proposes checklist/ledger updates, applies only after owner
+approval) and `code-checker.md` (review invariants + the do-not-fix registry of
+deliberate decisions). If you are reviewing code or updating status docs, read the
+matching charter first; each ends with a ready-to-paste deployable prompt.
+
 ---
 
 ## Tech Stack
