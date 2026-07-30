@@ -856,7 +856,19 @@ holdings because it is a unit investment trust that files no N-PORT, now pinned 
 T1 deliberately scoped these out as exceeding an audit's blast radius. All are independent; F1 and F3
 can run any time, F2 needs a product decision first.
 
+> **Status check 2026-07-30 — all four verified in source, three are closed.** This section had
+> gone stale in the familiar direction: work happened, the queue never heard about it. Per-item
+> annotations below; only F3 needed new code (done the same day).
+
 ### F1 — `Promise.allSettled` convention on 8 routes
+> **Status: ✅ resolved (2026-07-22), by correcting the premise rather than the routes.** The
+> review pass found **7 of the 8 are sequential fallback ladders that are correct as written** —
+> parallelising a ladder with `allSettled` fires every provider at once and burns rate limit on
+> exactly the calls the ladder exists to avoid. The convention docs (CLAUDE.md "Resilient
+> multi-fetch") now describe both shapes so the next audit doesn't re-flag them. The one genuine
+> bug was `sec-filings` (a thrown archive page discarded already-collected filings and 503'd the
+> route), fixed in `23654fc` with the accumulate-until-satisfied pattern.
+
 Eight multi-fetch routes don't follow the stated convention: `markets`, `company-profile`, `sec-filings`,
 `stock-universe`, `portfolio-prices`, `cbdc-data`, `wallet/exchange`, `config`. Most are internally
 try/caught so they degrade rather than 500, but they diverge from the documented pattern. This changes
@@ -864,15 +876,36 @@ failure semantics on 8 routes — do it as its own task with its own verificatio
 something else.
 
 ### F2 — `stock-social` recency starvation
+> **Status: ✅ fixed (`f47cc41`).** The blend decision was made: fair-share round-robin per
+> provider (`lib/server/socialBlend.ts`, unit-tested), each provider contributing newest-first
+> within its quota, unused quota flowing to active providers, result re-sorted by recency for
+> display. Reddit can no longer be starved to zero at any limit, and `contributed` reports which
+> providers actually placed items so attribution stays honest.
+
 Reddit now works but is starved by recency sorting: StockTwits posts are minutes old, Reddit's are
 hours old, so at `limit ≤ 30` Reddit gets **zero** slots (0 at 20, 10 at 40, 45 at 80). Fixing this is
 a product decision about how to blend real-time chat against forum discussion — decide the blend before
 writing code.
 
 ### F3 — `fund-universe` performance
+> **Status: ✅ fixed (2026-07-30).** The payload, not the latency, was the durable problem — the
+> 11 s is first-fetch only (both upstream directories cache 24 h). The 14 MB came from shape:
+> every uncurated fund (~30k rows) serialized as a full 18-field entry with 14 fields always
+> null. The full-universe response now carries discovered funds as compact `{ symbol, name }`
+> lists per type, hydrated client-side in `FundsClient`; the catalog's 118 rich entries and the
+> `?symbol=` single-lookup path (which detail pages use) are unchanged. Client-side screening
+> still sees the whole universe, which server-side pagination would have broken.
+
 11 seconds and a 14 MB payload. Needs pagination or server-side filtering.
 
 ### F4 — delete the dead `chart` route
+> **Status: ⛔ overtaken — deletion is off the table.** The Compare page's crypto leg now
+> consumes `/live-data/chart` (`compare/page.tsx`), reading **close prices only** — a safe use of
+> a price-only series, and exactly what T3's cross-module comparison needed. The route's own
+> header comment was the stale artifact still claiming "no consumers" (fixed 2026-07-30; it now
+> names the consumer and constrains new ones to close-only reads). The `synthetic: true` marker
+> stays as the guard against OHLC-shaped misuse.
+
 `/live-data/chart` has **zero consumers** and fabricates OHLC (`open == high == low == close`) that is
 indistinguishable from real candles once it leaves the route. T1 added a `synthetic: true` marker as a
 stopgap. Fold this into T5's cut list — the safest fix for a dead route that manufactures plausible

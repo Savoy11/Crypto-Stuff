@@ -17,6 +17,8 @@ import {
   type AnyActiveProvider,
   type CustomProviderDef,
 } from './providers'
+import { getEquity } from '@/lib/data/equityCatalog'
+import { getFund } from '@/lib/data/fundCatalog'
 import { pinnedFetch } from '@/lib/server/pinnedFetch'
 
 export interface SecurityQuote {
@@ -453,6 +455,26 @@ export async function fetchSecurityQuotes(
     }
   }
   throw lastError ?? new Error('No equity quote providers are enabled')
+}
+
+/**
+ * Static catalog reference prices for whatever the live ladder missed, marked
+ * `reference: true` so no consumer can mistake them for live readings. Shared
+ * by /live-data/security-quotes and /api/v1/securities/quotes — the fallback
+ * semantics are part of the quote surface, not one route's private behavior.
+ */
+export function referenceSecurityQuotes(symbols: string[]): Record<string, SecurityQuote> {
+  const quotes: Record<string, SecurityQuote> = {}
+  for (const raw of symbols) {
+    const symbol = raw.toUpperCase()
+    const ref = getEquity(symbol)?.referencePrice ?? getFund(symbol)?.referencePrice
+    if (ref == null) continue
+    quotes[symbol] = {
+      symbol, price: ref, change: null, changePercent: null,
+      previousClose: null, marketCap: null, volume: null, reference: true,
+    }
+  }
+  return quotes
 }
 
 // ─── History (charts) ─────────────────────────────────────────────────────────

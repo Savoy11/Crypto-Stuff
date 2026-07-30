@@ -340,7 +340,7 @@ export function AssetRegistryClient() {
           )}
 
           <p className="text-[11px] text-text-muted text-center">
-            Live prices via CoinGecko · Safety Scores are derived analytics (0–100, higher = safer), not investment advice
+            Live prices via CoinGecko · Safety Scores are Finance Now&apos;s own computed analytics (0–100, higher = safer), not a provider&apos;s figure and not investment advice
           </p>
         </div>
       )}

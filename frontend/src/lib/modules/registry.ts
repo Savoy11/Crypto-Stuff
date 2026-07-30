@@ -28,6 +28,8 @@ import {
   Banknote,
   Percent,
   Network,
+  PiggyBank,
+  ReceiptText,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -46,7 +48,7 @@ import {
 //     the component boundary rather than inside the page's JSX, so a disabled
 //     module never mounts the page and its queries never fire.
 
-export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'builder'
+export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'budget' | 'builder'
 
 export interface ModuleNavItem {
   href: string
@@ -151,6 +153,20 @@ export const MODULES: SuiteModule[] = [
     optional: true,
     navItems: [
       { href: '/funds', label: 'Fund Registry', icon: Landmark },
+    ],
+  },
+  {
+    // Personal-finance pillar, phase 2 of docs/ROADMAP.md: accounts, manual +
+    // CSV-imported transactions, rule-based categorization, monthly budgets
+    // vs actuals. All user data in Postgres via /api/user/budget/* — no
+    // external providers, so these pages carry no SourceLine.
+    id: 'budget',
+    label: 'Budget',
+    routePrefixes: ['/budget'],
+    optional: true,
+    navItems: [
+      { href: '/budget', label: 'Budget', icon: PiggyBank },
+      { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
     ],
   },
   {

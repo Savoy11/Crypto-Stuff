@@ -27,7 +27,7 @@ Finance Now operates as a read-heavy analytical system with write-intensive back
 | Task Queue | Celery 5.3 + Redis Broker | Reliable distributed task execution; beat scheduler for periodic jobs |
 | Time-Series DB | TimescaleDB 2.x on PostgreSQL 15 | Columnar compression, time-series indexes, compatibility with SQLAlchemy ORM |
 | Cache / Pub-Sub | Redis 7 | Sub-millisecond latency for pricing cache; pub/sub for WebSocket fan-out |
-| Frontend | Next.js 14 (React, TypeScript) | Server-side rendering, App Router, built-in API routes for BFF patterns |
+| Frontend | Next.js 15 (React, TypeScript) | Server-side rendering, App Router, built-in API routes for BFF patterns |
 | Reverse Proxy | Nginx 1.25 | Rate limiting, WebSocket upgrade, gzip, security headers |
 | Container Orchestration | Kubernetes 1.29 on AWS EKS | Declarative deployments, HPA, anti-affinity for HA |
 | Infrastructure as Code | Terraform 1.6 | Reproducible AWS infrastructure; remote state in S3 + DynamoDB |
@@ -208,7 +208,7 @@ The REST API follows these conventions:
 |---|---|---|---|
 | Time-series storage | TimescaleDB | InfluxDB, QuestDB, ClickHouse | PostgreSQL compatibility; SQLAlchemy support; avoid polyglot persistence |
 | Task queue | Celery + Redis | Dramatiq, RQ, Temporal | Ecosystem maturity; built-in beat scheduler; broad documentation |
-| Frontend framework | Next.js 14 | Vite+React SPA, Remix | SSR for SEO; App Router for server components; Vercel ecosystem |
+| Frontend framework | Next.js 15 | Vite+React SPA, Remix | SSR for SEO; App Router for server components; Vercel ecosystem |
 | Container orchestration | EKS | ECS, self-managed k8s | Managed control plane; Helm ecosystem; team familiarity |
 | IaC tool | Terraform | Pulumi, CDK | Provider ecosystem; module registry; team familiarity |
 | Reverse proxy | Nginx | Traefik, Caddy | Proven performance; flexible rate limiting; extensive documentation |

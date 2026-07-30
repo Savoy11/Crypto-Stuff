@@ -20,8 +20,10 @@ import { coingeckoIdFor } from '@/lib/api/live/coingeckoIds'
 // intraday volatility — is meaningless on this data and will silently return
 // zero-range results. `synthetic: true` marks that in the payload.
 //
-// Use /live-data/ohlcv for genuine OHLCV. This route currently has no consumers
-// in the app; it is kept only as a thin CoinGecko market_chart proxy.
+// Use /live-data/ohlcv for genuine OHLCV. One consumer exists: the Compare
+// page's crypto leg (app/(dashboard)/compare/page.tsx) reads close prices only,
+// which is exactly what this series honestly carries — a safe use. Any new
+// consumer must be close-only too, or use /live-data/ohlcv instead.
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 300

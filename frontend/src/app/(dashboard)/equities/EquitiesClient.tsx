@@ -12,6 +12,7 @@ import { OutlierScanPanel } from '@/components/markets/OutlierScanPanel'
 import { SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
+import { useScreenerUrl } from '@/lib/hooks/useScreenerUrl'
 import type { StockUniverseResponse, UniverseEntry } from '@/app/live-data/stock-universe/route'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
 
@@ -44,6 +45,28 @@ export function EquitiesClient() {
   const [maxPe, setMaxPe] = useState('')
   const [minYield, setMinYield] = useState('')
   const [maxBeta, setMaxBeta] = useState('')
+
+  // Deep-linkable screener state — /equities?sector=technology&peMax=20&sort=pe
+  useScreenerUrl(
+    {
+      sector, q: search, sort: sortKey, dir: sortAsc ? 'asc' : 'desc',
+      mcapMin: minMcapB, mcapMax: maxMcapB, peMin: minPe, peMax: maxPe,
+      yieldMin: minYield, betaMax: maxBeta,
+    },
+    { sector: 'all', q: '', sort: 'marketCap', dir: 'desc', mcapMin: '', mcapMax: '', peMin: '', peMax: '', yieldMin: '', betaMax: '' },
+    (p) => {
+      if (p.sector && (p.sector === 'all' || p.sector in SECTOR_INFO)) setSector(p.sector as SectorId | 'all')
+      if (p.q) setSearch(p.q)
+      if (p.sort && ['symbol', 'sector', 'price', 'marketCap', 'pe', 'dividend', 'beta'].includes(p.sort)) setSortKey(p.sort as SortKey)
+      if (p.dir) setSortAsc(p.dir === 'asc')
+      if (p.mcapMin) setMinMcapB(p.mcapMin)
+      if (p.mcapMax) setMaxMcapB(p.mcapMax)
+      if (p.peMin) setMinPe(p.peMin)
+      if (p.peMax) setMaxPe(p.peMax)
+      if (p.yieldMin) setMinYield(p.yieldMin)
+      if (p.betaMax) setMaxBeta(p.betaMax)
+    },
+  )
 
   // ── Universe (daily-refreshed; server caches 24h) ──
   const { data: universeData, isLoading: uniLoading, refetch, isFetching } = useQuery<StockUniverseResponse>({

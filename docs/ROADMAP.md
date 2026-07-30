@@ -134,6 +134,16 @@ module registry.
 after a browser wipe.
 
 ### Phase 2 — Budget module
+> Progress (2026-07-30): **shipped as the `budget` suite module** (`/budget` +
+> `/budget/transactions`, ModuleGated, own sidebar section). Accounts with
+> anchor-based balances, manual entry, CSV import (column mapping UI, saved
+> per-bank import profiles auto-matched by header signature, import-hash
+> dedupe so re-imports are no-ops), first-match categorization rules applied
+> server-side on insert, monthly budgets vs actuals (missing budget ≠ 0),
+> and recurring detection surfaced as confirm-or-ignore suggestions. Pure
+> logic in `lib/budget/` (31 vitest tests); persistence `/api/user/budget/*`.
+> Verified end-to-end against local Postgres. Remaining from the phase spec:
+> nothing — bank sync stays deferred per the standing decision.
 - `finance_accounts` (checking, savings, credit card, cash) and manual
   transaction entry.
 - CSV import with column mapping + saved import profiles per bank;

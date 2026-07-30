@@ -899,16 +899,8 @@ ul, ol {
   margin-bottom: 1rem;
 }
 
-.mb-5 {
-  margin-bottom: 1.25rem;
-}
-
 .mb-statusbar {
   margin-bottom: 28px;
-}
-
-.ml-0\.5 {
-  margin-left: 0.125rem;
 }
 
 .ml-1 {
@@ -945,6 +937,10 @@ ul, ol {
 
 .mr-2 {
   margin-right: 0.5rem;
+}
+
+.mr-auto {
+  margin-right: auto;
 }
 
 .mt-0\.5 {
@@ -1230,10 +1226,6 @@ ul, ol {
   height: 18px;
 }
 
-.h-\[280px\] {
-  height: 280px;
-}
-
 .h-\[300px\] {
   height: 300px;
 }
@@ -1264,10 +1256,6 @@ ul, ol {
 
 .max-h-48 {
   max-height: 12rem;
-}
-
-.max-h-52 {
-  max-height: 13rem;
 }
 
 .max-h-56 {
@@ -1374,10 +1362,6 @@ ul, ol {
   width: 75%;
 }
 
-.w-3\/5 {
-  width: 60%;
-}
-
 .w-32 {
   width: 8rem;
 }
@@ -1388,10 +1372,6 @@ ul, ol {
 
 .w-4 {
   width: 1rem;
-}
-
-.w-4\/5 {
-  width: 80%;
 }
 
 .w-40 {
@@ -1551,10 +1531,6 @@ ul, ol {
   max-width: 1200px;
 }
 
-.max-w-\[140px\] {
-  max-width: 140px;
-}
-
 .max-w-\[160px\] {
   max-width: 160px;
 }
@@ -1706,10 +1682,6 @@ ul, ol {
   cursor: help;
 }
 
-.cursor-move {
-  cursor: move;
-}
-
 .cursor-not-allowed {
   cursor: not-allowed;
 }
@@ -1784,6 +1756,14 @@ ul, ol {
 
 .grid-cols-8 {
   grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.grid-cols-\[2fr_1fr_1fr_2fr_1fr\] {
+  grid-template-columns: 2fr 1fr 1fr 2fr 1fr;
+}
+
+.grid-cols-\[5\.5rem_minmax\(0\2c 1fr\)_9rem_6rem_2rem\] {
+  grid-template-columns: 5.5rem minmax(0,1fr) 9rem 6rem 2rem;
 }
 
 .grid-cols-\[minmax\(0\2c 2\.6fr\)_1\.3fr_1fr_0\.8fr_1\.1fr_0\.7fr_0\.7fr_0\.7fr\] {
@@ -1933,12 +1913,6 @@ ul, ol {
   row-gap: 1.25rem;
 }
 
-.space-y-0 > :not([hidden]) ~ :not([hidden]) {
-  --tw-space-y-reverse: 0;
-  margin-top: calc(0px * calc(1 - var(--tw-space-y-reverse)));
-  margin-bottom: calc(0px * var(--tw-space-y-reverse));
-}
-
 .space-y-0\.5 > :not([hidden]) ~ :not([hidden]) {
   --tw-space-y-reverse: 0;
   margin-top: calc(0.125rem * calc(1 - var(--tw-space-y-reverse)));
@@ -2028,6 +2002,10 @@ ul, ol {
 
 .self-start {
   align-self: flex-start;
+}
+
+.self-end {
+  align-self: flex-end;
 }
 
 .self-center {
@@ -2153,10 +2131,6 @@ ul, ol {
 
 .border-l {
   border-left-width: 1px;
-}
-
-.border-l-2 {
-  border-left-width: 2px;
 }
 
 .border-l-4 {
@@ -2320,6 +2294,10 @@ ul, ol {
 
 .border-emerald-500\/20 {
   border-color: rgb(16 185 129 / 0.2);
+}
+
+.border-emerald-500\/25 {
+  border-color: rgb(16 185 129 / 0.25);
 }
 
 .border-emerald-500\/30 {
@@ -2496,10 +2474,6 @@ ul, ol {
   border-left-color: rgb(30 34 50 / var(--tw-border-opacity, 1));
 }
 
-.border-l-red-500\/50 {
-  border-left-color: rgb(239 68 68 / 0.5);
-}
-
 .border-r-bg-elevated {
   --tw-border-opacity: 1;
   border-right-color: rgb(30 34 50 / var(--tw-border-opacity, 1));
@@ -2617,14 +2591,6 @@ ul, ol {
   background-color: rgb(18 20 26 / var(--tw-bg-opacity, 1));
 }
 
-.bg-bg-secondary\/30 {
-  background-color: rgb(18 20 26 / 0.3);
-}
-
-.bg-bg-secondary\/40 {
-  background-color: rgb(18 20 26 / 0.4);
-}
-
 .bg-black\/60 {
   background-color: rgb(0 0 0 / 0.6);
 }
@@ -2643,10 +2609,6 @@ ul, ol {
   background-color: rgb(59 130 246 / var(--tw-bg-opacity, 1));
 }
 
-.bg-blue-500\/10 {
-  background-color: rgb(59 130 246 / 0.1);
-}
-
 .bg-blue-500\/15 {
   background-color: rgb(59 130 246 / 0.15);
 }
@@ -2657,10 +2619,6 @@ ul, ol {
 
 .bg-blue-500\/5 {
   background-color: rgb(59 130 246 / 0.05);
-}
-
-.bg-blue-500\/70 {
-  background-color: rgb(59 130 246 / 0.7);
 }
 
 .bg-border {
@@ -3174,11 +3132,6 @@ ul, ol {
   padding-bottom: 0.75rem;
 }
 
-.py-3\.5 {
-  padding-top: 0.875rem;
-  padding-bottom: 0.875rem;
-}
-
 .py-4 {
   padding-top: 1rem;
   padding-bottom: 1rem;
@@ -3533,6 +3486,10 @@ ul, ol {
   color: rgb(252 211 77 / 0.7);
 }
 
+.text-amber-300\/80 {
+  color: rgb(252 211 77 / 0.8);
+}
+
 .text-amber-300\/90 {
   color: rgb(252 211 77 / 0.9);
 }
@@ -3630,10 +3587,6 @@ ul, ol {
   color: rgb(52 211 153 / var(--tw-text-opacity, 1));
 }
 
-.text-emerald-400\/60 {
-  color: rgb(52 211 153 / 0.6);
-}
-
 .text-emerald-400\/70 {
   color: rgb(52 211 153 / 0.7);
 }
@@ -3644,10 +3597,6 @@ ul, ol {
 
 .text-emerald-400\/90 {
   color: rgb(52 211 153 / 0.9);
-}
-
-.text-emerald-500\/70 {
-  color: rgb(16 185 129 / 0.7);
 }
 
 .text-emerald-500\/80 {
@@ -3834,11 +3783,6 @@ ul, ol {
   color: rgb(255 255 255 / var(--tw-text-opacity, 1));
 }
 
-.text-yellow-400 {
-  --tw-text-opacity: 1;
-  color: rgb(250 204 21 / var(--tw-text-opacity, 1));
-}
-
 .underline {
   text-decoration-line: underline;
 }
@@ -3880,10 +3824,6 @@ ul, ol {
 .placeholder-text-muted::placeholder {
   --tw-placeholder-opacity: 1;
   color: rgb(71 85 105 / var(--tw-placeholder-opacity, 1));
-}
-
-.accent-accent-blue {
-  accent-color: #3b82f6;
 }
 
 .accent-blue-500 {
@@ -4000,11 +3940,6 @@ ul, ol {
 
 .blur {
   --tw-blur: blur(8px);
-  filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
-}
-
-.invert {
-  --tw-invert: invert(100%);
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 
@@ -4125,6 +4060,10 @@ ul, ol {
   color: rgb(226 232 240 / var(--tw-text-opacity, 1));
 }
 
+.first\:border-t-0:first-child {
+  border-top-width: 0px;
+}
+
 .last\:border-0:last-child {
   border-width: 0px;
 }
@@ -4154,6 +4093,10 @@ ul, ol {
 
 .hover\:border-accent-blue\/40:hover {
   border-color: rgb(59 130 246 / 0.4);
+}
+
+.hover\:border-accent-blue\/60:hover {
+  border-color: rgb(59 130 246 / 0.6);
 }
 
 .hover\:border-border-strong:hover {
@@ -4290,6 +4233,11 @@ ul, ol {
 .hover\:text-accent-blue:hover {
   --tw-text-opacity: 1;
   color: rgb(59 130 246 / var(--tw-text-opacity, 1));
+}
+
+.hover\:text-amber-300:hover {
+  --tw-text-opacity: 1;
+  color: rgb(252 211 77 / var(--tw-text-opacity, 1));
 }
 
 .hover\:text-blue-300:hover {
@@ -4605,10 +4553,6 @@ ul, ol {
     display: none;
   }
 
-  .lg\:w-52 {
-    width: 13rem;
-  }
-
   .lg\:w-64 {
     width: 16rem;
   }
@@ -4678,5 +4622,9 @@ ul, ol {
 
   .xl\:grid-cols-\[1fr_320px\] {
     grid-template-columns: 1fr 320px;
+  }
+
+  .xl\:grid-cols-\[2fr_1fr\] {
+    grid-template-columns: 2fr 1fr;
   }
 }

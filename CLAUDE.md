@@ -7,9 +7,15 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade financial analytics suite built with Next.js 14 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus five optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus six optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), **Budget** (`/budget`, the first personal-finance pillar — accounts, CSV import, monthly budgets), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
+
+**Agent charters:** deployed maintenance agents follow `docs/agents/` —
+`checklist-steward.md` (proposes checklist/ledger updates, applies only after owner
+approval) and `code-checker.md` (review invariants + the do-not-fix registry of
+deliberate decisions). If you are reviewing code or updating status docs, read the
+matching charter first; each ends with a ready-to-paste deployable prompt.
 
 ---
 
@@ -17,13 +23,13 @@ An institutional-grade financial analytics suite built with Next.js 14 (App Rout
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Next.js 14 App Router |
+| Framework | Next.js 15 App Router |
 | Language | TypeScript (strict) |
 | Styling | Tailwind CSS with custom CSS variables |
 | Data fetching (client) | TanStack React Query v5 |
 | Data fetching (server routes) | `fetch` with `next: { revalidate: N }` |
 | State management | Zustand stores |
-| Charts | Recharts |
+| Charts | Recharts (line/area/bar) + lightweight-charts (all candlestick surfaces) |
 | Icons | Lucide React |
 | Toasts | react-hot-toast |
 
@@ -70,9 +76,10 @@ frontend/src/
 │   │   ├── equities/               # EQUITIES MODULE — registry, [symbol], news, social, TA, backtests, calendar
 │   │   ├── macro/                  # MACRO MODULE — overview, news, commodities, currencies, rates (+ [slug] detail)
 │   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
+│   │   ├── budget/                 # BUDGET MODULE — monthly budgets vs actuals; transactions/ = accounts + CSV import
 │   │   ├── portfolio-builder/      # PREMIUM module — own entitlement
 │   │   └── global-adoption/        # De-routed (T5) — redirects to /headlines; page retained
-│   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 47 routes
+│   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 56 routes
 │       ├── markets/route.ts        # CoinGecko price data
 │       ├── news/route.ts           # Multi-provider crypto news (RSS + JSON feeds)
 │       ├── social/route.ts         # Social sentiment data
@@ -150,6 +157,8 @@ frontend/src/
 │   │   ├── stablecoinMeta.ts       # Curated issuer metadata (+ provenance)
 │   │   ├── portfolioBuilder.ts     # Portfolio Builder engine (pure TS, vitest-tested)
 │   │   └── assetCatalog.ts         # Coin reference metadata
+│   ├── budget/                     # Budget module pure logic (vitest-tested): csv.ts (parse+mapping),
+│   │                               #   categorize.ts (first-match rules), recurring.ts (cadence detection)
 │   ├── agents/                     # Agent runner, prompts, tools
 │   ├── server/                     # Server-only helpers (apiGuard, edgar, secFundamentals, customFeeds…)
 │   ├── api/                        # API client functions
@@ -468,6 +477,7 @@ Risk/status color convention used across the app:
 | Data Sources | `/data-sources` | — | Per-provider status and utilization, read from the provider registry |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
+| Budget | `/budget`, `/budget/transactions` | 🟢 User data | BUDGET module (ROADMAP Phase 2): accounts (balance = opening anchor + transactions), manual entry, idempotent CSV import (import-hash dedupe; saved per-bank column mappings auto-matched by header signature), rule-based auto-categorization (first-match-wins, server-side), monthly budgets vs actuals (unbudgeted ≠ $0), recurring detection (suggestions until confirmed). Pure logic in `lib/budget/` (vitest), persistence via `/api/user/budget/*`. No external providers — no SourceLine on these pages |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
 
@@ -560,6 +570,10 @@ A separate, agent-optimised REST API lives at `/api/v1/`. It is distinct from `/
 | `GET /api/v1/transfer/routes?from=binance&to=coinbase&coin=usdt&amount=1000` | Transfer route finder |
 | `GET /api/v1/staking/opportunities?coin=eth&category=liquid&max_risk=5` | Staking options with risk scores |
 | `GET /api/v1/news?coin=btc&sentiment=negative&limit=10` | News with sentiment/category tagging |
+| `GET /api/v1/securities/quotes?symbols=AAPL,VOO,GC=F` | Stock/ETF/fund/macro quotes (Yahoo notation, max 25; same ladder + reference fallback as the UI, `reference: true` rows labeled) |
+| `GET /api/v1/securities/history?symbol=AAPL&range=1y` | Daily close history for any quotable symbol (1mo–max) |
+| `GET /api/v1/macro/yield-curve` | Official treasury.gov 13-maturity par curve + 2s10s/3m10y spreads + shape |
+| `GET /api/v1/macro/fx-rates?symbols=EUR,JPY` | Daily ECB reference FX (official tier only — extended community tier deliberately not exposed) |
 | `GET /api/v1/openapi.json` | Full OpenAPI 3.0 spec |
 
 ### CORS helper
@@ -587,6 +601,10 @@ A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes Finan
 | `get_staking_opportunities` | Staking options filtered by coin, category, max risk |
 | `compare_staking_risk` | Side-by-side risk comparison of staking providers |
 | `get_crypto_news` | Recent news with sentiment, category, and coin tags |
+| `get_security_quotes` | Stock/ETF/fund/macro quotes (Yahoo notation; reference prices flagged) |
+| `get_security_history` | Daily close history + 52-week range for any quotable symbol |
+| `get_yield_curve` | Official Treasury par curve with spreads and shape |
+| `get_fx_rates` | Daily ECB reference FX rates (official tier) |
 
 ### Setup (build once)
 ```bash

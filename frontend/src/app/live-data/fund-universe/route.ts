@@ -47,6 +47,18 @@ export interface FundUniverseEntry {
   tradingRestriction: string | null
 }
 
+/**
+ * Compact wire form for an uncurated fund. Symbol and name are the ONLY facts
+ * the listing directories actually carry — every other FundUniverseEntry field
+ * is null for these rows, and serializing ~30k of them as full 18-field
+ * objects is what made this response 14 MB (audit follow-up F3). The client
+ * hydrates these back to full entries; see FundsClient's hydrateDiscovered.
+ */
+export interface DiscoveredFund {
+  symbol: string
+  name: string
+}
+
 export interface FundUniverseResponse {
   ok: boolean
   updatedAt: string
@@ -58,7 +70,15 @@ export interface FundUniverseResponse {
   /** Why a directory contributed nothing (null = fetched fine). */
   etfError: string | null
   mutualError: string | null
+  /**
+   * Rich entries only: the curated catalog on the full-universe path, or the
+   * single match on `?symbol=` lookups (where a discovered fund IS returned in
+   * full — one row costs nothing and detail pages want the whole shape).
+   */
   entries: FundUniverseEntry[]
+  /** Uncurated discoveries, compact form. Absent on `?symbol=` lookups. */
+  discoveredEtfList?: DiscoveredFund[]
+  discoveredMutualList?: DiscoveredFund[]
 }
 
 // NASDAQ serves the same daily file from two hosts — try both before giving up.
@@ -264,12 +284,15 @@ export async function GET(request: Request) {
     r.status === 'rejected' ? (r.reason instanceof Error ? r.reason.message : String(r.reason)) : null
   const etfError = reason(etfRes)
   const mutualError = reason(mfRes)
+  // Compact form on the full-universe path — see DiscoveredFund. The skeleton
+  // expansion happens client-side; sending it over the wire ~30k times is the
+  // 14 MB this shape replaced.
   const etfs = etfRes.status === 'fulfilled'
-    ? etfRes.value.filter((e) => !known.has(e.symbol)).map((e) => skeleton(e, 'etf'))
+    ? etfRes.value.filter((e) => !known.has(e.symbol))
     : []
   const etfSymbols = new Set(etfs.map((e) => e.symbol))
   const mutuals = mfRes.status === 'fulfilled'
-    ? mfRes.value.filter((e) => !known.has(e.symbol) && !etfSymbols.has(e.symbol)).map((e) => skeleton(e, 'mutual'))
+    ? mfRes.value.filter((e) => !known.has(e.symbol) && !etfSymbols.has(e.symbol))
     : []
 
   if (etfs.length === 0 && mutuals.length === 0) {
@@ -283,6 +306,8 @@ export async function GET(request: Request) {
     discovered: etfs.length + mutuals.length,
     discoveredEtfs: etfs.length, discoveredMutual: mutuals.length,
     etfError, mutualError,
-    entries: [...catalog, ...etfs, ...mutuals],
+    entries: catalog,
+    discoveredEtfList: etfs,
+    discoveredMutualList: mutuals,
   } satisfies FundUniverseResponse)
 }

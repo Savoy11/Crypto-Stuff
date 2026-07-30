@@ -3,12 +3,14 @@ const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
   // Linting runs as its own step (`npm run lint` → eslint, and a dedicated CI
-  // job), NOT during the build. Next 14's built-in build lint drives the
-  // ESLint 8 API and errors out against the ESLint 9 this repo now uses:
+  // job), NOT during the build. Decided on Next 14, whose built-in build lint
+  // drove the ESLint 8 API and errored against ESLint 9:
   //   ⨯ ESLint: Invalid Options: - Unknown options: useEslintrc, extensions
   // It printed that while still exiting 0, i.e. the build *looked* linted and
-  // wasn't. Turning it off makes the truth explicit instead. Next 16 removes
-  // build-time linting anyway. See eslint.config.mjs.
+  // wasn't. Turning it off makes the truth explicit instead. Kept off on
+  // Next 15 deliberately — build-lint is deprecated in 15 and removed in 16,
+  // and the dedicated lint step is the one CI actually gates on. See
+  // eslint.config.mjs.
   eslint: { ignoreDuringBuilds: true },
   images: {
     domains: ['assets.coingecko.com', 'cryptologos.cc', 'raw.githubusercontent.com'],

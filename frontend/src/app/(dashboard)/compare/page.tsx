@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { GitCompareArrows, Search, X } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { LineChart } from '@/components/charts/LineChart'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import { EQUITY_CATALOG, SECTOR_INFO, getEquity } from '@/lib/data/equityCatalog'
@@ -220,6 +221,8 @@ function CompareInner() {
           ]}
         />
       </div>
+
+      <SourceLine id="compare" />
 
       {/* Selection row */}
       <div className="flex flex-wrap items-center gap-2">

@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { Plus, Search, Star, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, isSecurityKey, securitySymbol, formatInstrumentQuote } from '@/lib/data/instruments'
 import { ASSET_ID_BY_COINGECKO } from '@/lib/api/live/coingeckoIds'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
@@ -81,6 +82,8 @@ export default function WatchlistPage() {
           ]}
         />
       </div>
+
+      <SourceLine id="watchlist" />
 
       {syncError && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-400">
