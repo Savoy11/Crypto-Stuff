@@ -181,7 +181,7 @@ const tests = [
   }},
 
   { group: 'crypto/market', path: '/live-data/btc-stats', name: 'btc-stats', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     if (!(j.blockHeight > 800_000)) throw new Error(`block height implausible: ${j.blockHeight}`)
     return `height=${j.blockHeight}, hashrate=${j.hashrateTHs ? Math.round(j.hashrateTHs / 1e6) + ' EH/s' : '?'}`
   }},
@@ -202,14 +202,14 @@ const tests = [
   }},
 
   { group: 'crypto/market', path: '/live-data/risk-scores', name: 'risk-scores', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     const sc = j.stablecoins ?? []
     if (sc.length === 0) throw new Error('no stablecoin scores')
     return `${sc.length} stablecoin composites`
   }},
 
   { group: 'crypto/market', path: '/live-data/alerts', name: 'alerts', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     return `${(j.alerts ?? []).length} alerts`
   }},
 
@@ -224,7 +224,7 @@ const tests = [
 
   // ── Staking ─────────────────────────────────────────────────────────────────
   { group: 'crypto/staking', path: '/live-data/staking-rates', name: 'staking-rates', quick: true, check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     const rates = j.rates ?? {}
     const sources = j.sources ?? {}
     const keys = Object.keys(rates)
@@ -271,7 +271,7 @@ const tests = [
   }},
 
   { group: 'crypto/news', path: '/live-data/social?coin=btc', name: 'social (reddit RSS)', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     const sig = j.signals ?? []
     if (sig.length === 0) return empty('0 signals — Reddit RSS likely rate-limited (429) from this IP')
     const platforms = [...new Set(sig.map((s) => s.platform))]
@@ -284,14 +284,14 @@ const tests = [
   }},
 
   { group: 'crypto/video', path: '/live-data/videos', name: 'videos', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     const v = j.videos ?? []
     if (v.length === 0) return empty('0 videos')
     return `${v.length} videos`
   }},
 
   { group: 'crypto/video', path: '/live-data/video-search?q=bitcoin', name: 'video-search', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     if (j.configured === false) return unconfigured('no YouTube API key configured (honestly reported)')
     if ((j.videos ?? []).length === 0) return empty('configured but 0 results')
     return `${j.videos.length} videos`
@@ -356,14 +356,14 @@ const tests = [
   }},
 
   { group: 'crypto/wallet', path: '/live-data/wallet/exchange-connections', name: 'wallet exchange-connections', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     const n = (j.connections ?? []).length
     return n === 0 ? empty('0 exchange connections configured') : `${n} connections`
   }},
 
   // ── Pump report ─────────────────────────────────────────────────────────────
   { group: 'crypto/pump', path: '/live-data/pump-report/metrics', name: 'pump-report metrics', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     const m = j.metrics ?? []
     if (m.length === 0) return empty('0 metrics')
     return `${m.length} metrics`
@@ -407,7 +407,7 @@ const tests = [
   }},
 
   { group: 'equities', path: '/live-data/security-returns?symbols=AAPL,MSFT', name: 'security-returns', check: (j) => {
-    if (!j.ok) throw new Error('not ok')
+    if (!j.ok) throw new Error(j.error ?? 'not ok')
     if (j.source === 'none') return fallback('source=none, no returns served')
     const n = Object.keys(j.returns ?? {}).length
     if (n === 0) return empty('0 symbols returned')
