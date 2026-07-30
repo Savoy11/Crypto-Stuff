@@ -439,22 +439,65 @@ async function fetchFromProvider(p: AnyActiveProvider, symbols: string[]): Promi
   }
 }
 
+/**
+ * Walk the provider ladder until every symbol is quoted.
+ *
+ * This is a **residual** ladder, not a first-success one (W4-C4). The previous
+ * version returned as soon as a provider didn't throw, no matter how little it
+ * covered: a rate-limited provider answering 12 of 50 symbols ended the walk,
+ * and the other 38 fell through to catalog reference prices without Yahoo — the
+ * free, keyless, reliable rung — ever being asked. The failure was invisible,
+ * because 38 `reference: true` quotes render as a normal page with amber tags.
+ *
+ * Each provider is asked only for what is still missing, which also means a
+ * partial answer costs the next provider a smaller request rather than a
+ * duplicate one. Deliberately NOT `Promise.allSettled` over the ladder: that
+ * fires every provider at once and burns rate limit on exactly the calls the
+ * ladder exists to avoid (see CLAUDE.md, "Resilient multi-fetch").
+ *
+ * `source` names every provider that actually contributed, joined by `+`, so a
+ * mixed result is attributable rather than credited to whichever answered first.
+ */
 export async function fetchSecurityQuotes(
   symbols: string[]
 ): Promise<{ quotes: Record<string, SecurityQuote>; source: QuoteSource }> {
   const providers = getEquityQuoteProviders()
+  const wanted = [...new Set(symbols.map((s) => s.toUpperCase()))]
+
+  const quotes: Record<string, SecurityQuote> = {}
+  const contributors: string[] = []
+  let remaining = wanted
   let lastError: Error | null = null
+
   for (const p of providers) {
+    if (remaining.length === 0) break
     try {
-      const quotes = await fetchFromProvider(p, symbols)
-      recordProviderFetch(p.id, { count: Object.keys(quotes).length })
-      return { quotes, source: p.id }
+      const got = await fetchFromProvider(p, remaining)
+      let added = 0
+      for (const [symbol, quote] of Object.entries(got)) {
+        const key = symbol.toUpperCase()
+        if (quotes[key]) continue
+        quotes[key] = quote
+        added++
+      }
+      recordProviderFetch(p.id, { count: added })
+      if (added > 0) {
+        contributors.push(p.id)
+        remaining = remaining.filter((s) => !quotes[s])
+      }
     } catch (e) {
       lastError = e instanceof Error ? e : new Error(String(e))
       recordProviderFetch(p.id, { error: lastError.message })
     }
   }
-  throw lastError ?? new Error('No equity quote providers are enabled')
+
+  // Nothing at all came back. Throwing (rather than returning an empty map) is
+  // what makes the caller fall through to reference prices.
+  if (contributors.length === 0) {
+    throw lastError ?? new Error('No equity quote providers are enabled')
+  }
+
+  return { quotes, source: contributors.join('+') }
 }
 
 /**

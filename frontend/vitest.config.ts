@@ -9,6 +9,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      // Next supplies `server-only` at build time; it is not in node_modules, so
+      // vitest can't resolve it and every lib/server module importing it was
+      // untestable. See test/stubs/server-only.ts.
+      'server-only': path.resolve(__dirname, './test/stubs/server-only.ts'),
     },
   },
   test: {
