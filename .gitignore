@@ -56,8 +56,12 @@ crash.*.log
 **/.ruff_cache/
 
 # Claude Code config (machine-specific)
-.claude/
-**/.claude/
+.claude/*
+**/.claude/*
+# ...except project-level agent definitions, which are shared with the repo
+# rather than machine-specific. See docs/IMPROVEMENT-AGENT-SETUP.md.
+!.claude/agents/
+!**/.claude/agents/
 
 # OS
 .DS_Store
