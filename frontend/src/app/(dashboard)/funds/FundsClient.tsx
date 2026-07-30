@@ -9,7 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import {
-  FUND_CATALOG, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
+  FUND_CATALOG, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO, fundTradingRestriction,
   type FundCategoryId, type FundRiskLevel, type FundStrategy, type FundType,
 } from '@/lib/data/fundCatalog'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
@@ -17,13 +17,34 @@ import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
 import type { SecurityReturnsResponse } from '@/app/live-data/security-returns/route'
-import type { FundUniverseEntry, FundUniverseResponse } from '@/app/live-data/fund-universe/route'
+import type { DiscoveredFund, FundUniverseEntry, FundUniverseResponse } from '@/app/live-data/fund-universe/route'
 
 type SortKey = 'symbol' | 'category' | 'price' | 'expense' | 'aum' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
 type ColumnTab = 'overview' | 'returns'
 type FundStyle = 'all' | 'index' | 'active'
 
 const PAGE_SIZE = 50
+
+/**
+ * Expand a compact discovered fund back into the full entry shape the screener
+ * operates on. Mirrors the route's server-side `skeleton()` — both are pinned
+ * to FundUniverseEntry so drift is a compile error, and the function cannot be
+ * shared because route files may only export handlers and types (exporting a
+ * helper from a route is exactly the C1 build break). The route sends compact
+ * rows because ~30k full-shape entries, 14 fields of them always null, was a
+ * 14 MB response (audit follow-up F3).
+ */
+function hydrateDiscovered(e: DiscoveredFund, type: FundType): FundUniverseEntry {
+  return {
+    symbol: e.symbol, name: e.name, type, inCatalog: false,
+    category: null, issuer: null, expenseRatioPct: null, aumB: null,
+    referencePrice: null, yieldPct: null, inceptionYear: null,
+    indexTracked: null, focusSector: null, focusIndustry: null,
+    website: null, strategy: null, riskLevel: null,
+    // Same honest generic policy note the route applies to uncurated mutuals.
+    tradingRestriction: type === 'mutual' ? fundTradingRestriction({ tradingRestriction: undefined, type, issuer: '' }) : null,
+  }
+}
 
 /** Sort/display label for the category column — sector funds carry their specific sector. */
 function categoryLabel(row: FundUniverseEntry): string {
@@ -155,7 +176,14 @@ export function FundsClient() {
     queryFn: () => fetch('/live-data/fund-universe').then((r) => r.json()),
     staleTime: 1000 * 60 * 30,
   })
-  const universe = useMemo(() => universeData?.entries ?? [], [universeData])
+  const universe = useMemo(() => {
+    if (!universeData) return []
+    return [
+      ...universeData.entries,
+      ...(universeData.discoveredEtfList ?? []).map((e) => hydrateDiscovered(e, 'etf')),
+      ...(universeData.discoveredMutualList ?? []).map((e) => hydrateDiscovered(e, 'mutual')),
+    ]
+  }, [universeData])
 
   // Trailing returns for the curated catalog — powers the return-range screens.
   const { data: returnsFilterData } = useQuery<SecurityReturnsResponse>({

@@ -7,7 +7,7 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade financial analytics suite built with Next.js 14 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus five optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus five optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
@@ -17,13 +17,13 @@ An institutional-grade financial analytics suite built with Next.js 14 (App Rout
 
 | Layer | Choice |
 |-------|--------|
-| Framework | Next.js 14 App Router |
+| Framework | Next.js 15 App Router |
 | Language | TypeScript (strict) |
 | Styling | Tailwind CSS with custom CSS variables |
 | Data fetching (client) | TanStack React Query v5 |
 | Data fetching (server routes) | `fetch` with `next: { revalidate: N }` |
 | State management | Zustand stores |
-| Charts | Recharts |
+| Charts | Recharts (line/area/bar) + lightweight-charts (all candlestick surfaces) |
 | Icons | Lucide React |
 | Toasts | react-hot-toast |
 
@@ -72,7 +72,7 @@ frontend/src/
 │   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
 │   │   ├── portfolio-builder/      # PREMIUM module — own entitlement
 │   │   └── global-adoption/        # De-routed (T5) — redirects to /headlines; page retained
-│   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 47 routes
+│   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 56 routes
 │       ├── markets/route.ts        # CoinGecko price data
 │       ├── news/route.ts           # Multi-provider crypto news (RSS + JSON feeds)
 │       ├── social/route.ts         # Social sentiment data

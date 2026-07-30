@@ -110,7 +110,7 @@ docker compose -f infrastructure/docker/docker-compose.yml up --build
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js 14 (App Router), TypeScript strict, Tailwind CSS, Recharts, Zustand, TanStack Query v5 |
+| Frontend | Next.js 15 (App Router), TypeScript strict, Tailwind CSS, Recharts + lightweight-charts, Zustand, TanStack Query v5 |
 | AI layer | Multi-provider LLM (BYOK), agent prompts in `src/lib/agents/prompts.ts`, MCP server in `mcp-server/` |
 | Backend (optional) | FastAPI, SQLAlchemy async, Pydantic v2, TimescaleDB, Redis |
 | Data providers | CoinGecko, CoinMarketCap, Binance, DefiLlama, mempool.space, NewsAPI, GNews, CoinDesk, Cointelegraph, Decrypt, Bitcoin.com, US Congress |

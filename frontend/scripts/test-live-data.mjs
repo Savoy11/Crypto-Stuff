@@ -512,7 +512,11 @@ const tests = [
   { group: 'funds', path: '/live-data/fund-universe', name: 'fund-universe', check: (j) => {
     if (!j.ok || !Array.isArray(j.entries) || j.entries.length === 0) throw new Error('no fund entries')
     if (j.source === 'catalog') return fallback(`${j.entries.length} funds from static catalog`)
-    return `${j.entries.length} funds, source=${j.source}`
+    // Live path: entries carries only the rich catalog; discoveries ship as
+    // compact {symbol,name} lists (F3 payload fix). Count both, honestly.
+    const discovered = j.discovered ?? 0
+    if (discovered === 0) throw new Error('source=live but zero discovered funds')
+    return `${j.entries.length} catalog + ${discovered} discovered funds, source=${j.source}`
   }},
 
   // VOO is the representative case: an open-end fund that files N-PORT, so the

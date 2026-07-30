@@ -1,9 +1,9 @@
 // ESLint flat config — replaces .eslintrc.json (ESLint 10 dropped eslintrc).
 //
 // Lint no longer runs through `next lint`. That command is a thin wrapper over
-// the ESLint API, and Next 14's copy passes options ESLint 9 removed
-// (`useEslintrc`, `extensions`, `resolvePluginsRelativeTo`, …), so it fails
-// outright against any ESLint ≥ 9:
+// the ESLint API, and Next 14's copy (installed when this was decided; the app
+// is on 15 now) passed options ESLint 9 removed (`useEslintrc`, `extensions`,
+// `resolvePluginsRelativeTo`, …), so it failed outright against any ESLint ≥ 9:
 //
 //     Invalid Options: - Unknown options: useEslintrc, extensions, …
 //
@@ -13,7 +13,7 @@
 // trading one pin for another.
 //
 // `eslint-config-next` is intentionally ahead of the installed Next (16.x
-// config against Next 14.2.x). It declares no `next` peer dependency; it is a
+// config against Next 15.x). It declares no `next` peer dependency; it is a
 // rule set, not a runtime, and the 16 line is the one that ships flat config
 // and carries patched transitive deps. Its `next/typescript` block brings
 // typescript-eslint in already, so there is no separate parser wiring here.

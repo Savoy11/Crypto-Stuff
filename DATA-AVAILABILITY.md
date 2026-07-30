@@ -265,7 +265,7 @@ added 2026-07-29; their rows stay ⬜ **Not measured** until the next run.
 ### ETFs & Funds module
 | Feature / Page | Status | Source | Notes |
 |----------------|--------|--------|-------|
-| Fund universe | 🟢 Live | SEC + providers | 28,977 entries. **Slow: ~11 s, 14 MB payload** — worth pagination. |
+| Fund universe | 🟢 Live | SEC + providers | 28,977 entries. **Slow: ~11 s, 14 MB payload** — payload slimmed 2026-07-30 (action item 11), pending re-measurement. |
 | Fund holdings | 🟢 Live | SEC N-PORT (keyless, authoritative) | Verified full books: VOO 511, IVV 507, VTI 1500, QQQ 101, ARKK 46. |
 | Fund holdings — UITs | 🟡 Partial | catalog | **SPY, and UITs generally, file no N-PORT**, so they correctly fall back to indicative top holdings. Not a bug. |
 | Fund holdings history | 🔑 Key-gated | SEC N-PORT diff → FMP | Works only where an N-PORT series exists; no FMP key configured as fallback. |
@@ -349,7 +349,7 @@ Project convention (CLAUDE.md): every `/live-data` route needs `export const dyn
 | Route | Latency | Note |
 |-------|---------|------|
 | `staking-discovery` | ~18 s | 4 upstreams (DefiLlama, Yearn, Pendle, Beefy) |
-| `fund-universe` | ~11 s / **14 MB** | 28,977 entries in one payload — needs pagination |
+| `fund-universe` | ~11 s / **14 MB** | 28,977 entries in one payload — payload slimmed 2026-07-30 (see action item 11), size pending re-measurement; first-fetch latency is upstream, 24 h-cached after |
 | `staking-rates` | ~6 s | 17 parallel upstreams with a 6 s per-fetch timeout |
 | `stock-social` | ~6 s | Reddit RSS fetches frequently hit the 429 path |
 
@@ -399,7 +399,15 @@ minimum** for free-tier polling without hitting 429.
     ⚠ Separately: the `/equities/social` **page** currently never issues its query (stuck on "Fetching social
     signals…" while the app reports Offline/DISCONNECTED). Pre-existing and unrelated — the route and a direct
     fetch from that page both work; tracked separately.
-11. ⏳ **Paginate `fund-universe`** — 14 MB in one response.
+11. 🔧 ~~Paginate `fund-universe` — 14 MB in one response.~~ **Payload fix shipped 2026-07-30,
+    pending re-measurement.** Not pagination — that would have broken FundsClient's client-side
+    screening, which needs the whole universe. The 14 MB was shape: ~29k uncurated funds each
+    serialized as a full 18-field entry with 14 fields always null. Discovered funds now ship as
+    compact `{symbol, name}` lists per type (`discoveredEtfList` / `discoveredMutualList`),
+    hydrated client-side; `entries` carries only the 118 rich catalog rows, and the `?symbol=`
+    lookup path is unchanged. Expected ~80% size cut; the ~11 s first fetch is upstream directory
+    latency (24 h-cached thereafter) and is untouched. **Re-run the audit on the owner's machine
+    to record the new size** — the container cannot reach NASDAQ/SEC.
 12. ✅ ~~Bring the 8 bare-`Promise.all` routes onto `Promise.allSettled`.~~ Done 2026-07-22 — 7 were already
     correct (sequential fallback ladders that must not be parallelised, or not multi-fetch at all); the real
     bug was `sec-filings` discarding collected filings when an archive page threw. See the conventions audit above.
