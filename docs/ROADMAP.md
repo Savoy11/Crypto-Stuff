@@ -245,13 +245,30 @@ needs the most careful honest-data framing, not for data availability.
 - `PriceChartCard` gained `valueFormat: 'usd' | 'plain'` (default unchanged)
   so FX/yields/cents contracts don't get $-mislabeled axes.
 
+- **Macro Technical Analysis** (2026-07-30, W4-B2) — `/macro/technical-analysis`
+  over all 45 instruments on the shared candlestick/indicator engine, no new
+  data route (macro symbols are Yahoo symbols and use the same `security-ohlcv`
+  path as equities). Chart tab: grouped picker, 5 ranges, 6 chart types, 16
+  indicators. Scanner tab: RSI / vs-SMA50 / composite signal over the 29 liquid
+  instruments — the 6 delisted-ETF commodities and the 10 EM/cross FX pairs are
+  excluded and the exclusion is stated on-page, since a gappy series ranked
+  beside a liquid contract reads as comparable when it isn't. Levels render
+  through `formatInstrumentQuote()`, so grains stay ¢/bu and yields stay %.
+
 - **Macro News** (2026-07-21) — `/macro/news` + `/live-data/macro-news`:
   8 keyless RSS feeds, content-first pillar classifier (off-pillar articles
   dropped), 14-day staleness cutoff, future-pubDate clamp, balanced
   per-pillar merge. Area label renamed "Rates & Bonds" → "Bonds & Rates".
 
-- **Cross-cutting integration** (2026-07-21) — everything from "What must be
-  built" is now SHIPPED:
+- **Cross-cutting integration** (2026-07-21) — the rest of "What must be
+  built" is SHIPPED:
+
+  > **Correction (2026-07-30).** This note originally read "everything from
+  > 'What must be built' is now SHIPPED", which was not true: item 2 also
+  > specified a "shared TA page parameterized over macro symbols", and no such
+  > page existed — the macro module had five nav entries and no TA, while crypto
+  > and equities each had one on the shared engine. Built as W4-B2
+  > (`/macro/technical-analysis`), and the claim narrowed to what it covers.
   - `market: 'macro'` across the provider registry (11 built-in rows: 3 data
     sources + 8 news feeds), tier categories (informational rows in the
     TopBar TierSwitch), and Integrations page sections (with custom macro

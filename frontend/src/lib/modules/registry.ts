@@ -28,6 +28,7 @@ import {
   Banknote,
   Percent,
   Network,
+  Activity,
   PiggyBank,
   ReceiptText,
 } from 'lucide-react'
@@ -144,6 +145,7 @@ export const MODULES: SuiteModule[] = [
       { href: '/macro/commodities', label: 'Commodities', icon: Gem },
       { href: '/macro/currencies', label: 'Currencies', icon: Banknote },
       { href: '/macro/rates', label: 'Bonds & Rates', icon: Percent },
+      { href: '/macro/technical-analysis', label: 'Macro TA', icon: Activity },
     ],
   },
   {
