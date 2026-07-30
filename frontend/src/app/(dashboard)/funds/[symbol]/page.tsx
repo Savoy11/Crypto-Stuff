@@ -11,11 +11,12 @@ import { FundHoldingsHistory } from './FundHoldingsHistory'
 import { FundHoldingsSection } from './FundHoldingsSection'
 import { ExplainedLabel } from '@/components/ui/ExplainedLabel'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import {
   computeFeeDrag, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
-  fundRiskLevel, fundStrategy, fundTradingRestriction, getFund,
+  fundRiskLevel, fundStrategy, fundTradingRestriction, getFund, getFundDataProvenance,
 } from '@/lib/data/fundCatalog'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
@@ -79,6 +80,11 @@ function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; sym
           const final = series[series.length - 1]
           if (!final) return null
           const dragPct = final.withBenchmarkFee > 0 ? (final.feesPaid / final.withBenchmarkFee) * 100 : 0
+          // A handful of funds are cheaper than the 0.03% benchmark (FXAIX at
+          // 0.015% today), which makes feesPaid negative. Clamping it to zero
+          // and keeping the minus sign rendered "−$0 (−0.3%)" — a double
+          // negative that reads as a cost when it is a saving.
+          const cheaper = final.feesPaid < 0
           return (
             <div key={years} className="rounded border border-border/60 bg-bg-elevated/40 px-3 py-2">
               <div className="flex items-center justify-between text-xs">
@@ -86,9 +92,10 @@ function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; sym
                 <span className="font-mono tabular-nums text-text-primary">{formatCurrency(final.withFee, 0)}</span>
               </div>
               <div className="mt-1 flex items-center justify-between text-[11px]">
-                <span className="text-text-muted">cost vs 0.03% fund</span>
-                <span className={clsx('font-mono tabular-nums', dragPct > 5 ? 'text-orange-400' : dragPct > 1 ? 'text-amber-400' : 'text-emerald-400')}>
-                  −{formatCurrency(Math.max(0, final.feesPaid), 0)} ({dragPct.toFixed(1)}%)
+                <span className="text-text-muted">{cheaper ? 'saving vs 0.03% fund' : 'cost vs 0.03% fund'}</span>
+                <span className={clsx('font-mono tabular-nums',
+                  cheaper ? 'text-emerald-400' : dragPct > 5 ? 'text-orange-400' : dragPct > 1 ? 'text-amber-400' : 'text-emerald-400')}>
+                  {cheaper ? '+' : '−'}{formatCurrency(Math.abs(final.feesPaid), 0)} ({Math.abs(dragPct).toFixed(1)}%)
                 </span>
               </div>
             </div>
@@ -161,6 +168,7 @@ function FundDetailInner() {
 
   const name = entry?.name ?? uniEntry?.name ?? symbol
   const type = entry?.type ?? uniEntry?.type ?? 'etf'
+  const fundProvenance = getFundDataProvenance()
   const quote = data?.quotes?.[symbol]
   const live = !!quote && data?.source !== 'reference' && !quote.reference
   const price = quote?.price ?? entry?.referencePrice ?? null
@@ -295,6 +303,21 @@ function FundDetailInner() {
                   ))}
                 </dl>
               </div>
+              {/* Always visible, not only when stale — the fee figures above and
+                  the 30-year projection below are computed on this table, and a
+                  notice that only appears past a threshold teaches readers to
+                  treat its absence as "live" (W4-C7). */}
+              <ProvenanceNotice
+                label="Fund facts compiled by hand"
+                staleLabel="Fund facts may be out of date"
+                confidence={fundProvenance.confidence}
+                stale={fundProvenance.stale}
+              >
+                {fundProvenance.source}, verified {fundProvenance.verifiedAt} ({fundProvenance.ageDays}d ago).
+                Expense ratio, AUM, yield and tracked index are reference snapshots — the Fee Drag
+                projection is only as current as they are. Check the issuer&rsquo;s fact sheet before
+                acting on a fee figure.
+              </ProvenanceNotice>
               <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
             </>
           ) : (

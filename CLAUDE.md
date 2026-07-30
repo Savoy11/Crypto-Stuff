@@ -304,7 +304,7 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 - To add a fund: append to `FUND_CATALOG` following the pattern.
 
 ### `src/lib/data/portfolioBuilder.ts` (Portfolio Builder module)
-Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (55 tests).
+Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (86 tests).
 
 - **`buildPortfolio(inputs)`** — questionnaire → `BuiltPortfolio`. The glide path anchors to `yearsToFirstUse` (the spend date), **not** retirement; risk tolerance shifts it ±15pts but can never extend a horizon.
 - **Sleeve appetite + style.** Appetite decides *how much* (`commodityComfort` / `currencyComfort`, `SleeveAppetite = none|small|moderate`); **style decides *what kind*** (`cryptoStyle` / `commodityStyle` / `currencyStyle` / `bondStyle`) because risk varies as much inside an asset class as between them. Style tables (`CRYPTO_STYLES`, `COMMODITY_STYLES`, `CURRENCY_STYLES`, `BOND_STYLES`) each carry a `label`, a plain-language risk `note` shown in the UI at the point of choice, and (except bonds) an instrument `mix`. Bonds have style but no appetite — they're always held; `applyBondStyle()` rewrites the duration ladder for credit posture (treasury swaps BND→IEF; corporate/high-yield scale the ladder and append LQD/HYG). Higher-risk styles emit explicit notes (high-yield behaves like equity in a crisis; commodity currencies fall *with* equities; silver is ~2× gold's volatility). **All style fields are optional and every default reproduces pre-style behaviour**, so saved plans replay unchanged.

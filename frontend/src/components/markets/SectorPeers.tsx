@@ -63,6 +63,9 @@ export function SectorPeers({ symbol, sector }: { symbol: string; sector: Sector
               const price = q?.price ?? peer.referencePrice
               const change = live ? q?.changePercent ?? null : null
               const mcap = q?.marketCap ?? peer.marketCapB * 1e9
+              // `live` above covers the price only — providers below FMP return
+              // marketCap: null, so tag the cap on its own (W4-C8).
+              const mcapIsRef = q?.marketCap == null
               return (
                 <tr key={peer.symbol} className="border-b border-border/30 last:border-0 hover:bg-bg-elevated/50 transition-colors">
                   <td className="py-2 pr-4">
@@ -79,7 +82,10 @@ export function SectorPeers({ symbol, sector }: { symbol: string; sector: Sector
                     change == null ? 'text-text-muted' : change >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                     {change == null ? '—' : formatPercent(change, 2)}
                   </td>
-                  <td className="py-2 text-right font-mono tabular-nums text-text-secondary">{formatCompact(mcap)}</td>
+                  <td className="py-2 text-right font-mono tabular-nums text-text-secondary">
+                    {formatCompact(mcap)}
+                    {mcapIsRef && <span className="ml-1 text-[9px] text-amber-400/80 align-top" title="Reference market cap — this quote source does not supply one">ref</span>}
+                  </td>
                 </tr>
               )
             })}

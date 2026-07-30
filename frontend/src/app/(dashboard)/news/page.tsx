@@ -18,6 +18,7 @@ import { useFeedBiasStore } from '@/store/useFeedBiasStore'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
 import { applyBias, shouldAugmentFetch, fetchTerms } from '@/lib/watchlist/bias'
 import { resolveNewsProviders } from '@/lib/tier'
+import { timeAgoCompact } from '@/lib/utils/format'
 
 // ─── Shared types ─────────────────────────────────────────────────────────────
 
@@ -47,15 +48,6 @@ const PROVIDER_STYLES: Record<string, string> = {
   newsapi:     'text-sky-400 bg-sky-400/10 border-sky-500/20',
   gnews:       'text-teal-400 bg-teal-400/10 border-teal-500/20',
   unknown:     'text-slate-400 bg-slate-400/10 border-slate-500/20',
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
 }
 
 // ─── Article card ─────────────────────────────────────────────────────────────
@@ -174,7 +166,7 @@ function ArticleCard({ article }: { article: AnyArticle }) {
           <span className="text-text-muted/40">·</span>
           <span className="flex items-center gap-1 text-[11px] text-text-muted font-mono">
             <Clock size={10} aria-hidden />
-            {timeAgo(article.publishedAt)}
+            {timeAgoCompact(article.publishedAt)}
           </span>
         </div>
       </div>

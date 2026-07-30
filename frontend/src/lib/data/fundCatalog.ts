@@ -8,6 +8,66 @@
 
 import type { SectorId } from './equityCatalog'
 
+// ─── Provenance ───────────────────────────────────────────────────────────────
+//
+// This table had no provenance machinery while its expense ratios were being
+// computed on — by computeFeeDrag() below, by the Portfolio Builder's blended-ER
+// and fee-projection math, and by reviewPlan()'s fee-creep check (W4-C7). A
+// stale expense ratio there does not look stale: it comes out as a confident
+// dollar figure in a 30-year projection.
+//
+// Dated by when the catalog was compiled AS A WHOLE (the 2026-07-20 build), not
+// by its most recent partial edit. The currency and commodity proxy lineups were
+// appended on 2026-07-21, but adding 20 rows does not re-verify the other 98 —
+// see CLAUDE.md's note on exactly this failure.
+
+export const FUND_DATA_LAST_VERIFIED = '2026-07-20'
+
+/**
+ * Expense ratios and AUM drift slowly — an issuer fee change is news, not a
+ * daily event — so this is wider than the staking window (90d) and matches the
+ * transfer-fee table's 120 days.
+ */
+export const FUND_DATA_STALE_AFTER_DAYS = 120
+
+export function fundDataAgeDays(now: Date = new Date()): number {
+  const verified = new Date(FUND_DATA_LAST_VERIFIED)
+  return Math.floor((now.getTime() - verified.getTime()) / 86_400_000)
+}
+
+export function fundDataIsStale(now: Date = new Date()): boolean {
+  return fundDataAgeDays(now) > FUND_DATA_STALE_AFTER_DAYS
+}
+
+export type FundDataConfidence = 'high' | 'medium' | 'low'
+
+export interface FundDataProvenance {
+  source: string
+  verifiedAt: string
+  ageDays: number
+  stale: boolean
+  confidence: FundDataConfidence
+}
+
+/**
+ * Provenance for the hand-maintained fund reference table. Confidence is a
+ * function of age, since the table is verified as a whole on a single date:
+ *   ≤60d → high · ≤120d → medium · beyond the stale threshold → low.
+ */
+export function getFundDataProvenance(now: Date = new Date()): FundDataProvenance {
+  const ageDays = fundDataAgeDays(now)
+  const stale = ageDays > FUND_DATA_STALE_AFTER_DAYS
+  const confidence: FundDataConfidence =
+    ageDays <= 60 ? 'high' : ageDays <= FUND_DATA_STALE_AFTER_DAYS ? 'medium' : 'low'
+  return {
+    source: 'Issuer disclosures and fund fact sheets, compiled by hand',
+    verifiedAt: FUND_DATA_LAST_VERIFIED,
+    ageDays,
+    stale,
+    confidence,
+  }
+}
+
 export type FundType = 'etf' | 'mutual'
 
 export type FundCategoryId =

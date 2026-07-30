@@ -12,6 +12,7 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import type { StockSocialSignal, StockSentimentSummary, StockSocialResponse } from '@/app/live-data/stock-social/route'
+import { timeAgoCompact } from '@/lib/utils/format'
 
 // Equities counterpart of the crypto Social page — Reddit finance subreddits
 // and StockTwits streams via /live-data/stock-social.
@@ -25,14 +26,6 @@ const SENTIMENT_STYLES = {
   positive: 'text-emerald-400 bg-emerald-400/10 border-emerald-500/20',
   neutral:  'text-slate-400 bg-slate-400/10 border-slate-500/20',
   negative: 'text-red-400 bg-red-400/10 border-red-500/20',
-}
-
-function timeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
 }
 
 function SentimentBar({ summary }: { summary: StockSentimentSummary }) {
@@ -137,7 +130,7 @@ function SignalCard({ signal }: { signal: StockSocialSignal }) {
           <span className="text-text-muted/40">·</span>
           <span className="flex items-center gap-1 text-[11px] text-text-muted font-mono">
             <Clock size={10} />
-            {timeAgo(signal.publishedAt)}
+            {timeAgoCompact(signal.publishedAt)}
           </span>
         </div>
       </div>

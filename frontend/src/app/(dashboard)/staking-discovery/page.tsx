@@ -17,6 +17,7 @@ import {
   type StakingProvider, type ProviderCategory, type StakingCoinId,
 } from '@/lib/data/stakingProviders'
 import type { StakingDiscoveryResponse, DiscoverySource } from '@/app/live-data/staking-discovery/route'
+import { timeAgoCompact } from '@/lib/utils/format'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -225,16 +226,6 @@ const SOURCE_LABELS: Record<DiscoverySource, string> = {
   defillama: 'DefiLlama', yearn: 'Yearn', pendle: 'Pendle', beefy: 'Beefy',
 }
 
-function timeAgo(iso: string): string {
-  const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000))
-  if (secs < 60) return 'just now'
-  const mins = Math.floor(secs / 60)
-  if (mins < 60) return `${mins}m ago`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h ago`
-  return `${Math.floor(hours / 24)}d ago`
-}
-
 function fmtUsd(n: number) {
   if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`
   if (n >= 1e6) return `$${(n / 1e6).toFixed(0)}M`
@@ -283,7 +274,7 @@ function LiveOpportunities({ search }: { search: string }) {
         </div>
         {data && (
           <span className="text-[11px] text-text-muted">
-            {pools.length} pools{sourceSummary ? ` — ${sourceSummary}` : ''} · updated {timeAgo(data.updatedAt)}
+            {pools.length} pools{sourceSummary ? ` — ${sourceSummary}` : ''} · updated {timeAgoCompact(data.updatedAt)}
           </span>
         )}
         {data?.stale && (

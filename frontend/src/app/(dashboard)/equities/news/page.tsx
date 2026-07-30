@@ -13,6 +13,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import type { MarketArticle, MarketNewsCategory, MarketNewsResponse } from '@/app/live-data/market-news/route'
+import { timeAgoCompact } from '@/lib/utils/format'
 
 // Equities counterpart of the crypto News page — same card layout, filters,
 // and breaking section, fed by /live-data/market-news.
@@ -47,14 +48,6 @@ const CATEGORIES: Array<{ value: MarketNewsCategory | 'all'; label: string }> = 
 const CATEGORY_LABELS: Record<MarketNewsCategory, string> = {
   earnings: 'earnings', analyst: 'analyst', macro: 'macro',
   ma: 'M&A', dividend: 'dividend', market: 'market', general: 'general',
-}
-
-function timeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
 }
 
 function ArticleCard({ article }: { article: MarketArticle }) {
@@ -122,7 +115,7 @@ function ArticleCard({ article }: { article: MarketArticle }) {
           <span className="text-text-muted/40">·</span>
           <span className="flex items-center gap-1 text-[11px] text-text-muted font-mono">
             <Clock size={10} aria-hidden />
-            {timeAgo(article.publishedAt)}
+            {timeAgoCompact(article.publishedAt)}
           </span>
         </div>
       </div>

@@ -14,6 +14,7 @@ import { applyBias } from '@/lib/watchlist/bias'
 import type { VideoItem, VideosResponse } from '@/app/live-data/videos/route'
 import type { VideoSearchResponse, SearchScope, SearchOrder, SearchDuration } from '@/app/live-data/video-search/route'
 import type { ProviderMarket } from '@/lib/api/live/providers'
+import { timeAgoCompact } from '@/lib/utils/format'
 
 // Video feed — keyless YouTube channel Atom feeds, merged and ranked by recency.
 // Channels are managed in Integrations → Video Sources (registry-driven), and
@@ -40,15 +41,6 @@ const MARKET_META: Record<ProviderMarket, { label: string; icon: typeof Coins; b
     badge: 'text-amber-400 bg-amber-400/10 border-amber-500/25',
     accent: 'text-amber-400',
   },
-}
-
-function timeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
 }
 
 /** How many cards load their thumbnail eagerly — roughly the first two rows. */
@@ -147,7 +139,7 @@ function VideoCard({ video, eager = false }: { video: VideoItem; eager?: boolean
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <span className="flex items-center gap-1 text-[11px] text-text-muted font-mono">
               <Clock size={10} aria-hidden />
-              {timeAgo(video.publishedAt)}
+              {timeAgoCompact(video.publishedAt)}
             </span>
             <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue transition-colors" aria-hidden />
           </div>

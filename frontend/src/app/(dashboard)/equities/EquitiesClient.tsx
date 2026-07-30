@@ -28,6 +28,11 @@ interface Row extends UniverseEntry {
   changePercent: number | null
   liveMarketCap: number
   live: boolean
+  /** Market cap came from the catalog, not the quote. Tagged separately from
+   *  `live` because that flag covers the PRICE only — every provider below FMP
+   *  returns marketCap: null, so a live price beside a reference market cap is
+   *  the normal path, not an edge case (W4-C8). */
+  marketCapIsRef: boolean
 }
 
 const parseNum = (s: string): number => parseFloat(s)
@@ -138,6 +143,7 @@ export function EquitiesClient() {
       livePrice: q?.price ?? e.referencePrice,
       changePercent: live ? q?.changePercent ?? null : null,
       liveMarketCap: q?.marketCap ?? e.marketCapB * 1e9,
+      marketCapIsRef: q?.marketCap == null,
       live,
     }
   })
@@ -324,7 +330,10 @@ export function EquitiesClient() {
                       change == null ? 'text-text-muted' : change >= 0 ? 'text-emerald-400' : 'text-red-400')}>
                       {change == null ? '—' : formatPercent(change, 2)}
                     </div>
-                    <div className="text-right font-mono tabular-nums text-text-secondary">{formatCompact(row.liveMarketCap)}</div>
+                    <div className="text-right font-mono tabular-nums text-text-secondary">
+                      {formatCompact(row.liveMarketCap)}
+                      {row.marketCapIsRef && <span className="ml-1 text-[9px] text-amber-400/80 align-top" title="Reference market cap — this quote source does not supply one">ref</span>}
+                    </div>
                     <div className="text-right font-mono tabular-nums text-xs text-text-secondary">{row.peRatio ?? '—'}</div>
                     <div className="text-right font-mono tabular-nums text-xs text-text-secondary">{row.dividendYieldPct != null ? `${row.dividendYieldPct.toFixed(1)}%` : '—'}</div>
                     <div className="text-right font-mono tabular-nums text-xs text-text-secondary">{row.beta ? row.beta.toFixed(2) : '—'}</div>

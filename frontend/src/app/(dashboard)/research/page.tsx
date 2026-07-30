@@ -15,6 +15,23 @@ const RESEARCH_AGENT: Record<Market, string> = {
   macro: 'macro-research',
 }
 
+/**
+ * Which market each deep-linkable agent belongs to.
+ *
+ * Must cover every id in RESEARCH_AGENTS (api/agents/research/route.ts). The
+ * previous version matched two literals — 'macro-research' and
+ * 'equity-research' — so `?agent=macro-screener` and `?agent=equity-screener`
+ * fell through to the crypto default and silently ran the crypto analyst
+ * against a macro question (W4-C8).
+ */
+const AGENT_MARKET: Record<string, Market> = {
+  'research-analyst': 'crypto',
+  'equity-research': 'equities',
+  'equity-screener': 'equities',
+  'macro-research': 'macro',
+  'macro-screener': 'macro',
+}
+
 const EXAMPLES: Record<Market, string[]> = {
   crypto: [
     'Compare ETH and SOL staking: APYs, risk profiles, and which suits a risk-averse holder.',
@@ -43,10 +60,22 @@ interface ReportResult {
 
 function ResearchInner() {
   const params = useSearchParams()
+  const marketParam = params.get('market')
+  const agentParam = params.get('agent') ?? ''
   const initialMarket: Market =
-    params.get('agent') === 'macro-research' || params.get('market') === 'macro' ? 'macro'
-    : params.get('agent') === 'equity-research' || params.get('market') === 'equities' ? 'equities'
-    : 'crypto'
+    AGENT_MARKET[agentParam]
+    ?? (marketParam === 'macro' || marketParam === 'equities' || marketParam === 'crypto'
+      ? marketParam
+      : 'crypto')
+
+  // A deep link naming a specific agent runs THAT agent, not just its market's
+  // default. `?agent=macro-screener` is the documented way to reach the screener,
+  // which has no panel of its own — before this it landed on macro-research at
+  // best. Cleared as soon as the user switches market by hand, since the pinned
+  // agent would no longer belong to the market on screen.
+  const [pinnedAgent, setPinnedAgent] = useState<string | null>(
+    AGENT_MARKET[agentParam] ? agentParam : null,
+  )
 
   const [market, setMarket] = useState<Market>(initialMarket)
   const [task, setTask] = useState('')
@@ -62,6 +91,7 @@ function ResearchInner() {
     if (preset) { setTask(preset); return }
     if (symbol) {
       setMarket('equities')
+      setPinnedAgent(null)
       setTask(`Analyze ${symbol.toUpperCase()}: business and industry, financial health, valuation vs history and peers, growth drivers, catalysts, and key risks. End with a risk-adjusted outlook.`)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -79,7 +109,7 @@ function ResearchInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           task: trimmed,
-          agentId: RESEARCH_AGENT[market],
+          agentId: pinnedAgent ?? RESEARCH_AGENT[market],
           // See AssistantWidget — the server cannot read the watchlist itself.
           watchlist: agentWatchlistPayload(watchlist) ?? undefined,
         }),
@@ -118,7 +148,7 @@ function ResearchInner() {
         {markets.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => { setMarket(id); setResult(null); setError(null) }}
+            onClick={() => { setMarket(id); setPinnedAgent(null); setResult(null); setError(null) }}
             className={clsx(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
               market === id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200',

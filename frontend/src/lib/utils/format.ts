@@ -91,6 +91,39 @@ export function timeAgo(date: string | Date): string {
 }
 
 /**
+ * Compact relative time for dense feed rows: "just now", "42m ago", "3h ago",
+ * "5d ago", "2y ago".
+ *
+ * Eight pages had each written their own version of this (W4-C8) and they
+ * disagreed in ways users could see. Most divided by 60000 and printed the
+ * result directly, so a timestamp even slightly in the future rendered as
+ * "-3m ago" — and feed timestamps *are* sometimes in the future, which is the
+ * whole reason lib/server/pubDate.ts exists. Several also had no lower bound,
+ * so a fresh item read "0m ago" rather than "just now".
+ *
+ * `now` is injectable for testing. Returns '—' for an unparseable date rather
+ * than "NaNm ago".
+ */
+export function timeAgoCompact(date: string | Date, now: number = Date.now()): string {
+  const t = typeof date === 'string' ? new Date(date).getTime() : date.getTime()
+  if (!Number.isFinite(t)) return '—'
+
+  // A future timestamp is clamped, not negated. Upstream feeds do emit these,
+  // and "in 3 minutes" on a news row is noise the reader can do nothing with.
+  const mins = Math.max(0, Math.floor((now - t) / 60_000))
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+
+  const days = Math.floor(hours / 24)
+  if (days < 365) return `${days}d ago`
+
+  return `${Math.floor(days / 365)}y ago`
+}
+
+/**
  * Format a date with optional format string.
  * Example: "2024-01-15T10:30:00Z" → "Jan 15, 2024"
  */

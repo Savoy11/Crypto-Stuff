@@ -14,7 +14,7 @@ import { FinancialRatios } from '@/components/markets/FinancialRatios'
 import { FundamentalsTrend } from '@/components/markets/FundamentalsTrend'
 import { CompanyProfileCard } from '@/components/markets/CompanyProfileCard'
 import { SectorPeers } from '@/components/markets/SectorPeers'
-import { getEquity, secFilingsUrl, SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
+import { getEquity, secFilingsUrl, EQUITY_REFERENCE_AS_OF, equityReferenceAgeDays, SECTOR_INFO, type SectorId } from '@/lib/data/equityCatalog'
 import { formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
 import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/route'
@@ -204,7 +204,8 @@ function EquityDetailInner() {
       <MarketNewsList symbol={symbol} limit={8} />
 
       <p className="text-[11px] text-text-muted text-center">
-        Fundamentals marked “ref” are approximate reference values pending a fundamentals feed ·
+        Fundamentals marked “ref” are approximate reference values compiled {EQUITY_REFERENCE_AS_OF}
+        ({equityReferenceAgeDays()}d ago), pending a fundamentals feed ·
         Quotes: {data?.source === 'reference' || !data ? 'reference prices' : `live via ${data.source}`}
       </p>
     </div>
