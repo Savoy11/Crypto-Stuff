@@ -1,3 +1,3 @@
 export { useAssetStore } from './useAssetStore'
 export { useAlertStore } from './useAlertStore'
-export { useStreamStore } from './useStreamStore'
+export { useFeedStore } from './useFeedStore'

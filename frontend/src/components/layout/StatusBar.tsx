@@ -1,14 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useStreamStore } from '@/store/useStreamStore'
+import { useFeedStore } from '@/store/useFeedStore'
 import { useAlertStore } from '@/store/useAlertStore'
 import { clsx } from 'clsx'
 import { formatDate } from '@/lib/utils/format'
 import { APP_VERSION } from '@/lib/constants'
 
 export function StatusBar() {
-  const { connectionStatus } = useStreamStore()
+  const feedStatus = useFeedStore((s) => s.status)
+  const failedCount = useFeedStore((s) => s.failedCount)
   const { unreadCount, alerts } = useAlertStore()
   const [time, setTime] = useState<string | null>(null)
 
@@ -21,12 +22,22 @@ export function StatusBar() {
   const criticalCount = alerts.filter((a) => a.severity === 'critical' && !a.isRead).length
   const highCount = alerts.filter((a) => a.severity === 'high' && !a.isRead).length
 
-  const statusColor = {
-    connected: 'text-emerald-400',
+  const statusColor: string = {
+    live: 'text-emerald-400',
     connecting: 'text-amber-400',
-    disconnected: 'text-slate-500',
-    error: 'text-red-400',
-  }[connectionStatus]
+    degraded: 'text-orange-400',
+    offline: 'text-red-400',
+  }[feedStatus]
+
+  // Live-only mode serves data via REST polling, not a websocket — label it
+  // honestly rather than claiming a stream that isn't there. `degraded` is the
+  // reading the old always-'connected' shim could never produce.
+  const statusText: string = {
+    live: 'LIVE (polling)',
+    connecting: 'LOADING',
+    degraded: `DEGRADED (${failedCount} failing)`,
+    offline: 'OFFLINE',
+  }[feedStatus]
 
   return (
     <div
@@ -45,11 +56,7 @@ export function StatusBar() {
           Updated: <span className="text-text-secondary">{time ?? '—'}</span>
         </span>
         <span className="hidden md:inline text-border">|</span>
-        <span className={statusColor}>
-          {/* Live-only mode serves data via REST polling, not a websocket —
-              label it honestly rather than claiming a stream that isn't there. */}
-          Data: {connectionStatus === 'connected' ? 'LIVE (polling)' : connectionStatus.toUpperCase()}
-        </span>
+        <span className={statusColor}>Data: {statusText}</span>
       </div>
 
       {/* Right — alert counts stay visible; version label hidden on narrow screens */}

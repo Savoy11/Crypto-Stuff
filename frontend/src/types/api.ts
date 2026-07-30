@@ -30,8 +30,9 @@ export interface ApiError {
 
 // WebSocketMessage/WebSocketSubscription described the legacy backend's socket
 // envelope. Both went with lib/websocket/client.ts in the M8 sweep — the app is
-// live-only over /live-data REST routes and opens no socket. Connection status
-// (the one surviving concept) is typed as WsStatus in store/useStreamStore.ts.
+// live-only over /live-data REST routes and opens no socket. What survived the
+// concept is feed health, now derived from React Query's cache rather than a
+// connection: see FeedStatus in store/useFeedStore.ts and lib/feed/useFeedStatus.ts.
 
 export type TimeRange = '1h' | '24h' | '7d' | '30d' | '90d' | '1y'
 

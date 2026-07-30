@@ -13,10 +13,13 @@ import { clsx } from 'clsx'
 // resolves through getCurrentUserId() — so logging in did not change whose
 // portfolios you saw. That duplicate stack is gone; this is the only login path.
 
-// LOGIN TEMPORARILY DISABLED (by request, until the risk framework is done).
-// The page redirects away so the screen never renders; the form below is
-// preserved. To RE-ENABLE: set this to false and set REQUIRE_AUTH = true in
-// (dashboard)/layout.tsx. Unlike before, flipping those now yields a correct
+// LOGIN TEMPORARILY DISABLED (by request). The page redirects away so the
+// screen never renders; the form below is preserved. The original condition
+// ("until the risk framework is done") was satisfied on 2026-07-19 when R2
+// landed, so re-enabling is an owner decision rather than a blocked one.
+// To RE-ENABLE: set this to false, set REQUIRE_AUTH = true in
+// (dashboard)/layout.tsx, and set AUTH_SECRET in the environment.
+// Unlike before, flipping those now yields a correct
 // login — the session Auth.js creates is the same one getCurrentUserId() reads,
 // so a signed-in user sees their own rows rather than local-user mode's shared
 // ones.
