@@ -7,6 +7,7 @@ import { clsx } from 'clsx'
 import { AlertTriangle, Ban, BellRing, CheckCircle2, ChevronDown, ChevronUp, Compass, Info, Save, Trash2 } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { PieChart } from '@/components/charts/PieChart'
 import { PlanMonitor } from '@/components/portfolio-builder/PlanMonitor'
@@ -248,6 +249,8 @@ function BuilderContent() {
           ]}
         />
       </div>
+
+      <SourceLine id="portfolio-builder" />
 
       {/* Persistence trouble — the builder still works, saving doesn't */}
       {plansQuery.isError && (

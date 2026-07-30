@@ -740,6 +740,9 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
           </p>
         </div>
       </div>
+      {/* House policy: a derived score is Finance Now's own computation and must
+          say so where the number renders — never read as a provider's figure. */}
+      <SourceLine id="risk-scores" asOf={data?.updatedAt} className="mt-3" />
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Sunrise, RefreshCw, KeyRound } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { hydratePortfolios, usePortfolioStore } from '@/store/usePortfolioStore'
 import { hydrateWatchlists, useWatchlistStore, type WatchList } from '@/store/useWatchlistStore'
 import { INSTRUMENT_BY_KEY } from '@/lib/data/instruments'
@@ -112,6 +113,8 @@ export default function DailyBriefPage() {
           {loading ? 'Generating…' : brief ? 'Regenerate' : "Generate today's brief"}
         </button>
       </div>
+
+      <SourceLine id="brief" />
 
       {needsKey && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-8 text-center">
