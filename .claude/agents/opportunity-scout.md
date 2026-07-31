@@ -82,7 +82,11 @@ Discard anything that fails these:
 - **Was it already rejected?** Check the rejection log. If you believe circumstances changed,
   say what changed and cite it.
 - **Does it violate a decided policy?** These are settled and not yours to relitigate:
-  - No affiliate links, referral parameters or commission-bearing URLs in Finance Now
+  - No affiliate links, referral parameters or commission-bearing URLs in Finance Now **until the
+    integrity rules ship** — this is a sequencing constraint, not a ban. Owner decision,
+    2026-07-30: affiliate revenue is a planned P2 initiative (`docs/ROADMAP.md`, "Affiliate
+    links"). You may propose work in that territory; anchor it to the ROADMAP's integrity rules
+    and say which of them the proposal depends on
   - No paid placement in any ranked or scored output, either project
   - Non-personalised advertising only on News Charts
   - Data honesty — sources named, estimates labelled, no fabricated values, coverage travels

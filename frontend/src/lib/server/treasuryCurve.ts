@@ -66,47 +66,109 @@ function yieldAt(curve: CurveSnapshot, label: string): number | undefined {
   return curve.points.find((p) => p.label === label)?.yieldPct
 }
 
+const CURVE_XML = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve'
+
+/** One calendar year of the daily par curve, oldest first. Throws on HTTP failure. */
+export async function fetchCurveYear(year: number): Promise<CurveSnapshot[]> {
+  const res = await fetch(`${CURVE_XML}&field_tdr_date_value=${year}`, {
+    next: { revalidate: 14_400 }, // 4h — the series updates once a day
+    headers: { Accept: 'application/xml' },
+  })
+  if (!res.ok) throw new Error(`treasury.gov ${res.status}`)
+  const xml = await res.text()
+
+  return xml
+    .split('<entry>')
+    .slice(1)
+    .map(parseEntry)
+    .filter((s): s is CurveSnapshot => s !== null)
+    .sort((a, b) => a.date.localeCompare(b.date))
+}
+
 /**
- * Fetch and parse the current year's daily par curve. Throws on any failure —
- * callers decide their own error envelope. Records provider utilization.
+ * Enough history behind the newest reading to place the 30-day comparison. Below
+ * this the previous year is pulled in as well.
  */
-export async function fetchTreasuryYieldCurve(): Promise<YieldCurveData> {
+const MIN_HISTORY_DAYS = 40
+
+/**
+ * Assemble the curve view from whatever years were fetched (W4-C6).
+ *
+ * Split out from the fetching so the year-boundary behaviour is testable without
+ * network access — which is the whole point, since the bug only appeared for a
+ * few weeks a year and nobody was going to catch it in July.
+ */
+export function buildCurveData(snapshots: CurveSnapshot[]): YieldCurveData {
+  if (snapshots.length === 0) throw new Error('no parsable curve entries')
+
+  const sorted = [...snapshots].sort((a, b) => a.date.localeCompare(b.date))
+  const latest = sorted[sorted.length - 1]
+  const latestTime = new Date(latest.date).getTime()
+  const target = latestTime - 30 * 86_400_000
+
+  // Closest business day to 30 days back — not an exact calendar hit.
+  const monthAgo = sorted.reduce((best, s) =>
+    Math.abs(new Date(s.date).getTime() - target) <
+    Math.abs(new Date(best.date).getTime() - target) ? s : best)
+
+  // The start of the year the newest reading belongs to — not the first row in
+  // the merged set, which is now the previous January whenever year-1 was
+  // pulled in.
+  const latestYear = latest.date.slice(0, 4)
+  const yearStart = sorted.find((s) => s.date.startsWith(latestYear)) ?? sorted[0]
+
+  const y2 = yieldAt(latest, '2Y')
+  const y10 = yieldAt(latest, '10Y')
+  const m3 = yieldAt(latest, '3M')
+  const spread2s10s = y2 != null && y10 != null ? Math.round((y10 - y2) * 100) / 100 : undefined
+  const spread3m10y = m3 != null && y10 != null ? Math.round((y10 - m3) * 100) / 100 : undefined
+  const shape = spread2s10s == null ? undefined
+    : spread2s10s > 0.25 ? 'normal' : spread2s10s < -0.1 ? 'inverted' : 'flat'
+
+  return { latest, monthAgo, yearStart, spread2s10s, spread3m10y, shape }
+}
+
+/**
+ * Fetch and parse the daily par curve. Throws on any failure — callers decide
+ * their own error envelope. Records provider utilization.
+ *
+ * Fetches the previous calendar year too when the current year alone doesn't
+ * carry enough history (W4-C6). The route used to query only the current year,
+ * which broke twice over every January:
+ *
+ *  - On 1 January, and until the first business day publishes, the current
+ *    year's file is empty and the whole route 503'd — an annual, predictable
+ *    outage of both the UI chart and the public /api/v1/macro/yield-curve.
+ *  - For roughly five weeks after that the file existed but held under 30 days
+ *    of data, so the "month ago" comparison silently collapsed onto the earliest
+ *    row available — in early January, the same row as `latest`, i.e. a
+ *    30-day change of exactly zero, rendered as fact.
+ *
+ * `now` is injectable so the boundary is testable.
+ */
+export async function fetchTreasuryYieldCurve(now: Date = new Date()): Promise<YieldCurveData> {
   try {
-    const year = new Date().getUTCFullYear()
-    const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value=${year}`
-    const res = await fetch(url, {
-      next: { revalidate: 14_400 }, // 4h — the series updates once a day
-      headers: { Accept: 'application/xml' },
-    })
-    if (!res.ok) throw new Error(`treasury.gov ${res.status}`)
-    const xml = await res.text()
+    const year = now.getUTCFullYear()
+    const current = await fetchCurveYear(year)
 
-    const snapshots = xml
-      .split('<entry>')
-      .slice(1)
-      .map(parseEntry)
-      .filter((s): s is CurveSnapshot => s !== null)
-      .sort((a, b) => a.date.localeCompare(b.date))
-    if (snapshots.length === 0) throw new Error('no parsable curve entries')
+    const spanDays = current.length > 0
+      ? (new Date(current[current.length - 1].date).getTime() - new Date(current[0].date).getTime()) / 86_400_000
+      : 0
 
-    const latest = snapshots[snapshots.length - 1]
-    const latestTime = new Date(latest.date).getTime()
-    // Closest business day to 30 days back — not an exact calendar hit.
-    const monthAgo = snapshots.reduce((best, s) =>
-      Math.abs(new Date(s.date).getTime() - (latestTime - 30 * 86_400_000)) <
-      Math.abs(new Date(best.date).getTime() - (latestTime - 30 * 86_400_000)) ? s : best)
-    const yearStart = snapshots[0]
+    let snapshots = current
+    if (current.length === 0 || spanDays < MIN_HISTORY_DAYS) {
+      // Best-effort: if the prior year can't be fetched we still render off the
+      // current year, which is strictly better than failing outright.
+      try {
+        snapshots = [...(await fetchCurveYear(year - 1)), ...current]
+      } catch {
+        if (current.length === 0) throw new Error('no parsable curve entries')
+      }
+    }
 
-    const y2 = yieldAt(latest, '2Y')
-    const y10 = yieldAt(latest, '10Y')
-    const m3 = yieldAt(latest, '3M')
-    const spread2s10s = y2 != null && y10 != null ? Math.round((y10 - y2) * 100) / 100 : undefined
-    const spread3m10y = m3 != null && y10 != null ? Math.round((y10 - m3) * 100) / 100 : undefined
-    const shape = spread2s10s == null ? undefined
-      : spread2s10s > 0.25 ? 'normal' : spread2s10s < -0.1 ? 'inverted' : 'flat'
-
+    const data = buildCurveData(snapshots)
     recordProviderFetch('treasury-gov', { count: snapshots.length })
-    return { latest, monthAgo, yearStart, spread2s10s, spread3m10y, shape }
+    return data
   } catch (err) {
     recordProviderFetch('treasury-gov', { error: err instanceof Error ? err.message : 'fetch failed' })
     throw err

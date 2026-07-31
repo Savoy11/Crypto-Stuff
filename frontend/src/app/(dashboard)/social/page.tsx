@@ -14,6 +14,7 @@ import { LIVE_DATA } from '@/lib/constants'
 import type { SocialSignal, AssetSentiment } from '@/app/live-data/social/route'
 import { useAssetList } from '@/lib/hooks/useAssetList'
 import { migrateStorageKey } from '@/lib/utils/storageMigration'
+import { timeAgoCompact } from '@/lib/utils/format'
 
 // One-time key migration for the Finance Now rename — runs before any read below.
 migrateStorageKey('caep-custom-subreddits', 'fn-custom-subreddits')
@@ -48,15 +49,6 @@ const SENTIMENT_STYLES = {
   positive: 'text-emerald-400 bg-emerald-400/10 border-emerald-500/20',
   neutral:  'text-slate-400 bg-slate-400/10 border-slate-500/20',
   negative: 'text-red-400 bg-red-400/10 border-red-500/20',
-}
-
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
 }
 
 // ─── Share button ─────────────────────────────────────────────────────────────
@@ -196,7 +188,7 @@ function SignalCard({ signal }: { signal: SocialSignal }) {
           <span className="text-text-muted/40">·</span>
           <span className="flex items-center gap-1 text-[11px] text-text-muted font-mono">
             <Clock size={10} />
-            {timeAgo(signal.publishedAt)}
+            {timeAgoCompact(signal.publishedAt)}
           </span>
         </div>
       </div>

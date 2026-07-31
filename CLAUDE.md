@@ -156,6 +156,7 @@ frontend/src/
 │   │   ├── instruments.ts          # Unified instrument layer across all classes
 │   │   ├── stablecoinMeta.ts       # Curated issuer metadata (+ provenance)
 │   │   ├── portfolioBuilder.ts     # Portfolio Builder engine (pure TS, vitest-tested)
+│   │   ├── lookThrough.ts          # Fund look-through + pairwise overlap (pure TS, vitest-tested)
 │   │   └── assetCatalog.ts         # Coin reference metadata
 │   ├── budget/                     # Budget module pure logic (vitest-tested): csv.ts (parse+mapping),
 │   │                               #   categorize.ts (first-match rules), recurring.ts (cadence detection)
@@ -164,7 +165,9 @@ frontend/src/
 │   ├── api/                        # API client functions
 │   │   └── live/                   # Live data fetchers (CoinGecko, DefiLlama, marketData.ts, providers.ts)
 │   ├── utils/
-│   └── websocket/
+│   └── feed/                       # useFeedStatus — derives app-wide feed health
+│                                   #   from React Query's cache (replaced lib/websocket/,
+│                                   #   whose shim reported 'connected' unconditionally)
 │
 ├── store/                          # Zustand stores
 │   ├── useEntitlementStore.ts      # Which suite modules are enabled
@@ -174,7 +177,9 @@ frontend/src/
 │   ├── useAssetStore.ts, useCoinDiscoveryStore.ts
 │   ├── useWalletStore.ts, useThesisStore.ts, useFeedBiasStore.ts
 │   ├── usePopoutStore.ts, useTierStore.ts, useRefreshStore.ts
-│   └── useStreamStore.ts           # owns the WsStatus type since M8 removed the ws client
+│   └── useFeedStore.ts             # FeedStatus: connecting | live | degraded | offline.
+│                                   #   Replaced useStreamStore, whose websocket vocabulary
+│                                   #   (heartbeat, channels, stream errors) was all dead
 │                                   # NOTE: no auth store — session comes from
 │                                   # next-auth/react's useSession()
 │
@@ -304,7 +309,7 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 - To add a fund: append to `FUND_CATALOG` following the pattern.
 
 ### `src/lib/data/portfolioBuilder.ts` (Portfolio Builder module)
-Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (55 tests).
+Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (86 tests).
 
 - **`buildPortfolio(inputs)`** — questionnaire → `BuiltPortfolio`. The glide path anchors to `yearsToFirstUse` (the spend date), **not** retirement; risk tolerance shifts it ±15pts but can never extend a horizon.
 - **Sleeve appetite + style.** Appetite decides *how much* (`commodityComfort` / `currencyComfort`, `SleeveAppetite = none|small|moderate`); **style decides *what kind*** (`cryptoStyle` / `commodityStyle` / `currencyStyle` / `bondStyle`) because risk varies as much inside an asset class as between them. Style tables (`CRYPTO_STYLES`, `COMMODITY_STYLES`, `CURRENCY_STYLES`, `BOND_STYLES`) each carry a `label`, a plain-language risk `note` shown in the UI at the point of choice, and (except bonds) an instrument `mix`. Bonds have style but no appetite — they're always held; `applyBondStyle()` rewrites the duration ladder for credit posture (treasury swaps BND→IEF; corporate/high-yield scale the ladder and append LQD/HYG). Higher-risk styles emit explicit notes (high-yield behaves like equity in a crisis; commodity currencies fall *with* equities; silver is ~2× gold's volatility). **All style fields are optional and every default reproduces pre-style behaviour**, so saved plans replay unchanged.
@@ -469,14 +474,14 @@ Risk/status color convention used across the app:
 | Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
 | Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data |
 | Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
-| Portfolios | `/portfolios` | 🟢 Live | Live prices + history (`/live-data/portfolio-*`). **DB-backed** via `/api/user/portfolios` (+`/[id]` PUT/DELETE): store keeps its sync Zustand interface via optimistic mutations + client-UUID ids; consumers call `hydratePortfolios()` on mount; one-time localStorage import. Holdings resolve through the instrument layer (`lib/server/instrumentResolve.ts` — global rows, cgId round-trips via `instrument_crypto.coingecko_id`) |
+| Portfolios | `/portfolios` | 🟢 Live | Live prices + history (`/live-data/portfolio-*`). **DB-backed** via `/api/user/portfolios` (+`/[id]` PUT/DELETE): store keeps its sync Zustand interface via optimistic mutations + client-UUID ids; consumers call `hydratePortfolios()` on mount; one-time localStorage import. Holdings resolve through the instrument layer (`lib/server/instrumentResolve.ts` — global rows, cgId round-trips via `instrument_crypto.coingecko_id`). **Look-through tab** (`lib/data/lookThrough.ts`): true underlying-issuer exposure across held funds + direct positions, a "held twice over" callout, and per-fund coverage. Weights are target allocations (stated on the panel). A Yahoo top-10 list is **never scaled to 100%** — the unexplained tail is reported, not redistributed |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
 | Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
 | Videos | `/videos` | 🟢 Live | Video search + AI analysis (`/live-data/videos`, `video-search`, `video-analyze`) |
 | Data Sources | `/data-sources` | — | Per-provider status and utilization, read from the provider registry |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
-| Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`) |
+| Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`). Fund selections also get a **holdings-overlap** section (`lib/data/lookThrough.ts`) — the question correlation can't answer: whether two funds move together because they hold the same companies or because they track the same economy. Partial holdings lists are labelled as floors, never rescaled |
 | Budget | `/budget`, `/budget/transactions` | 🟢 User data | BUDGET module (ROADMAP Phase 2): accounts (balance = opening anchor + transactions), manual entry, idempotent CSV import (import-hash dedupe; saved per-bank column mappings auto-matched by header signature), rule-based auto-categorization (first-match-wins, server-side), monthly budgets vs actuals (unbudgeted ≠ $0), recurring detection (suggestions until confirmed). Pure logic in `lib/budget/` (vitest), persistence via `/api/user/budget/*`. No external providers — no SourceLine on these pages |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
@@ -512,13 +517,14 @@ One module (`macro` entitlement), three areas. Owner spec + status: `docs/ROADMA
 | Commodities | `/macro/commodities`, `/[slug]` | 🟢 Live | `commodityCatalog.ts` — 19 verified front-month contracts, 5 categories. `quoteBasis: 'usd'\|'cents'` renders each market's convention (472.75¢/bu, never "$472"). Detail: chart + facts + ETF proxies → /funds. **`etfProxies` are genuine single-commodity exposure**, not the broad-basket DBC these used to point to. Deep, multi-issuer lineups for the liquid metals/energy markets (gold: GLD/IAU/GLDM/SGOL/AAAU/BAR/OUNZ; silver: SLV/SIVR/PSLV; WTI: USO/OILK/USL; nat gas: UNG/UNL) — each variant genuinely differs (expense ratio, K-1 vs 1099 tax form, front-month vs laddered roll, physical-redemption feature), all added to `fundCatalog.ts` and verified both quotable AND actively trading (5-day history, not just a cached price) before inclusion. Copper/grain/platinum/palladium get one verified proxy each (CPER/CORN/WEAT/SOYB/CANE/PPLT/PALL) — genuinely thinner markets, not an under-researched gap; broad-basket funds (DBB, COPX-style miner ETFs) are deliberately excluded even as a single option since that's the exact overstated-specificity problem this fix corrected. Heating oil, coffee, cocoa, cotton, live cattle, and lean hogs are **deliberately empty** — their single-commodity ETFs/ETNs (UHN, JO, NIB, BAL, COW) were confirmed delisted (last trade 2019–2023) 2026-07-21; don't backfill with a basket fund to avoid a blank list |
 | Currencies | `/macro/currencies`, `/[slug]` | 🟢 Live | `currencyCatalog.ts` — 17 pairs + DXY (18 entries), per-pair `precision`. **`etfProxies`** (new `FundCategoryId: 'currency'` in `fundCatalog.ts`): the 6 USD majors get their CurrencyShares trust (FXE/FXB/FXY/FXF/FXC/FXA — holds currency deposits, direct exposure); Dollar Index gets UUP/UDN/USDU (long/short/alt-index). Deliberately empty for every EM pair and every cross — EM single-currency funds (FXM/BZF/CYB/ICN/SZR) confirmed delisted, crosses have never had a dedicated fund (only vs-USD trusts exist), NZD/KRW never had one. **Converter is two-tier**: 30 ECB currencies (`/live-data/fx-rates`, frankfurter.dev — verified to be ECB's *complete* published set, not a subset) plus 127 more via `/live-data/fx-rates-extended` (community `fawazahmed0/currency-api`, keyless, hand-verified allowlist excluding crypto tickers/precious-metal ounce codes/IMF SDR/defunct pre-euro currencies from that feed's ~340 raw codes). Grouped by `<optgroup>` in the UI; any conversion touching an extended-tier currency shows a distinct disclosure (community-sourced, not ECB) instead of the "official" ECB copy — the two tiers are never blended without attribution |
 | Bonds & Rates | `/macro/rates`, `/[slug]` | 🟢 Live | `ratesCatalog.ts` — 4 CBOE yield indices + 4 CBOT futures. Curve chart from `/live-data/treasury-yield-curve` = **official** treasury.gov 13-maturity daily par curve (keyless XML, regex-parsed, 4h revalidate) + 2s10s/3m10y spreads + shape. Overview-page bond ETF shelf → /funds. **CUSIP-level bond quotes are licensed data — intentionally absent, stated on-page.** Detail pages carry a per-instrument **"Duration-Matched Funds"** section (`etfProxies`, distinct from the commodity/currency "ETF Proxies" naming since nobody buys "the 10-year yield" directly — the match is by maturity band, not asset identity): 13-week yield → SGOV/BIL (0-3mo bills); 5-year yield + 5yr future → IEI (3-7Y, added to fill the SHY↔IEF duration gap); 10-year yield + 10yr future → IEF; 30-year yield + 30yr future → TLT; 2yr future → SHY. General credit/inflation/aggregate funds (LQD/HYG/TIP/BND/AGG) stay overview-only since they don't map to a specific curve point |
+| Macro TA | `/macro/technical-analysis` | 🟢 Derived | Shared candlestick/indicator engine over all 45 macro instruments — **no new data route**, macro symbols are Yahoo symbols on the same `security-ohlcv` path as equities. Chart tab (grouped picker, 5 ranges, 6 chart types, 16 indicators, patterns) + Scanner tab (RSI 14 / vs-SMA50 / composite signal). **Scanner covers 29 of 45**: the 6 delisted-ETF commodities and the 10 EM/cross FX pairs are excluded because their series gap enough that a ranked RSI beside a liquid contract reads as comparable when it isn't — the exclusion is stated on-page and all 45 still chart. Levels go through `formatInstrumentQuote()`, so grains stay ¢/bu and yields stay % |
 
 `PriceChartCard` takes `valueFormat: 'usd' | 'plain'` (default `'usd'`, existing pages unchanged) — use `'plain'` for FX, yields, and cents-quoted contracts so axes aren't $-mislabeled. **Cross-cutting integration shipped 2026-07-21**: `market: 'macro'` exists across the provider registry (11 built-in rows; macro routes are registry-driven with utilization), tier categories, Integrations sections, and agents (`macro-research`/`macro-screener`, toolset `'macro'`); all 45 macro instruments (19 commodities + 18 currencies + 8 rates) are `sec:`-keyed entries in `instruments.ts` (classes `commodity`/`currency`/`rate`, `detailPath` slug routing) so watchlists/portfolios/Compare can hold them.
 
 ### ETFs & Funds module (`/funds`)
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
-| Fund Registry | `/funds` | 🟢 Live | `fundCatalog.ts` + live quotes; 118 ETFs/mutual funds |
+| Fund Registry | `/funds` | 🟢 Live | `fundCatalog.ts` + live quotes; 118 ETFs/mutual funds. Catalog carries provenance (`getFundDataProvenance()`, stale after 120d) rendered on detail pages — its expense ratios are computed on by `computeFeeDrag`, the builder's fee math, and `reviewPlan`'s fee-creep check |
 | Fund Detail | `/funds/[symbol]` | 🟢 Live | Live chart/news + fund facts; Fee Drag Analyzer, top holdings |
 
 ---
@@ -635,6 +641,21 @@ claude mcp add finance-now node C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff/mcp
 
 ### Environment variable
 `FN_BASE_URL` — base URL of running Finance Now instance (default: `http://localhost:3000`; legacy `CAEP_BASE_URL` still honored)
+
+---
+
+## Testing conventions
+
+`vitest.config.ts` aliases **`server-only`** to `test/stubs/server-only.ts`. That import is a
+Next *build-time* poison pill (it fails the bundle if a module reaches the client), not a runtime
+dependency, so it does not exist in `node_modules` — vitest could not resolve it, and all seven
+`lib/server/` modules importing it were untestable. The alias restores that; the real bundler check
+is unaffected. Add tests for `lib/server/` freely.
+
+Anything producing a **dollar figure or a percentage a user acts on** should be pure and tested:
+`computeNetworkFees()`, `computeFeeDrag()`, `portfolioBuilder.ts`, `lookThrough.ts`, `lib/budget/`,
+`lib/risk/`. Where a function needs the clock, take an injectable `now` — every provenance helper
+and `reviewPlan()`/`buildCurveData()` do, and it is the only reason their edge cases are testable.
 
 ---
 

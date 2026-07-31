@@ -89,7 +89,7 @@ export function PlanMonitor({ saved }: { saved: SavedPlan }) {
       if (Number.isFinite(v) && v > 0) weights[symbol] = v
     }
     return Object.keys(weights).length > 0
-      ? { weights, valueUsd: saved.plan.inputs.amount, pricedPct: 100 }
+      ? { weights, valueUsd: saved.plan.inputs.amount, pricedPct: 100, unpricedPct: 0, noCostBasisPct: 0 }
       : null
   }, [usingPortfolio, priceResult, portfolio, manual, saved.plan.inputs.amount])
 
@@ -143,7 +143,7 @@ export function PlanMonitor({ saved }: { saved: SavedPlan }) {
 
         {usingPortfolio && actual && (
           <span className="ml-auto text-xs text-text-muted font-mono tabular-nums">
-            {fmtUsd(actual.valueUsd)} live value
+            {fmtUsd(actual.valueUsd)} {actual.pricedPct < 99 ? 'marked to market' : 'live value'}
           </span>
         )}
       </div>
@@ -181,14 +181,23 @@ export function PlanMonitor({ saved }: { saved: SavedPlan }) {
 
       {usingPortfolio && !pricesLoading && !actual && (
         <p className="text-xs text-amber-400">
-          None of this portfolio’s positions could be priced live, so drift can’t be calculated.
-          Positions are never valued at cost here — a half-priced portfolio would produce confident, wrong numbers.
+          None of this portfolio’s positions could be marked to market, so drift can’t be calculated.
+          A position needs both a live price and an entry price; without both it is excluded rather than
+          valued at cost, because a portfolio valued at cost restates its own targets and would report
+          zero drift on every line.
         </p>
       )}
 
       {usingPortfolio && actual && actual.pricedPct < 99 && (
         <p className="text-xs text-amber-400">
-          Only {actual.pricedPct}% of the portfolio could be priced live; unpriced positions are excluded from these weights.
+          Only {actual.pricedPct}% of the portfolio could be marked to market; the rest is excluded from
+          these weights
+          {actual.unpricedPct > 0 && ` (${actual.unpricedPct}% has no live price`}
+          {actual.unpricedPct > 0 && actual.noCostBasisPct > 0 && ','}
+          {actual.noCostBasisPct > 0 &&
+            `${actual.unpricedPct > 0 ? ' ' : ' ('}${actual.noCostBasisPct}% has no entry price, so it can’t be valued`}
+          {(actual.unpricedPct > 0 || actual.noCostBasisPct > 0) && ')'}.
+          {actual.noCostBasisPct > 0 && ' Add entry prices on the Portfolios page to include those positions.'}
         </p>
       )}
 

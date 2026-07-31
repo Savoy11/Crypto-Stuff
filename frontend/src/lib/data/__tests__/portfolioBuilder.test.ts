@@ -569,6 +569,68 @@ describe('actualWeightsFromPortfolio', () => {
     expect(report.items.length).toBe(plan.holdings.length)
     expect(report.turnoverUsd).toBeGreaterThan(0)
   })
+
+  // W4-C1. A holding with a live price but no entry price cannot be marked to
+  // market — computeHoldings pins its currentValue to targetValue so the
+  // Portfolios page can show a position with no P&L. Reading that back as an
+  // "actual" weight restates the portfolio's own targets, so drift compares the
+  // plan against a copy of itself and reports a confident all-clear.
+  const noBasis: Portfolio = {
+    ...portfolio,
+    holdings: portfolio.holdings.map((h) => ({ ...h, entryPrice: null })),
+  }
+
+  it('excludes positions with no cost basis, even when they have a live price', () => {
+    const r = actualWeightsFromPortfolio(noBasis, { 'sec:VTI': 600, 'sec:BND': 70 })
+    expect(r.weights).toEqual({})
+    expect(r.valueUsd).toBe(0)
+    expect(r.pricedPct).toBe(0)
+    expect(r.unpricedPct).toBe(0)
+    expect(r.noCostBasisPct).toBe(100)
+  })
+
+  it('does not report a zero-drift all-clear off target-pinned values', () => {
+    // The failure mode in full: without the guard every weight equals its
+    // target, so every item is `hold`, maxDriftPts is 0, and pricedPct is 100 —
+    // which is also the value the UI's coverage disclosure keys on, so nothing
+    // warns.
+    const r = actualWeightsFromPortfolio(noBasis, { 'sec:VTI': 600, 'sec:BND': 70 })
+    expect(r.pricedPct).toBeLessThan(99)
+
+    const plan = build({ yearsToFirstUse: 20 })
+    const report = checkDrift(plan, r.weights, r.valueUsd)
+    expect(report.items.every((i) => i.action === 'hold' && i.driftPts === 0)).toBe(false)
+  })
+
+  it('separates a missing price from a missing cost basis', () => {
+    // VTI priced with a basis; BND has a basis but no price.
+    const r = actualWeightsFromPortfolio(portfolio, { 'sec:VTI': 600 })
+    expect(r.pricedPct).toBe(60)
+    expect(r.unpricedPct).toBe(40)
+    expect(r.noCostBasisPct).toBe(0)
+
+    // Now the other way: both priced, but BND has no basis.
+    const mixed: Portfolio = {
+      ...portfolio,
+      holdings: portfolio.holdings.map((h) =>
+        h.symbol === 'BND' ? { ...h, entryPrice: null } : h),
+    }
+    const r2 = actualWeightsFromPortfolio(mixed, { 'sec:VTI': 600, 'sec:BND': 70 })
+    expect(r2.weights).toEqual({ VTI: 100 })
+    expect(r2.pricedPct).toBe(60)
+    expect(r2.unpricedPct).toBe(0)
+    expect(r2.noCostBasisPct).toBe(40)
+  })
+
+  it('treats a zero or negative entry price as no cost basis', () => {
+    const zeroBasis: Portfolio = {
+      ...portfolio,
+      holdings: portfolio.holdings.map((h) => ({ ...h, entryPrice: 0 })),
+    }
+    const r = actualWeightsFromPortfolio(zeroBasis, { 'sec:VTI': 600, 'sec:BND': 70 })
+    expect(r.weights).toEqual({})
+    expect(r.noCostBasisPct).toBe(100)
+  })
 })
 
 describe('reviewPlan', () => {

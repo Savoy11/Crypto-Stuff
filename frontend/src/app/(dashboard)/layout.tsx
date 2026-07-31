@@ -11,19 +11,30 @@ import { CommandPalette } from '@/components/layout/CommandPalette'
 import { AssistantWidget } from '@/components/agents/AssistantWidget'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { useSession }       from 'next-auth/react'
-import { useWebSocket }     from '@/lib/websocket/hooks'
+import { useFeedStatus }    from '@/lib/feed/useFeedStatus'
 import { useRecentAlerts }  from '@/hooks/useAlerts'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
 import { usePriceAlertMonitor } from '@/hooks/usePriceAlertMonitor'
 import { PullToRefresh }    from '@/components/ui/PullToRefresh'
-// LOGIN TEMPORARILY DISABLED (by request, until the risk framework is done).
-// The auth wall is fully off so it cannot affect the build or block access.
-// To RE-ENABLE later: restore `import { LIVE_DATA } from '@/lib/constants'`
-// and `const REQUIRE_AUTH = !LIVE_DATA`, and revert the /login redirect.
+// LOGIN TEMPORARILY DISABLED (by request). The auth wall is fully off so it
+// cannot affect the build or block access.
+//
+// The original condition — "until the risk framework is done" — was satisfied
+// on 2026-07-19 when R2 landed. Turning the wall back on is now an owner
+// decision, not a blocked one.
+//
+// To RE-ENABLE: set REQUIRE_AUTH = true here, set LOGIN_DISABLED = false in
+// (auth)/login/page.tsx, and set AUTH_SECRET in the environment (Auth.js reads
+// it straight from env, so it appears in no source file and grep won't find it).
+//
+// This comment previously prescribed `const REQUIRE_AUTH = !LIVE_DATA`, which
+// was a broken recipe: LIVE_DATA is hardcoded `true` in lib/constants.ts, so
+// following it left the wall permanently off while looking deliberate. The
+// login page has always carried the correct version — keep the two in sync.
 const REQUIRE_AUTH = false
 
 function DashboardInner({ children }: { children: React.ReactNode }) {
-  useWebSocket()
+  useFeedStatus()                          // drives the Sidebar/StatusBar feed dot
   useRecentAlerts(20)
   const { refresh } = useGlobalRefresh()   // registers auto-refresh interval
   usePriceAlertMonitor()                   // user price alerts, app-wide

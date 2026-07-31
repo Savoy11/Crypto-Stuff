@@ -925,27 +925,27 @@ Lenses: *Importance / Efficiency / Practicality*.
 
 ### Verified defects (from the real audit — fix directly)
 
-- [ ] **W4-A1 · `P1` — Always-green "Live" indicator.** `lib/websocket/hooks.ts:19` is the
+- [x] **W4-A1 · `P1` — Always-green "Live" indicator.** `lib/websocket/hooks.ts:19` is the
       only writer of connection status and unconditionally sets `'connected'`; StatusBar and
       Sidebar render it green on every screen and can never report a degraded feed. Drive it
       from React Query's global error/fetching state, or delete the indicator and the
       unreachable `'connecting'/'disconnected'/'error'` branches. A shim that only reports
       success is worse than no indicator. *(High / High / High)*
-- [ ] **W4-A2 · `P2` — Broken auth re-enable recipe.** `(dashboard)/layout.tsx` documents
+- [x] **W4-A2 · `P2` — Broken auth re-enable recipe.** `(dashboard)/layout.tsx` documents
       `REQUIRE_AUTH = !LIVE_DATA`, which is permanently `false`; `(auth)/login/page.tsx`
       carries the correct recipe. Delete the wrong one, and revisit the "until the risk
       framework is done" condition — satisfied 2026-07-19. *(Med / High / High)*
 
 ### Approved proposals (build work)
 
-- [ ] **W4-B1 · `P1` — Fund look-through.** Weighted N-PORT holdings are already fetched in
+- [x] **W4-B1 · `P1` — Fund look-through.** Weighted N-PORT holdings are already fetched in
       full per fund (`/live-data/fund-holdings`) and no screen combines them with portfolio
       weights. Build: true underlying-issuer exposure across held funds + direct positions,
       and pairwise fund-overlap on `/compare`. Feeds Portfolio Builder's concentration check
       its missing input. Coverage must travel per fund (full N-PORT ≠ Yahoo top-10 — never
       blend unlabeled). Grounding: proposal 1, `docs/proposals/2026-07-30-proposals.md`.
       APPROVED 2026-07-30. *(High / High / Good)*
-- [ ] **W4-B2 · `P2` — Macro Technical Analysis page.** `/macro/technical-analysis`
+- [x] **W4-B2 · `P2` — Macro Technical Analysis page.** `/macro/technical-analysis`
       parameterised over the 45 macro instruments, reusing the shared TA engine — the
       ROADMAP "What must be built" item 2 that was specified but never built (the 2026-07-21
       SHIPPED note overstates; fix that note as part of this). Respect `quoteBasis` /
@@ -954,49 +954,49 @@ Lenses: *Importance / Efficiency / Practicality*.
 
 ### Leads — verify in source first, then fix (from the stand-in findings)
 
-- [ ] **W4-C1 · `P1` — PlanMonitor false all-clear.** `portfolioUtils.ts`: a holding with a
+- [x] **W4-C1 · `P1` — PlanMonitor false all-clear.** `portfolioUtils.ts`: a holding with a
       live price but no entry price is valued at target, so drift can compare the plan
       against itself (`driftPts: 0`, `hold` everywhere, `pricedPct` 100). Mechanism
       confirmed; end-to-end consequence NOT yet verified — verify first. CLAUDE.md's stated
       rule ("no live price → excluded, never valued at cost") was implemented against a
       missing price but not a missing cost basis. Highest-consequence lead: premium module's
       core monitoring feature.
-- [ ] **W4-C2 · `P2` — `<ModuleGate>` inside JSX on `equities/[symbol]` and
+- [x] **W4-C2 · `P2` — `<ModuleGate>` inside JSX on `equities/[symbol]` and
       `funds/[symbol]`.** Hooks run before the gate returns; verify whether queries poll
       while locked, then move the gate to the component boundary per the documented rule.
-- [ ] **W4-C3 · `P2` — Custom Atom feeds parse to zero articles** on `market-news` and
+- [x] **W4-C3 · `P2` — Custom Atom feeds parse to zero articles** on `market-news` and
       `macro-news` (`parseRss` matches `<item>`; Atom uses `<entry>`; the crypto route
       reportedly handles both). Three parser copies, one fixed — consider consolidating.
-- [ ] **W4-C4 · `P2` — Quote ladder returns on partial success.** A rate-limited provider
+- [x] **W4-C4 · `P2` — Quote ladder returns on partial success.** A rate-limited provider
       returning 12 of 50 quotes stops the ladder; the other 38 fall to catalog reference
       without Yahoo being asked. Fix is a per-symbol residual pass — explicitly NOT
       `allSettled` over the ladder (see the failure-boundary conventions).
-- [ ] **W4-C5 · `P2` — Unguarded `new Date(pubDate).toISOString()`** in an RSS path can
+- [x] **W4-C5 · `P2` — Unguarded `new Date(pubDate).toISOString()`** in an RSS path can
       throw on one malformed date and lose the whole feed; a guarded sibling reportedly
       exists ~56 lines later in the same file. Also: `lib/server/pubDate.ts` is wired into
       only 1 of 3 RSS routes, so future-stamped articles can make `isBreaking` trivially
       true on the others.
-- [ ] **W4-C6 · `P2` — Treasury yield curve year-boundary gap.** The route queries only the
+- [x] **W4-C6 · `P2` — Treasury yield curve year-boundary gap.** The route queries only the
       current calendar year with no `year-1` fallback — reportedly unavailable each January
       until the first business day publishes. (Route logic now lives in
       `lib/server/treasuryCurve.ts` — fix it there; both consumers inherit.)
-- [ ] **W4-C7 · `P2` — `fundCatalog.ts` has no provenance machinery** while its expense
+- [x] **W4-C7 · `P2` — `fundCatalog.ts` has no provenance machinery** while its expense
       ratios are computed on (`computeFeeDrag`, builder fee math, `reviewPlan` fee-creep).
       Apply the transferFees pattern (`*_LAST_VERIFIED`, staleness window, injectable now,
       `<ProvenanceNotice>`).
-- [ ] **W4-C8 · `P2` — Smaller verified-quickly items, batched:** `?agent=macro-screener`
+- [x] **W4-C8 · `P2` — Smaller verified-quickly items, batched:** `?agent=macro-screener`
       deep link runs the crypto agent (`initialMarket` match list); reference market caps
       render without the amber `ref` tag (tag covers price only; providers below FMP return
       `marketCap: null` so this is the normal path); nine divergent `timeAgo`
       implementations, several rendering negative ages; `EQUITY_REFERENCE_AS_OF` has no
       consumers; CLAUDE.md says portfolioBuilder has 55 tests (82 on disk).
-- [ ] **W4-C9 · `P2` — Untested dollar-figure logic:** `computeNetworkFees()` (declared
+- [x] **W4-C9 · `P2` — Untested dollar-figure logic:** `computeNetworkFees()` (declared
       single source of truth for two API layers) and `computeFeeDrag()` have no tests.
       Write them before anything touches either.
 
 ### Owner decisions + agent-hygiene follow-ups (from the PR #61 review)
 
-- [ ] **W4-D1 · `P1` — DECIDE: affiliate policy contradiction.** Both agent definitions
+- [x] **W4-D1 · `P1` — DECIDE: affiliate policy contradiction.** Both agent definitions
       declare "no affiliate links in Finance Now" as settled policy; `docs/ROADMAP.md`
       carries the owner-authored "Affiliate links — P2, gated on integrity rules" plan and
       `docs/BUSINESS-CHECKLIST.md` expects affiliate 1099s. One side must yield: either
@@ -1020,6 +1020,55 @@ Lenses: *Importance / Efficiency / Practicality*.
 - Staking 4/51 live-coverage root cause (the 6s-abort theory is an unobserved inference) ·
   provider licensing claims · any REAL-vs-FALLBACK re-measurement, including the
   fund-universe payload size recorded as pending in DATA-AVAILABILITY item 11.
+
+---
+
+## Wave 4 — Results (2026-07-30)
+
+Both verified defects, all nine lead batches, both approved proposals, and the D1
+decision landed on branch `claude/implementing-recommendations-6a01xd`. **W4-D2 and
+W4-D3 were deliberately not attempted** — the owner scoped agent-hygiene work out of
+this session; they remain open above.
+
+**Every lead was verified in source before being fixed, and three were wider than
+reported.** That was the point of filing them as leads rather than defects:
+
+- **W4-C6** was reported as a 1 January outage. It is also a *silent* fault for the
+  following ~5 weeks: with under 30 days in the current year's file, the "month ago"
+  comparison collapsed onto the earliest available row — in early January, the same
+  row as `latest`, so a 30-day change of exactly zero was presented as fact. An
+  outage is visible; this was not.
+- **W4-C5** was reported as one unguarded date. It was two routes, and fixing it via
+  the shared parser also extended `parsePubDate`'s timezone-less normalisation to
+  both, which was the more consequential half.
+- **W4-C9** asked only for tests. Writing them surfaced a real display bug: a fund
+  cheaper than the 0.03% benchmark (FXAIX at 0.015%) produced negative `feesPaid`,
+  which the card clamped to zero while keeping the minus sign — "−$0 (−0.3%)", a
+  double negative reading as a cost when it is a saving.
+
+**W4-C1 reproduced exactly as described** and is the most consequential fix in the
+wave: with no entry prices, `actualWeightsFromPortfolio` returned the portfolio's own
+target weights, so `checkDrift` compared the plan against a copy of itself — zero
+drift on every line, `hold` everywhere, and `pricedPct` of 100, which is the value
+the coverage disclosure keys on. The premium module's core monitoring feature
+reported a clean bill of health having measured nothing. Every pre-existing test in
+that block used holdings with entry prices, which is why it survived 86 of them.
+
+**Test coverage went from 454 to 528.** One incidental unblock: `server-only` is a
+Next build-time poison pill absent from `node_modules`, so vitest could not resolve
+it and all seven `lib/server` modules importing it were untestable. Aliased to a
+stub; the bundler check is unaffected.
+
+**Two claims in project docs were corrected rather than quietly rewritten:** the
+ROADMAP's "everything from 'What must be built' is now SHIPPED" (the macro TA page
+did not exist — W4-B2 built it), and CLAUDE.md's portfolioBuilder test count (55 →
+86).
+
+Verified with `npm run type-check`, `npx vitest run` (528 passing), `npx eslint src/`
+(no errors), and `npm run build`. `npm run audit` was **not** run — it is
+IP-dependent and owner-machine only, per CLAUDE.md; nothing in this wave changed a
+provider's reachability, but the REAL/FALLBACK baseline should still be re-measured
+on the owner's machine before trusting it.
 
 ---
 

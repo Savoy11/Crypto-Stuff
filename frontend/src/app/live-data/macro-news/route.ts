@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { decodeEntities, stripCdata } from '@/lib/utils/html'
 import { COMMODITY_CATALOG } from '@/lib/data/commodityCatalog'
 import { getMacroProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickDate, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
+import { parseFeedItems } from '@/lib/server/feedParse'
 
 // Macro Markets news — commodities, currencies, and bonds/rates ONLY.
 //   GET /live-data/macro-news                    → all three pillars merged
@@ -19,7 +19,6 @@ import { fetchCustomUrl, findArray, pickDate, pickString, type ActiveCustom } fr
 // the Integrations page can toggle sources and shows per-feed utilization.
 
 import { classifyPillar, type MacroPillar } from '@/lib/server/macroPillar'
-import { parsePubDate } from '@/lib/server/pubDate'
 
 export const dynamic = 'force-dynamic'
 
@@ -85,32 +84,19 @@ interface RawArticle {
   summary: string
 }
 
-function extractTag(item: string, tag: string): string {
-  const match = item.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)</${tag}>`, 'i'))
-  return match ? decodeEntities(stripCdata(match[1])) : ''
-}
-
+// Item extraction is shared (lib/server/feedParse.ts), which also carries the
+// parsePubDate normalisation this route already had — the other two RSS routes
+// did not. The local copy matched only <item>, so an Atom feed parsed to zero
+// articles (W4-C3).
 function parseRss(xml: string, source: string): RawArticle[] {
-  const items = xml.match(/<item[\s>][\s\S]*?<\/item>/gi) ?? []
-  const now = Date.now()
-  return items.map((item) => {
-    const title = extractTag(item, 'title')
-    const url = extractTag(item, 'link')
-    const pubDate = extractTag(item, 'pubDate')
-    const description = extractTag(item, 'description')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-    const publishedAt = new Date(parsePubDate(pubDate, now)).toISOString()
-    return {
-      id: `${source}:${url || title}`.slice(0, 200),
-      title,
-      url,
-      source,
-      publishedAt,
-      summary: description.slice(0, 280),
-    }
-  }).filter((a) => a.title && a.url)
+  return parseFeedItems(xml).map((item) => ({
+    id: `${source}:${item.url || item.title}`.slice(0, 200),
+    title: item.title,
+    url: item.url,
+    source,
+    publishedAt: new Date(item.publishedAt).toISOString(),
+    summary: item.summary.slice(0, 280),
+  }))
 }
 
 // ─── Sentiment (same keyword approach as market-news) ────────────────────────

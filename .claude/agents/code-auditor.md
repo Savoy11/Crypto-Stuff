@@ -81,9 +81,17 @@ and dates in prose that no longer match. Generated files edited by hand — Fina
 - A score rendered without its coverage figure claims more than the data supports.
 - Estimates must be labelled. Fabricated or silently substituted values are never acceptable — a
   failed provider degrades with visible provenance or shows nothing.
-- No affiliate links, referral parameters, partner IDs or commission-bearing URLs in Finance Now.
-  Descriptive text about what third parties charge users is correct and expected; a link that
-  pays us is not.
+- **No affiliate links, referral parameters, partner IDs or commission-bearing URLs in Finance Now
+  *until the integrity rules ship*.** Descriptive text about what third parties charge users is
+  correct and expected. Owner decision, 2026-07-30: affiliate revenue is a planned P2 initiative
+  (`docs/ROADMAP.md`, "Affiliate links"), not a prohibition — the earlier flat ban here
+  contradicted the owner's own roadmap and `docs/BUSINESS-CHECKLIST.md`.
+  What that means for an audit: a commission-bearing URL is a defect **while the integrity rules
+  in the ROADMAP are unimplemented** — chiefly that affiliate status cannot reach the risk engine,
+  that default ordering stays risk-based, that warnings are never softened for a paying partner,
+  that per-link FTC disclosure is present, and that `website` is never overwritten by
+  `affiliateUrl`. Once those land, an affiliate link that satisfies them is not a finding; one
+  that violates any of them still is, and remains high severity.
 - No paid placement in ranked or scored output, either project.
 - Sources flagged `commercialOk: false` must not be reachable from a production path.
 - AI-generated content must be labelled where published.

@@ -13,6 +13,7 @@ import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
 import { applyBias, matchesWatchlist } from '@/lib/watchlist/bias'
 import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import type { MarketNewsResponse } from '@/app/live-data/market-news/route'
+import { timeAgoCompact } from '@/lib/utils/format'
 
 // Aggregate landing feed. Merges the two general news sources the suite has —
 // /live-data/news (crypto) and /live-data/market-news (equities) — into one
@@ -72,15 +73,6 @@ const SENTIMENT_STYLES = {
 
 const TOP_STORY_COUNT = 5
 const SECTION_STORY_COUNT = 8
-
-function timeAgo(iso: string): string {
-  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
-  if (mins < 1) return 'just now'
-  if (mins < 60) return `${mins}m ago`
-  const hrs = Math.floor(mins / 60)
-  if (hrs < 24) return `${hrs}h ago`
-  return `${Math.floor(hrs / 24)}d ago`
-}
 
 /** Breaking first, then most recent. */
 function rank(a: Story, b: Story): number {
@@ -170,7 +162,7 @@ function StoryCard({ story, showModule = false, onWatchlist = false }: { story: 
           <span className="text-text-muted/40">·</span>
           <span className="flex items-center gap-1 text-[11px] text-text-muted font-mono">
             <Clock size={10} aria-hidden />
-            {timeAgo(story.publishedAt)}
+            {timeAgoCompact(story.publishedAt)}
           </span>
         </div>
       </div>

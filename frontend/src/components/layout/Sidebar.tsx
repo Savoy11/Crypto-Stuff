@@ -21,7 +21,7 @@ import {
 import { clsx } from 'clsx'
 import { useSession } from 'next-auth/react'
 import { useAlertStore } from '@/store/useAlertStore'
-import { useStreamStore } from '@/store/useStreamStore'
+import { useFeedStore, type FeedStatus } from '@/store/useFeedStore'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { usePopoutStore, POPOUT_META, type PopoutKey } from '@/store/usePopoutStore'
 import { MODULES, moduleForPath, type ModuleId, type SuiteModule } from '@/lib/modules/registry'
@@ -151,18 +151,18 @@ function PopoutLauncher() {
   )
 }
 
-const STATUS_COLORS = {
-  connected: 'bg-emerald-400',
+const STATUS_COLORS: Record<FeedStatus, string> = {
+  live: 'bg-emerald-400',
   connecting: 'bg-amber-400 animate-pulse',
-  disconnected: 'bg-slate-500',
-  error: 'bg-red-400',
+  degraded: 'bg-orange-400',
+  offline: 'bg-red-400',
 }
 
-const STATUS_LABELS = {
-  connected: 'Live',
-  connecting: 'Connecting',
-  disconnected: 'Offline',
-  error: 'Error',
+const STATUS_LABELS: Record<FeedStatus, string> = {
+  live: 'Live',
+  connecting: 'Loading',
+  degraded: 'Degraded',
+  offline: 'Offline',
 }
 
 interface SidebarProps {
@@ -175,7 +175,8 @@ interface SidebarProps {
 export function Sidebar({ open = false, onClose }: SidebarProps) {
   const pathname = usePathname()
   const { unreadCount } = useAlertStore()
-  const { connectionStatus } = useStreamStore()
+  const feedStatus = useFeedStore((s) => s.status)
+  const feedFailedCount = useFeedStore((s) => s.failedCount)
   const { data: session } = useSession()
   const user = session?.user
   const isEnabled = useEntitlementStore((s) => s.isEnabled)
@@ -458,10 +459,20 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
         {/* Connection status */}
         <div className="flex items-center gap-2 px-1">
           <span
-            className={clsx('size-2 rounded-full flex-shrink-0', STATUS_COLORS[connectionStatus])}
-            aria-label={`Connection: ${STATUS_LABELS[connectionStatus]}`}
+            className={clsx('size-2 rounded-full flex-shrink-0', STATUS_COLORS[feedStatus])}
+            aria-label={`Data feeds: ${STATUS_LABELS[feedStatus]}`}
           />
-          <span className="text-xs text-text-muted">{STATUS_LABELS[connectionStatus]}</span>
+          <span
+            className="text-xs text-text-muted"
+            title={
+              feedFailedCount > 0
+                ? `${feedFailedCount} data ${feedFailedCount === 1 ? 'feed is' : 'feeds are'} failing on this screen`
+                : undefined
+            }
+          >
+            {STATUS_LABELS[feedStatus]}
+            {feedFailedCount > 0 && ` (${feedFailedCount})`}
+          </span>
           <span className="text-xs text-text-muted ml-auto font-mono">v{APP_VERSION}</span>
         </div>
 

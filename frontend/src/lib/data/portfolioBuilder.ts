@@ -714,33 +714,69 @@ export function reviewDue(saved: SavedPlan, now = Date.now()): boolean {
 
 // ─── Bridging a real portfolio into plan-space ───────────────────────────────
 
+export interface ActualWeights {
+  weights: Record<string, number>
+  valueUsd: number
+  /** Share of the portfolio (by target allocation) genuinely marked to market. */
+  pricedPct: number
+  /** Excluded for want of a live price. */
+  unpricedPct: number
+  /** Excluded for want of a cost basis — priced, but not markable. */
+  noCostBasisPct: number
+}
+
 /**
  * Turn a saved portfolio plus live prices into the symbol→weight shape the
  * drift and review checks expect.
  *
- * Positions with no live price are left out entirely rather than valued at
- * cost — a portfolio half-priced at cost would produce confident, wrong drift.
- * `pricedPct` reports how much of the portfolio actually made it in so the UI
- * can say so.
+ * A position is included only if it can be **marked to market**, which needs
+ * both a live price and a cost basis. Anything else is left out entirely rather
+ * than valued at cost — a portfolio half-valued at cost produces confident,
+ * wrong drift.
+ *
+ * The cost-basis half of that rule is the one that was missing (W4-C1).
+ * `computeHoldings` pins a priced-but-basis-less holding's `currentValue` to its
+ * `targetValue`, which is right for the Portfolios page (show the position, show
+ * no P&L) and catastrophic here: reading it back as an "actual" weight restates
+ * the portfolio's own target allocation. With no entry prices anywhere, every
+ * actual weight equalled its target, so drift was 0 on every line, every action
+ * was `hold`, and `pricedPct` was 100 — which is also what the UI's coverage
+ * disclosure keys on, so the monitor reported a clean bill of health having
+ * measured nothing at all.
+ *
+ * The two exclusion reasons are reported separately because they need different
+ * things from the user: a missing price is the app's problem, a missing cost
+ * basis is a field they can fill in.
  */
 export function actualWeightsFromPortfolio(
   portfolio: Portfolio,
   prices: Record<string, number>,
-): { weights: Record<string, number>; valueUsd: number; pricedPct: number } {
+): ActualWeights {
   const computed = computeHoldings(portfolio, prices)
-  const priced = computed.filter((h) => h.currentValue != null)
-  const valueUsd = sum(priced.map((h) => h.currentValue!))
+
+  const markable = computed.filter(
+    (h) => h.currentPrice != null && h.entryPrice != null && h.entryPrice > 0 && h.currentValue != null,
+  )
+  const unpriced = computed.filter((h) => h.currentPrice == null)
+  const noBasis = computed.filter(
+    (h) => h.currentPrice != null && (h.entryPrice == null || h.entryPrice <= 0),
+  )
+
+  const valueUsd = sum(markable.map((h) => h.currentValue!))
   const weights: Record<string, number> = {}
   if (valueUsd > 0) {
-    for (const h of priced) {
+    for (const h of markable) {
       const symbol = h.symbol.toUpperCase()
       weights[symbol] = round1((weights[symbol] ?? 0) + (h.currentValue! / valueUsd) * 100)
     }
   }
+
   return {
     weights,
     valueUsd: Math.round(valueUsd),
-    pricedPct: round1(sum(priced.map((h) => h.targetAlloc))),
+    pricedPct: round1(sum(markable.map((h) => h.targetAlloc))),
+    unpricedPct: round1(sum(unpriced.map((h) => h.targetAlloc))),
+    noCostBasisPct: round1(sum(noBasis.map((h) => h.targetAlloc))),
   }
 }
 

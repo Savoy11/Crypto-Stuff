@@ -11,11 +11,12 @@ import { FundHoldingsHistory } from './FundHoldingsHistory'
 import { FundHoldingsSection } from './FundHoldingsSection'
 import { ExplainedLabel } from '@/components/ui/ExplainedLabel'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import {
   computeFeeDrag, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
-  fundRiskLevel, fundStrategy, fundTradingRestriction, getFund,
+  fundRiskLevel, fundStrategy, fundTradingRestriction, getFund, getFundDataProvenance,
 } from '@/lib/data/fundCatalog'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
@@ -79,6 +80,11 @@ function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; sym
           const final = series[series.length - 1]
           if (!final) return null
           const dragPct = final.withBenchmarkFee > 0 ? (final.feesPaid / final.withBenchmarkFee) * 100 : 0
+          // A handful of funds are cheaper than the 0.03% benchmark (FXAIX at
+          // 0.015% today), which makes feesPaid negative. Clamping it to zero
+          // and keeping the minus sign rendered "−$0 (−0.3%)" — a double
+          // negative that reads as a cost when it is a saving.
+          const cheaper = final.feesPaid < 0
           return (
             <div key={years} className="rounded border border-border/60 bg-bg-elevated/40 px-3 py-2">
               <div className="flex items-center justify-between text-xs">
@@ -86,9 +92,10 @@ function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; sym
                 <span className="font-mono tabular-nums text-text-primary">{formatCurrency(final.withFee, 0)}</span>
               </div>
               <div className="mt-1 flex items-center justify-between text-[11px]">
-                <span className="text-text-muted">cost vs 0.03% fund</span>
-                <span className={clsx('font-mono tabular-nums', dragPct > 5 ? 'text-orange-400' : dragPct > 1 ? 'text-amber-400' : 'text-emerald-400')}>
-                  −{formatCurrency(Math.max(0, final.feesPaid), 0)} ({dragPct.toFixed(1)}%)
+                <span className="text-text-muted">{cheaper ? 'saving vs 0.03% fund' : 'cost vs 0.03% fund'}</span>
+                <span className={clsx('font-mono tabular-nums',
+                  cheaper ? 'text-emerald-400' : dragPct > 5 ? 'text-orange-400' : dragPct > 1 ? 'text-amber-400' : 'text-emerald-400')}>
+                  {cheaper ? '+' : '−'}{formatCurrency(Math.abs(final.feesPaid), 0)} ({Math.abs(dragPct).toFixed(1)}%)
                 </span>
               </div>
             </div>
@@ -101,7 +108,19 @@ function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; sym
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// The gate wraps at the COMPONENT boundary, not inside the returned JSX. Placed
+// inside, the inner component still mounts and its useQuery hooks still run and
+// poll while the module is locked (W4-C2) — the lock notice renders over live
+// fetching. CLAUDE.md's "Adding a New Page" checklist states this rule.
 export default function FundDetailPage() {
+  return (
+    <ModuleGate module="funds">
+      <FundDetailInner />
+    </ModuleGate>
+  )
+}
+
+function FundDetailInner() {
   const params = useParams<{ symbol: string }>()
   const symbol = (params.symbol ?? '').toUpperCase()
   const entry = getFund(symbol)
@@ -126,33 +145,30 @@ export default function FundDetailPage() {
 
   if (!entry && uniLoading) {
     return (
-      <ModuleGate module="funds">
-        <div className="space-y-4 max-w-screen-xl mx-auto">
-          <div className="h-16 animate-pulse rounded-card bg-bg-elevated/60" />
-          <div className="h-80 animate-pulse rounded-card bg-bg-elevated/60" />
-        </div>
-      </ModuleGate>
+      <div className="space-y-4 max-w-screen-xl mx-auto">
+        <div className="h-16 animate-pulse rounded-card bg-bg-elevated/60" />
+        <div className="h-80 animate-pulse rounded-card bg-bg-elevated/60" />
+      </div>
     )
   }
 
   if (!entry && !uniEntry) {
     return (
-      <ModuleGate module="funds">
-        <div className="max-w-md mx-auto mt-24 rounded-card border border-border bg-bg-card p-8 text-center">
-          <p className="text-sm font-medium text-text-primary">Unknown fund “{symbol}”</p>
-          <p className="mt-1 text-xs text-text-muted">
-            This ticker isn’t in the curated catalog or the live ETF / mutual fund directories.
-          </p>
-          <Link href="/funds" className="inline-block mt-4 text-xs text-accent-blue hover:underline">
-            ← Back to Fund Registry
-          </Link>
-        </div>
-      </ModuleGate>
+      <div className="max-w-md mx-auto mt-24 rounded-card border border-border bg-bg-card p-8 text-center">
+        <p className="text-sm font-medium text-text-primary">Unknown fund “{symbol}”</p>
+        <p className="mt-1 text-xs text-text-muted">
+          This ticker isn’t in the curated catalog or the live ETF / mutual fund directories.
+        </p>
+        <Link href="/funds" className="inline-block mt-4 text-xs text-accent-blue hover:underline">
+          ← Back to Fund Registry
+        </Link>
+      </div>
     )
   }
 
   const name = entry?.name ?? uniEntry?.name ?? symbol
   const type = entry?.type ?? uniEntry?.type ?? 'etf'
+  const fundProvenance = getFundDataProvenance()
   const quote = data?.quotes?.[symbol]
   const live = !!quote && data?.source !== 'reference' && !quote.reference
   const price = quote?.price ?? entry?.referencePrice ?? null
@@ -185,137 +201,150 @@ export default function FundDetailPage() {
   ] : []
 
   return (
-    <ModuleGate module="funds">
-      <div className="space-y-6 max-w-screen-xl mx-auto">
-        {/* Header */}
-        <div>
-          <Link href="/funds" className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
-            <ArrowLeft size={12} aria-hidden /> Fund Registry
-          </Link>
-          <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-semibold text-text-primary">{name}</h1>
-                <span className="font-mono text-sm text-text-muted">{symbol}</span>
-                <span className={clsx('px-1.5 py-0.5 rounded text-[10px] font-bold border',
-                  type === 'etf'
-                    ? 'text-accent-blue bg-accent-blue/10 border-accent-blue/20'
-                    : 'text-violet-400 bg-violet-400/10 border-violet-500/20')}>
-                  {type === 'etf' ? 'ETF' : 'MUTUAL FUND'}
+    <div className="space-y-6 max-w-screen-xl mx-auto">
+      {/* Header */}
+      <div>
+        <Link href="/funds" className="inline-flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors">
+          <ArrowLeft size={12} aria-hidden /> Fund Registry
+        </Link>
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-semibold text-text-primary">{name}</h1>
+              <span className="font-mono text-sm text-text-muted">{symbol}</span>
+              <span className={clsx('px-1.5 py-0.5 rounded text-[10px] font-bold border',
+                type === 'etf'
+                  ? 'text-accent-blue bg-accent-blue/10 border-accent-blue/20'
+                  : 'text-violet-400 bg-violet-400/10 border-violet-500/20')}>
+                {type === 'etf' ? 'ETF' : 'MUTUAL FUND'}
+              </span>
+              {category && (
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary">
+                  <span className="size-1.5 rounded-full" style={{ backgroundColor: category.color }} aria-hidden />
+                  {category.label}
                 </span>
-                {category && (
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium border border-border text-text-secondary">
-                    <span className="size-1.5 rounded-full" style={{ backgroundColor: category.color }} aria-hidden />
-                    {category.label}
-                  </span>
-                )}
-              </div>
-              {entry ? (
-                <p className="mt-1 text-xs text-text-muted">
-                  {entry.description}
-                  {' · '}
-                  <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-accent-blue/80 hover:text-accent-blue inline-flex items-center gap-0.5">
-                    {entry.website.replace(/^https?:\/\/(www\.)?/, '').split(/[/?]/)[0]} <ExternalLink size={10} aria-hidden />
-                  </a>
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-text-muted">
-                  Discovered via the {type === 'etf' ? 'NASDAQ symbol directory' : 'SEC fund registry'} —
-                  quotes, chart, and holdings load live by ticker.
-                </p>
               )}
             </div>
-            <div className="text-right">
-              <p className="font-mono text-3xl font-bold text-text-primary tabular-nums">
-                {price != null ? formatCurrency(price) : '—'}
-                {!live && price != null && <span className="ml-2 text-xs text-amber-400/80 align-middle font-sans" title="Reference price — live source unreachable">ref</span>}
-              </p>
-              {change != null && (
-                <p className={clsx('mt-0.5 flex items-center justify-end gap-1 font-mono text-sm tabular-nums',
-                  change >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                  {change >= 0 ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
-                  {formatPercent(change, 2)} today
-                </p>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Provenance for the quote above. Detail pages carried no SourceLine
-            while every registry page did, so the page with the most specific
-            numbers was the one with no attribution. */}
-        <SourceLine id="security-quotes" />
-
-        {/* Trading-restriction disclaimer — minimum holding periods, frequent-trading
-            policies, and daily-reset leverage warnings */}
-        {(() => {
-          const restriction = entry ? fundTradingRestriction(entry) : uniEntry?.tradingRestriction ?? null
-          if (!restriction) return null
-          return (
-            <div className="flex items-start gap-3 rounded-card border border-amber-500/20 bg-amber-500/5 px-4 py-3">
-              <Clock size={14} className="mt-0.5 text-amber-400/80 flex-shrink-0" aria-hidden />
-              <div>
-                <p className="text-xs font-medium text-amber-400">Trading restrictions apply</p>
-                <p className="mt-0.5 text-xs text-text-muted leading-relaxed">{restriction}</p>
-              </div>
-            </div>
-          )
-        })()}
-
-        {/* Chart + facts */}
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-          <div className="xl:col-span-2 space-y-4">
-            <PriceChartCard symbol={symbol} />
-            <FiftyTwoWeekBar symbol={symbol} price={price} />
-          </div>
-
-          <div className="space-y-4">
             {entry ? (
-              <>
-                <div className="rounded-card border border-border bg-bg-card p-4">
-                  <h2 className="text-sm font-medium text-text-secondary mb-3">Fund Facts</h2>
-                  <dl className="space-y-2.5">
-                    {facts.map(({ label, value, explain }) => (
-                      <div key={label} className="flex items-center justify-between gap-3 text-sm">
-                        <dt className="text-text-muted flex-shrink-0">
-                          <ExplainedLabel label={label} explain={explain} />
-                        </dt>
-                        {/* No link here — the header already links the issuer's
-                            product page, and two links to the same URL on one
-                            page is noise. */}
-                        <dd className="font-mono tabular-nums text-text-primary text-right text-xs">{value}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                </div>
-                <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
-              </>
+              <p className="mt-1 text-xs text-text-muted">
+                {entry.description}
+                {' · '}
+                <a href={entry.website} target="_blank" rel="noopener noreferrer" className="text-accent-blue/80 hover:text-accent-blue inline-flex items-center gap-0.5">
+                  {entry.website.replace(/^https?:\/\/(www\.)?/, '').split(/[/?]/)[0]} <ExternalLink size={10} aria-hidden />
+                </a>
+              </p>
             ) : (
-              <div className="rounded-card border border-border bg-bg-card p-4">
-                <h2 className="text-sm font-medium text-text-secondary mb-2">Fund Facts</h2>
-                <p className="text-xs text-text-muted leading-relaxed">
-                  This fund isn&rsquo;t in the curated catalog, so reference facts (expense ratio,
-                  AUM, yield, tracked index) aren&rsquo;t available yet. The quote, chart, holdings
-                  breakdown, and change history below are fetched live by ticker — holdings come
-                  straight from the fund&rsquo;s SEC N-PORT disclosures.
-                </p>
-              </div>
+              <p className="mt-1 text-xs text-text-muted">
+                Discovered via the {type === 'etf' ? 'NASDAQ symbol directory' : 'SEC fund registry'} —
+                quotes, chart, and holdings load live by ticker.
+              </p>
+            )}
+          </div>
+          <div className="text-right">
+            <p className="font-mono text-3xl font-bold text-text-primary tabular-nums">
+              {price != null ? formatCurrency(price) : '—'}
+              {!live && price != null && <span className="ml-2 text-xs text-amber-400/80 align-middle font-sans" title="Reference price — live source unreachable">ref</span>}
+            </p>
+            {change != null && (
+              <p className={clsx('mt-0.5 flex items-center justify-end gap-1 font-mono text-sm tabular-nums',
+                change >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                {change >= 0 ? <TrendingUp size={14} aria-hidden /> : <TrendingDown size={14} aria-hidden />}
+                {formatPercent(change, 2)} today
+              </p>
             )}
           </div>
         </div>
-
-        {/* Full breakdown of underlying investments + quarter-over-quarter changes */}
-        <FundHoldingsSection symbol={symbol} />
-        <FundHoldingsHistory symbol={symbol} />
-
-        {/* News — mutual funds rarely have ticker news, show general market feed */}
-        <MarketNewsList symbol={type === 'etf' ? symbol : undefined} limit={8} />
-
-        <p className="text-[11px] text-text-muted text-center">
-          {entry ? 'Fund facts are reference snapshots from issuer disclosures · ' : 'Fund name from live listing directories · '}
-          Quotes: {data?.source === 'reference' || !data ? 'reference prices' : `live via ${data.source}`}
-        </p>
       </div>
-    </ModuleGate>
+
+      {/* Provenance for the quote above. Detail pages carried no SourceLine
+          while every registry page did, so the page with the most specific
+          numbers was the one with no attribution. */}
+      <SourceLine id="security-quotes" />
+
+      {/* Trading-restriction disclaimer — minimum holding periods, frequent-trading
+          policies, and daily-reset leverage warnings */}
+      {(() => {
+        const restriction = entry ? fundTradingRestriction(entry) : uniEntry?.tradingRestriction ?? null
+        if (!restriction) return null
+        return (
+          <div className="flex items-start gap-3 rounded-card border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+            <Clock size={14} className="mt-0.5 text-amber-400/80 flex-shrink-0" aria-hidden />
+            <div>
+              <p className="text-xs font-medium text-amber-400">Trading restrictions apply</p>
+              <p className="mt-0.5 text-xs text-text-muted leading-relaxed">{restriction}</p>
+            </div>
+          </div>
+        )
+      })()}
+
+      {/* Chart + facts */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        <div className="xl:col-span-2 space-y-4">
+          <PriceChartCard symbol={symbol} />
+          <FiftyTwoWeekBar symbol={symbol} price={price} />
+        </div>
+
+        <div className="space-y-4">
+          {entry ? (
+            <>
+              <div className="rounded-card border border-border bg-bg-card p-4">
+                <h2 className="text-sm font-medium text-text-secondary mb-3">Fund Facts</h2>
+                <dl className="space-y-2.5">
+                  {facts.map(({ label, value, explain }) => (
+                    <div key={label} className="flex items-center justify-between gap-3 text-sm">
+                      <dt className="text-text-muted flex-shrink-0">
+                        <ExplainedLabel label={label} explain={explain} />
+                      </dt>
+                      {/* No link here — the header already links the issuer's
+                          product page, and two links to the same URL on one
+                          page is noise. */}
+                      <dd className="font-mono tabular-nums text-text-primary text-right text-xs">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+              {/* Always visible, not only when stale — the fee figures above and
+                  the 30-year projection below are computed on this table, and a
+                  notice that only appears past a threshold teaches readers to
+                  treat its absence as "live" (W4-C7). */}
+              <ProvenanceNotice
+                label="Fund facts compiled by hand"
+                staleLabel="Fund facts may be out of date"
+                confidence={fundProvenance.confidence}
+                stale={fundProvenance.stale}
+              >
+                {fundProvenance.source}, verified {fundProvenance.verifiedAt} ({fundProvenance.ageDays}d ago).
+                Expense ratio, AUM, yield and tracked index are reference snapshots — the Fee Drag
+                projection is only as current as they are. Check the issuer&rsquo;s fact sheet before
+                acting on a fee figure.
+              </ProvenanceNotice>
+              <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
+            </>
+          ) : (
+            <div className="rounded-card border border-border bg-bg-card p-4">
+              <h2 className="text-sm font-medium text-text-secondary mb-2">Fund Facts</h2>
+              <p className="text-xs text-text-muted leading-relaxed">
+                This fund isn&rsquo;t in the curated catalog, so reference facts (expense ratio,
+                AUM, yield, tracked index) aren&rsquo;t available yet. The quote, chart, holdings
+                breakdown, and change history below are fetched live by ticker — holdings come
+                straight from the fund&rsquo;s SEC N-PORT disclosures.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Full breakdown of underlying investments + quarter-over-quarter changes */}
+      <FundHoldingsSection symbol={symbol} />
+      <FundHoldingsHistory symbol={symbol} />
+
+      {/* News — mutual funds rarely have ticker news, show general market feed */}
+      <MarketNewsList symbol={type === 'etf' ? symbol : undefined} limit={8} />
+
+      <p className="text-[11px] text-text-muted text-center">
+        {entry ? 'Fund facts are reference snapshots from issuer disclosures · ' : 'Fund name from live listing directories · '}
+        Quotes: {data?.source === 'reference' || !data ? 'reference prices' : `live via ${data.source}`}
+      </p>
+    </div>
   )
 }

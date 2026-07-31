@@ -16,6 +16,16 @@
 // Dated with a machine-readable constant rather than the prose "early 2026"
 // it used to carry, so consumers can compute the age instead of guessing at it.
 export const EQUITY_REFERENCE_AS_OF = '2026-07-07'
+
+/** Days since the reference values were compiled. */
+export function equityReferenceAgeDays(now: Date = new Date()): number {
+  return Math.floor((now.getTime() - new Date(EQUITY_REFERENCE_AS_OF).getTime()) / 86_400_000)
+}
+//
+// The constant above sat unread for its whole life (W4-C8) — declared so
+// "consumers can compute the age instead of guessing", with no consumer. The
+// helper and the age line on the equity detail page's footnote are that
+// consumer; without one, the date was a comment wearing a const's clothes.
 //
 // Symbols use Yahoo Finance notation (BRK-B, not BRK.B) so one symbol string
 // works across every live source (Yahoo, FMP).

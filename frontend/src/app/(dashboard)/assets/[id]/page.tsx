@@ -54,7 +54,7 @@ import { MetricCard } from '@/components/ui/MetricCard'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { SourceLine } from '@/components/ui/SourceLine'
-import { formatCompact, formatAddress, formatBps, formatDate, formatScore, formatAssetPrice, formatOrNA, NA_LABEL } from '@/lib/utils/format'
+import { formatCompact, formatAddress, formatBps, formatDate, formatScore, formatAssetPrice, formatOrNA, timeAgoCompact, NA_LABEL } from '@/lib/utils/format'
 import { getPegDeviationColorClass, getScoreColor } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS, LIVE_DATA } from '@/lib/constants'
 import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
@@ -747,15 +747,6 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
   )
 }
 
-function timeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime()
-  const m = Math.floor(diff / 60000)
-  if (m < 60) return `${m}m ago`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
-}
-
 const SENTIMENT_STYLES = {
   positive: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
   neutral:  'bg-text-muted/10 text-text-muted border-border',
@@ -861,7 +852,7 @@ function NewsTab({ assetId }: { assetId: string }) {
                     )}
                   </div>
                   <span className="text-[11px] text-text-muted flex-shrink-0 font-mono">
-                    {timeAgo(article.publishedAt)}
+                    {timeAgoCompact(article.publishedAt)}
                   </span>
                 </div>
                 <h3 className="text-sm font-semibold text-text-primary leading-snug mb-2">{article.headline}</h3>
