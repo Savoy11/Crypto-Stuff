@@ -11,8 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Finance Now — Multi-Asset Financial Analytics',
-    template: '%s | Finance Now',
+    default: 'Finance Now Free — Multi-Asset Financial Analytics',
+    template: '%s | Finance Now Free',
   },
   description:
     'Institutional-grade multi-asset analytics: crypto, equities, funds, and macro — risk scores, reserve transparency, and real-time alerts.',

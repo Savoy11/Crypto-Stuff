@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Finance Now live-data audit harness.
+// Finance Now Free live-data audit harness.
 //
 // Hits every /live-data/*, /api/v1/* and agent route against the running dev
 // server (which in turn calls the real upstream APIs), validates response shape,

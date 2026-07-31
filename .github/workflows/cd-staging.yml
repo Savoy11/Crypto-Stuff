@@ -334,7 +334,7 @@ jobs:
           channel-id: ${{ secrets.SLACK_DEPLOY_CHANNEL_ID }}
           payload: |
             {
-              "text": ":${{ steps.status.outputs.emoji }}: Finance Now Staging Deploy — ${{ steps.status.outputs.status }}",
+              "text": ":${{ steps.status.outputs.emoji }}: Finance Now Free Staging Deploy — ${{ steps.status.outputs.status }}",
               "attachments": [
                 {
                   "color": "${{ steps.status.outputs.color }}",
@@ -346,7 +346,7 @@ jobs:
                     { "title": "Triggered by", "value": "${{ github.actor }}", "short": true },
                     { "title": "Branch", "value": "${{ github.ref_name }}", "short": true }
                   ],
-                  "footer": "Finance Now CI/CD | <https://staging.financenow.example.com|Open Staging>",
+                  "footer": "Finance Now Free CI/CD | <https://staging.financenow.example.com|Open Staging>",
                   "ts": "${{ github.event.repository.updated_at }}"
                 }
               ]

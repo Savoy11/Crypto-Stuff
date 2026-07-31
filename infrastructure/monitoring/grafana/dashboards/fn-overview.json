@@ -3,7 +3,7 @@
     {
       "name": "DS_PROMETHEUS",
       "label": "Prometheus",
-      "description": "Finance Now Prometheus data source",
+      "description": "Finance Now Free Prometheus data source",
       "type": "datasource",
       "pluginId": "prometheus",
       "pluginName": "Prometheus"
@@ -65,7 +65,7 @@
       }
     ]
   },
-  "description": "Finance Now — Crypto Asset Evaluation Platform Overview Dashboard",
+  "description": "Finance Now Free — Crypto Asset Evaluation Platform Overview Dashboard",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -81,7 +81,7 @@
     },
     {
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-      "description": "Total HTTP requests per second hitting the Finance Now FastAPI backend",
+      "description": "Total HTTP requests per second hitting the Finance Now Free FastAPI backend",
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "palette-classic" },
@@ -607,7 +607,7 @@
   "time": { "from": "now-3h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "Finance Now Platform Overview",
+  "title": "Finance Now Free Platform Overview",
   "uid": "fn-overview-v1",
   "version": 1,
   "weekStart": ""

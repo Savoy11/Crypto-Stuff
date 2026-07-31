@@ -1,8 +1,8 @@
 [tool.poetry]
-name = "finance-now-backend"
+name = "finance-now-free-backend"
 version = "1.0.0"
 description = "Crypto Asset Evaluation Platform — backend API"
-authors = ["Finance Now Engineering <engineering@financenow.example>"]
+authors = ["Finance Now Free Engineering <engineering@financenow.example>"]
 packages = [{include = "app"}]
 
 [tool.poetry.dependencies]

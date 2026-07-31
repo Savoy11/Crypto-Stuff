@@ -49,7 +49,7 @@ export function getStablecoinMetaProvenance(now: Date = new Date()): StablecoinM
   }
 }
 
-/** The stablecoins Finance Now actively monitors (DefiLlama symbols, uppercase). */
+/** The stablecoins Finance Now Free actively monitors (DefiLlama symbols, uppercase). */
 export const MONITORED_STABLECOINS = ['USDC', 'USDT', 'DAI', 'FRAX', 'TUSD', 'PYUSD', 'USDP', 'GUSD', 'LUSD'] as const
 
 export interface AttestationMeta {

@@ -21,7 +21,7 @@ import type { LiveNewsArticle } from '@/app/live-data/news/route'
 //
 // Stablecoins (5 pillars): Reserve (DefiLlama + curated attestations), Peg
 // (spot + 7d sparkline), Structure (mechanism/regulation/incidents), Adoption
-// (supply + chains), News (Finance Now news pipeline sentiment). A fatal-flaw
+// (supply + chains), News (Finance Now Free news pipeline sentiment). A fatal-flaw
 // override slashes the composite multiplicatively when a structural pillar is
 // critical — a dead reserve can't be averaged away by good sentiment.
 //
@@ -145,7 +145,7 @@ async function fetchLlamaStables(): Promise<Map<string, LlamaCoin>> {
   return bySymbol
 }
 
-/** Per-asset sentiment tallies from the Finance Now news pipeline (self-fetch). */
+/** Per-asset sentiment tallies from the Finance Now Free news pipeline (self-fetch). */
 async function fetchNewsSentiment(origin: string): Promise<Map<string, { positive: number; negative: number; total: number }>> {
   const res = await fetch(new URL('/live-data/news?limit=100', origin), { cache: 'no-store' })
   if (!res.ok) throw new Error(`news route ${res.status}`)

@@ -1,10 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep:refresh', 'fn:refresh')
-
 
 export const INTERVAL_OPTIONS = [
   { label: 'Off',  ms: null   },
@@ -33,6 +28,6 @@ export const useRefreshStore = create<RefreshState>()(
       setRefreshing:   (v)  => set({ isRefreshing: v }),
       recordRefresh:   ()   => set({ lastRefreshedAt: Date.now() }),
     }),
-    { name: 'fn:refresh', partialize: (s) => ({ intervalMs: s.intervalMs }) },
+    { name: 'fnf:refresh', partialize: (s) => ({ intervalMs: s.intervalMs }) },
   ),
 )

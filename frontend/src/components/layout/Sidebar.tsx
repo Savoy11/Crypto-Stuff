@@ -26,12 +26,6 @@ import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { usePopoutStore, POPOUT_META, type PopoutKey } from '@/store/usePopoutStore'
 import { MODULES, moduleForPath, type ModuleId, type SuiteModule } from '@/lib/modules/registry'
 import { APP_NAME, APP_VERSION } from '@/lib/constants'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep:nav-order:v2', 'fn:nav-order:v2')
-migrateStorageKey('caep:nav-collapsed', 'fn:nav-collapsed')
-
 
 // Navigation is driven by the suite module registry (lib/modules/registry.ts).
 // Each enabled module contributes a sidebar section; items can be drag-reordered
@@ -39,8 +33,8 @@ migrateStorageKey('caep:nav-collapsed', 'fn:nav-collapsed')
 
 type SectionOrder = Partial<Record<ModuleId, string[]>>
 
-const STORAGE_KEY = 'fn:nav-order:v2'
-const COLLAPSE_KEY = 'fn:nav-collapsed'
+const STORAGE_KEY = 'fnf:nav-order:v2'
+const COLLAPSE_KEY = 'fnf:nav-collapsed'
 
 function defaultOrder(mod: SuiteModule): string[] {
   return mod.navItems.map((item) => item.href)

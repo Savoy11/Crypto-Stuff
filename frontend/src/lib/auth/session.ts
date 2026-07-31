@@ -30,11 +30,11 @@ import { auth } from './config'
 // sessions simply start winning, and setting FN_ALLOW_LOCAL_USER=false turns
 // the fallback off entirely.
 
-// Deliberately NOT renamed in the Finance Now rebrand: this sentinel keys the
+// Deliberately NOT renamed in the Finance Now Free rebrand: this sentinel keys the
 // local user's DB row, and every portfolio/watchlist/builder-plan hangs off
 // that row. Changing the string would find-or-create a fresh user and orphan
 // all existing data. It is never shown in the UI.
-const LOCAL_USER_EMAIL = 'local@caep.local'
+const LOCAL_USER_EMAIL = 'local@finance-now-free.local'
 
 function localUserFlag(): string | undefined {
   return process.env.FN_ALLOW_LOCAL_USER ?? process.env.CAEP_ALLOW_LOCAL_USER

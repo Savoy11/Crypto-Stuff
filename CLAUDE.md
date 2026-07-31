@@ -1,5 +1,25 @@
-# Finance Now — Multi-Asset Financial Analytics
+# Finance Now Free — Multi-Asset Financial Analytics
 ## Claude Code Project Guide
+
+> **This repository is the free edition of Finance Now.**
+>
+> It was duplicated from [`Savoy11/Finance-Now`](https://github.com/Savoy11/Finance-Now)
+> at commit `1b88012` (2026-07-31) and rebranded. At the time of the copy it is a
+> **feature-complete duplicate** — nothing has been gated, removed, or downgraded yet.
+> The free/paid split is the work that follows; see `docs/MARKET-ASSESSMENT.md` for the
+> intended $0 tier.
+>
+> What the rebrand changed, and only this:
+> - Product name → **Finance Now Free** (titles, metadata, API descriptions, UI copy)
+> - Package names → `finance-now-free-frontend`, `finance-now-free-mcp-server`,
+>   `finance-now-free-backend`; MCP server id → `finance-now-free`
+> - Browser storage keys → `fnf:` / `fnf-` prefix, so the two editions can run side by
+>   side on `localhost` without reading each other's data. The one-time CAEP→FN key
+>   migration was dropped — this edition has no CAEP history to inherit.
+>
+> Everything under `docs/` is **inherited development history of the paid product** and
+> has deliberately not been rewritten; read it as background, not as a record of this
+> repository.
 
 This file is auto-loaded by Claude Code at session start. It gives instant context so you can make changes without re-exploring the codebase.
 
@@ -7,9 +27,9 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus six optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), **Budget** (`/budget`, the first personal-finance pillar — accounts, CSV import, monthly budgets), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus six optional modules — **Crypto** (the original Finance Now Free), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), **Budget** (`/budget`, the first personal-finance pillar — accounts, CSV import, monthly budgets), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
-**Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
+**Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff-Free\frontend`
 
 **Agent charters:** deployed maintenance agents follow `docs/agents/` —
 `checklist-steward.md` (proposes checklist/ledger updates, applies only after owner
@@ -394,7 +414,7 @@ FN_BASE_URL=http://localhost:3000           # (legacy CAEP_BASE_URL still honore
 `.exchange-credentials.json` (exchange API keys — never sent to the browser; the client
 references connections by id via `/live-data/wallet/exchange-connections`).
 
-Finance Now runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
+Finance Now Free runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
 
 ---
 
@@ -454,7 +474,7 @@ Risk/status color convention used across the app:
 
 > **Data-status source of truth:** `DATA-AVAILABILITY.md` (repo root) is the authoritative,
 > regularly-regenerated record of what is 🟢 Live / 🟡 Partial / 🔴 Not available. Consult it,
-> not this table, when in doubt. Finance Now is live-only — there is **no mock/demo data path**;
+> not this table, when in doubt. Finance Now Free is live-only — there is **no mock/demo data path**;
 > "Mock" labels in older docs are obsolete.
 
 | Feature | Route | Status | Source / Notes |
@@ -595,7 +615,7 @@ return NextResponse.json(data, { headers: CORS })
 
 ## MCP Server (`mcp-server/`)
 
-A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes Finance Now tools to Claude and any MCP-compatible AI agent. It calls the `/api/v1/` endpoints — Finance Now frontend must be running.
+A standalone Node.js MCP server at `Crypto-Stuff-Free/mcp-server/` that exposes Finance Now Free tools to Claude and any MCP-compatible AI agent. It calls the `/api/v1/` endpoints — Finance Now Free frontend must be running.
 
 ### Tools exposed
 | Tool | Description |
@@ -623,9 +643,9 @@ npm run build
 ```json
 {
   "mcpServers": {
-    "finance-now": {
+    "finance-now-free": {
       "command": "node",
-      "args": ["C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff/mcp-server/dist/index.js"],
+      "args": ["C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff-Free/mcp-server/dist/index.js"],
       "env": { "FN_BASE_URL": "http://localhost:3000" }
     }
   }
@@ -635,12 +655,12 @@ Claude Desktop config lives at `%APPDATA%\Claude\claude_desktop_config.json` on 
 
 ### Add to Claude Code (project-level MCP)
 ```bash
-# Run from any directory — adds Finance Now MCP to this project's .claude/settings.json
-claude mcp add finance-now node C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff/mcp-server/dist/index.js
+# Run from any directory — adds Finance Now Free MCP to this project's .claude/settings.json
+claude mcp add finance-now-free node C:/Users/marcu/OneDrive/Desktop/Crypto-Stuff-Free/mcp-server/dist/index.js
 ```
 
 ### Environment variable
-`FN_BASE_URL` — base URL of running Finance Now instance (default: `http://localhost:3000`; legacy `CAEP_BASE_URL` still honored)
+`FN_BASE_URL` — base URL of running Finance Now Free instance (default: `http://localhost:3000`; legacy `CAEP_BASE_URL` still honored)
 
 ---
 

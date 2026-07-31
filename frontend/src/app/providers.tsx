@@ -53,7 +53,7 @@ export function Providers({ children }: { children: ReactNode }) {
   // blob could contain legacy-backend access/refresh tokens, and stale
   // credentials should not outlive the stack that issued them.
   useEffect(() => {
-    try { window.localStorage.removeItem('caep-auth') } catch { /* storage unavailable */ }
+    try { window.localStorage.removeItem('fnf-auth') } catch { /* storage unavailable */ }
   }, [])
 
   // Auth.js session context. Needed because the components that read the

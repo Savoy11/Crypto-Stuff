@@ -13,16 +13,11 @@ import { SourceLine } from '@/components/ui/SourceLine'
 import { LIVE_DATA } from '@/lib/constants'
 import type { SocialSignal, AssetSentiment } from '@/app/live-data/social/route'
 import { useAssetList } from '@/lib/hooks/useAssetList'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
 import { timeAgoCompact } from '@/lib/utils/format'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep-custom-subreddits', 'fn-custom-subreddits')
-
 
 // ─── Read custom subreddits saved from the Integrations page ─────────────────
 
-const SUBREDDIT_STORAGE_KEY = 'fn-custom-subreddits'
+const SUBREDDIT_STORAGE_KEY = 'fnf-custom-subreddits'
 
 function useCustomSubreddits() {
   const [subreddits, setSubreddits] = useState<string[]>([])
@@ -36,7 +31,6 @@ function useCustomSubreddits() {
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
 
 const PLATFORM_STYLES: Record<string, { label: string; color: string }> = {
   reddit:   { label: 'Reddit',   color: 'text-orange-400 bg-orange-400/10 border-orange-500/20' },

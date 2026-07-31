@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Finance Now DATA SOURCE REGISTRY — single source of truth for "where does this data
+// Finance Now Free DATA SOURCE REGISTRY — single source of truth for "where does this data
 // come from?". Consumed by three things so nothing drifts:
 //   1. scripts/gen-data-sources.ts  → generates docs/DATA-SOURCES.md
 //   2. /data-sources page           → in-app, human-readable catalog
@@ -333,29 +333,29 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     providers: [
       YAHOO,
       COINGECKO,
-      { name: 'Finance Now computation (alignment, stats, correlation)', role: 'derived', auth: 'none' },
+      { name: 'Finance Now Free computation (alignment, stats, correlation)', role: 'derived', auth: 'none' },
     ],
-    notes: 'Price series are provider data (Yahoo for stocks/funds/macro, CoinGecko closes for crypto); the growth-of-100 normalization, window statistics, and correlation matrix are computed by Finance Now, not published figures.',
+    notes: 'Price series are provider data (Yahoo for stocks/funds/macro, CoinGecko closes for crypto); the growth-of-100 normalization, window statistics, and correlation matrix are computed by Finance Now Free, not published figures.',
   },
   {
     id: 'brief', surface: 'AI Daily Brief', module: 'shared',
     route: '/api/agents/research', status: 'derived',
     providers: [
-      { name: 'Finance Now AI agent (LLM, BYOK)', role: 'derived', auth: 'key' },
+      { name: 'Finance Now Free AI agent (LLM, BYOK)', role: 'derived', auth: 'key' },
       { name: 'Live-data routes (same feeds the UI reads)', role: 'aggregator', auth: 'none' },
     ],
-    notes: 'AI-generated text grounded in the user’s holdings and the same /live-data routes the UI reads. This is Finance Now’s own computation — not a publisher’s analysis — and inherits the freshness of whatever feeds the agent’s tools returned.',
+    notes: 'AI-generated text grounded in the user’s holdings and the same /live-data routes the UI reads. This is Finance Now Free’s own computation — not a publisher’s analysis — and inherits the freshness of whatever feeds the agent’s tools returned.',
   },
   {
     id: 'portfolio-builder', surface: 'Portfolio Builder (allocations, drift, suitability)', module: 'shared',
     route: '/live-data/portfolio-prices + /live-data/security-quotes (drift monitoring)', status: 'derived',
     providers: [
-      { name: 'Finance Now engine (lib/data/portfolioBuilder.ts)', role: 'derived', auth: 'none' },
+      { name: 'Finance Now Free engine (lib/data/portfolioBuilder.ts)', role: 'derived', auth: 'none' },
       COINGECKO,
       { name: 'Equity quote ladder (FMP → … → Yahoo)', role: 'fallback', auth: 'none' },
     ],
     staticData: ['lib/data/portfolioBuilder.ts', 'lib/data/fundCatalog.ts'],
-    notes: 'Allocations, bond ladders, diversification and suitability scores are Finance Now’s own computation (pure engine, vitest-tested) — not provider figures. Live prices enter only for drift-vs-actual monitoring; unpriced positions are excluded, never valued at cost.',
+    notes: 'Allocations, bond ladders, diversification and suitability scores are Finance Now Free’s own computation (pure engine, vitest-tested) — not provider figures. Live prices enter only for drift-vs-actual monitoring; unpriced positions are excluded, never valued at cost.',
   },
   {
     id: 'cbdc-data', surface: 'Global adoption / CBDC tracker', module: 'shared',

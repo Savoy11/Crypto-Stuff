@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 /**
  * Request logging for the public `/api/v1/*` contract (R2 §5.3, decision E2).
  *
- * Finance Now has no consumer telemetry on `/api/v1/`, so "no one is using it" is an
+ * Finance Now Free has no consumer telemetry on `/api/v1/`, so "no one is using it" is an
  * assumption, not a fact — and the staking endpoint's legacy `riskScore` /
  * `max_risk` fields cannot be safely removed until traffic data exists. This
  * middleware emits one structured line per v1 request (method, path, query,

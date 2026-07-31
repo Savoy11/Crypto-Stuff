@@ -140,7 +140,7 @@ async function fetchNasdaqEtfs(): Promise<Array<{ symbol: string; name: string }
     const host = new URL(url).host
     try {
       const res = await fetch(url, {
-        headers: { Accept: 'text/plain', 'User-Agent': 'Finance Now research dashboard (marcusowens94@gmail.com)' },
+        headers: { Accept: 'text/plain', 'User-Agent': 'Finance Now Free research dashboard (marcusowens94@gmail.com)' },
         next: { revalidate: 86_400 },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       })
@@ -183,7 +183,7 @@ async function fetchSecMutualFunds(): Promise<Array<{ symbol: string; name: stri
     const url = `https://www.sec.gov/files/investment/data/other/investment-company-series-class-information/investment-company-series-class-${y}.csv`
     try {
       const res = await fetch(url, {
-        headers: { Accept: 'text/csv', 'User-Agent': 'Finance Now research dashboard (marcusowens94@gmail.com)' },
+        headers: { Accept: 'text/csv', 'User-Agent': 'Finance Now Free research dashboard (marcusowens94@gmail.com)' },
         next: { revalidate: 86_400 },
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       })

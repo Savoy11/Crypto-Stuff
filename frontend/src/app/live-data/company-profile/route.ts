@@ -47,7 +47,7 @@ function formatFiscalYearEnd(mmdd: string | undefined): string | null {
   return `${MONTHS[month - 1]} ${parseInt(mmdd.slice(2), 10)}`
 }
 
-const WIKI_HEADERS = { Accept: 'application/json', 'User-Agent': 'Finance Now research dashboard (marcusowens94@gmail.com)' }
+const WIKI_HEADERS = { Accept: 'application/json', 'User-Agent': 'Finance Now Free research dashboard (marcusowens94@gmail.com)' }
 
 /** Best-effort Wikipedia summary — search for the article, then fetch its summary. Fail-silent. */
 async function fetchWikiSummary(name: string): Promise<WikiSummary | null> {

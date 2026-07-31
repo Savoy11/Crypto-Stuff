@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — Alertmanager Configuration
+# Finance Now Free — Alertmanager Configuration
 # Routing: critical → PagerDuty + Slack, warnings → Slack only
 ###############################################################################
 
@@ -133,12 +133,12 @@ receivers:
             text: 'Runbook'
           - href: 'https://grafana.financenow.example.com/d/fn-overview'
             text: 'Grafana Dashboard'
-        client: 'Finance Now Alertmanager'
+        client: 'Finance Now Free Alertmanager'
         client_url: 'https://alertmanager.financenow.example.com'
 
     slack_configs:
       - channel: '#fn-critical'
-        username: 'Finance Now Alertmanager'
+        username: 'Finance Now Free Alertmanager'
         icon_emoji: ':rotating_light:'
         color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
         send_resolved: true
@@ -162,7 +162,7 @@ receivers:
   - name: 'slack-warnings'
     slack_configs:
       - channel: '#fn-warnings'
-        username: 'Finance Now Alertmanager'
+        username: 'Finance Now Free Alertmanager'
         icon_emoji: ':warning:'
         color: '{{ if eq .Status "firing" }}warning{{ else }}good{{ end }}'
         send_resolved: true
@@ -181,7 +181,7 @@ receivers:
   - name: 'slack-product'
     slack_configs:
       - channel: '#fn-product'
-        username: 'Finance Now Product Monitor'
+        username: 'Finance Now Free Product Monitor'
         icon_emoji: ':chart_with_downwards_trend:'
         send_resolved: true
         title: '{{ .CommonAnnotations.summary }}'

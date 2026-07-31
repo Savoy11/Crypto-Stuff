@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — ElastiCache Redis 7 (Replication Group, Multi-AZ, encrypted)
+# Finance Now Free — ElastiCache Redis 7 (Replication Group, Multi-AZ, encrypted)
 ###############################################################################
 
 ###############################################################################
@@ -9,7 +9,7 @@
 resource "aws_elasticache_parameter_group" "fn" {
   name        = "${local.name_prefix}-redis7"
   family      = "redis7"
-  description = "Finance Now Redis 7 parameter group"
+  description = "Finance Now Free Redis 7 parameter group"
 
   parameter {
     name  = "maxmemory-policy"
@@ -97,7 +97,7 @@ resource "aws_elasticache_parameter_group" "fn" {
 
 resource "aws_elasticache_subnet_group" "fn" {
   name        = "${local.name_prefix}-redis-subnet-group"
-  description = "Finance Now ElastiCache Redis subnet group"
+  description = "Finance Now Free ElastiCache Redis subnet group"
   subnet_ids  = module.vpc.database_subnets
 
   tags = merge(local.common_tags, {
@@ -120,7 +120,7 @@ resource "random_password" "redis_auth" {
 
 resource "aws_elasticache_replication_group" "fn" {
   replication_group_id = "${local.name_prefix}-redis"
-  description          = "Finance Now Redis replication group — cache, sessions, pub/sub"
+  description          = "Finance Now Free Redis replication group — cache, sessions, pub/sub"
 
   # Engine
   engine               = "redis"

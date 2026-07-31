@@ -1,5 +1,5 @@
 # ================================================================
-# Multi-stage production Dockerfile for Finance Now backend
+# Multi-stage production Dockerfile for Finance Now Free backend
 # ================================================================
 
 # ---- build stage ----

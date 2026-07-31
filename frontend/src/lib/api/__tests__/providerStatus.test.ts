@@ -20,7 +20,7 @@ import { join } from 'node:path'
 let dir: string
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'fn-providers-'))
+  dir = mkdtempSync(join(tmpdir(), 'fnf-providers-'))
   vi.resetModules()
   // providers.ts reads its store relative to process.cwd().
   vi.spyOn(process, 'cwd').mockReturnValue(dir)

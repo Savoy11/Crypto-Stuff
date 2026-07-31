@@ -1,4 +1,4 @@
-// Coins already tracked in Finance Now — excluded from discovery recommendations.
+// Coins already tracked in Finance Now Free — excluded from discovery recommendations.
 // Add CoinGecko IDs here whenever a coin is formally added to the platform.
 
 export const FN_TRACKED_IDS = new Set([

@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — Terraform Outputs
+# Finance Now Free — Terraform Outputs
 ###############################################################################
 
 ###############################################################################
@@ -172,12 +172,12 @@ output "node_group_iam_role_arn" {
 ###############################################################################
 
 output "kms_key_arn" {
-  description = "ARN of the Finance Now master KMS key"
+  description = "ARN of the Finance Now Free master KMS key"
   value       = aws_kms_key.fn.arn
 }
 
 output "kms_key_id" {
-  description = "ID of the Finance Now master KMS key"
+  description = "ID of the Finance Now Free master KMS key"
   value       = aws_kms_key.fn.key_id
 }
 

@@ -82,7 +82,7 @@ export const DEFILLAMA_SLUG_BLOCKLIST = new Set([
   'coinbase', 'binance',
 ])
 
-// ─── Finance Now stakeable coin symbols → DefiLlama symbol patterns ─────────────────
+// ─── Finance Now Free stakeable coin symbols → DefiLlama symbol patterns ─────────────────
 // DefiLlama uses symbol names like "ETH", "stETH", "WETH", etc.
 // We map our coin IDs to the underlying asset symbol to filter relevant pools.
 
@@ -131,7 +131,7 @@ export interface CustomStakingProvider {
   auditCount:    number
   coins: Array<{
     symbol:        string             // e.g. 'ETH'
-    coinId:        string             // our Finance Now coin id, e.g. 'eth'
+    coinId:        string             // our Finance Now Free coin id, e.g. 'eth'
     apr:           number
     lockupDays:    number
     receiptToken:  string

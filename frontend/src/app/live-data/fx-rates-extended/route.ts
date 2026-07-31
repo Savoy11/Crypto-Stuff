@@ -7,7 +7,7 @@ import { recordProviderFetch } from '@/lib/api/live/providers'
 // This is deliberately SEPARATE from /live-data/fx-rates (frankfurter.dev /
 // ECB): that route's 30 currencies are the ECB's own official published
 // set — every one of them was verified to be ECB's full list, not a subset
-// Finance Now chose. This route exists because ECB simply doesn't publish rates
+// Finance Now Free chose. This route exists because ECB simply doesn't publish rates
 // for ~125 other real, actively-used national currencies (Russian ruble,
 // UAE dirham, Vietnamese dong, Taiwan dollar, and more) — real gaps, not an
 // oversight in the ECB integration.

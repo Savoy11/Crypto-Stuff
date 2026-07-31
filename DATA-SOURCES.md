@@ -1,4 +1,4 @@
-# Finance Now — Data Source Inventory
+# Finance Now Free — Data Source Inventory
 
 _Auto-generated from `src/lib/data/dataSources.ts` by `npm run data-sources`. **Do not hand-edit** —
 change the registry and regenerate. This is the "where does the data come from" companion to
@@ -117,16 +117,16 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 |---------|--------|-------------|---------|-------|
 | Headlines (cross-module landing feed) | Live | Crypto + equity news feeds (merged client-side) | — | `/live-data/news + /live-data/market-news` |
 | Watchlist (cross-module live prices) | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Equity quote ladder (FMP → … → Yahoo) | — | `/live-data/portfolio-prices + /live-data/security-quotes` |
-| Compare (growth-of-100, window stats, correlation) | Derived | [Yahoo Finance](https://finance.yahoo.com) `query1.finance.yahoo.com`<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Finance Now computation (alignment, stats, correlation) | — | `/live-data/security-chart + /live-data/chart` |
-| AI Daily Brief | Derived | Finance Now AI agent (LLM, BYOK) _(key)_<br>Live-data routes (same feeds the UI reads) | — | `/api/agents/research` |
-| Portfolio Builder (allocations, drift, suitability) | Derived | Finance Now engine (lib/data/portfolioBuilder.ts)<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Equity quote ladder (FMP → … → Yahoo) | — | `/live-data/portfolio-prices + /live-data/security-quotes (drift monitoring)` |
+| Compare (growth-of-100, window stats, correlation) | Derived | [Yahoo Finance](https://finance.yahoo.com) `query1.finance.yahoo.com`<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Finance Now Free computation (alignment, stats, correlation) | — | `/live-data/security-chart + /live-data/chart` |
+| AI Daily Brief | Derived | Finance Now Free AI agent (LLM, BYOK) _(key)_<br>Live-data routes (same feeds the UI reads) | — | `/api/agents/research` |
+| Portfolio Builder (allocations, drift, suitability) | Derived | Finance Now Free engine (lib/data/portfolioBuilder.ts)<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Equity quote ladder (FMP → … → Yahoo) | — | `/live-data/portfolio-prices + /live-data/security-quotes (drift monitoring)` |
 | Global adoption / CBDC tracker | Not available | Static table + central-bank sites | — | `/live-data/cbdc-data` |
 | Integrations connectivity test | Derived | Every configured provider (crypto + equity + LLM) _(key)_ | — | `/live-data/config` |
 
 - **Watchlist (cross-module live prices)** — Prices split by instrument class: CoinGecko ids price through portfolio-prices, sec:-keyed stocks/funds/macro through the security-quotes ladder. Lists themselves are user data (Postgres), not a provider feed.
-- **Compare (growth-of-100, window stats, correlation)** — Price series are provider data (Yahoo for stocks/funds/macro, CoinGecko closes for crypto); the growth-of-100 normalization, window statistics, and correlation matrix are computed by Finance Now, not published figures.
-- **AI Daily Brief** — AI-generated text grounded in the user’s holdings and the same /live-data routes the UI reads. This is Finance Now’s own computation — not a publisher’s analysis — and inherits the freshness of whatever feeds the agent’s tools returned.
-- **Portfolio Builder (allocations, drift, suitability)** — Allocations, bond ladders, diversification and suitability scores are Finance Now’s own computation (pure engine, vitest-tested) — not provider figures. Live prices enter only for drift-vs-actual monitoring; unpriced positions are excluded, never valued at cost. Reference/fallback data: `lib/data/portfolioBuilder.ts`, `lib/data/fundCatalog.ts`.
+- **Compare (growth-of-100, window stats, correlation)** — Price series are provider data (Yahoo for stocks/funds/macro, CoinGecko closes for crypto); the growth-of-100 normalization, window statistics, and correlation matrix are computed by Finance Now Free, not published figures.
+- **AI Daily Brief** — AI-generated text grounded in the user’s holdings and the same /live-data routes the UI reads. This is Finance Now Free’s own computation — not a publisher’s analysis — and inherits the freshness of whatever feeds the agent’s tools returned.
+- **Portfolio Builder (allocations, drift, suitability)** — Allocations, bond ladders, diversification and suitability scores are Finance Now Free’s own computation (pure engine, vitest-tested) — not provider figures. Live prices enter only for drift-vs-actual monitoring; unpriced positions are excluded, never valued at cost. Reference/fallback data: `lib/data/portfolioBuilder.ts`, `lib/data/fundCatalog.ts`.
 - **Global adoption / CBDC tracker** — De-routed (T5): mislabeled tracker on stale static data. /global-adoption redirects to /headlines. Kept for reference only.
 - **Integrations connectivity test** — Not a data surface — it pings each provider from the Integrations page to report reachability/utilization.
 

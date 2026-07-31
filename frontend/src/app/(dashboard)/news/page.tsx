@@ -302,7 +302,7 @@ function NewsPageInner() {
               details={[
                 { label: 'Asset detection', text: 'Articles are tagged using coin name/ticker matching, issuer mapping (e.g. Circle → USDC), and regulatory inference (e.g. MiCA → USDC, USDT).' },
                 { label: 'Sentiment', text: 'Positive (green dot) · Neutral (grey) · Negative (red). Sentiment is inferred from headline keywords.' },
-                { label: 'Sources', text: 'Finance Now aggregates live RSS and JSON feeds from The Block, CoinDesk, Cointelegraph, and others. There is no mock mode — if no feed is reachable the list is shown as empty rather than seeded with fabricated articles.' },
+                { label: 'Sources', text: 'Finance Now Free aggregates live RSS and JSON feeds from The Block, CoinDesk, Cointelegraph, and others. There is no mock mode — if no feed is reachable the list is shown as empty rather than seeded with fabricated articles.' },
                 { label: 'Keyword filter', text: 'Type a word or phrase to filter the feed by topic. Keywords match against each story’s headline, summary, classified category, tagged assets, sentiment, and source — so terms like "regulation" or "btc" match relevant stories even when the word isn’t in the title. Multiple keywords are combined with AND (every keyword must match); matching is case-insensitive. Adding a keyword also queries the news providers (NewsAPI, GNews) for fresh stories on that term, so the feed pulls in matching coverage rather than only filtering what is already loaded.' },
               ]}
             />

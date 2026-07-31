@@ -1,10 +1,30 @@
-# Finance Now — Multi-Asset Financial Analytics
+# Finance Now Free — Multi-Asset Financial Analytics
 
 **An AI-enhanced investment evaluator, and the flagship module of a growing suite of financial analysis tools.**
 
-Finance Now evaluates crypto assets — stablecoins, Layer 1s, tokenized assets, and CBDCs — by combining live multi-provider market data, reserve transparency monitoring, regulatory news intelligence, and a configurable AI agent layer into a single Bloomberg-terminal-style workspace. It is built on a strict data-honesty principle: **every number is attributed to its source, estimates are labeled as estimates, and derived metrics with no reliable data source show "not available" rather than fabricated values.**
+> **This repository is the free edition of Finance Now.**
+>
+> It was duplicated from [`Savoy11/Finance-Now`](https://github.com/Savoy11/Finance-Now)
+> at commit `1b88012` (2026-07-31) and rebranded. At the time of the copy it is a
+> **feature-complete duplicate** — nothing has been gated, removed, or downgraded yet.
+> The free/paid split is the work that follows; see `docs/MARKET-ASSESSMENT.md` for the
+> intended $0 tier.
+>
+> What the rebrand changed, and only this:
+> - Product name → **Finance Now Free** (titles, metadata, API descriptions, UI copy)
+> - Package names → `finance-now-free-frontend`, `finance-now-free-mcp-server`,
+>   `finance-now-free-backend`; MCP server id → `finance-now-free`
+> - Browser storage keys → `fnf:` / `fnf-` prefix, so the two editions can run side by
+>   side on `localhost` without reading each other's data. The one-time CAEP→FN key
+>   migration was dropped — this edition has no CAEP history to inherit.
+>
+> Everything under `docs/` is **inherited development history of the paid product** and
+> has deliberately not been rewritten; read it as background, not as a record of this
+> repository.
 
-Finance Now is one module in a larger suite. The same shell hosts entitlement-gated modules for Equities, ETFs & Funds, and a Portfolio Builder, with personal-finance modules (budgeting, planning) on the roadmap — one application, one auth layer, individually licensable modules. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
+Finance Now Free evaluates crypto assets — stablecoins, Layer 1s, tokenized assets, and CBDCs — by combining live multi-provider market data, reserve transparency monitoring, regulatory news intelligence, and a configurable AI agent layer into a single Bloomberg-terminal-style workspace. It is built on a strict data-honesty principle: **every number is attributed to its source, estimates are labeled as estimates, and derived metrics with no reliable data source show "not available" rather than fabricated values.**
+
+Finance Now Free is one module in a larger suite. The same shell hosts entitlement-gated modules for Equities, ETFs & Funds, and a Portfolio Builder, with personal-finance modules (budgeting, planning) on the roadmap — one application, one auth layer, individually licensable modules. See [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 ---
 
@@ -12,7 +32,7 @@ Finance Now is one module in a larger suite. The same shell hosts entitlement-ga
 
 | Module | Scope | Status |
 |---|---|---|
-| **Crypto (Finance Now)** | 110 monitored assets: risk evaluation, reserves, peg tracking, fees, staking, TA, news | 🟢 Active — flagship |
+| **Crypto (Finance Now Free)** | 110 monitored assets: risk evaluation, reserves, peg tracking, fees, staking, TA, news | 🟢 Active — flagship |
 | **Equities** | 79 large-caps across 11 sectors: live quotes, breadth, screener, TA, news, calendar | 🟢 Active |
 | **ETFs & Funds** | Fund registry (118 ETFs/mutual funds) and per-symbol detail | 🟢 Active |
 | **Macro Markets** | Commodities, currencies, bonds/rates: 45 instruments, official yield curve, two-tier FX converter | 🟢 Active |
@@ -25,7 +45,7 @@ Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from 
 
 ## The AI Layer
 
-Finance Now is agent-native, in two directions:
+Finance Now Free is agent-native, in two directions:
 
 **AI working for you inside the app.** Eleven configurable agents (Settings → AI Agents / the AI Agents tab), each with an editable system prompt, model, and temperature — shared assistant, crypto research/scraper/pump-report pair, four equity agents, and two macro agents:
 
@@ -36,7 +56,7 @@ Finance Now is agent-native, in two directions:
 
 Plus a **Daily Brief** generated from your holdings, live prices, and headlines. All agents are **BYOK** (bring your own key) across 10 LLM providers — Anthropic, OpenAI, Google, Mistral, Groq, xAI, DeepSeek, Perplexity, Together, Cohere. Keys go in `frontend/.env.local`; nothing is proxied through third parties.
 
-**The app working for AI.** The platform exposes a clean REST `/api/v1` surface with OpenAPI documentation and an **MCP server** (`mcp-server/`), so external AI agents — Claude, or anything MCP-capable — can query Finance Now's data directly. If you use AI to manage your research, Finance Now is built to be one of its tools.
+**The app working for AI.** The platform exposes a clean REST `/api/v1` surface with OpenAPI documentation and an **MCP server** (`mcp-server/`), so external AI agents — Claude, or anything MCP-capable — can query Finance Now Free's data directly. If you use AI to manage your research, Finance Now Free is built to be one of its tools.
 
 ---
 
@@ -130,4 +150,4 @@ docker compose -f infrastructure/docker/docker-compose.yml up --build
 
 ## Disclaimer
 
-Finance Now is an information and research tool. Nothing it displays or generates — including AI agent output and risk evaluations — is financial, investment, or legal advice. Verify all fees, rates, and reserve claims with primary sources before transacting.
+Finance Now Free is an information and research tool. Nothing it displays or generates — including AI agent output and risk evaluations — is financial, investment, or legal advice. Verify all fees, rates, and reserve claims with primary sources before transacting.

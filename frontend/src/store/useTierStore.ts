@@ -1,11 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { TierMode } from '@/lib/tier'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep:tier', 'fn:tier')
-
 
 interface TierState {
   mode: TierMode
@@ -26,6 +21,6 @@ export const useTierStore = create<TierState>()(
         set((state) => ({ customSources: { ...state.customSources, [category]: source } })),
       resetCustom: () => set({ customSources: {} }),
     }),
-    { name: 'fn:tier' },
+    { name: 'fnf:tier' },
   ),
 )

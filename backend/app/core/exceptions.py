@@ -1,5 +1,5 @@
 """
-Custom exception hierarchy for Finance Now.
+Custom exception hierarchy for Finance Now Free.
 All domain-specific exceptions map to appropriate HTTP status codes.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from fastapi import HTTPException, status
 
 
 class FinanceNowError(Exception):
-    """Root exception for all Finance Now domain errors."""
+    """Root exception for all Finance Now Free domain errors."""
 
     # HTTP status the global handler maps this to. Subclasses override; the
     # base is a 500. The handler in main.py used to read `.detail`/`.status_code`,

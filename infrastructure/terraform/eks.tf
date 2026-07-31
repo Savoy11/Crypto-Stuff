@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — EKS Cluster + Managed Node Groups
+# Finance Now Free — EKS Cluster + Managed Node Groups
 ###############################################################################
 
 module "eks" {

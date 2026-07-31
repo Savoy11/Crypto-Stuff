@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — IAM Roles and Policies (Least-Privilege, IRSA)
+# Finance Now Free — IAM Roles and Policies (Least-Privilege, IRSA)
 ###############################################################################
 
 ###############################################################################
@@ -88,10 +88,10 @@ resource "aws_iam_role" "backend" {
   })
 }
 
-# Policy: Secrets Manager — read Finance Now secrets only
+# Policy: Secrets Manager — read Finance Now Free secrets only
 resource "aws_iam_policy" "backend_secrets" {
   name        = "${local.name_prefix}-backend-secrets-policy"
-  description = "Allow backend to read Finance Now secrets from Secrets Manager"
+  description = "Allow backend to read Finance Now Free secrets from Secrets Manager"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -124,10 +124,10 @@ resource "aws_iam_policy" "backend_secrets" {
   tags = local.common_tags
 }
 
-# Policy: S3 — access to Finance Now data buckets only
+# Policy: S3 — access to Finance Now Free data buckets only
 resource "aws_iam_policy" "backend_s3" {
   name        = "${local.name_prefix}-backend-s3-policy"
-  description = "Allow backend to read/write Finance Now S3 data buckets"
+  description = "Allow backend to read/write Finance Now Free S3 data buckets"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -182,7 +182,7 @@ resource "aws_iam_policy" "backend_cloudwatch" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "cloudwatch:namespace" = "Finance Now"
+            "cloudwatch:namespace" = "Finance Now Free"
           }
         }
       },
@@ -481,7 +481,7 @@ resource "aws_iam_role" "cicd_deploy" {
 
 resource "aws_iam_policy" "cicd_deploy" {
   name        = "${local.name_prefix}-cicd-deploy-policy"
-  description = "Least-privilege policy for CI/CD to deploy Finance Now to EKS"
+  description = "Least-privilege policy for CI/CD to deploy Finance Now Free to EKS"
 
   policy = jsonencode({
     Version = "2012-10-17"

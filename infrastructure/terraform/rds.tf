@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — Aurora PostgreSQL 15 (Multi-AZ, encrypted, automated backups)
+# Finance Now Free — Aurora PostgreSQL 15 (Multi-AZ, encrypted, automated backups)
 ###############################################################################
 
 ###############################################################################
@@ -9,7 +9,7 @@
 resource "aws_rds_cluster_parameter_group" "fn" {
   name        = "${local.name_prefix}-aurora-pg15"
   family      = "aurora-postgresql15"
-  description = "Finance Now Aurora PostgreSQL 15 cluster parameter group"
+  description = "Finance Now Free Aurora PostgreSQL 15 cluster parameter group"
 
   # TimescaleDB extension support
   parameter {
@@ -97,7 +97,7 @@ resource "aws_rds_cluster_parameter_group" "fn" {
 resource "aws_db_parameter_group" "fn" {
   name        = "${local.name_prefix}-aurora-pg15-instance"
   family      = "aurora-postgresql15"
-  description = "Finance Now Aurora PostgreSQL 15 instance parameter group"
+  description = "Finance Now Free Aurora PostgreSQL 15 instance parameter group"
 
   tags = merge(local.common_tags, {
     Name = "${local.name_prefix}-aurora-pg15-instance-params"

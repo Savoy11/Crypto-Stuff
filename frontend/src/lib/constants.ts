@@ -1,10 +1,10 @@
-export const APP_NAME = 'Finance Now'
+export const APP_NAME = 'Finance Now Free'
 export const APP_FULL_NAME = 'Multi-Asset Financial Analytics'  // tagline shown under APP_NAME (login header)
 export const APP_VERSION = '1.1.0'
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000'
 
-// Finance Now runs in live-only mode. Numeric market fields (price, market cap, volume,
+// Finance Now Free runs in live-only mode. Numeric market fields (price, market cap, volume,
 // 24h change, circulating supply) are sourced live from CoinGecko via the
 // /live-data/* route handlers. Metadata (name, chain, issuer, etc.) comes from
 // the static catalog (lib/data/assetCatalog.ts). Derived metrics (risk,

@@ -1,11 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ModuleId } from '@/lib/modules/registry'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep:entitlements', 'fn:entitlements')
-
 
 // Which suite modules the current user has access to. Every module is enabled
 // by default; this becomes license-driven when real auth + billing land
@@ -33,7 +28,7 @@ export const useEntitlementStore = create<EntitlementState & EntitlementActions>
       },
     }),
     {
-      name: 'fn:entitlements',
+      name: 'fnf:entitlements',
       // Rehydrated explicitly from <Providers> rather than during store
       // creation. Zustand's default is a synchronous read of localStorage as
       // soon as this module is imported, which means the client's very first

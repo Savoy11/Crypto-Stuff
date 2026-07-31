@@ -705,7 +705,7 @@ export interface SavedPlan {
  * /api/user/builder-plans; this key exists only so the page can import
  * plans saved before persistence landed (then renames it to *:imported).
  */
-export const BUILDER_STORAGE_KEY = 'caep:builder-plans:v1'
+export const BUILDER_STORAGE_KEY = 'fnf:builder-plans:v1'
 
 export function reviewDue(saved: SavedPlan, now = Date.now()): boolean {
   const last = new Date(saved.lastReviewedAt).getTime()

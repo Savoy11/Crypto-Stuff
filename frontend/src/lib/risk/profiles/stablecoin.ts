@@ -30,7 +30,7 @@ export const STABLECOIN_RISK_PROFILE: RiskProfileSpec = {
     { key: 'adoption', label: 'Adoption & Liquidity', weight: 0.15,
       description: 'Circulating supply and multi-chain distribution — larger, battle-tested footprints absorb redemption shocks better.' },
     { key: 'news', label: 'News Sentiment', weight: 0.10,
-      description: 'Net sentiment of recent articles tagged to this asset by the Finance Now news pipeline.' },
+      description: 'Net sentiment of recent articles tagged to this asset by the Finance Now Free news pipeline.' },
   ],
 }
 

@@ -41,7 +41,7 @@ function providerCell(e: DataSourceEntry): string {
 function renderMarkdown(): string {
   const now = new Date().toISOString().slice(0, 10)
   const lines: string[] = []
-  lines.push('# Finance Now — Data Source Inventory')
+  lines.push('# Finance Now Free — Data Source Inventory')
   lines.push('')
   lines.push('_Auto-generated from `src/lib/data/dataSources.ts` by `npm run data-sources`. **Do not hand-edit** —')
   lines.push('change the registry and regenerate. This is the "where does the data come from" companion to')

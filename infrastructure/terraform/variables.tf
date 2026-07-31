@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — Terraform Variables
+# Finance Now Free — Terraform Variables
 ###############################################################################
 
 variable "project_name" {
@@ -227,7 +227,7 @@ variable "redis_automatic_failover" {
 ###############################################################################
 
 variable "domain_name" {
-  description = "Primary domain for the Finance Now platform (e.g., financenow.example.com)"
+  description = "Primary domain for the Finance Now Free platform (e.g., financenow.example.com)"
   type        = string
   default     = "financenow.example.com"
 }

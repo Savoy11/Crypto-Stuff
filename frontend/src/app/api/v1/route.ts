@@ -6,9 +6,9 @@ export { options as OPTIONS }
 
 export async function GET() {
   return NextResponse.json({
-    name: 'Finance Now API',
+    name: 'Finance Now Free API',
     version: '1.0.0',
-    description: 'Finance Now — programmatic access to transfer fees, staking rates, network fees, news, and exchange data.',
+    description: 'Finance Now Free — programmatic access to transfer fees, staking rates, network fees, news, and exchange data.',
     docs: '/api/v1/openapi.json',
     endpoints: [
       { method: 'GET', path: '/api/v1/prices',                   description: 'Live prices for one or more coins', params: ['coins (csv, default: all)'] },

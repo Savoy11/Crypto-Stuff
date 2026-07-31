@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — Prometheus Alert Rules
+# Finance Now Free — Prometheus Alert Rules
 ###############################################################################
 
 groups:
@@ -24,7 +24,7 @@ groups:
         annotations:
           summary: "API error rate is above 5%"
           description: >
-            The Finance Now backend API error rate is {{ printf "%.2f" $value }}%
+            The Finance Now Free backend API error rate is {{ printf "%.2f" $value }}%
             over the last 5 minutes (threshold: 5%).
             This may indicate a backend failure, database connectivity issue,
             or upstream API problem.
@@ -53,9 +53,9 @@ groups:
           team: platform
           runbook: https://financenow.example.com/runbooks/api-outage
         annotations:
-          summary: "Finance Now Backend API is down"
+          summary: "Finance Now Free Backend API is down"
           description: >
-            The Finance Now backend is not reachable at {{ $labels.instance }}.
+            The Finance Now Free backend is not reachable at {{ $labels.instance }}.
             Prometheus cannot scrape metrics. Check pod health and logs.
 
       - alert: HighRequestRate
@@ -248,7 +248,7 @@ groups:
         annotations:
           summary: "Risk scoring engine has not updated in 10 minutes"
           description: >
-            The Finance Now risk scoring engine's last update was more than 10 minutes ago.
+            The Finance Now Free risk scoring engine's last update was more than 10 minutes ago.
             Scores may be stale. Check Celery worker health and upstream API connectivity.
 
       - alert: PriceDataStale

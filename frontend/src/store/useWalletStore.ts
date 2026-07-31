@@ -1,10 +1,5 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep:wallets', 'fn:wallets')
-
 
 // ─── Chain metadata ────────────────────────────────────────────────────────────
 
@@ -132,7 +127,7 @@ export const useWalletStore = create<WalletState>()(
       },
     }),
     {
-      name: 'fn:wallets',
+      name: 'fnf:wallets',
       // v1: exchange API secrets no longer live in browser storage. Migrating
       // strips any previously persisted credentials; those connections must be
       // re-linked so the secret lands in the server-side store.

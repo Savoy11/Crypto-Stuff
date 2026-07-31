@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — Crypto Asset Evaluation Platform
+# Finance Now Free — Crypto Asset Evaluation Platform
 # Terraform Root Module
 # AWS Provider + EKS Cluster Infrastructure
 ###############################################################################
@@ -129,7 +129,7 @@ locals {
 ###############################################################################
 
 resource "aws_kms_key" "fn" {
-  description             = "Finance Now ${var.environment} — master encryption key"
+  description             = "Finance Now Free ${var.environment} — master encryption key"
   deletion_window_in_days = 30
   enable_key_rotation     = true
   multi_region            = false
@@ -272,7 +272,7 @@ resource "aws_ecr_lifecycle_policy" "frontend" {
 
 resource "aws_secretsmanager_secret" "backend" {
   name                    = "fn/${var.environment}/backend"
-  description             = "Finance Now backend application secrets"
+  description             = "Finance Now Free backend application secrets"
   kms_key_id              = aws_kms_key.fn.arn
   recovery_window_in_days = 30
 
@@ -283,7 +283,7 @@ resource "aws_secretsmanager_secret" "backend" {
 
 resource "aws_secretsmanager_secret" "api_keys" {
   name                    = "fn/${var.environment}/api-keys"
-  description             = "Finance Now external API keys (CoinGecko, DefiLlama, Chainlink)"
+  description             = "Finance Now Free external API keys (CoinGecko, DefiLlama, Chainlink)"
   kms_key_id              = aws_kms_key.fn.arn
   recovery_window_in_days = 30
 
@@ -298,7 +298,7 @@ resource "aws_secretsmanager_secret" "api_keys" {
 
 resource "aws_wafv2_web_acl" "fn" {
   name        = "${local.name_prefix}-waf"
-  description = "Finance Now WAF rules for ALB"
+  description = "Finance Now Free WAF rules for ALB"
   scope       = "REGIONAL"
 
   default_action {

@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — Prometheus Scrape Configuration + Alert Rules
+# Finance Now Free — Prometheus Scrape Configuration + Alert Rules
 ###############################################################################
 
 global:
@@ -38,7 +38,7 @@ scrape_configs:
       - targets: ['localhost:9090']
     metrics_path: /metrics
 
-  # ─── Finance Now FastAPI Backend ──────────────────────────────────────────────────
+  # ─── Finance Now Free FastAPI Backend ──────────────────────────────────────────────────
   - job_name: 'fn-backend'
     metrics_path: /metrics
     scrape_interval: 15s

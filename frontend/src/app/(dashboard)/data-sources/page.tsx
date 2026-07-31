@@ -89,8 +89,8 @@ export default function DataSourcesPage() {
     <div className="space-y-5 p-6 max-w-6xl mx-auto">
       <PageHeader
         title="Data Sources"
-        subtitle="Every surface in Finance Now and exactly where its data comes from"
-        description="Finance Now runs live-only against public data providers. This catalog is generated from the same registry that powers the app, so it never drifts from the code — it lists each surface, its upstream provider(s), whether a key/paid plan is required, and its refresh cadence."
+        subtitle="Every surface in Finance Now Free and exactly where its data comes from"
+        description="Finance Now Free runs live-only against public data providers. This catalog is generated from the same registry that powers the app, so it never drifts from the code — it lists each surface, its upstream provider(s), whether a key/paid plan is required, and its refresh cadence."
         details={[
           { label: 'Status', text: 'Live = real provider at request time · Partial = some fields static/estimate · Key-gated = needs a key/paid plan · Derived = computed from other live data · Not available = no free source (shown as an explicit notice).' },
           { label: 'Provenance', text: 'Individual pages show a matching source badge. Full status audit lives in DATA-AVAILABILITY.md; the machine-generated inventory in DATA-SOURCES.md (npm run data-sources).' },

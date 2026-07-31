@@ -10,7 +10,7 @@ metadata:
     app.kubernetes.io/component: cache
     app.kubernetes.io/part-of: fn
   annotations:
-    financenow.example/description: "Redis 7 cache and message broker for Finance Now"
+    financenow.example/description: "Redis 7 cache and message broker for Finance Now Free"
 spec:
   replicas: 1
   selector:

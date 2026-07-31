@@ -4,11 +4,6 @@ import { create } from 'zustand'
 import { toast } from 'react-hot-toast'
 import type { Portfolio } from '@/lib/data/portfolioUtils'
 import type { PortfoliosResponse } from '@/app/api/user/portfolios/route'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep:portfolio-active', 'fn:portfolio-active')
-
 
 // ─── DB-backed portfolio store ───────────────────────────────────────────────
 // Portfolios persist to Postgres via /api/user/portfolios. The store keeps
@@ -22,7 +17,9 @@ migrateStorageKey('caep:portfolio-active', 'fn:portfolio-active')
 // portfolio ids valid FK targets (builder_plans.linked_portfolio_id).
 //
 // localStorage remains in two roles only:
-//  - 'caep:portfolios' is the LEGACY key, imported once then renamed.
+//  - 'fnf:portfolios' is the LEGACY key, imported once then renamed.
+//    Inert on a fresh Finance Now Free install; kept so the paths stay
+//    identical to the paid edition.
 //  - the active-portfolio id stays local — it's a UI preference, not data.
 
 interface PortfolioStore {
@@ -39,8 +36,8 @@ interface PortfolioStore {
   active:          () => Portfolio | null
 }
 
-const LEGACY_KEY = 'caep:portfolios'
-const KEY_ACTIVE = 'fn:portfolio-active'
+const LEGACY_KEY = 'fnf:portfolios'
+const KEY_ACTIVE = 'fnf:portfolio-active'
 
 function loadActive(): string | null {
   if (typeof window === 'undefined') return null

@@ -397,7 +397,7 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ needs.preflight.outputs.version_tag }}
-          name: "Finance Now ${{ needs.preflight.outputs.version_tag }}"
+          name: "Finance Now Free ${{ needs.preflight.outputs.version_tag }}"
           body: |
             ## What's Changed in ${{ needs.preflight.outputs.version_tag }}
 
@@ -443,7 +443,7 @@ jobs:
           channel-id: ${{ secrets.SLACK_RELEASES_CHANNEL_ID }}
           payload: |
             {
-              "text": ":${{ steps.status.outputs.emoji }}: Finance Now Production Deploy — ${{ steps.status.outputs.status }}",
+              "text": ":${{ steps.status.outputs.emoji }}: Finance Now Free Production Deploy — ${{ steps.status.outputs.status }}",
               "attachments": [
                 {
                   "color": "${{ steps.status.outputs.color }}",
@@ -453,7 +453,7 @@ jobs:
                     { "title": "Deployed by", "value": "${{ github.actor }}", "short": true },
                     { "title": "Production URL", "value": "<https://financenow.example.com|financenow.example.com>", "short": true }
                   ],
-                  "footer": "Finance Now Production | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
+                  "footer": "Finance Now Free Production | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Run>"
                 }
               ]
             }

@@ -5,11 +5,6 @@ import { toast } from 'react-hot-toast'
 import { INSTRUMENT_BY_KEY } from '@/lib/data/instruments'
 import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
 import type { WatchlistsResponse } from '@/app/api/user/watchlists/route'
-import { migrateStorageKey } from '@/lib/utils/storageMigration'
-
-// One-time key migration for the Finance Now rename — runs before any read below.
-migrateStorageKey('caep:watchlist-active', 'fn:watchlist-active')
-
 
 // ─── DB-backed watchlist store ───────────────────────────────────────────────
 // Watchlists persist to Postgres via /api/user/watchlists — the last Phase 1
@@ -22,8 +17,10 @@ migrateStorageKey('caep:watchlist-active', 'fn:watchlist-active')
 // inserted optimistically IS the row the server creates.
 //
 // localStorage remains in two roles only:
-//  - 'caep:watchlists:v2' (and the older v1 single-list key) are LEGACY,
-//    imported once then renamed.
+//  - 'fnf:watchlists:v2' (and the older v1 single-list key) are LEGACY,
+//    imported once then renamed. Finance Now Free ships with no pre-DB
+//    local data, so this import is inert on a fresh install — it is kept so
+//    the paths stay identical to the paid edition.
 //  - the active-list id stays local — it's a UI preference, not data.
 
 export interface WatchList {
@@ -46,9 +43,9 @@ interface WatchlistStore {
   setActive:  (id: string | null) => void
 }
 
-const LEGACY_V2_KEY = 'caep:watchlists:v2'
-const LEGACY_V1_KEY = 'caep:watchlist:v1'
-const KEY_ACTIVE = 'fn:watchlist-active'
+const LEGACY_V2_KEY = 'fnf:watchlists:v2'
+const LEGACY_V1_KEY = 'fnf:watchlist:v1'
+const KEY_ACTIVE = 'fnf:watchlist-active'
 
 function loadActive(): string | null {
   if (typeof window === 'undefined') return null

@@ -1,5 +1,5 @@
 ###############################################################################
-# Finance Now — VPC, Subnets, Internet Gateway, NAT Gateways, Route Tables
+# Finance Now Free — VPC, Subnets, Internet Gateway, NAT Gateways, Route Tables
 ###############################################################################
 
 module "vpc" {
