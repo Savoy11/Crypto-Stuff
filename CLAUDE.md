@@ -11,11 +11,17 @@ An institutional-grade financial analytics suite built with Next.js 15 (App Rout
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
-**Agent charters:** deployed maintenance agents follow `docs/agents/` —
-`checklist-steward.md` (proposes checklist/ledger updates, applies only after owner
-approval) and `code-checker.md` (review invariants + the do-not-fix registry of
-deliberate decisions). If you are reviewing code or updating status docs, read the
-matching charter first; each ends with a ready-to-paste deployable prompt.
+**Agent charters:** four maintenance agents are deployed, split along two boundaries
+(full table: `docs/IMPROVEMENT-AGENT-SETUP.md`). By scope: `code-checker`
+(`docs/agents/` — diff/PR review against the review invariants + the do-not-fix
+registry of deliberate decisions) vs `code-auditor` (`.claude/agents/` — repo-wide
+dated defect reports). By kind of status write, both approval-gated:
+`checklist-steward` (`docs/agents/` — maintains existing ledger entries) vs
+`opportunity-scout` FILE mode (`.claude/agents/` — inserts newly approved TASK-QUEUE
+items). The two TASK-QUEUE writers must read each other's outputs before writing
+(`docs/audits/rejected-proposals.md` ↔ steward annotations). If you are reviewing
+code or updating status docs, read the matching charter first; each ends with a
+ready-to-paste deployable prompt.
 
 ---
 

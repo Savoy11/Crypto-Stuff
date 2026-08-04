@@ -1003,12 +1003,12 @@ Lenses: *Importance / Efficiency / Practicality*.
       strike the ROADMAP/BUSINESS-CHECKLIST sections as superseded, or soften the agents'
       policy line to "not until the integrity rules ship." Until decided, the scout refuses
       that territory and the auditor would flag any implementation.
-- [ ] **W4-D2 · `P2` — Move the `npm run audit` IP-dependence caveat into
+- [x] **W4-D2 · `P2` — Move the `npm run audit` IP-dependence caveat into
       `.claude/agents/code-auditor.md` itself** (currently only in PR #61's body — a future
       run reads only the agent file). One line: owner-machine only; otherwise skip and
       record why. Also add CLAUDE.md and `docs/agents/code-checker.md`'s do-not-fix registry
       to the auditor's Step-1 reading list, so deliberate decisions aren't filed as defects.
-- [ ] **W4-D3 · `P2` — Name the four-agent division of labor** in
+- [x] **W4-D3 · `P2` — Name the four-agent division of labor** in
       `docs/IMPROVEMENT-AGENT-SETUP.md` and CLAUDE.md's agent-charters note: code-checker
       (diff/PR review) vs code-auditor (repo-wide audits); checklist-steward (all status
       ledgers, approval-gated) vs opportunity-scout FILE mode (TASK-QUEUE inserts,
@@ -1026,9 +1026,13 @@ Lenses: *Importance / Efficiency / Practicality*.
 ## Wave 4 — Results (2026-07-30)
 
 Both verified defects, all nine lead batches, both approved proposals, and the D1
-decision landed on branch `claude/implementing-recommendations-6a01xd`. **W4-D2 and
-W4-D3 were deliberately not attempted** — the owner scoped agent-hygiene work out of
-this session; they remain open above.
+decision landed via PR #63 (merged 2026-07-30). **W4-D2 and W4-D3 followed the same
+day** at the owner's request, closing the wave: the audit IP-dependence caveat now
+lives in `.claude/agents/code-auditor.md` itself (owner-machine only; otherwise skip
+and record why), CLAUDE.md and the code-checker's do-not-fix registry are on the
+auditor's Step-1 reading list, and the four-agent division of labor is named in
+`docs/IMPROVEMENT-AGENT-SETUP.md` and CLAUDE.md's agent-charters note, including the
+rule that both TASK-QUEUE writers read each other's outputs before writing.
 
 **Every lead was verified in source before being fixed, and three were wider than
 reported.** That was the point of filing them as leads rather than defects:
