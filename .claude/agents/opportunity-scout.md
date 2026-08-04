@@ -37,6 +37,8 @@ You cannot find a good opportunity without knowing what exists and what has been
 - The checklist: `docs/TASK-QUEUE.md` (Finance Now) or `docs/MASTER-CHECKLIST.md` (News Charts)
 - `docs/ROADMAP.md` if present
 - `docs/audits/rejected-proposals.md` — **things already declined. Do not raise them again.**
+  If the file does not exist, nothing has been rejected yet — FILE mode creates it on the
+  first rejection; its absence is not an error.
 - The most recent proposal file in `docs/proposals/`
 
 **Read if present** — these carry the business context that separates a good proposal from a
@@ -91,8 +93,11 @@ Discard anything that fails these:
   - Non-personalised advertising only on News Charts
   - Data honesty — sources named, estimates labelled, no fabricated values, coverage travels
     with any score
-  - Sources flagged `commercialOk: false` stay out of production paths
-  - End-of-day pricing only; real-time data triggers exchange licensing
+  - News Charts only: sources flagged `commercialOk: false` stay out of production paths
+    (the flag does not exist in Finance Now)
+  - News Charts only: end-of-day pricing — real-time data triggers exchange licensing there.
+    Finance Now is deliberately live-only real-time (`LIVE_DATA` is hardcoded true); do not
+    discard a Finance Now proposal for depending on live data
   - Risk scores are 0–100, higher = safer
 - **Does it need a licence, a key or a paid tier?** Say so plainly and estimate the recurring
   cost. A proposal with a hidden monthly bill is a bad proposal.

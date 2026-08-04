@@ -121,9 +121,10 @@ failure mode that kills this kind of tool.
 Both definitions are prompts. Treat them as living documents.
 
 - **Too much noise in a category?** Add it to the "what makes a bad report" section.
-- **Missing something it should catch?** Add the specific pattern. The `overlay.ts` case is
-  already named in the auditor because that class of defect — a stale comment causing a live
-  feature to render as unavailable — is exactly what a generic audit misses.
+- **Missing something it should catch?** Add the specific pattern. The auditor's "stale
+  reasoning" section names the hardcoded-`'connected'` "Live" indicator (found 2026-07-30)
+  because that class of defect — a stale comment causing a feature to lie about its state —
+  is exactly what a generic audit misses.
 - **New policy decided?** Add it to the policy list in both files the same day. An agent auditing
   against yesterday's rules is worse than none.
 - **Recurring proposal you keep rejecting?** Confirm it reached the rejection log. If it did and
