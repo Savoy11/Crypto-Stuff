@@ -1131,7 +1131,7 @@ this.
 ```
 P2-W0 (parallel):  P2-O1 ✅ (owner machine, 2026-08-05) · P2-O2 ✅ · P2-R3 ✅
 P2-W1 (after O1):  P2-O3 ⛔ NO-GO keyless (owner decision) · P2-O4 ✅ SHIPPED 2026-08-05
-P2-W2:             P2-O5 split — scorer half independent; chain half follows O3
+P2-W2:             P2-O5 scorer half ✅ SHIPPED 2026-08-05 · chain half follows O3
 ```
 
 Tasks within a wave own disjoint file sets, same rule as Phase 1.
@@ -1165,6 +1165,11 @@ Tasks within a wave own disjoint file sets, same rule as Phase 1.
 >   v8 chart API — no new provider. Curve shape is stated as the ETF roll cost it
 >   actually is, thin contracts are excluded with the reason on-page, and a curve
 >   is refused below 3 resolved months rather than drawn from a partial fetch.
+> - **P2-O5 scorer half shipped 2026-08-05**: `score_options_trade` agent tool,
+>   `POST /api/v1/options/score` (+ `GET` for the schema), OpenAPI entry, and the
+>   MCP mirror. Additive only — no existing endpoint contract touched. The chain
+>   half (`get_options_chain`, `/api/v1/options/chain`) is NOT built and waits on
+>   the O3 decision.
 > - **IV rank stays manual entry** — no keyless source carries IV history.
 >   Persisting a daily snapshot forward is a real option with a 52-week warm-up;
 >   flagged, not taken.
