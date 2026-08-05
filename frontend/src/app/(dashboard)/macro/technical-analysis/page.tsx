@@ -23,7 +23,7 @@ import {
 import {
   INSTRUMENT_BY_KEY, SEC_PREFIX, formatInstrumentQuote, type Instrument,
 } from '@/lib/data/instruments'
-import { COMMODITY_CATALOG } from '@/lib/data/commodityCatalog'
+import { COMMODITY_CATALOG, THINLY_TRADED_COMMODITIES } from '@/lib/data/commodityCatalog'
 import { CURRENCY_CATALOG } from '@/lib/data/currencyCatalog'
 import { RATES_CATALOG } from '@/lib/data/ratesCatalog'
 import type { SecurityOhlcvResponse } from '@/app/live-data/security-ohlcv/route'
@@ -61,22 +61,9 @@ interface MacroInstrument {
   liquid: boolean
 }
 
-/**
- * Contracts deliberately excluded from the scanner.
- *
- * These are the same markets whose single-commodity ETFs were confirmed
- * delisted in the 2026-07-21 audit (UHN, JO, NIB, BAL, COW) — an independent
- * signal of how thin US retail access to them is. Their futures still quote,
- * so they remain fully chartable; they are simply not ranked.
- */
-const THIN_COMMODITIES = new Set([
-  'HO=F', // heating oil
-  'KC=F', // coffee
-  'CC=F', // cocoa
-  'CT=F', // cotton
-  'LE=F', // live cattle
-  'HE=F', // lean hogs
-])
+// The thin-market exclusion set lives with the catalog (one source of truth —
+// the commodity risk profile reads the same set). Their futures still quote,
+// so they remain fully chartable; they are simply not ranked.
 
 const MACRO_INSTRUMENTS: MacroInstrument[] = [
   ...COMMODITY_CATALOG.map((c) => ({
@@ -85,7 +72,7 @@ const MACRO_INSTRUMENTS: MacroInstrument[] = [
     group: 'Commodities' as const,
     detailPath: `/macro/commodities/${c.slug}`,
     instrument: INSTRUMENT_BY_KEY[`${SEC_PREFIX}${c.symbol}`],
-    liquid: !THIN_COMMODITIES.has(c.symbol),
+    liquid: !THINLY_TRADED_COMMODITIES.has(c.symbol),
   })),
   ...CURRENCY_CATALOG.map((c) => ({
     symbol: c.symbol,

@@ -61,6 +61,20 @@ export function tenPointSafetyToCanonical(safety: number): number {
   return clamp(((safety - 1) / 9) * 100, 0, 100)
 }
 
+/**
+ * Convert a canonical 0–100 higher-is-safer score to the 1–10
+ * higher-is-RISKIER riskTier the portfolio layer consumes (weighted-risk,
+ * Conservative/Moderate/Aggressive/Speculative labels). Inverse of
+ * tenPointRiskToSafety, rounded to the integer tier.
+ *
+ * Exists so instrument riskTiers can be DERIVED from risk profiles instead of
+ * hardcoded beside them — two numbers describing the same risk must not be
+ * able to disagree (P2-R3).
+ */
+export function canonicalToRiskTier(score: number): number {
+  return clamp(Math.round(10 - (clamp(score, 0, 100) / 100) * 9), 1, 10)
+}
+
 /** Annualized volatility from a series of closing prices (daily bars). */
 export function annualizedVolatility(dailyCloses: number[]): number | null {
   if (dailyCloses.length < 10) return null

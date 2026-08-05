@@ -11,9 +11,12 @@
 import { PORTFOLIO_COINS, type CoinCategory } from './portfolioCoins'
 import { EQUITY_CATALOG } from './equityCatalog'
 import { FUND_CATALOG } from './fundCatalog'
-import { COMMODITY_CATALOG, COMMODITY_CATEGORY_INFO } from './commodityCatalog'
+import { COMMODITY_CATALOG, COMMODITY_CATEGORY_INFO, THINLY_TRADED_COMMODITIES } from './commodityCatalog'
 import { CURRENCY_CATALOG, CURRENCY_CATEGORY_INFO } from './currencyCatalog'
 import { RATES_CATALOG, RATES_CATEGORY_INFO } from './ratesCatalog'
+import { commodityInstrumentRiskTier } from '@/lib/risk/profiles/commodity'
+import { currencyInstrumentRiskTier } from '@/lib/risk/profiles/currency'
+import { rateInstrumentRiskTier } from '@/lib/risk/profiles/rateInstrument'
 
 export type InstrumentClass = 'crypto' | 'equity' | 'etf' | 'mutual' | 'commodity' | 'currency' | 'rate'
 
@@ -99,13 +102,18 @@ export const INSTRUMENTS: Instrument[] = [
   // Macro instruments (ROADMAP "instruments" open item). All quote through
   // the same security routes as stocks/funds, so the sec: key works as-is;
   // detailPath carries the slug-based macro route the symbol can't encode.
-  // Risk tiers are coarse class-level placements on the same 1–10 scale:
-  // futures around single-stock territory, FX below equities, yields lowest.
+  // Risk tiers are DERIVED from the macro risk profiles (lib/risk/profiles/
+  // commodity, rateInstrument, currency) on catalog facts, via
+  // canonicalToRiskTier — not hardcoded beside them, so the tier and the
+  // profile can never disagree (P2-R3). They replaced coarse hand-set
+  // placements (energy 6 / other commodities 5, EM FX 4 / other FX 3, all
+  // rates 2); the derived values move some instruments — most notably the
+  // long-duration rate instruments, which tier 2 was understating.
   ...COMMODITY_CATALOG.map((c) => ({
     key: `${SEC_PREFIX}${c.symbol}`, cgId: `${SEC_PREFIX}${c.symbol}`,
     symbol: c.symbol, name: `${c.name} Futures`,
     class: 'commodity' as const, category: 'unknown' as CoinCategory,
-    riskTier: c.category === 'energy' ? 6 : 5,
+    riskTier: commodityInstrumentRiskTier(c.category, THINLY_TRADED_COMMODITIES.has(c.symbol)),
     color: COMMODITY_CATEGORY_INFO[c.category].color,
     detailPath: `/macro/commodities/${c.slug}`,
     quoteKind: c.quoteBasis === 'cents' ? ('cents' as const) : ('usd' as const),
@@ -115,7 +123,7 @@ export const INSTRUMENTS: Instrument[] = [
     key: `${SEC_PREFIX}${c.symbol}`, cgId: `${SEC_PREFIX}${c.symbol}`,
     symbol: c.symbol, name: c.name,
     class: 'currency' as const, category: 'unknown' as CoinCategory,
-    riskTier: c.category === 'emerging' ? 4 : 3,
+    riskTier: currencyInstrumentRiskTier(c.category),
     color: CURRENCY_CATEGORY_INFO[c.category].color,
     detailPath: `/macro/currencies/${c.slug}`,
     // The dollar index is a level, not a price in any currency; every other
@@ -127,7 +135,7 @@ export const INSTRUMENTS: Instrument[] = [
     key: `${SEC_PREFIX}${r.symbol}`, cgId: `${SEC_PREFIX}${r.symbol}`,
     symbol: r.symbol, name: r.name,
     class: 'rate' as const, category: 'unknown' as CoinCategory,
-    riskTier: 2,
+    riskTier: rateInstrumentRiskTier(r.maturityYears, r.category === 'future' ? 'future' : 'yield-index'),
     color: RATES_CATEGORY_INFO[r.category].color,
     detailPath: `/macro/rates/${r.slug}`,
     quoteKind: r.quoteBasis === 'pct' ? ('percent' as const) : ('points' as const),
