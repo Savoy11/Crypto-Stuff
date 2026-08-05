@@ -1076,7 +1076,14 @@ on the owner's machine before trusting it.
 
 ---
 
-## Phase 2 — Scoped (2026-08-05)
+## Phase 2 — Scoped and delivered (2026-08-05)
+
+> **Phase 2 is complete.** Every task that was buildable shipped the same week the
+> scope landed: P2-O1 (owner-machine audit), P2-O2 (Trade Risk Scorer), P2-R3
+> (macro risk profiles), P2-O4 (futures term structure), and P2-O5's scorer half.
+> P2-O3 and P2-O5's chain half are **closed by owner decision**, not left open —
+> there is no keyless options-chain source and a keyed one isn't worth its cost
+> yet. See the status note under "Scheduling" for the reopen triggers.
 
 Scoped after Phase 1 closed (Waves 0–4 all done), per the original rule that Phase 1 findings
 should shape this. They did — in two ways that change the plan as written:
@@ -1130,8 +1137,8 @@ this.
 
 ```
 P2-W0 (parallel):  P2-O1 ✅ (owner machine, 2026-08-05) · P2-O2 ✅ · P2-R3 ✅
-P2-W1 (after O1):  P2-O3 ⛔ NO-GO keyless (owner decision) · P2-O4 ✅ SHIPPED 2026-08-05
-P2-W2:             P2-O5 scorer half ✅ SHIPPED 2026-08-05 · chain half follows O3
+P2-W1 (after O1):  P2-O3 ⛔ CLOSED 2026-08-05 (owner: Option A) · P2-O4 ✅ SHIPPED 2026-08-05
+P2-W2:             P2-O5 scorer half ✅ SHIPPED 2026-08-05 · chain half ⛔ closed with O3
 ```
 
 Tasks within a wave own disjoint file sets, same rule as Phase 1.
@@ -1155,11 +1162,17 @@ Tasks within a wave own disjoint file sets, same rule as Phase 1.
 >   refuse it — the standing licensing-first policy (cf. the CUSIP note on
 >   `/macro/rates`), and the operational reality that the stated enforcement is
 >   IP blocking, i.e. the app's own egress going dark unannounced.
-> - **The delayed-data question changed shape.** It presumed a working free
->   delayed source; there isn't one. The live choice is now: chains stay
->   not-available (**recommended** — additive to adopt a keyed source later, and
->   the P2-O2 scorer already serves the use case), or add a keyed provider
->   (Tradier first) and settle the delayed convention as part of it.
+> - **DECIDED 2026-08-05 — Option A, chains stay not-available.** P2-O3 and
+>   P2-O5's chain half are **closed, not deferred**. The Trade Risk Scorer serves
+>   the use case with hand-entered legs. **Revisitable, with named triggers** (see
+>   the assessment): a licensed source becoming worth its cost (Tradier first),
+>   live use showing manual entry is the wrong shape, or Yahoo's options endpoint
+>   reopening. Adopting a keyed provider later is new work, not rework — a
+>   key-gated registry row is additive by design.
+> - **The delayed-data convention is unanswered, not decided.** It never had to be
+>   answered once Option A was taken. If Option B is ever chosen it must be settled
+>   BEFORE any chain route ships: delay rendered in the ProvenanceNotice pattern on
+>   every affected surface, and delay metadata through `/api/v1` verbatim.
 > - **P2-O4 shipped 2026-08-05** on the GO: `/live-data/futures-curve` +
 >   `TermStructureCard` on commodity and rate-futures detail pages, over the same
 >   v8 chart API — no new provider. Curve shape is stated as the ETF roll cost it
