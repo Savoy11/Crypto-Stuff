@@ -23,6 +23,7 @@ const SPEC = {
     { name: 'news',       description: 'Crypto news with sentiment and asset tagging' },
     { name: 'securities', description: 'Stock / ETF / mutual-fund / macro-instrument quotes and history' },
     { name: 'macro',      description: 'Treasury yield curve and official FX reference rates' },
+    { name: 'options',    description: 'Options-trade risk scoring (computed, not fetched — no chain feed)' },
   ],
   paths: {
     '/prices': {
@@ -187,12 +188,88 @@ const SPEC = {
         },
       },
     },
+    '/options/score': {
+      get: {
+        tags: ['options'],
+        summary: 'Describe the scoring request schema',
+        description: 'Returns the POST body schema and a worked example, so the endpoint is discoverable without the spec.',
+        responses: {
+          '200': { description: 'Schema and example' },
+        },
+      },
+      post: {
+        tags: ['options'],
+        summary: 'Score a described options position',
+        description: 'Scores an options trade the CALLER describes on the canonical 0-100 safety scale (higher = safer), across liquidity, IV environment, assignment, time decay and defined risk, returning per-dimension scores with evidence plus confidence and coverage. Explains risk; does NOT recommend trades or predict profit. This endpoint does not fetch an options chain — no keyless chain source exists (see docs/assessments/P2-O1-options-data.md) — so every option-level figure must be supplied by the caller. Omitted optional fields lower `confidence`, never the score. maxLossUsd accepts the string "unbounded" for naked short exposure, which is a meaningful value rather than a missing one.',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { $ref: '#/components/schemas/OptionsScoreRequest' } } },
+        },
+        responses: {
+          '200': { description: 'Composite risk with per-dimension detail', content: { 'application/json': { schema: { $ref: '#/components/schemas/OptionsScoreResponse' } } } },
+          '400': { description: 'Invalid trade description — `details` lists every problem found, not just the first', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+        },
+      },
+    },
   },
   components: {
     schemas: {
       ErrorResponse: {
         type: 'object',
-        properties: { error: { type: 'string' } },
+        properties: {
+          error: { type: 'string' },
+          details: { type: 'array', items: { type: 'string' }, description: 'Present on validation failures — every problem found, so a caller can fix them in one pass' },
+        },
+      },
+      OptionsLeg: {
+        type: 'object',
+        required: ['side', 'type', 'strike', 'bid', 'ask'],
+        properties: {
+          side: { type: 'string', enum: ['long', 'short'] },
+          type: { type: 'string', enum: ['call', 'put'] },
+          strike: { type: 'number', example: 190 },
+          bid: { type: 'number', example: 3.1 },
+          ask: { type: 'number', example: 3.25, description: 'Must be >= bid; a crossed market is rejected rather than scored as excellent liquidity' },
+          openInterest: { type: 'number', example: 1450 },
+          volume: { type: 'number' },
+          delta: { type: 'number', example: -0.28, description: 'Signed, per contract' },
+        },
+      },
+      OptionsScoreRequest: {
+        type: 'object',
+        required: ['underlyingPrice', 'daysToExpiry', 'legs'],
+        properties: {
+          underlyingPrice: { type: 'number', example: 200 },
+          daysToExpiry: { type: 'number', example: 30 },
+          legs: { type: 'array', items: { $ref: '#/components/schemas/OptionsLeg' }, minItems: 1, maxItems: 8 },
+          ivRank: { type: 'number', minimum: 0, maximum: 100, example: 45, description: 'Where current IV sits in its 52-week range. No keyless source carries IV history — supply it or omit it.' },
+          earningsInDays: { type: 'number' },
+          exDividendInDays: { type: 'number' },
+          maxLossUsd: { oneOf: [{ type: 'number' }, { type: 'string', enum: ['unbounded'] }], example: 19000 },
+          maxProfitUsd: { type: 'number' },
+        },
+      },
+      OptionsScoreResponse: {
+        type: 'object',
+        properties: {
+          risk: {
+            type: 'object',
+            description: 'Composite on the canonical scale — 0-100 where HIGHER = SAFER, matching every other score in this API.',
+            properties: {
+              score: { type: 'number', example: 62.4 },
+              band: { type: 'string', enum: ['low', 'moderate', 'elevated', 'high', 'critical'] },
+              confidence: { type: 'number', description: '0-1. Omitted optional inputs lower this, never the score.' },
+              coverage: { type: 'number', description: '0-1: share of profile weight actually scored.' },
+              dimensions: { type: 'array', items: { type: 'object' }, description: 'Per-dimension score, weight, band and evidence.' },
+              warnings: { type: 'array', items: { type: 'string' } },
+            },
+          },
+          netShortPremium: { type: 'boolean', description: 'True when the position collects net premium (a credit trade).' },
+          disclaimer: { type: 'string' },
+          source: { type: 'string', example: 'finance-now-risk-engine' },
+          profileVersion: { type: 'string', example: '1.0.0' },
+          updatedAt: { type: 'string', format: 'date-time' },
+        },
       },
       PricesResponse: {
         type: 'object',

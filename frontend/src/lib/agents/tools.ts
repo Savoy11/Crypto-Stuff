@@ -285,6 +285,52 @@ const TOOL_REGISTRY: RegisteredTool[] = [
     },
   },
 
+  {
+    market: 'equities',
+    tool: {
+      name: 'score_options_trade',
+      description:
+        'Score the risk of an options position the USER describes, across liquidity, IV environment, ' +
+        'assignment, time decay and defined risk. Returns a 0-100 safety score (HIGHER = SAFER) with ' +
+        'per-dimension detail. Use when someone describes a specific options trade and asks how risky ' +
+        'it is. IMPORTANT: this explains risk, it does NOT recommend trades or predict profit — say so. ' +
+        'There is no options chain feed, so every option-level number must come from the user (their ' +
+        'broker chain); never invent a bid, ask, open interest or IV rank to fill the call. Ask for what ' +
+        'is missing instead. Optional fields left out lower the confidence figure rather than the score.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          underlyingPrice: { type: 'number', description: 'Current price of the underlying' },
+          daysToExpiry: { type: 'number', description: 'Calendar days until expiry' },
+          legs: {
+            type: 'array',
+            description: 'The position, 1-4 legs. Every leg needs side, type, strike, bid and ask.',
+            items: {
+              type: 'object',
+              properties: {
+                side: { type: 'string', enum: ['long', 'short'] },
+                type: { type: 'string', enum: ['call', 'put'] },
+                strike: { type: 'number' },
+                bid: { type: 'number' },
+                ask: { type: 'number' },
+                openInterest: { type: 'number', description: 'Optional: contracts of open interest' },
+                volume: { type: 'number', description: 'Optional: contracts traded today' },
+                delta: { type: 'number', description: 'Optional: signed delta per contract, e.g. -0.30 for an OTM short put' },
+              },
+              required: ['side', 'type', 'strike', 'bid', 'ask'],
+            },
+          },
+          ivRank: { type: 'number', description: 'Optional 0-100: where current IV sits in its 52-week range. No free source carries this — only pass it if the user supplies it.' },
+          earningsInDays: { type: 'number', description: 'Optional: days until the next earnings report, if inside the trade horizon' },
+          exDividendInDays: { type: 'number', description: 'Optional: days until the ex-dividend date' },
+          maxLossUsd: { description: 'Optional: worst-case loss in USD, or the string "unbounded" for naked short exposure. "unbounded" is a real answer — do not omit it to make a trade score better.' },
+          maxProfitUsd: { type: 'number', description: 'Optional: best-case profit in USD' },
+        },
+        required: ['underlyingPrice', 'daysToExpiry', 'legs'],
+      },
+    },
+  },
+
   // ── Macro (commodities, currencies, bonds/rates) ────────────────────────────
   {
     market: 'macro',
@@ -582,6 +628,34 @@ export async function runTool(
         const articles = (data.articles ?? []).map((a) => ({ title: a.title, source: a.source, publishedAt: a.publishedAt, sentiment: a.sentiment, category: a.category, url: a.url }))
         if (articles.length === 0) return { symbol, articles: [], note: 'feeds reachable, but no recent articles matched this symbol' }
         return { symbol, articles }
+      }
+      case 'score_options_trade': {
+        // The only tool that POSTs — a multi-leg trade doesn't fit a query
+        // string — so it can't use getJson(). The route validates and returns
+        // its reasons in `details`; pass those through verbatim rather than
+        // collapsing them, so the model can ask the user for exactly what is
+        // missing instead of guessing at it.
+        const res = await fetch(origin + '/api/v1/options/score', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify(input),
+        })
+        const data = await res.json().catch(() => null) as
+          | { error?: string; details?: string[]; risk?: unknown; netShortPremium?: boolean; disclaimer?: string }
+          | null
+        if (!res.ok || !data) {
+          return {
+            error: data?.error ?? `HTTP ${res.status}`,
+            details: data?.details,
+            hint: 'Ask the user for the missing or invalid values — do not substitute your own.',
+          }
+        }
+        return {
+          risk: data.risk,
+          netShortPremium: data.netShortPremium,
+          disclaimer: data.disclaimer,
+          scale: '0-100, higher = safer. Report the band and the weakest dimensions, not just the number.',
+        }
       }
       case 'get_stock_social': {
         const symbol = String(input.symbol ?? '').toUpperCase()

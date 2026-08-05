@@ -541,7 +541,7 @@ All agents run through one loop (`runner.ts`, Anthropic + OpenAI-compatible). De
 
 **Agents (11):** `app-assistant` (shared, toolset `all`), crypto `research-analyst` / `data-scraper` / `pump-report-investigator` / `pump-report-chat`, equity `equity-research` / `equity-screener` / `equity-data-scraper` / `equity-diligence`, and macro `macro-research` / `macro-screener` (6 macro tools: search_macro_instruments, get_macro_quote, get_macro_price_history, get_yield_curve, get_fx_rates, get_macro_news).
 
-**Tools (`tools.ts`):** tagged by market; `toolsForAgent(toolset)` gives an agent only its market's tools. Crypto tools hit `/api/v1/*` + `/live-data/ohlcv`; equity tools (`get_stock_quote/financials/profile/filings/news/social/price_history`) hit the equity `/live-data/*` routes. Every tool reads exactly what the UI reads — one source of truth. The Anthropic runner also adds the server-side **`web_search`** tool (max_uses via `opts.webSearchMaxUses`, default 5 / research 8), and handles the `pause_turn` stop reason it produces; web search is **Anthropic-only** (agents switched to another provider keep data tools but lose search).
+**Tools (`tools.ts`):** tagged by market; `toolsForAgent(toolset)` gives an agent only its market's tools. `score_options_trade` is the one tool that POSTs (a multi-leg trade doesn't fit a query string) and the one that computes rather than fetches — its prompt text carries the no-chain-feed rule, so an agent asks the user for a missing bid instead of inventing one. Crypto tools hit `/api/v1/*` + `/live-data/ohlcv`; equity tools (`get_stock_quote/financials/profile/filings/news/social/price_history`) hit the equity `/live-data/*` routes. Every tool reads exactly what the UI reads — one source of truth. The Anthropic runner also adds the server-side **`web_search`** tool (max_uses via `opts.webSearchMaxUses`, default 5 / research 8), and handles the `pause_turn` stop reason it produces; web search is **Anthropic-only** (agents switched to another provider keep data tools but lose search).
 
 **Invocation:** `app-assistant` (Assistant chat → `/api/agents/chat`), `research-analyst` / `equity-research` / `macro-research` (Research page Crypto/Equities/Macro selector → `/api/agents/research`), and `equity-screener` (Stock Registry "AI Outlier Scan" panel → `/api/agents/research`, whitelisted; calls `get_stock_outliers` then drills in) have run triggers. `macro-screener` is whitelisted on the research route (deep-linkable via `?agent=macro-screener`) but has no dedicated panel yet. `data-scraper` / `equity-data-scraper` / `equity-diligence` are configurable-but-not-yet-invoked placeholders (need a trigger UI). `pump-report-*` run via their own `/live-data/pump-report/*` routes (separate loop, own web_search).
 
@@ -586,6 +586,7 @@ A separate, agent-optimised REST API lives at `/api/v1/`. It is distinct from `/
 | `GET /api/v1/securities/history?symbol=AAPL&range=1y` | Daily close history for any quotable symbol (1mo–max) |
 | `GET /api/v1/macro/yield-curve` | Official treasury.gov 13-maturity par curve + 2s10s/3m10y spreads + shape |
 | `GET /api/v1/macro/fx-rates?symbols=EUR,JPY` | Daily ECB reference FX (official tier only — extended community tier deliberately not exposed) |
+| `POST /api/v1/options/score` | Score a described options position on the canonical safety scale. **Computes, doesn't fetch** — there is no chain feed, so the caller supplies every option-level figure. `GET` on the same path returns the schema. Explains risk; never recommends |
 | `GET /api/v1/openapi.json` | Full OpenAPI 3.0 spec |
 
 ### CORS helper
@@ -617,6 +618,7 @@ A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes Finan
 | `get_security_history` | Daily close history + 52-week range for any quotable symbol |
 | `get_yield_curve` | Official Treasury par curve with spreads and shape |
 | `get_fx_rates` | Daily ECB reference FX rates (official tier) |
+| `score_options_trade` | Risk-score a user-described options position (0–100, higher = safer, per-dimension) |
 
 ### Setup (build once)
 ```bash
