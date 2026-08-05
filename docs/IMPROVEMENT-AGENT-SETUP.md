@@ -4,6 +4,38 @@
 
 ---
 
+## Four agents, two boundaries
+
+This file installs and operates two of them, but the deployed roster is **four**, and the
+division of labor is worth naming in one place because the pairs overlap in exactly the way
+that invites double-filing:
+
+| | Reads code | Writes status docs |
+|---|---|---|
+| **Scoped to a diff/PR** | `code-checker` (`docs/agents/code-checker.md`) — review invariants + the do-not-fix registry | — |
+| **Scoped repo-wide** | `code-auditor` (`.claude/agents/code-auditor.md`) — dated, evidence-backed defect reports | `checklist-steward` (`docs/agents/checklist-steward.md`) — all status ledgers, approval-gated |
+| **Proposes new work** | — | `opportunity-scout` FILE mode (`.claude/agents/opportunity-scout.md`) — TASK-QUEUE inserts, approval-gated |
+
+The two code readers split by **scope**: the checker reviews a diff against the review
+invariants and never roams; the auditor sweeps the whole repository and never gates a PR. A
+defect found in review belongs in the PR conversation; the same defect found at rest belongs
+in an audit report. Neither files into the other's channel.
+
+The two TASK-QUEUE writers split by **kind of entry**: the steward maintains what is already
+tracked (status ticks, annotations, results sections); the scout inserts what is newly
+approved. Both are approval-gated — neither writes without the owner saying yes. And because
+they write into the same file, **each must read the other's outputs before writing**: the
+scout reads the steward's annotations so it doesn't re-propose something recorded as done or
+superseded, and the steward reads `docs/audits/rejected-proposals.md` so it doesn't annotate
+a rejected item as if it were pending. A queue written by two agents that don't read each
+other converges on contradiction.
+
+The rest of this file covers the scout and the auditor — the two with recurring cadences.
+The checker and steward run on demand; their charters in `docs/agents/` each end with a
+ready-to-paste deployable prompt.
+
+---
+
 ## Two agents, one boundary
 
 They are deliberately separate because the two jobs need opposite temperaments.

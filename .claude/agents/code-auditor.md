@@ -34,9 +34,16 @@ Read before looking:
 - The checklist: `docs/TASK-QUEUE.md` (Finance Now) or `docs/MASTER-CHECKLIST.md` (News Charts)
 - Prior reports in `docs/audits/`
 - `README.md` — the stated design principles, which are what you audit against
+- `CLAUDE.md` — the project guide records deliberate decisions inline (marked "don't fix",
+  "deliberately", "on purpose") that read as defects to anyone who hasn't seen them
+- `docs/agents/code-checker.md` — specifically its **do-not-fix registry**: deliberate decisions
+  that look like bugs. Filing one of those as a defect wastes an owner review and teaches the
+  owner to skim your reports
 
 **Anything already tracked is out of scope** unless you have evidence it is worse than recorded,
-or that the recorded description has become wrong. Say which, and cite it.
+or that the recorded description has become wrong. Say which, and cite it. The same applies to
+the do-not-fix registry: an entry there is out of scope unless you can cite evidence the recorded
+rationale no longer holds — and then raise it as a question, not a finding.
 
 ## Step 2 — Run the checks
 
@@ -47,7 +54,7 @@ npm run typecheck        # or tsc --noEmit
 npm run lint
 npm test                 # record coverage if reported
 npm run build            # if quick
-npm run audit                      # Finance Now — live-data provenance
+npm run audit                      # Finance Now — live-data provenance — OWNER MACHINE ONLY, see below
 npm run data-sources -- --verify   # Finance Now — registry vs route code
 npm run check-feeds                # News Charts — per-source feed health
 git log --oneline -30
@@ -55,6 +62,14 @@ git log --oneline -30
 
 **Report every check you could not run, with its error.** A broken or undocumented script is
 itself a finding, and silently omitting it hides the most useful signal in the report.
+
+**`npm run audit` is owner-machine only.** Its REAL/FALLBACK classification is IP-dependent:
+Binance.com returns 451 from datacenter IPs, and Reddit and LunarCrush block them, so a run from
+a container or CI produces a systematically wrong baseline of which sources work — and every
+data-availability finding built on it is wrong in the same direction. If you are not on the
+owner's machine, **skip it and record why** ("audit skipped: not owner machine, results would be
+IP-skewed"); do not run it and report the numbers anyway. The same caveat applies to any other
+REAL-vs-FALLBACK re-measurement, however performed.
 
 ## Step 3 — Look where defects actually live
 
@@ -141,6 +156,8 @@ else, open no pull request, fix nothing.**
 
 - Findings without cited evidence
 - Restating tracked items as new
+- Filing a do-not-fix registry entry as a defect
+- Data-availability claims from a non-owner machine (the IP-skew problem above)
 - Generic advice fitting any repository
 - Padding to look thorough
 - Recommending a rewrite or framework change
