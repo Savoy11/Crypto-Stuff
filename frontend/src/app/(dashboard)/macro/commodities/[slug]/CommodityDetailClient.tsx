@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { PriceChartCard } from '@/components/markets/PriceChartCard'
+import { TermStructureCard } from '@/components/markets/TermStructureCard'
 import { SourceLine } from '@/components/ui/SourceLine'
 import {
   COMMODITY_CATEGORY_INFO, getCommodity, formatCommodityPrice,
@@ -86,6 +87,13 @@ export function CommodityDetailClient({ slug }: { slug: string }) {
           {/* Cents-quoted contracts (grains, softs, livestock) chart as bare
               numbers — a $-prefixed axis would mislabel 472¢ corn as $472. */}
           <PriceChartCard symbol={entry.symbol} valueFormat={entry.quoteBasis === 'cents' ? 'plain' : 'usd'} />
+
+          {/* The forward curve is what the ETF-proxy caveat below is actually
+              about: contango IS the roll cost that makes a futures-backed fund
+              lag spot. Sits under the price chart so the two read together. */}
+          <div className="mt-4">
+            <TermStructureCard slug={slug} />
+          </div>
         </div>
 
         <div className="space-y-4">

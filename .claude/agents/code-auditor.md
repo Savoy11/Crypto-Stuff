@@ -37,8 +37,13 @@ Read before looking:
 - `CLAUDE.md` — the project guide records deliberate decisions inline (marked "don't fix",
   "deliberately", "on purpose") that read as defects to anyone who hasn't seen them
 - `docs/agents/code-checker.md` — specifically its **do-not-fix registry**: deliberate decisions
-  that look like bugs. Filing one of those as a defect wastes an owner review and teaches the
-  owner to skim your reports
+  that look like bugs (Celsius kept in the staking catalog, empty `etfProxies` on delisted
+  markets, null P/E for loss-makers, the unreachable diversification-score ceiling, sequential
+  fallback ladders not parallelised, and more). Filing one of those as a defect wastes an owner
+  review and teaches the owner to skim your reports
+- `DATA-AVAILABILITY.md` — the authoritative record of what is Live / Partial / Not available.
+  A surface documented 🔴 that shows an explicit "not available" notice is an honest absence,
+  not a broken route
 
 **Anything already tracked is out of scope** unless you have evidence it is worse than recorded,
 or that the recorded description has become wrong. Say which, and cite it. The same applies to
@@ -47,10 +52,11 @@ rationale no longer holds — and then raise it as a question, not a finding.
 
 ## Step 2 — Run the checks
 
-Read `package.json` scripts rather than assuming. Typically:
+Read `package.json` scripts rather than assuming — in Finance Now it lives in `frontend/`,
+not the repo root. Typically:
 
 ```
-npm run typecheck        # or tsc --noEmit
+npm run type-check       # or tsc --noEmit
 npm run lint
 npm test                 # record coverage if reported
 npm run build            # if quick
@@ -63,12 +69,14 @@ git log --oneline -30
 **Report every check you could not run, with its error.** A broken or undocumented script is
 itself a finding, and silently omitting it hides the most useful signal in the report.
 
-**`npm run audit` is owner-machine only.** Its REAL/FALLBACK classification is IP-dependent:
-Binance.com returns 451 from datacenter IPs, and Reddit and LunarCrush block them, so a run from
-a container or CI produces a systematically wrong baseline of which sources work — and every
+**`npm run audit` / `npm run smoke` are owner-machine only.** Their REAL/FALLBACK
+classification is IP-dependent: Binance.com returns 451 from datacenter IPs, and Reddit and
+LunarCrush block them, so a run from a container or CI produces a systematically wrong
+baseline of which sources work — and every
 data-availability finding built on it is wrong in the same direction. If you are not on the
-owner's machine, **skip it and record why** ("audit skipped: not owner machine, results would be
-IP-skewed"); do not run it and report the numbers anyway. The same caveat applies to any other
+owner's machine, **skip them and record why** under "Checks that could not be run" ("skipped:
+not owner machine, results would be IP-skewed"); do not run them and report the numbers anyway,
+and do not file their failures as findings. The same caveat applies to any other
 REAL-vs-FALLBACK re-measurement, however performed.
 
 ## Step 3 — Look where defects actually live
@@ -76,7 +84,9 @@ REAL-vs-FALLBACK re-measurement, however performed.
 **Stale reasoning.** Code that suppresses, nulls or hardcodes a value with a comment explaining
 why, where the reason no longer holds. This is the highest-value category and the one generic
 tooling always misses — a live feature rendered unavailable by a comment that expired. Read the
-comments and test whether they are still true.
+comments and test whether they are still true. The canonical Finance Now case (found by the
+2026-07-30 audit, since fixed): a connection-status hook hardcoded to `'connected'`, so the
+"Live" indicator on every screen could never report a degraded feed.
 
 **Untested surfaces users act on.** Weight by consumer count and by whether the output is
 displayed as a number someone might trade on. Report the count of importers, not just the
@@ -108,7 +118,8 @@ and dates in prose that no longer match. Generated files edited by hand — Fina
   `affiliateUrl`. Once those land, an affiliate link that satisfies them is not a finding; one
   that violates any of them still is, and remains high severity.
 - No paid placement in ranked or scored output, either project.
-- Sources flagged `commercialOk: false` must not be reachable from a production path.
+- News Charts: sources flagged `commercialOk: false` must not be reachable from a production
+  path (the flag does not exist in Finance Now).
 - AI-generated content must be labelled where published.
 - News Charts: end-of-day pricing only; any intraday or real-time fetch is a licensing defect.
 
