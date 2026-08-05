@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
 import { ArrowLeft, ExternalLink } from 'lucide-react'
 import { PriceChartCard } from '@/components/markets/PriceChartCard'
+import { TermStructureCard } from '@/components/markets/TermStructureCard'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { RATES_CATEGORY_INFO, formatRatesQuote, getRatesEntry } from '@/lib/data/ratesCatalog'
 import { getFund } from '@/lib/data/fundCatalog'
@@ -90,6 +91,15 @@ export function RatesDetailClient({ slug }: { slug: string }) {
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2">
           <PriceChartCard symbol={entry.symbol} valueFormat="plain" />
+
+          {/* Treasury FUTURES have a contract curve; yield indices don't — for
+              those, the curve is the Treasury par curve on /macro/rates, and
+              the route says so rather than drawing a second thing. */}
+          {entry.category === 'future' && (
+            <div className="mt-4">
+              <TermStructureCard slug={slug} kind="rate" />
+            </div>
+          )}
         </div>
 
         <div className="space-y-4">

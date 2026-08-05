@@ -1130,7 +1130,7 @@ this.
 
 ```
 P2-W0 (parallel):  P2-O1 ✅ (owner machine, 2026-08-05) · P2-O2 ✅ · P2-R3 ✅
-P2-W1 (after O1):  P2-O3 ⛔ NO-GO keyless (owner decision) · P2-O4 ✅ GO — buildable now
+P2-W1 (after O1):  P2-O3 ⛔ NO-GO keyless (owner decision) · P2-O4 ✅ SHIPPED 2026-08-05
 P2-W2:             P2-O5 split — scorer half independent; chain half follows O3
 ```
 
@@ -1160,6 +1160,11 @@ Tasks within a wave own disjoint file sets, same rule as Phase 1.
 >   not-available (**recommended** — additive to adopt a keyed source later, and
 >   the P2-O2 scorer already serves the use case), or add a keyed provider
 >   (Tradier first) and settle the delayed convention as part of it.
+> - **P2-O4 shipped 2026-08-05** on the GO: `/live-data/futures-curve` +
+>   `TermStructureCard` on commodity and rate-futures detail pages, over the same
+>   v8 chart API — no new provider. Curve shape is stated as the ETF roll cost it
+>   actually is, thin contracts are excluded with the reason on-page, and a curve
+>   is refused below 3 resolved months rather than drawn from a partial fetch.
 > - **IV rank stays manual entry** — no keyless source carries IV history.
 >   Persisting a daily snapshot forward is a real option with a 52-week warm-up;
 >   flagged, not taken.

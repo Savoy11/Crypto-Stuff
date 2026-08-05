@@ -305,6 +305,12 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     notes: '8 keyless RSS feeds with a content-first pillar classifier.',
   },
   {
+    id: 'futures-curve', surface: 'Futures term structure (forward curve)', module: 'macro',
+    route: '/live-data/futures-curve', status: 'live',
+    providers: [YAHOO],
+    notes: 'Individual contract months (CLZ26.NYM style) through the same v8 chart API as continuous front-months — no new provider. Verified 9/9 across NYMEX/COMEX/CBOT by the P2-O1 audit (2026-08-05). Unlisted months are dropped and reported; thin contracts are excluded outright.',
+  },
+  {
     id: 'macro-quotes', surface: 'Commodity / FX / rate quotes + charts', module: 'macro',
     route: '/live-data/security-quotes · security-chart · security-ohlcv', status: 'live',
     providers: [YAHOO],
