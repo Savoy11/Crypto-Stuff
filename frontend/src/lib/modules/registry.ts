@@ -29,6 +29,7 @@ import {
   Percent,
   Network,
   Activity,
+  Sigma,
   PiggyBank,
   ReceiptText,
 } from 'lucide-react'
@@ -127,6 +128,7 @@ export const MODULES: SuiteModule[] = [
       { href: '/equities/news', label: 'Market News', icon: Newspaper },
       { href: '/equities/social', label: 'Stock Social', icon: MessageSquare },
       { href: '/equities/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
+      { href: '/equities/options', label: 'Options Scorer', icon: Sigma },
       { href: '/equities/backtests', label: 'Backtests', icon: FlaskConical },
       { href: '/equities/calendar', label: 'Calendar', icon: CalendarDays },
     ],

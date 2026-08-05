@@ -1129,12 +1129,20 @@ this.
 ### Scheduling
 
 ```
-P2-W0 (parallel):  P2-O1 (owner machine) · P2-O2 · P2-R3
+P2-W0 (parallel):  P2-O1 (owner machine) · P2-O2 ✅ · P2-R3 ✅
 P2-W1 (after O1):  P2-O3 (chains — only on a GO) · P2-O4 (futures term structure — only on a GO)
 P2-W2 (after O3):  P2-O5 (integration: agents, v1 API, MCP)
 ```
 
 Tasks within a wave own disjoint file sets, same rule as Phase 1.
+
+> **Status (2026-08-05):** P2-O2 and P2-R3 shipped the same day the scope landed —
+> both were doable from a container because neither touches data availability.
+> **P2-O1 remains open and is the gate**: it must run on the owner's machine, and
+> P2-W1/W2 wait on its GO/NO-GO plus the delayed-data decision. Derived riskTier
+> changes from P2-R3 (portfolio weighted-risk shifts for macro holders — most
+> visibly long-duration rate instruments moving off the flat tier 2) are pinned in
+> `src/lib/risk/__tests__/macroProfiles.test.ts`.
 
 ---
 
