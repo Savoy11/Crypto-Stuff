@@ -1,92 +1,172 @@
 # P2-O1 — Options & futures data-source audit
 
-**Status: PRELIMINARY — awaiting owner-machine probe results.** This document was
-scaffolded from a container session (2026-08-05), which can legitimately do two of the
-audit's three parts: build the measurement tooling and research provider terms. It
-cannot produce the reachability/field baseline — every probe from the container 403s at
-the egress proxy (including `CL=F`, which the app demonstrably serves in production),
-which is the IP-dependence rule doing exactly what it exists to do.
+**Measured 2026-08-05 on the owner's machine** (`node frontend/scripts/audit-options-data.mjs`),
+which is the only place these verdicts are valid — datacenter IPs are blocked, rate-limited
+and geo-fenced differently, and a container run of this same script returns 0/15 including
+the `CL=F` control the app serves in production daily.
 
-## How to produce the measurements (owner machine)
+**Result: 12/15 probes returned data.** Two clean verdicts, one of which is a GO, and one
+policy question that the measurements sharpen rather than settle.
 
-```bash
-cd frontend
-node scripts/audit-options-data.mjs            # human-readable
-node scripts/audit-options-data.mjs --json > options-probe.json   # paste back
-```
+---
 
-The script probes, read-only and keyless:
-1. **CBOE delayed-quotes JSON** — chains for AAPL (equity), SPY (ETF), _SPX (index):
-   option count, greeks/IV/OI field coverage, quote timestamps.
-2. **Yahoo v7 options** — same symbols on both query hosts: expiries, strikes, field
-   coverage, whether OI/IV are actually populated (Yahoo zeroes OI on some symbols
-   outside market hours). A 401/403 here is itself a finding — Yahoo has been
-   tightening cookie/crumb requirements on v-APIs.
-3. **Individual futures contract months** (the P2-O4 gate) — CLZ26.NYM-style symbols
-   across NYMEX/COMEX/CBOT via the same v8 chart API the app already uses for
-   continuous front-months, with `CL=F` as a known-good control.
+## 1. Options chains
 
-## Terms of use — researched 2026-08-05 (verify the exact page text owner-side)
+### CBOE delayed quotes — works perfectly, and cannot be used
 
-**CBOE: reachable-keyless is NOT the same as permitted.** Per Cboe's own pages and
-data-licensing materials (via web search; the container cannot open cboe.com directly):
+Technically this is the best result the audit could have produced. All three symbol classes
+returned HTTP 200 with the complete field set, sub-second:
 
-- Cboe's delayed-quotes pages state that downloading delayed quote data **"by using
-  auto-extraction programs/queries and/or software" is strictly prohibited**, that Cboe
-  **blocks IPs** that attempt it, and that the data is property of Cboe
-  Livevol/its providers — permitted access is manual ticker entry on their site.
-- The sanctioned programmatic path is the **[Cboe All Access
-  API](https://datashop.cboe.com/cboe-all-access-api)** — a licensed, paid product
-  whose redistribution license covers putting real-time/delayed/historical non-SIP
-  data into client-facing applications. External redistributors of even *delayed*
-  data are required to sign a Data Agreement (see [Cboe delayed
-  quotes](https://www.cboe.com/delayed_quotes/cboe) and licensed resellers such as
-  [Intrinio's delayed Cboe One feed](https://intrinio.com/financial-market-data/cboe-one-delayed)).
+| Symbol | Class | Contracts | Fields |
+|---|---|---|---|
+| AAPL | equity | 3,618 | bid, ask, last, volume, open interest, **iv, delta, gamma, theta, vega** |
+| SPY | ETF | 14,364 | same — nothing missing |
+| ^SPX | index | 32,332 | same — nothing missing |
 
-**Preliminary consequence:** the "free CBOE delayed JSON" candidate should be treated
-as **not usable** for Finance Now regardless of what the probe measures — the project
-treats licensing as first-class (CUSIP note on /macro/rates; News Charts EOD-only
-rule), and a source whose terms prohibit exactly this access pattern fails that bar
-even if the endpoint answers. If the probe shows it reachable, that changes nothing;
-Cboe's stated enforcement is IP blocking, which for a server-side route means the
-app's own egress going dark without warning.
+Timestamps were ~15 minutes delayed, exactly as documented. Full greeks and IV mean this
+one source could populate a chain browser end-to-end *and* fill `scoreOptionsTrade()`'s
+optional `delta` input, which the P2-O2 scorer currently asks the user to copy by hand.
 
-**Yahoo options:** unofficial and undocumented — there are no API terms to satisfy
-because there is no published API. This is the **same standing situation as the
-spark/chart/quoteSummary endpoints the app already relies on** for equity quotes,
-OHLCV, and fund holdings fallbacks. Whatever position the project takes on Yahoo
-options should be consistent with that existing practice rather than a new,
-stricter one invented here. The probe determines whether it even works keyless
-(cookie/crumb tightening may have closed v7), and whether OI/IV are populated well
-enough to be worth rendering.
+**It fails on terms, and the terms are not ambiguous.** Cboe's delayed-quote pages carry
+this notice, consistently across every symbol and product page checked
+([CBOE](https://www.cboe.com/delayed_quotes/CBOE/quote_table/),
+[OPTIONS](https://www.cboe.com/delayed_quotes/options/),
+[VIX](https://www.cboe.com/delayed_quotes/vix/),
+[futures](https://www.cboe.com/delayed_quotes/futures/future_quotes/)): downloading delayed
+quote-table data **"by using auto-extraction programs/queries and/or software" is strictly
+prohibited**, Cboe **blocks the IP addresses** of parties who attempt it, the data is the
+property of Cboe LiveVol or its providers, and access by any means other than **manual
+ticker-symbol entry** is prohibited. Programmatic and redistribution use is routed through
+the licensed, paid [Cboe All Access API](https://datashop.cboe.com/cboe-all-access-api);
+external redistributors of even *delayed* data must sign a Data Agreement (hence licensed
+resellers like [Intrinio's delayed Cboe One feed](https://intrinio.com/financial-market-data/cboe-one-delayed)).
 
-**Key-gated tiers** (not testable keyless; plan pricing as published, verify before
-committing): Tradier (developer sandbox includes delayed options chains on a free
-account; production API is account-gated), Polygon (options are a paid plan),
-Finnhub (options on paid tiers), Alpha Vantage (options in premium). If chains
-become a product priority and Yahoo fails the probe, a Tradier-style keyed
-integration through the provider registry is the honest path — key-gated rows that
-report `configured: false` when absent, like FMP does today.
+The `cdn.cboe.com/api/global/delayed_quotes/options/*.json` endpoint the probe hit is the
+backing API for exactly those quote-table pages. A server-side route polling it is the
+prohibited pattern, described almost word for word.
 
-## The decision this audit must end with (owner call, framed not made)
+**Two independent reasons this is a NO-GO, not a judgement call:**
 
-The live-only policy has never had to classify **delayed** data. If the only viable
-chain source is delayed:
+1. **Policy.** This project treats licensing as first-class — CUSIP-level bond quotes are
+   deliberately absent from `/macro/rates` and say so on-page; News Charts is EOD-only to
+   avoid exchange licensing. Shipping a source whose terms prohibit this exact access
+   pattern would contradict a standing decision, not extend it.
+2. **Operational.** The stated enforcement is IP blocking. For a server-side route that
+   means the app's own egress going dark without warning — and the failure would land on
+   whichever surface happened to be rendering, not on a provider row someone is watching.
 
-- **Option A — admit an explicit "delayed" category.** New convention: every surface
-  showing a delayed number renders the delay in the ProvenanceNotice pattern (always
-  visible, never only-when-stale), and the delay metadata travels through
-  `/api/v1` verbatim so external consumers cannot mistake delayed for live.
-- **Option B — chains stay not-available** until a properly licensed/keyed source is
-  configured. Consistent with the existing "no free real-time source → explicit
-  notice" stance; costs the chain browser until then.
+*(If Cboe data is genuinely wanted later, the All Access API is the honest path: a keyed
+provider-registry row, priced and configured deliberately. That is a product/spend decision,
+not an audit finding.)*
 
-## Verdicts (to be filled from the probe results)
+### Yahoo options — closed
+
+All three probes returned **HTTP 401**, on both `query1` and `query2`, for AAPL and SPY
+alike. An auth wall, not a rate limit or a transient error: the keyless Yahoo options path
+is shut, consistent with the cookie/crumb tightening Yahoo has been applying across its
+v-APIs. This was the candidate that would have inherited the app's existing (already
+accepted) Yahoo posture. It is not available to inherit it.
+
+Note the contrast that makes this a clean finding rather than a network artifact: Yahoo's
+**v8 chart** API answered 10/10 in the same run from the same machine. Yahoo is reachable;
+Yahoo *options* is gated.
+
+### Consequence: there is no keyless options-chain source
+
+The two keyless candidates are exhausted — one blocked by terms, one by authentication.
+Chains are therefore **not deliverable without a key**, which turns P2-O3 from a build
+task into a spend decision. See "The decision" below.
+
+---
+
+## 2. Futures term structure — **GO**
+
+All 9 individual-contract-month probes passed. `CL` (NYMEX), `GC` (COMEX), `ZC` and `ZN`
+(CBOT) all resolve at specific months (U26 and Z26) through the **same Yahoo v8 chart API
+the app already uses in production** for continuous front-months — 64 daily bars back to
+2026-05-05, no errors.
+
+The curve shape is visible and sane in the measured data:
+
+| Contract | Sep 2026 (U26) | Dec 2026 (Z26) | Shape |
+|---|---|---|---|
+| WTI crude | 76.11 | 72.42 | **backwardation** |
+| Gold | 4,177.7 | 4,223.6 | **contango** |
+
+**Consistency check:** `CLU26.NYM` returned exactly 76.11, identical to the `CL=F`
+continuous control. That is the expected result, not a bug — September is the WTI front
+month in early August, so the continuous series is tracking U26. It confirms the
+individual-month symbols resolve to the same underlying series the app already charts.
+
+**No new provider, no new licensing question, no new plumbing** — P2-O4 is unblocked and
+buildable now.
+
+---
+
+## 3. IV rank
+
+`scoreOptionsTrade()` takes an optional `ivRank` (where today's IV sits in its 52-week
+range). That needs IV **history**, which none of the probed sources provide — CBOE's
+delayed feed carries current IV per contract (and is out on terms anyway), and Yahoo
+options is closed. **Confirmed: ivRank stays manual entry.**
+
+The alternative — compute IV rank going forward by persisting a daily IV snapshot — is a
+real option but a product decision with a storage cost and a 52-week warm-up before the
+number means anything. Flagged, not taken.
+
+---
+
+## 4. Key-gated tiers (not probed — no keys to probe with)
+
+If chains become a priority, these are the candidates, in the order worth evaluating.
+Plan inclusions change; **verify current pricing before committing**:
+
+| Provider | Chains on | Notes |
+|---|---|---|
+| **Tradier** | Free developer sandbox (delayed); production needs a brokerage account | Cleanest fit: documented API, explicit delayed tier, no scraping question |
+| Polygon | Paid options plan | Well-documented; real-time available at higher cost |
+| Finnhub | Paid tiers | |
+| Alpha Vantage | Premium | Already an env var in the registry for equity quotes |
+
+Any of these would enter as a **key-gated provider-registry row** reporting
+`configured: false` when absent — the pattern FMP already follows — so the app degrades
+honestly rather than silently.
+
+---
+
+## The decision this audit exists to surface
+
+The measurements changed its shape. The original framing assumed a working free delayed
+source and asked whether "delayed" is an acceptable data category. There is no working free
+source, so the question is now:
+
+- **Option A — chains stay not-available.** Consistent with the standing live-only stance
+  ("no free real-time source → explicit not-available notice", as `/macro/rates` already
+  does for CUSIP-level bond quotes). P2-O3 is closed rather than deferred; P2-O5's chain
+  half goes with it. Zero cost, zero new licensing surface. The P2-O2 scorer continues to
+  serve the actual use case — score a trade you are considering — with hand-entered legs.
+- **Option B — add a keyed provider (Tradier first).** Chains become a key-gated surface
+  like FMP's broad universe: present when configured, honestly absent otherwise. This
+  *also* requires settling the delayed-data convention, since Tradier's free tier is
+  delayed: every surface showing a delayed number renders the delay in the
+  `ProvenanceNotice` pattern (always visible, never only-when-stale), and the delay
+  metadata travels through `/api/v1` verbatim so external consumers cannot mistake delayed
+  for live.
+
+**Recommendation: Option A for now.** The scorer already delivers the module's value
+without a chain, P2-O4 delivers real new capability with no dependency at all, and Option B
+can be adopted later without rework — a keyed row is additive to the provider registry by
+design. Nothing about choosing A forecloses B.
+
+---
+
+## Verdicts
 
 | Surface | Verdict | Basis |
 |---|---|---|
-| P2-O3 options chain browser | **pending probe** | Yahoo probe results + delayed-data decision. CBOE keyless path already fails on terms regardless of probe. |
-| P2-O4 futures term structure | **pending probe** | Individual-month probe vs the CL=F control. |
-| Provider ladder if GO | **pending** | — |
+| **P2-O3** options chain browser | **NO-GO (keyless)** — pending owner decision on a keyed source | CBOE prohibited by terms; Yahoo options 401 on both hosts. No keyless path exists. |
+| **P2-O4** futures term structure | **GO** | 9/9 contract months via the v8 chart API already in production; control consistency verified; curve shapes sane. |
+| **P2-O5** integration | **Split** | The chain half follows O3. The scorer half (`score_options_trade` tool + `/api/v1/options/score`) is independent of all of this and can proceed whenever. |
+| IV rank source | **None keyless** | Stays manual entry; forward-persistence is a separate product decision. |
 
-`DATA-AVAILABILITY.md` update: pending the same results.
+`DATA-AVAILABILITY.md` updated in the same change.

@@ -114,6 +114,9 @@ Several providers geo-block or bot-block, and the results differ by IP. Verified
 | `kobe.mainnet.jito.network/api/v1/apy` | **404** | **Fixed:** switched to `/stake_pool_stats` |
 | SEC EDGAR / data.sec.gov | 200 | Keyless and authoritative — filings, XBRL, N-PORT |
 | Yahoo Finance spark/chart | 200 | Primary equity quote + OHLCV source |
+| Yahoo Finance **v8 chart, individual futures months** (`CLZ26.NYM`) | 200 | **Measured 2026-08-05 (P2-O1):** 9/9 across NYMEX/COMEX/CBOT, 64 daily bars. Unblocks the futures term-structure view (P2-O4) — same API already in production |
+| Yahoo Finance **options** (`v7/finance/options`) | **401** — both hosts, all symbols | **Measured 2026-08-05 (P2-O1):** auth wall, not a rate limit. The keyless options-chain path is closed. Note Yahoo chart answered 10/10 in the same run — Yahoo is reachable; Yahoo *options* is gated |
+| `cdn.cboe.com` delayed options quotes | 200, complete (greeks + IV + OI) | **Measured 2026-08-05 (P2-O1): technically perfect, PROHIBITED BY TERMS.** Cboe forbids auto-extraction of delayed quote data and blocks the IPs that attempt it; programmatic use runs through the paid All Access API. Not used, and not to be added — see `docs/assessments/P2-O1-options-data.md` |
 | StockTwits | 200 | Keyless equity social |
 | DefiLlama, mempool.space, alternative.me, Lido, Marinade | 200 | All healthy |
 

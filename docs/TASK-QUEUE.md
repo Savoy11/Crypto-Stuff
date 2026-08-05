@@ -1129,20 +1129,44 @@ this.
 ### Scheduling
 
 ```
-P2-W0 (parallel):  P2-O1 (owner machine) · P2-O2 ✅ · P2-R3 ✅
-P2-W1 (after O1):  P2-O3 (chains — only on a GO) · P2-O4 (futures term structure — only on a GO)
-P2-W2 (after O3):  P2-O5 (integration: agents, v1 API, MCP)
+P2-W0 (parallel):  P2-O1 ✅ (owner machine, 2026-08-05) · P2-O2 ✅ · P2-R3 ✅
+P2-W1 (after O1):  P2-O3 ⛔ NO-GO keyless (owner decision) · P2-O4 ✅ GO — buildable now
+P2-W2:             P2-O5 split — scorer half independent; chain half follows O3
 ```
 
 Tasks within a wave own disjoint file sets, same rule as Phase 1.
 
-> **Status (2026-08-05):** P2-O2 and P2-R3 shipped the same day the scope landed —
-> both were doable from a container because neither touches data availability.
-> **P2-O1 remains open and is the gate**: it must run on the owner's machine, and
-> P2-W1/W2 wait on its GO/NO-GO plus the delayed-data decision. Derived riskTier
-> changes from P2-R3 (portfolio weighted-risk shifts for macro holders — most
-> visibly long-duration rate instruments moving off the flat tier 2) are pinned in
-> `src/lib/risk/__tests__/macroProfiles.test.ts`.
+> **Status (2026-08-05):** Wave 0 is **complete**. P2-O2 and P2-R3 shipped the day
+> the scope landed; **P2-O1 ran on the owner's machine the same evening** —
+> 12/15 probes, full report in `docs/assessments/P2-O1-options-data.md`. Its
+> verdicts reshape W1/W2:
+>
+> - **P2-O4 futures term structure — GO, unblocked, buildable now.** 9/9 individual
+>   contract months resolve through the v8 chart API already in production
+>   (64 daily bars; `CLU26.NYM` matches the `CL=F` control exactly, as expected
+>   with September the WTI front month). No new provider, no licensing question.
+> - **P2-O3 options chains — NO-GO keyless.** Both candidates are out: Yahoo
+>   options returns **401 on both hosts** (an auth wall, not a rate limit — while
+>   Yahoo *chart* answered 10/10 in the same run), and CBOE's delayed feed, though
+>   technically perfect (3,618–32,332 contracts with full greeks, IV and OI,
+>   ~15-min delayed, sub-second), is **prohibited by its own terms**: Cboe forbids
+>   auto-extraction of delayed quote data, blocks the IPs that try, and routes
+>   programmatic use through the paid All Access API. Two independent reasons to
+>   refuse it — the standing licensing-first policy (cf. the CUSIP note on
+>   `/macro/rates`), and the operational reality that the stated enforcement is
+>   IP blocking, i.e. the app's own egress going dark unannounced.
+> - **The delayed-data question changed shape.** It presumed a working free
+>   delayed source; there isn't one. The live choice is now: chains stay
+>   not-available (**recommended** — additive to adopt a keyed source later, and
+>   the P2-O2 scorer already serves the use case), or add a keyed provider
+>   (Tradier first) and settle the delayed convention as part of it.
+> - **IV rank stays manual entry** — no keyless source carries IV history.
+>   Persisting a daily snapshot forward is a real option with a 52-week warm-up;
+>   flagged, not taken.
+>
+> Derived riskTier changes from P2-R3 (portfolio weighted-risk shifts for macro
+> holders — most visibly long-duration rate instruments moving off the flat tier 2)
+> are pinned in `src/lib/risk/__tests__/macroProfiles.test.ts`.
 
 ---
 
