@@ -1076,23 +1076,300 @@ on the owner's machine before trusting it.
 
 ---
 
-## Phase 2 — Queued, not yet scoped
+## Phase 2 — Scoped (2026-08-05)
 
-Deliberately not broken down until Phase 1 lands, since Phase 1 findings will shape both.
+Scoped after Phase 1 closed (Waves 0–4 all done), per the original rule that Phase 1 findings
+should shape this. They did — in two ways that change the plan as written:
 
-1. **Commodities / Fiat / Bonds module.** New entry in `src/lib/modules/registry.ts` + pages wrapped in
-   `<ModuleGate>`, per the module boundary rules in CLAUDE.md. Should reuse the shared TA engine that
-   T2 will have tested, and the provider registry that T1 will have mapped.
-2. **Options and futures trading support.** Note that `src/lib/risk/profiles/` already contains an
-   `optionsTrade` profile — there is an existing foundation here worth reviewing before designing new
-   work. Options add genuinely new primitives the app has never modeled (Greeks, implied volatility,
-   expiries, chains), so this is the larger of the two.
+**Item 1 as queued ("Commodities / Fiat / Bonds module") is already shipped.** It became the
+Macro Markets module (2026-07-21): registry + detail pages for 19 commodities / 18 FX / 8 rates,
+macro news, the yield curve, provider-registry and agent integration, instruments-layer entries,
+and (W4-B2) the shared-engine TA page. Do not re-plan it. What survives is the one piece the
+precursor note anticipated and nothing delivered: **`lib/risk/profiles/` has no commodity, bond,
+or currency profile** — macro instruments carry only coarse class-level `riskTier` placements
+(1–10, set in `instruments.ts`), which feed portfolio weighted-risk with less grounding than any
+other asset class in the app. That residual is P2-R3 below.
 
-**Precursor resolved in Phase 1:** the risk-scale reconciliation is now R1 + R2 rather than a deferred
-item. This matters for Phase 2 — both new asset classes bring their own risk characteristics, and
-`lib/risk/profiles/` is where they land. Adding commodity, bond, and futures profiles on top of four
-contradictory scales would have compounded the problem; on a canonical scale they are additive.
+**Item 2 ("Options and futures trading support") is scoped as analytics and education, not
+execution.** Routing or assisting orders is the largest regulatory step in the owner backlog
+(`docs/ROADMAP.md`, "Linking brokerage accounts") and is explicitly out of scope here. "Support"
+means: score a trade you are considering, see a chain, read a term structure — never place,
+route, or recommend one. The existing `optionsTrade` risk profile already takes this stance
+("it explains risk, it does not recommend trades"); the module inherits it.
 
-Bonds in particular have well-established risk primitives (duration, credit quality, convexity) that
-should compose into the canonical scale rather than becoming a fifth convention. R1's specification
-should be written with that extension in mind.
+### Why this order
+
+The blocking fact, known before any audit: **options chain data is the first surface in this app
+where the free tier may genuinely not exist.** Every module so far found a keyless authoritative
+source (SEC, treasury.gov, ECB, mempool.space). Options market data is OPRA-licensed and mostly
+paid; the keyless candidates are CBOE's delayed-quotes JSON (official but 15-min delayed, with
+usage terms to read) and Yahoo's unofficial options endpoint. Which of those actually works, what
+fields they carry, and whether their terms permit this use **cannot be established from a
+container** (the same IP-dependence rule as `npm run audit`) — so P2-O1 runs first, on the
+owner's machine, and everything chain-dependent waits for its verdict.
+
+Two tasks deliberately do NOT wait for it:
+
+- **P2-O2** surfaces the existing `scoreOptionsTrade()` engine with manual leg entry. The engine
+  takes user-described legs (side/type/strike/bid/ask, optional OI, delta, IV rank) and needs no
+  chain feed at all — the user copies numbers from their broker, which they are looking at
+  anyway. 340 tested lines with zero consumers is the cheapest real feature in the backlog, and
+  it establishes the module's UI shell whatever O1 concludes.
+- **P2-R3** is pure engine work on data the app already has.
+
+**Delayed data needs a decision before O3, not during it.** The live-only policy ("no mock data
+path; surfaces with no free real-time source show an explicit not-available notice") has never
+had to classify *delayed* data: a 15-minute-old chain is real, sourced, and honest — but it is
+not live, and options prices move fast enough that the difference is material. O1 must end with
+an owner decision: either delayed-with-visible-delay-labeling is an accepted category (a new,
+explicit convention, rendered on every affected surface), or chains stay not-available until a
+paid source is configured. Do not let a route ship that renders delayed quotes without settling
+this.
+
+### Scheduling
+
+```
+P2-W0 (parallel):  P2-O1 (owner machine) · P2-O2 ✅ · P2-R3 ✅
+P2-W1 (after O1):  P2-O3 (chains — only on a GO) · P2-O4 (futures term structure — only on a GO)
+P2-W2 (after O3):  P2-O5 (integration: agents, v1 API, MCP)
+```
+
+Tasks within a wave own disjoint file sets, same rule as Phase 1.
+
+> **Status (2026-08-05):** P2-O2 and P2-R3 shipped the same day the scope landed —
+> both were doable from a container because neither touches data availability.
+> **P2-O1 remains open and is the gate**: it must run on the owner's machine, and
+> P2-W1/W2 wait on its GO/NO-GO plus the delayed-data decision. Derived riskTier
+> changes from P2-R3 (portfolio weighted-risk shifts for macro holders — most
+> visibly long-duration rate instruments moving off the flat tier 2) are pinned in
+> `src/lib/risk/__tests__/macroProfiles.test.ts`.
+
+---
+
+### P2-O1 — Options & futures data-source audit (owner machine, read-only)
+> Blocks P2-O3, P2-O4. The provider decision the ROADMAP backlog already calls for.
+
+**Owns:** nothing — produces a written verdict in `docs/assessments/P2-O1-options-data.md`.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Establish what options and futures data Finance Now can honestly serve. Read CLAUDE.md,
+DATA-AVAILABILITY.md, and docs/ROADMAP.md's "Options / futures tool" backlog item first. This is
+a READ-ONLY audit — change no code. It MUST run on the owner's machine: data-availability
+verdicts are IP-dependent (see .claude/agents/code-auditor.md), and a datacenter-IP result would
+be systematically wrong.
+
+OPTIONS CHAINS — test each candidate and record: reachability, auth, delay, fields present
+(bid/ask, last, volume, open interest, IV, greeks), symbol coverage (equities, ETFs, indices),
+response size, and the usage terms as actually published:
+1. CBOE delayed quotes JSON (cdn.cboe.com delayed_quotes endpoints) — official, keyless,
+   ~15-min delayed. Read its terms of use carefully and quote the relevant clause in the
+   report; "keyless" and "permitted" are different claims, and this project treats licensing
+   as first-class (see the CUSIP note on /macro/rates).
+2. Yahoo Finance options endpoint — unofficial keyless, same family as the spark/chart/
+   quoteSummary endpoints the app already leans on. Record fields and whether OI/IV are
+   populated or null.
+3. Key-gated tiers the provider registry could add later: Tradier (free account sandbox),
+   Finnhub, Polygon, Alpha Vantage premium. For each: which plan actually includes chains, and
+   roughly what it costs — a proposal with a hidden monthly bill is a bad proposal.
+
+IV RANK — scoreOptionsTrade() takes an optional ivRank (where today's IV sits in its 52-week
+range). That needs IV *history*, which no keyless source provides. Confirm or refute, and if
+confirmed say so plainly: ivRank stays manual-entry (or compute-and-persist-going-forward, a
+product decision to flag, not make).
+
+FUTURES — the macro module already quotes continuous front-month contracts (GC=F, CL=F, ZN=F…).
+Test whether INDIVIDUAL contract months quote keyless through the same Yahoo path (e.g.
+CLZ26.NYM, ZCH26.CBT style symbols): fields, history depth, and how many months out. A futures
+term-structure view (P2-O4) is buildable only if they do.
+
+VERDICT — end with:
+- A GO / NO-GO per surface: chain browser (P2-O3), term structure (P2-O4).
+- The delayed-data question, framed for an owner decision: if the best available chain source
+  is 15-min delayed, does the live-only policy admit a new explicitly-labeled "delayed"
+  category, or do chains stay not-available? Present both honestly; do not pre-decide.
+- The recommended provider ladder if GO, in registry terms (built-in rows, key env vars,
+  market: 'equities' vs a new market value).
+Update DATA-AVAILABILITY.md with what was measured.
+```
+</details>
+
+### P2-O2 — Trade Risk Scorer: surface the optionsTrade engine
+> Independent — needs no chain data. The engine exists, tested, with zero consumers.
+
+**Owns:** new page under `src/app/(dashboard)/equities/options/`, new components under
+`src/components/options/`, registry nav entry.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Surface Finance Now's existing options-trade risk engine as a page. Read CLAUDE.md,
+docs/architecture/risk-framework.md, and src/lib/risk/profiles/optionsTrade.ts first — the
+engine is complete and tested; this task is UI only. Do NOT modify the engine; if you believe
+a scoring rule is wrong, report it rather than fixing it in place.
+
+Build /equities/options (equities module, inside its ModuleGate — gate at the COMPONENT
+boundary per CLAUDE.md's checklist, not inside the JSX):
+
+- Manual leg entry for 1–4 legs: side, type, strike, bid, ask, and the optional fields
+  (open interest, volume, signed delta). Plus the trade-level inputs: underlying price,
+  days to expiry, and optional ivRank, earningsInDays, exDividendInDays, maxLossUsd
+  ('unbounded' must be selectable — naked short exposure is exactly what the definedRisk
+  dimension exists to flag), maxProfitUsd.
+- Common-structure presets that prefill legs (covered call, cash-secured put, vertical
+  spread, iron condor) — prefill only, everything stays editable.
+- Render the CompositeRisk output the way the risk-scores page renders composites: overall
+  score on the canonical 0–100 higher-is-safer scale with its band, per-dimension bars with
+  weights, and the evidence lines. Confidence travels with the score.
+- The engine's stance is the page's stance, stated on-page: this explains the risk of a trade
+  you describe; it does not recommend trades, and nothing here is investment advice.
+- Underlying price can prefill from /live-data/security-quotes (label live vs ref as usual);
+  every options-level number is user-entered in this version, and the page says so — "copy
+  these from your broker's chain" is the honest framing until P2-O3 lands.
+- Persist nothing in v1. No DB, no localStorage — a scorer, not a journal. Note "saved
+  trades" as an obvious follow-up for the owner to prioritize, don't build it.
+
+Wire the nav entry in src/lib/modules/registry.ts (equities navItems + the route is already
+under /equities so routePrefixes needs nothing). Tailwind runs from a committed prebuilt CSS
+file — run `npm run css:build` after adding any new utility class. Add tests for any pure
+helper you write (preset → legs mapping is the obvious one).
+```
+</details>
+
+### P2-R3 — Macro risk profiles on the canonical scale
+> Independent. The residual of Phase 2 item 1, anticipated by R1's spec.
+
+**Owns:** `src/lib/risk/profiles/` (new files: commodity, bond/rate, currency), their tests,
+`src/lib/data/instruments.ts` riskTier derivation.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Add commodity, bond/rate, and currency risk profiles to Finance Now's risk framework. Read
+docs/architecture/risk-scale-spec.md, docs/architecture/risk-framework.md, and the existing
+profiles in src/lib/risk/profiles/ first. The canonical scale is settled — 0–100, higher =
+safer, bands 80/60/40/20. Do not re-litigate it; new profiles compose into it via
+composeRisk() like every existing one.
+
+Today macro instruments carry only coarse class-level riskTiers hardcoded in instruments.ts
+(futures 5–6, FX 3–4, rates 2). Those feed portfolio weighted-risk with less grounding than
+any other asset class. Build real profiles:
+
+- COMMODITY: volatility from live OHLCV (the normalize.ts vol/drawdown helpers exist),
+  category character (energy vs precious metals vs agriculture — document the calibration
+  anchors in comments like optionsTrade.ts does), and liquidity — the six thin markets the
+  macro TA scanner already excludes should score visibly less liquid.
+- BOND/RATE: duration is THE primitive (longer = more rate risk), credit quality where it
+  applies (treasuries vs the LQD/HYG funds the app links), yield-curve position. The bond
+  ladder in portfolioBuilder.ts and the duration-matched funds on /macro/rates carry the
+  duration data this can anchor to.
+- CURRENCY: major vs EM vs cross (the catalog already classifies), volatility from OHLCV,
+  and the standing fact the Portfolio Builder already states — foreign cash has no long-run
+  expected return.
+
+Requirements:
+- Where a dimension needs live data the server may not have, score what is available and let
+  confidence reflect the gap — the framework already does per-dimension confidence; use it
+  rather than fabricating a full-confidence number.
+- Derive instruments.ts riskTiers FROM the profiles (a pure mapping, tested) instead of
+  hardcoding, so the two can never disagree. Keep the 1–10 riskTier shape — portfolio
+  weighted-risk consumes it.
+- Vitest throughout, matching the existing profile test pattern. Direction-assert: a 30Y
+  bond scores riskier than a 13-week bill; heating oil scores less liquid than gold.
+- Do NOT build new UI. Where the scores surface (macro detail pages? watchlist?) is a
+  separate decision — this task makes the engine able to answer, not the app ask.
+```
+</details>
+
+### P2-O3 — Options chain browser (only on P2-O1 GO)
+> Depends on P2-O1's verdict AND the owner's delayed-data decision.
+
+**Owns:** `src/app/live-data/options-chain/route.ts`, chain UI under
+`src/components/options/`, provider-registry rows.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Build the options chain browser P2-O1 approved. Read that verdict
+(docs/assessments/P2-O1-options-data.md) first and follow its provider ladder exactly — this
+task exists only if O1 ended GO, and the delayed-data convention it proposed has been
+decided by the owner. If either is missing, stop and say so.
+
+- /live-data/options-chain?symbol=AAPL&expiry=… — provider ladder per O1, registry-driven
+  (getEquityProviders-style, utilization recorded), failure boundaries per CLAUDE.md's
+  multi-fetch conventions (a ladder, not allSettled).
+- Every response carries source, delay characteristics, and asOf. If the decided convention
+  is delayed-with-labeling: the delay renders on EVERY surface showing a chain number, in the
+  pattern ProvenanceNotice established — always visible, never only-when-stale. A delayed
+  quote rendered bare is a policy violation, not a cosmetic gap.
+- Chain UI: expiry selector, strike ladder around the money, per-contract bid/ask/volume/OI
+  (+ IV and greeks if O1 found them reliably populated — omit columns the source cannot
+  fill rather than rendering dashes everywhere).
+- The bridge that makes the module coherent: "Score this" on any contract row prefills the
+  P2-O2 scorer's legs. ivRank stays manual unless O1 found otherwise — prefilling a number
+  the source cannot supply is fabrication.
+- Extend the P2-O2 page rather than forking it: chain mode and manual mode are entry paths
+  into one scorer.
+```
+</details>
+
+### P2-O4 — Futures term structure (only on P2-O1 GO)
+> Depends on P2-O1 confirming individual contract months quote keyless.
+
+**Owns:** term-structure section on `src/app/(dashboard)/macro/commodities/[slug]/` (and
+rates futures detail), any new route it needs.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Add a futures term-structure view to the macro commodity detail pages, per P2-O1's verdict on
+individual contract months. Read that verdict first; if it was NO-GO, stop.
+
+- Curve of the next N quotable contract months for the liquid contracts, labeled
+  contango/backwardation with a one-line plain-language explanation of what that means for
+  the ETF proxies the page already links (roll cost is why USO lags spot — this view is
+  where that becomes visible).
+- Respect quoteBasis — a cents-quoted grain curve renders in ¢/bu.
+- The thin markets the TA scanner excludes are excluded here too, stated on-page, same
+  reasoning: a gappy curve reads as a real curve.
+- Reuse PriceChartCard/Recharts conventions; no new charting stack.
+```
+</details>
+
+### P2-O5 — Integration: agents, v1 API, MCP (after P2-O3)
+
+**Owns:** `src/lib/agents/tools.ts` + prompts, `src/app/api/v1/`, `mcp-server/`.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Extend Finance Now's agent tools, public v1 API, and MCP server with the options surfaces
+that shipped in P2-O2/O3. Read CLAUDE.md's AI Agents and Agent API sections first; every
+tool reads exactly what the UI reads — one source of truth, no agent-only data paths.
+
+- get_options_chain tool + /api/v1/options/chain (CORS, flat shape, updatedAt + source +
+  delay metadata — the delay convention travels into the public API verbatim; an external
+  consumer must not be able to mistake delayed for live).
+- score_options_trade tool + /api/v1/options/score — wraps scoreOptionsTrade(); the
+  no-recommendations stance goes in the tool description and the OpenAPI description.
+- equity agents' prompts learn the new tools exist and when to use them; the
+  live-only/say-not-available instruction covers the chain being unavailable.
+- MCP server: mirror the two tools; update openapi.json; additive only — never mutate
+  existing endpoint contracts (the api/v1 stability rule from R2 stands).
+```
+</details>
+
+### Explicitly deferred, with reasons
+
+- **Options/futures positions as portfolio holdings.** Expiring instruments break the
+  portfolio store's assumptions (a holding that ceases to exist, assignment turning an option
+  into shares, per-contract multipliers). That is a data-model change to `portfolios` +
+  instrument resolution, not a page — scope it only if the owner wants a derivatives journal,
+  and as its own task with its own migration.
+- **Brokerage linkage / order routing.** Owner backlog, flagged there as the largest
+  regulatory step. Nothing in Phase 2 touches it.
+- **A separate "derivatives" module/entitlement.** P2-O2/O3 land in the equities module
+  (the profile was written for it, the chains are on equities/ETFs). If macro options (options
+  on futures) ever matter, revisit — don't pre-build an entitlement for a module that may
+  never earn one.

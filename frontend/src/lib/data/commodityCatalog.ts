@@ -51,6 +51,24 @@ export interface CommodityEntry {
   etfProxies: string[]
 }
 
+/**
+ * Contracts too thin for ranked or scored output. One source of truth — the
+ * macro TA scanner and the commodity risk profile both read this set rather
+ * than keeping copies. These are the same six markets whose single-commodity
+ * ETFs/ETNs were confirmed delisted in the 2026-07-21 audit (UHN, JO, NIB,
+ * BAL, COW) — an independent signal of how thin US retail access to them is.
+ * They still chart and quote; they are simply not ranked beside liquid
+ * contracts, where a gappy series reads as comparable when it isn't.
+ */
+export const THINLY_TRADED_COMMODITIES: ReadonlySet<string> = new Set([
+  'HO=F', // heating oil
+  'KC=F', // coffee
+  'CC=F', // cocoa
+  'CT=F', // cotton
+  'LE=F', // live cattle
+  'HE=F', // lean hogs
+])
+
 export const COMMODITY_CATALOG: CommodityEntry[] = [
   // ── Precious metals ──────────────────────────────────────────────────────
   { slug: 'gold',        symbol: 'GC=F', name: 'Gold',            category: 'precious-metals', exchange: 'COMEX', quoteBasis: 'usd',   unit: 'oz t',   etfProxies: ['GLD', 'IAU', 'GLDM', 'SGOL', 'AAAU', 'BAR', 'OUNZ'], description: 'COMEX gold futures — the world’s reference price for bullion; the classic monetary hedge.' },
