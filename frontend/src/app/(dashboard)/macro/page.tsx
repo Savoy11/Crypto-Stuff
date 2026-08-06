@@ -7,6 +7,7 @@ import { Banknote, Gem, Globe, Percent } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { STALE_TIME_SHORT } from '@/lib/constants'
+import { SourceLine } from '@/components/ui/SourceLine'
 
 // Macro Markets overview — the module's landing page while the three area
 // toolsets build out (owner spec: docs/ROADMAP.md, "Macro Markets").
@@ -175,9 +176,13 @@ function MacroContent() {
         ))}
       </div>
 
+      {/* Attribution comes from the registry, not hand-written prose — prose
+          drifts when a provider changes and nothing forces it to be updated.
+          The quoting-convention note stays, since that's about how to READ the
+          numbers, not where they came from. */}
+      <SourceLine id="macro-quotes" className="justify-center" />
       <p className="text-[11px] text-text-muted text-center leading-relaxed">
-        Quotes via the suite&rsquo;s live security-quotes route (Yahoo Finance primary). Yield figures are index levels
-        quoted in percent; futures are front-month continuous contracts.
+        Yield figures are index levels quoted in percent; futures are front-month continuous contracts.
       </p>
     </div>
   )

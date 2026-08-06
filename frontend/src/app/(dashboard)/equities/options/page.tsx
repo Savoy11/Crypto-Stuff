@@ -6,6 +6,7 @@ import { clsx } from 'clsx'
 import { Plus, Search, Sigma, Trash2 } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { SourceLine } from '@/components/ui/SourceLine'
 import { TradeRiskReport } from '@/components/options/TradeRiskReport'
 import {
   scoreOptionsTrade,
@@ -240,6 +241,10 @@ function OptionsScorerInner() {
         it — so copy strikes and quotes from your broker&rsquo;s chain; the underlying price is the
         one number this page can fetch live.
       </p>
+
+      {/* Derived surface: the registry entry renders this as our computation,
+          not a provider's figure. */}
+      <SourceLine id="options-score" />
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* ── Left: the trade ── */}
