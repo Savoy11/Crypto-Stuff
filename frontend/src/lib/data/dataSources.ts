@@ -353,6 +353,17 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     notes: 'AI-generated text grounded in the user’s holdings and the same /live-data routes the UI reads. This is Finance Now’s own computation — not a publisher’s analysis — and inherits the freshness of whatever feeds the agent’s tools returned.',
   },
   {
+    id: 'options-score', surface: 'Trade Risk Scorer (options)', module: 'equities',
+    route: '/api/v1/options/score', status: 'derived',
+    providers: [
+      { name: 'Finance Now risk engine (lib/risk/profiles/optionsTrade.ts)', role: 'derived', auth: 'none' },
+      { name: 'User-entered option quotes (from their broker chain)', role: 'primary', auth: 'none' },
+      YAHOO,
+    ],
+    cadence: 'on demand',
+    notes: 'Every option-level figure is entered by the user — Finance Now carries NO options chain, because no free source permits one (CBOE prohibits auto-extraction; Yahoo\u2019s options endpoint requires auth). See docs/assessments/P2-O1-options-data.md. Only the underlying price is fetched, through the shared quote ladder. The score itself is this app\u2019s computation, not any provider\u2019s figure.',
+  },
+  {
     id: 'portfolio-builder', surface: 'Portfolio Builder (allocations, drift, suitability)', module: 'shared',
     route: '/live-data/portfolio-prices + /live-data/security-quotes (drift monitoring)', status: 'derived',
     providers: [
@@ -384,6 +395,47 @@ const BY_ID = new Map(DATA_SOURCES.map(e => [e.id, e]))
 /** Get the registry entry for a route/surface id (used by <SourceLine/>). */
 export function getSource(id: string): DataSourceEntry | undefined {
   return BY_ID.get(id)
+}
+
+/**
+ * How a surface's provenance should READ, given its status.
+ *
+ * The distinction this exists to enforce: a derived value is Finance Now's own
+ * computation, and rendering it as "Source: DefiLlama, CoinGecko" credits a
+ * provider with a number they never published. A risk score, a correlation
+ * matrix, a drift report and an AI brief are all things this app worked out —
+ * from provider inputs, but not *from* a provider. The house policy
+ * (docs/ROADMAP.md, "Label every data source on screen") requires derived
+ * values be marked as our own computation, never as a provider's figure.
+ *
+ * So `derived` surfaces read "Computed by Finance Now from <inputs>", and
+ * everything else reads "Source: <providers>".
+ *
+ * Pure and separately tested — the wording is the point of the feature, not an
+ * implementation detail of one component.
+ */
+export interface SourceDescription {
+  /** "Source:" or "Computed by Finance Now from" — the honest lead-in. */
+  lead: string
+  /** Provider names to list after the lead. Empty when there is nothing to name. */
+  names: string[]
+  /** True when this is our own computation rather than a provider's figure. */
+  isDerived: boolean
+}
+
+export function describeSource(entry: DataSourceEntry): SourceDescription {
+  if (entry.status !== 'derived') {
+    return { lead: 'Source:', names: entry.providers.map((p) => p.name), isDerived: false }
+  }
+  // Drop the `role: 'derived'` rows — they name our own engine, which the
+  // lead-in has already said. Listing "Finance Now engine (…)" after
+  // "Computed by Finance Now from" would be saying it twice.
+  const inputs = entry.providers.filter((p) => p.role !== 'derived').map((p) => p.name)
+  return {
+    lead: inputs.length > 0 ? 'Computed by Finance Now from' : 'Computed by Finance Now',
+    names: inputs,
+    isDerived: true,
+  }
 }
 
 /** All entries for a module, in registry order. */
