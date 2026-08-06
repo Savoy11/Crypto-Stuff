@@ -21,6 +21,7 @@ import { assetsApi } from '@/lib/api/assets'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { DerivedNote } from '@/components/ui/DerivedNote'
 import { formatCompact } from '@/lib/utils/format'
 import { LIVE_DATA, STALE_TIME_SHORT, BLOCKCHAIN_LABELS } from '@/lib/constants'
 import type { AssetType, Blockchain, RiskBand } from '@/types/asset'
@@ -339,9 +340,9 @@ export function AssetRegistryClient() {
             </div>
           )}
 
-          <p className="text-[11px] text-text-muted text-center">
-            Live prices via CoinGecko · Safety Scores are Finance Now&apos;s own computed analytics (0–100, higher = safer), not a provider&apos;s figure and not investment advice
-          </p>
+          <DerivedNote what="Safety Scores" scale="0–100, higher = safer" className="justify-center">
+            Prices in this table come from the provider named above; the score beside them does not.
+          </DerivedNote>
         </div>
       )}
 

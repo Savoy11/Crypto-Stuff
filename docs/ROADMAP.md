@@ -399,12 +399,21 @@ went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both produ
       which before any provider work.
 - [ ] **Fine-tune all screeners.** Stock Registry range screener, coin screener/discovery, fund
       screener, TA screener — consistency of filters, defaults, and result quality across them.
-- [ ] **Label every data source on screen, per the house policy.** Finance Now's side of the
-      source-labeling item in `docs/BUSINESS-CHECKLIST.md`: the provider registry already
-      records which provider served each surface, and the tier dropdown exposes sourcing per
-      category — but attribution isn't consistently rendered where a reader sees the number.
-      Includes marking *derived* values (risk scores, composites) as Finance Now's own computation,
-      never as a provider's figure.
+- [x] **Label every data source on screen, per the house policy.** DONE 2026-08-06.
+      Surveying first changed what this was: the *coverage* half was already largely done (36
+      surfaces carried a `SourceLine`, and all 31 ids in use resolved). The half that wasn't
+      was the derived-value one, and the defect was in the RENDERING, not the data —
+      `SourceLine` printed "Source: {providers}" regardless of status, so the risk-scores page
+      read "Source: DefiLlama, CoinGecko", crediting a provider with a composite they never
+      published. `describeSource()` (pure, tested) now renders derived surfaces as "Computed by
+      Finance Now from …", and `<DerivedNote>` marks computed scores that sit in a TABLE beside
+      provider-sourced values, where a page-level line can't distinguish them (Coins registry,
+      coin discovery, both staking surfaces).
+      Also fixed: `/macro` carried hand-written attribution prose that would drift silently when
+      a provider changed; the Trade Risk Scorer had no registry entry; and an unknown `SourceLine`
+      id used to render NOTHING, so a typo removed attribution invisibly — it is now loud in
+      development. Both fixes exist because hand-written per-page attribution is the failure
+      mode this item is really about.
 - [ ] **Test and fine-tune all agents and AI-enhanced tools.** 11 agents exist; `data-scraper`,
       `equity-data-scraper` and `equity-diligence` are configurable but have **no invocation
       trigger** — either give them a UI entry point or retire them. Judge output against the
