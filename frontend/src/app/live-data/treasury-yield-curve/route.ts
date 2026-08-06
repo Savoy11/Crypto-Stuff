@@ -6,8 +6,9 @@ import { fetchTreasuryYieldCurve, type CurveSnapshot } from '@/lib/server/treasu
 // year) and the headline spreads. Published once per business day ~3:30pm ET,
 // so a multi-hour revalidate is honest.
 //
-// This is the authoritative curve — 13 maturities vs the 4 yield indices
-// Yahoo carries — and the source of record for the 2s10s spread.
+// This is the authoritative curve — 13 maturities vs the 4 yield indices in
+// ratesCatalog.ts — and the source of record for the 2s10s spread. Keyless and
+// unaffected by the Yahoo removal: treasury.gov publishes it directly.
 //
 // Fetch + parse live in lib/server/treasuryCurve.ts, shared with the public
 // /api/v1/macro/yield-curve route (one source of truth). Types are re-exported

@@ -15,7 +15,7 @@
 // ── The honesty constraint that shapes the whole module ──────────────────────
 //
 // Holdings arrive from a source ladder: SEC N-PORT (complete), FMP (complete),
-// Yahoo (TOP TEN ONLY), catalog (indicative). A Yahoo list sums to roughly 30%,
+// catalog (indicative, a handful of names). Such a list sums to roughly 30%,
 // not 100%. Renormalising it to 100% — the obvious implementation — would claim
 // you hold about three times the NVDA you actually do, and would look entirely
 // plausible on screen.
@@ -23,9 +23,13 @@
 // So weights are distributed at FACE VALUE and never rescaled. Whatever a fund's
 // holdings don't account for lands in `unresolvedPct`, and per-fund coverage
 // travels with the result so no surface can blend a full N-PORT list with a
-// Yahoo top-10 unlabelled.
+// partial indicative list unlabelled.
 
-export type HoldingsSourceId = 'sec' | 'fmp' | 'yahoo' | 'catalog'
+// 'yahoo' was a member until 2026-08-06 and meant "top-10 subset". It is gone
+// with the source; 'catalog' is now the only partial (full: false) kind. The
+// full-vs-partial distinction the rest of this file turns on is unchanged —
+// nothing here ever branched on the provider name, only on `full`.
+export type HoldingsSourceId = 'sec' | 'fmp' | 'catalog'
 
 /** One position in the user's portfolio. */
 export interface LookThroughPosition {
@@ -93,7 +97,7 @@ const round2 = (n: number) => Math.round(n * 100) / 100
 
 /**
  * Issuer identity. Ticker when we have one; otherwise a normalised name, since
- * N-PORT and Yahoo spell the same company differently ("Apple Inc." vs
+ * N-PORT and the aggregators spell the same company differently ("Apple Inc." vs
  * "APPLE INC"). Deliberately conservative — merging two genuinely different
  * issuers is worse than listing one twice.
  */
@@ -179,7 +183,7 @@ export function computeLookThrough(
     }
 
     // The tail this fund's list doesn't cover. For a full N-PORT list this is
-    // ~0; for a Yahoo top-10 it is most of the position.
+    // ~0; for a partial top-N list it is most of the position.
     unresolvedPct += weight * Math.max(0, 100 - explainedPct) / 100
 
     coverage.push({
@@ -231,7 +235,7 @@ export interface FundOverlap {
   /**
    * False when either side is a partial list. The number is then a FLOOR — real
    * overlap can only be higher — and must be presented as such. Comparing two
-   * Yahoo top-10s caps overlap near 30% no matter how similar the funds are.
+   * partial top-N lists caps overlap near 30% no matter how similar the funds are.
    */
   comparable: boolean
 }

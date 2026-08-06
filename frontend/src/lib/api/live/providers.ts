@@ -188,8 +188,8 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
   // provider above requires an API key, and CryptoPanic's free tier — the one
   // that had been carrying this — ended April 2026. With no key saved, all four
   // resolve to `disabled`, the route finds zero providers, and returns ok:false.
-  // Crypto was the only module in this position; equities (Yahoo/MarketWatch/
-  // CNBC) and macro (8 feeds) both ship keyless RSS built-ins already.
+  // Crypto was the only module in this position; equities (MarketWatch/CNBC)
+  // and macro (8 feeds) both ship keyless RSS built-ins already.
   //
   // These are publisher RSS feeds: no key, no quota, no account. They restore a
   // working default so the feed does not depend on anyone buying an API plan,
@@ -302,32 +302,20 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     keyUrl: 'https://www.alphavantage.co/support/#api-key',
     priority: 5,
   },
-  {
-    id: 'yahoo-finance',
-    name: 'Yahoo Finance',
-    category: 'price',
-    market: 'equities',
-    description: 'Batched spark quotes covering stocks, ETFs, and mutual funds. The keyless workhorse — on by default.',
-    features: ['Batch quotes', 'Stocks + ETFs + mutual funds', 'No key needed'],
-    requiresKey: false,
-    freeTierLabel: 'Keyless — already active',
-    keyUrl: 'https://finance.yahoo.com',
-    priority: 6,
-  },
+
+  // ⚠ Yahoo Finance was `yahoo-finance` (quotes, priority 6) and `yahoo-news`
+  // (per-ticker RSS, priority 1) until 2026-08-06. It was the only KEYLESS rung
+  // on the equity/fund/macro quote, chart, OHLCV and news paths, and removing it
+  // is why those surfaces now need an API key to show live data at all.
+  //
+  // It was removed on terms grounds, not availability: query1/query2.finance.
+  // yahoo.com are undocumented internals of Yahoo's own web app with no
+  // published third-party API terms, and Yahoo's ToS prohibit automated access
+  // and redistribution. See lib/server/sourceTerms.ts, which now hard-blocks
+  // *.yahoo.com at the socket — re-adding a fetcher here would not work, and
+  // that is deliberate. Do not reintroduce it without a terms verdict change.
 
   // ── Equity news (market: 'equities') ── all active feeds run in parallel
-  {
-    id: 'yahoo-news',
-    name: 'Yahoo Finance News',
-    category: 'news',
-    market: 'equities',
-    description: 'Yahoo Finance headlines, including the only free per-ticker RSS feed — powers symbol-specific news on detail pages.',
-    features: ['Market headlines', 'Per-ticker feeds', 'No key needed'],
-    requiresKey: false,
-    freeTierLabel: 'Keyless — already active',
-    keyUrl: 'https://finance.yahoo.com/news',
-    priority: 1,
-  },
   {
     id: 'marketwatch',
     name: 'MarketWatch',
@@ -338,7 +326,7 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     requiresKey: false,
     freeTierLabel: 'Keyless — already active',
     keyUrl: 'https://www.marketwatch.com',
-    priority: 2,
+    priority: 1,
   },
   {
     id: 'cnbc',
@@ -350,13 +338,15 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     requiresKey: false,
     freeTierLabel: 'Keyless — already active',
     keyUrl: 'https://www.cnbc.com/markets/',
-    priority: 3,
+    priority: 2,
   },
 
   // ── Macro data (market: 'macro', category: 'price') ── keyless official/
   // community sources behind the FX converter and yield curve. Quotes for
-  // futures/FX pairs/yield indices ride the EQUITY quote ladder (Yahoo et al),
-  // so there is deliberately no macro quote ladder here.
+  // futures/FX pairs/yield indices ride the EQUITY quote ladder, so there is
+  // deliberately no macro quote ladder here. Since the Yahoo removal every rung
+  // of that ladder is keyed, so macro instrument quotes and charts need an API
+  // key — the curve and FX converter below are keyless and unaffected.
   {
     id: 'frankfurter',
     name: 'ECB FX Reference (frankfurter.dev)',
@@ -522,18 +512,14 @@ export const BUILTIN_PROVIDERS: BuiltinProviderDef[] = [
     keyUrl: 'https://www.youtube.com/@CNBCtelevision',
     priority: 2,
   },
-  {
-    id: 'yt-yahoo-finance',
-    name: 'Yahoo Finance',
-    category: 'video',
-    market: 'equities',
-    description: 'Yahoo Finance video desk — market recaps and company analysis.',
-    features: ['Market recaps', 'Company analysis', 'No key needed'],
-    requiresKey: false,
-    freeTierLabel: 'Keyless — already active',
-    keyUrl: 'https://www.youtube.com/@YahooFinance',
-    priority: 3,
-  },
+  // (`yt-yahoo-finance` — the Yahoo Finance YouTube channel — was removed with
+  // the rest of the Yahoo sources on 2026-08-06. This one is YouTube's feed
+  // carrying Yahoo's content, so the terms question is genuinely weaker than
+  // for the data APIs; it went because a provider row reading "Yahoo Finance"
+  // on the Integrations page, after Yahoo was withdrawn as a source, is a
+  // claim the app can no longer back. Restoring it needs only a channel id and
+  // a registry row — youtube.com's terms verdict already covers it. Priority 3
+  // is left vacant so the remaining channels keep their order.)
   {
     id: 'yt-ft',
     name: 'Financial Times',
@@ -1060,11 +1046,20 @@ export function getMacroProviders(category: ProviderCategory): AnyActiveProvider
     .sort((a, b) => ((a as BuiltinProviderDef).priority ?? 99) - ((b as BuiltinProviderDef).priority ?? 99))
 }
 
-/** OHLCV history ladder for TA/backtests: custom json-ohlcv feeds first, then Yahoo → Tiingo → FMP (when active). */
+/**
+ * OHLCV history ladder for TA/backtests: custom json-ohlcv feeds first, then
+ * Tiingo → FMP (when active).
+ *
+ * Both built-in rungs are keyed. Yahoo was the keyless head of this ladder
+ * until 2026-08-06; with it gone, TA, backtests and candlestick charts for
+ * stocks/funds/macro need an API key, and the routes report `source: 'none'`
+ * rather than inventing candles. That is the intended shape — see the note in
+ * BUILTIN_PROVIDERS and lib/server/sourceTerms.ts.
+ */
 export function getEquityOhlcvProviders(): AnyActiveProvider[] {
   const price = getEquityProviders('price')
   const customs = price.filter((p) => p.isCustom && p.format === 'json-ohlcv')
-  const order = ['yahoo-finance', 'tiingo', 'fmp']
+  const order = ['tiingo', 'fmp']
   const builtins = order
     .map((id) => price.find((p) => !p.isCustom && p.id === id))
     .filter((p): p is AnyActiveProvider => !!p)

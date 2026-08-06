@@ -61,6 +61,26 @@ describe('pinnedFetch', () => {
     )
   })
 
+  it('refuses a host the source-terms registry prohibits, before any lookup', async () => {
+    // The registry entry is what enforces the Yahoo removal. It must bite at the
+    // transport layer, not just wherever a provider list happens to be edited.
+    await expect(pinnedFetch('https://query1.finance.yahoo.com/v8/finance/spark?symbols=AAPL'))
+      .rejects.toThrow(/source terms policy/)
+    // Subdomain match, and a path that looks nothing like an API.
+    await expect(pinnedFetch('https://feeds.finance.yahoo.com/rss/2.0/headline?s=AAPL'))
+      .rejects.toThrow(/source terms policy/)
+  })
+
+  it('does NOT block a merely unreviewed host at the socket', async () => {
+    // Deny-by-default belongs at save time, where a human can be shown the
+    // terms and asked (see /live-data/config). If it applied here too, a feed
+    // the user had explicitly approved would still never fetch. So this must
+    // fail for a TRANSPORT reason, never a policy one.
+    await expect(
+      pinnedFetch('http://example.com/', { signal: AbortSignal.timeout(1) })
+    ).rejects.not.toThrow(/source terms policy/)
+  })
+
   it('surfaces upstream failures rather than hanging on a pinned agent', async () => {
     // A 1 ms deadline against a host that resolves: the request must reject,
     // and the agent must be closed on the way out (the `finally` in
@@ -78,6 +98,10 @@ describe('pinnedFetch', () => {
 describe('pinnedFetch — the pin holds', () => {
   it('connects to the vetted address even when the name would resolve elsewhere', async () => {
     vi.resetModules()
+    // example.test has no registry entry, but the terms gate only blocks
+    // `prohibited` hosts, so it lets this through and the test stays about
+    // transport. Asserted above so a change to that policy fails loudly there
+    // rather than silently here.
     vi.doMock('../urlSafety', async () => {
       const actual = await vi.importActual<typeof import('../urlSafety')>('../urlSafety')
       return {

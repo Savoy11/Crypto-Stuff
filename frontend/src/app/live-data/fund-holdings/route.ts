@@ -6,11 +6,23 @@ import { resolveFundSeries, listNportFilings, fetchNportReport } from '@/lib/ser
 //   GET /live-data/fund-holdings?symbol=SPY
 //
 // Source ladder — SEC EDGAR is the authoritative core (free, keyless,
-// definitive); aggregators supplement freshness and sector metadata:
+// definitive); FMP supplements freshness and sector metadata:
 //   1. SEC N-PORT — the fund's own complete quarterly portfolio disclosure
 //   2. FMP (needs FMP_API_KEY) — aggregator holdings + sector weights
-//   3. Yahoo quoteSummary topHoldings (keyless) — top 10 + sector weights + asset allocation
-//   4. Catalog indicative top holdings — always renders, labelled non-live
+//   3. Catalog indicative top holdings — always renders, labelled non-live
+//
+// ⚠ Yahoo's quoteSummary topHoldings module was rung 3 until 2026-08-06,
+// keylessly supplying a top-10 list, GICS sector weights and the stock/bond/
+// cash asset mix. It was removed on terms grounds (lib/server/sourceTerms.ts).
+// Consequences, all deliberate and visible rather than papered over:
+//   • SECTOR WEIGHTS now need an FMP key. N-PORT carries no GICS
+//     classification, so without a key the sector chart is simply absent.
+//   • ASSET ALLOCATION has NO source at all. Neither N-PORT nor FMP's
+//     holdings endpoint reports the stock/bond/cash split, so the field is
+//     always [] and the UI omits the section. Do not reconstruct it by
+//     bucketing N-PORT rows — that is a different number wearing this one's
+//     label. If it matters, N-PORT does carry per-position asset categories
+//     and deriving it *explicitly labelled as derived* would be honest work.
 //
 // Response: { ok, symbol, source, full, asOf, holdings, sectorWeights, assetAllocation, holdingsCount }
 
@@ -19,12 +31,7 @@ export const dynamic = 'force-dynamic'
 const FMP_KEY = process.env.FMP_API_KEY && process.env.FMP_API_KEY !== 'your-fmp-api-key'
   ? process.env.FMP_API_KEY : undefined
 
-const BROWSER_HEADERS: Record<string, string> = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-  Accept: 'application/json',
-}
-
-export type HoldingsSource = 'sec' | 'fmp' | 'yahoo' | 'catalog'
+export type HoldingsSource = 'sec' | 'fmp' | 'catalog'
 
 export interface HoldingRow {
   symbol: string | null
@@ -55,6 +62,11 @@ export interface FundHoldingsResponse {
   asOf: string | null
   holdings: HoldingRow[]
   sectorWeights: SectorWeight[]
+  /**
+   * Stock/bond/cash mix. Always empty since the Yahoo removal — no remaining
+   * source publishes it. Kept in the response shape so consumers don't need a
+   * conditional, and so restoring a source is a one-line change here.
+   */
   assetAllocation: AssetAllocationSlice[]
   /** Total number of positions in the fund, when known. */
   holdingsCount: number | null
@@ -166,137 +178,48 @@ async function fetchFmpSectorWeights(symbol: string): Promise<SectorWeight[]> {
   return []
 }
 
-// ─── Yahoo quoteSummary topHoldings (keyless) ─────────────────────────────────
-
-const YAHOO_SECTOR_LABELS: Record<string, string> = {
-  technology: 'Technology',
-  financial_services: 'Financial Services',
-  healthcare: 'Healthcare',
-  consumer_cyclical: 'Consumer Cyclical',
-  communication_services: 'Communication Services',
-  industrials: 'Industrials',
-  consumer_defensive: 'Consumer Defensive',
-  energy: 'Energy',
-  basic_materials: 'Basic Materials',
-  realestate: 'Real Estate',
-  utilities: 'Utilities',
-}
-
-interface YahooTopHoldings {
-  holdings?: Array<{ symbol?: string; holdingName?: string; holdingPercent?: number }>
-  sectorWeightings?: Array<Record<string, number>>
-  stockPosition?: number
-  bondPosition?: number
-  cashPosition?: number
-  otherPosition?: number
-  preferredPosition?: number
-  convertiblePosition?: number
-}
-
-interface YahooResult {
-  holdings: HoldingRow[]
-  sectorWeights: SectorWeight[]
-  assetAllocation: AssetAllocationSlice[]
-}
-
-async function fetchYahooHoldings(symbol: string): Promise<YahooResult> {
-  const empty: YahooResult = { holdings: [], sectorWeights: [], assetAllocation: [] }
-  let top: YahooTopHoldings | undefined
-  for (const host of ['query1.finance.yahoo.com', 'query2.finance.yahoo.com']) {
-    try {
-      const res = await fetch(
-        `https://${host}/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=topHoldings&formatted=false`,
-        { headers: BROWSER_HEADERS, next: { revalidate: 3600 } }
-      )
-      if (!res.ok) continue
-      const payload = await res.json() as { quoteSummary?: { result?: Array<{ topHoldings?: YahooTopHoldings }> } }
-      top = payload.quoteSummary?.result?.[0]?.topHoldings
-      if (top) break
-    } catch { /* try next host */ }
-  }
-  if (!top) return empty
-
-  const holdings: HoldingRow[] = (top.holdings ?? [])
-    .filter((h) => Number.isFinite(h.holdingPercent) && (h.holdingPercent ?? 0) > 0)
-    .map((h) => ({
-      symbol: h.symbol?.toUpperCase() ?? null,
-      name: h.holdingName ?? h.symbol ?? 'Unknown',
-      weightPct: (h.holdingPercent ?? 0) * 100,
-      shares: null,
-      marketValue: null,
-    }))
-    .sort((a, b) => b.weightPct - a.weightPct)
-
-  const sectorWeights: SectorWeight[] = []
-  for (const entry of top.sectorWeightings ?? []) {
-    for (const [key, fraction] of Object.entries(entry)) {
-      if (!Number.isFinite(fraction) || fraction <= 0) continue
-      sectorWeights.push({ sector: YAHOO_SECTOR_LABELS[key] ?? key, weightPct: fraction * 100 })
-    }
-  }
-  sectorWeights.sort((a, b) => b.weightPct - a.weightPct)
-
-  const allocation: AssetAllocationSlice[] = []
-  const slices: Array<[AssetAllocationSlice['class'], number | undefined]> = [
-    ['Stocks', top.stockPosition],
-    ['Bonds', top.bondPosition],
-    ['Cash', top.cashPosition],
-    ['Preferred', top.preferredPosition],
-    ['Convertible', top.convertiblePosition],
-    ['Other', top.otherPosition],
-  ]
-  for (const [cls, fraction] of slices) {
-    if (fraction != null && Number.isFinite(fraction) && fraction > 0.0005) {
-      allocation.push({ class: cls, weightPct: fraction * 100 })
-    }
-  }
-
-  return { holdings, sectorWeights, assetAllocation: allocation }
-}
-
-// ─── Route ────────────────────────────────────────────────────────────────────
-
 export async function GET(request: NextRequest) {
   const symbol = request.nextUrl.searchParams.get('symbol')?.trim().toUpperCase()
   if (!symbol) {
     return NextResponse.json({ ok: false, error: 'Pass ?symbol=SPY' }, { status: 400 })
   }
-  // Optional explicit source (?source=sec|fmp|yahoo); default is the auto ladder.
+  // Optional explicit source (?source=sec|fmp); default is the auto ladder.
+  // `?source=yahoo` is no longer accepted and falls through to Auto rather than
+  // erroring — a saved link or bookmark should degrade, not break.
   const forcedParam = request.nextUrl.searchParams.get('source')
-  const forced = forcedParam === 'sec' || forcedParam === 'fmp' || forcedParam === 'yahoo' ? forcedParam : null
+  const forced = forcedParam === 'sec' || forcedParam === 'fmp' ? forcedParam : null
 
   const entry = getFund(symbol)
   const base = { symbol, updatedAt: new Date().toISOString() }
 
   // SEC N-PORT covers ETFs and mutual funds alike; FMP's holdings endpoint is
-  // ETF-only. Sector weights / asset mix still come from FMP or Yahoo — the
-  // N-PORT filing has no GICS classification.
+  // ETF-only. Sector weights come from FMP alone now — the N-PORT filing has no
+  // GICS classification, and the keyless fallback that used to supply them is
+  // gone (see the header note).
   const wantSec = !forced || forced === 'sec'
   const wantFmp = !!FMP_KEY && entry?.type !== 'mutual' && (!forced || forced === 'fmp')
-  const [secRes, fmpHoldingsRes, fmpSectorsRes, yahooRes] = await Promise.allSettled([
+  const [secRes, fmpHoldingsRes, fmpSectorsRes] = await Promise.allSettled([
     wantSec ? fetchSecHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null, totalCount: 0 }),
     wantFmp ? fetchFmpHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null } as FmpHoldingsResult),
     wantFmp ? fetchFmpSectorWeights(symbol) : Promise.resolve([] as SectorWeight[]),
-    fetchYahooHoldings(symbol),
   ])
 
   const sec = secRes.status === 'fulfilled' ? secRes.value : { holdings: [], asOf: null, totalCount: 0 }
   const fmp = fmpHoldingsRes.status === 'fulfilled' ? fmpHoldingsRes.value : { holdings: [], asOf: null }
   const fmpSectors = fmpSectorsRes.status === 'fulfilled' ? fmpSectorsRes.value : []
-  const yahoo = yahooRes.status === 'fulfilled' ? yahooRes.value : { holdings: [], sectorWeights: [], assetAllocation: [] }
+  // No remaining source publishes the stock/bond/cash mix. Empty, always.
+  const assetAllocation: AssetAllocationSlice[] = []
 
   // An explicit choice is respected: no silent fallback to other providers.
   if (forced) {
     const picked = forced === 'sec'
       ? { source: 'sec' as const, holdings: sec.holdings, asOf: sec.asOf, full: true, count: sec.totalCount || null }
-      : forced === 'fmp'
-        ? { source: 'fmp' as const, holdings: fmp.holdings, asOf: fmp.asOf, full: true, count: fmp.holdings.length || null }
-        : { source: 'yahoo' as const, holdings: yahoo.holdings, asOf: null, full: false, count: null }
+      : { source: 'fmp' as const, holdings: fmp.holdings, asOf: fmp.asOf, full: true, count: fmp.holdings.length || null }
     return NextResponse.json({
       ok: true, ...base, source: picked.source, full: picked.full && picked.holdings.length > 0, asOf: picked.asOf,
       holdings: picked.holdings,
-      sectorWeights: forced === 'fmp' && fmpSectors.length > 0 ? fmpSectors : yahoo.sectorWeights,
-      assetAllocation: yahoo.assetAllocation,
+      sectorWeights: forced === 'fmp' ? fmpSectors : [],
+      assetAllocation,
       holdingsCount: picked.count,
       ...(picked.holdings.length === 0 ? {
         error: forced === 'fmp' && !FMP_KEY
@@ -310,8 +233,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true, ...base, source: 'sec', full: true, asOf: sec.asOf,
       holdings: sec.holdings,
-      sectorWeights: fmpSectors.length > 0 ? fmpSectors : yahoo.sectorWeights,
-      assetAllocation: yahoo.assetAllocation,
+      sectorWeights: fmpSectors,
+      assetAllocation,
       holdingsCount: sec.totalCount,
     } satisfies FundHoldingsResponse)
   }
@@ -320,20 +243,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       ok: true, ...base, source: 'fmp', full: true, asOf: fmp.asOf,
       holdings: fmp.holdings,
-      sectorWeights: fmpSectors.length > 0 ? fmpSectors : yahoo.sectorWeights,
-      assetAllocation: yahoo.assetAllocation,
+      sectorWeights: fmpSectors,
+      assetAllocation,
       holdingsCount: fmp.holdings.length,
-    } satisfies FundHoldingsResponse)
-  }
-
-  // Bond/commodity funds often disclose only an asset mix — still worth showing.
-  if (yahoo.holdings.length > 0 || yahoo.sectorWeights.length > 0 || yahoo.assetAllocation.length > 0) {
-    return NextResponse.json({
-      ok: true, ...base, source: 'yahoo', full: false, asOf: null,
-      holdings: yahoo.holdings,
-      sectorWeights: yahoo.sectorWeights,
-      assetAllocation: yahoo.assetAllocation,
-      holdingsCount: null,
     } satisfies FundHoldingsResponse)
   }
 
@@ -343,8 +255,8 @@ export async function GET(request: NextRequest) {
     holdings: (entry?.topHoldings ?? []).map((h) => ({
       symbol: h.symbol, name: h.name, weightPct: h.weightPct, shares: null, marketValue: null,
     })),
-    sectorWeights: [],
-    assetAllocation: [],
+    sectorWeights: fmpSectors,
+    assetAllocation,
     holdingsCount: null,
   } satisfies FundHoldingsResponse)
 }

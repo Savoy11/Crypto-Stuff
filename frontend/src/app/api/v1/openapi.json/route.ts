@@ -135,9 +135,9 @@ const SPEC = {
       get: {
         tags: ['securities'],
         summary: 'Get quotes for securities and macro instruments',
-        description: 'Quotes for anything the security ladder prices: stocks, ETFs, mutual funds, commodity/rate futures (GC=F, ZN=F), FX pairs (EURUSD=X), and yield indices (^TNX). Symbols use Yahoo notation. Served by the same registry-driven provider ladder the UI reads (FMP → … → Yahoo → catalog reference); reference-priced quotes carry `reference: true` and must not be treated as live.',
+        description: 'Quotes for anything the security ladder prices: stocks, ETFs, mutual funds, commodity/rate futures (GC=F, ZN=F), FX pairs (EURUSD=X), and yield indices (^TNX). Symbols use standard market ticker notation (BRK-B, GC=F, EURUSD=X, ^TNX). Served by the same registry-driven provider ladder the UI reads (FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage → catalog reference); EVERY live rung requires an API key, so an unkeyed instance returns catalog reference prices for stocks/funds and nothing for macro instruments. Reference-priced quotes carry `reference: true` and must not be treated as live.',
         parameters: [
-          { name: 'symbols', in: 'query', required: true, description: 'Comma-separated tickers in Yahoo notation, max 25 (e.g. AAPL,VOO,GC=F,^TNX)', schema: { type: 'string', example: 'AAPL,VOO,GC=F' } },
+          { name: 'symbols', in: 'query', required: true, description: 'Comma-separated tickers, max 25 (e.g. AAPL,VOO,GC=F,^TNX)', schema: { type: 'string', example: 'AAPL,VOO,GC=F' } },
         ],
         responses: {
           '200': { description: 'Quotes keyed by symbol', content: { 'application/json': { schema: { $ref: '#/components/schemas/SecurityQuotesResponse' } } } },
@@ -150,9 +150,9 @@ const SPEC = {
       get: {
         tags: ['securities'],
         summary: 'Get daily close-price history',
-        description: 'Daily close-only series for any Yahoo-quotable symbol (stocks, ETFs, mutual funds, futures, FX pairs, yield indices), oldest first, with previous close and 52-week range.',
+        description: 'Daily close-only series for any symbol the price-history ladder covers (Tiingo, then FMP — both keyed), oldest first, with previous close and 52-week range. Tiingo covers US-listed equities, ETFs and mutual funds; futures, FX pairs and yield indices depend on FMP coverage.',
         parameters: [
-          { name: 'symbol', in: 'query', required: true, description: 'Ticker in Yahoo notation', schema: { type: 'string', example: 'AAPL' } },
+          { name: 'symbol', in: 'query', required: true, description: 'Market ticker, e.g. AAPL or BRK-B', schema: { type: 'string', example: 'AAPL' } },
           { name: 'range',  in: 'query', description: 'Lookback window', schema: { type: 'string', enum: ['1mo', '3mo', '6mo', '1y', '5y', 'max'], default: '1y' } },
         ],
         responses: {

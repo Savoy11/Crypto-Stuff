@@ -189,7 +189,17 @@ areas and a verified free-data story.
 One sidebar section (module id `macro`, one entitlement/SKU) sitting **above
 ETFs & Funds**, with three areas that mirror the Crypto and Equities toolsets:
 
-| Area | Coverage | Primary data (verified live 2026-07-21) |
+> ⚠ **Superseded in part, 2026-08-06.** The "primary data" column below is the
+> original spec, and every row of it named Yahoo. Yahoo was removed as a data
+> source on terms grounds (see `docs/architecture/source-terms.md`); the routes
+> named are unchanged but are now keyed, and their coverage of futures, FX pairs
+> and yield indices is **partial and provider-dependent** — Tiingo does not carry
+> them at all. The keyless halves of the spec (`frankfurter.dev` for ECB rates,
+> treasury.gov for the official curve) are unaffected and still carry the
+> converter and the yield curve. The futures **term structure** view (P2-O4) has
+> no source at all any more. This is the module the removal hit hardest.
+
+| Area | Coverage | Primary data (as specced 2026-07-21 — see the note above) |
 |------|----------|------------------------------------------|
 | **Commodities** | Metals, energy, agriculture futures + ETF proxies | Yahoo futures chain (`GC=F`, `CL=F`, `SI=F`, `NG=F`, `HG=F`, grains…) through the existing `security-quotes`/`security-chart`/`security-ohlcv` routes — all three probed working |
 | **Bonds & Rates** | Treasury yield curve, bond futures, bond ETFs | Yahoo yield indices (`^IRX ^FVX ^TNX ^TYX`) + futures (`ZB=F`, `ZN=F`) via existing routes; `fiscaldata.treasury.gov` (keyless) for official rates; bond ETFs already in `fundCatalog` |

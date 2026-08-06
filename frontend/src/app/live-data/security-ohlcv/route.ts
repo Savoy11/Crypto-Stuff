@@ -6,26 +6,28 @@ import { adjustCandles } from '@/lib/utils/ohlcvAdjust'
 
 // OHLCV proxy for equities / ETFs / mutual funds — feeds the TA and backtest
 // pages. REGISTRY-DRIVEN ladder (getEquityOhlcvProviders): user-added custom
-// json-ohlcv feeds first, then Yahoo Finance → Tiingo → FMP as enabled/keyed
-// on the Integrations page. Mirrors /live-data/ohlcv (crypto).
+// json-ohlcv feeds first, then Tiingo → FMP as enabled/keyed on the
+// Integrations page. Mirrors /live-data/ohlcv (crypto).
 //   GET /live-data/security-ohlcv?symbol=AAPL&range=1Y
 //
 // Response: { ok, symbol, range, candles: OhlcvCandle[], source }
+//
+// ⚠ BOTH BUILT-IN RUNGS ARE KEYED. Yahoo Finance headed this ladder, keylessly,
+// until 2026-08-06, when it was removed on terms grounds (see
+// lib/server/sourceTerms.ts). With no Tiingo or FMP key the route returns
+// ok:false / source:'none' and the TA, backtest and candlestick surfaces show
+// their "no live source" state. Do not paper over that with synthetic candles.
 
 export const dynamic = 'force-dynamic'
 
-const BROWSER_HEADERS: Record<string, string> = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-  Accept: 'application/json',
-}
-
-const RANGE_CONFIG: Record<string, { yahooRange: string; interval: string; revalidate: number }> = {
-  '1M':  { yahooRange: '1mo', interval: '1d',  revalidate: 300 },
-  '3M':  { yahooRange: '3mo', interval: '1d',  revalidate: 900 },
-  '6M':  { yahooRange: '6mo', interval: '1d',  revalidate: 900 },
-  '1Y':  { yahooRange: '1y',  interval: '1d',  revalidate: 900 },
-  '5Y':  { yahooRange: '5y',  interval: '1wk', revalidate: 3600 },
-  'MAX': { yahooRange: 'max', interval: '1mo', revalidate: 3600 },
+/** Ranges the route accepts, and how long each is cached. */
+const RANGE_CONFIG: Record<string, { revalidate: number }> = {
+  '1M':  { revalidate: 300 },
+  '3M':  { revalidate: 900 },
+  '6M':  { revalidate: 900 },
+  '1Y':  { revalidate: 900 },
+  '5Y':  { revalidate: 3600 },
+  'MAX': { revalidate: 3600 },
 }
 
 export interface SecurityOhlcvResponse {
@@ -33,53 +35,12 @@ export interface SecurityOhlcvResponse {
   symbol: string
   range: string
   candles: OhlcvCandle[]
-  /** Provider id that served the candles ('yahoo-finance', 'tiingo', 'fmp', 'custom-…') or 'none'. */
+  /** Provider id that served the candles ('tiingo', 'fmp', 'custom-…') or 'none'. */
   source: string
   error?: string
 }
 
 const RANGE_DAYS: Record<string, number> = { '1M': 22, '3M': 66, '6M': 130, '1Y': 260, '5Y': 1300, 'MAX': 10000 }
-
-async function fetchYahooOhlcv(symbol: string, range: string): Promise<OhlcvCandle[]> {
-  const cfg = RANGE_CONFIG[range]
-  const params = new URLSearchParams({ range: cfg.yahooRange, interval: cfg.interval })
-  const res = await fetch(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${params}`,
-    { headers: BROWSER_HEADERS, next: { revalidate: cfg.revalidate } }
-  )
-  if (!res.ok) throw new Error(`Yahoo ${res.status}`)
-  const payload = await res.json() as {
-    chart?: { result?: Array<{
-      timestamp?: number[]
-      indicators?: {
-        quote?: Array<{
-          open?: Array<number | null>; high?: Array<number | null>
-          low?: Array<number | null>; close?: Array<number | null>
-          volume?: Array<number | null>
-        }>
-        adjclose?: Array<{ adjclose?: Array<number | null> }>
-      }
-    }> }
-  }
-  const result = payload.chart?.result?.[0]
-  const quote = result?.indicators?.quote?.[0]
-  if (!result?.timestamp || !quote) throw new Error('Yahoo: empty result')
-  // Yahoo's `quote` OHLC is split-adjusted but NOT dividend-adjusted; `adjclose`
-  // is split+dividend-adjusted. Carry the adjClose per kept bar so we can put
-  // the whole candle on the fully-adjusted basis (consistent with Tiingo/FMP).
-  const adjcloseArr = result.indicators?.adjclose?.[0]?.adjclose
-  const raw: OhlcvCandle[] = []
-  const adjCloses: Array<number | null | undefined> = []
-  result.timestamp.forEach((t, i) => {
-    const open = quote.open?.[i]; const high = quote.high?.[i]
-    const low = quote.low?.[i];   const close = quote.close?.[i]
-    if (open == null || high == null || low == null || close == null) return
-    raw.push({ time: t, open, high, low, close, volume: quote.volume?.[i] ?? 0 })
-    adjCloses.push(adjcloseArr?.[i])
-  })
-  if (raw.length === 0) throw new Error('Yahoo: no candles')
-  return adjustCandles(raw, adjCloses)
-}
 
 async function fetchFmpOhlcv(symbol: string, range: string): Promise<OhlcvCandle[]> {
   // UI-saved key (Integrations page) or FMP_API_KEY env var. FMP's free tier
@@ -88,11 +49,11 @@ async function fetchFmpOhlcv(symbol: string, range: string): Promise<OhlcvCandle
   if (!FMP_KEY) throw new Error('FMP key not configured')
   const res = await fetch(
     `https://financialmodelingprep.com/stable/historical-price-eod/full?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`,
-    { next: { revalidate: 900 } }
+    { next: { revalidate: RANGE_CONFIG[range].revalidate } }
   )
   if (!res.ok) throw new Error(`FMP ${res.status}`)
   // `adjClose` (split+dividend adjusted) is used when present so a split isn't a
-  // cliff and FMP matches Yahoo/Tiingo's adjusted basis. NOTE: whether the
+  // cliff and FMP matches Tiingo's adjusted basis. NOTE: whether the
   // `/stable/historical-price-eod/full` payload carries adjClose varies by plan;
   // when absent we fall back to raw close (factor 1). If a split stock still
   // shows a cliff on the FMP path, switch to /stable/historical-price-eod/
@@ -121,12 +82,12 @@ async function fetchTiingoOhlcv(symbol: string, range: string): Promise<OhlcvCan
   const start = new Date(Date.now() - RANGE_DAYS[range] * 1.5 * 86_400_000).toISOString().slice(0, 10)
   const res = await fetch(
     `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(symbol.toLowerCase())}/prices?startDate=${start}&token=${key}`,
-    { headers: { Accept: 'application/json' }, next: { revalidate: 900 } }
+    { headers: { Accept: 'application/json' }, next: { revalidate: RANGE_CONFIG[range].revalidate } }
   )
   if (!res.ok) throw new Error(`Tiingo ${res.status}`)
   // Tiingo returns both raw (open/high/low/close/volume) and split+dividend
   // adjusted (adj*) fields. Use the adjusted set so a split is a continuous
-  // series (not a cliff) and the output matches Yahoo/FMP's adjusted basis.
+  // series (not a cliff) and the output matches FMP's adjusted basis.
   const rows = await res.json() as Array<{
     date: string; open: number; high: number; low: number; close: number; volume: number
     adjOpen?: number; adjHigh?: number; adjLow?: number; adjClose?: number; adjVolume?: number
@@ -147,7 +108,7 @@ async function fetchTiingoOhlcv(symbol: string, range: string): Promise<OhlcvCan
 // auto-detected or mapped via jsonFieldMap.
 async function fetchCustomOhlcv(provider: ActiveCustom, symbol: string, range: string): Promise<OhlcvCandle[]> {
   const url = provider.url.replace('{symbol}', encodeURIComponent(symbol)).replace('{range}', range)
-  const res = await fetchCustomUrl(provider, url, 900)
+  const res = await fetchCustomUrl(provider, url, RANGE_CONFIG[range].revalidate)
   const map = provider.jsonFieldMap ?? {}
   const candles: OhlcvCandle[] = []
   for (const entry of findArray(await res.json(), provider.jsonArrayPath)) {
@@ -189,7 +150,6 @@ export async function GET(request: NextRequest) {
     try {
       const candles = provider.isCustom
         ? await fetchCustomOhlcv(provider, symbol, range)
-        : provider.id === 'yahoo-finance' ? await fetchYahooOhlcv(symbol, range)
         : provider.id === 'tiingo' ? await fetchTiingoOhlcv(symbol, range)
         : await fetchFmpOhlcv(symbol, range)
       recordProviderFetch(provider.id, { count: candles.length })
@@ -199,7 +159,14 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Distinguish "nothing is configured" from "the configured providers failed".
+  // They need different fixes, and 'fetch_failed' sent a reader hunting for a
+  // network problem when the actual answer was that no provider had a key.
+  const configured = getEquityOhlcvProviders().length > 0
   return NextResponse.json({
-    ok: false, symbol, range, candles: [], source: 'none', error: 'fetch_failed',
+    ok: false, symbol, range, candles: [], source: 'none',
+    error: configured
+      ? 'fetch_failed'
+      : 'no_provider_configured: add a Tiingo or FMP API key on the Integrations page',
   } satisfies SecurityOhlcvResponse)
 }

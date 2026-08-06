@@ -126,7 +126,7 @@ function EquityBacktestsContent() {
         <PageHeader
           title="Strategy Backtests"
           subtitle="Run rules-based strategies against real price history, benchmarked to buy & hold"
-          description="Each strategy is simulated bar-by-bar on actual Yahoo Finance history with no lookahead: the position taken on each bar comes from the signal computed on the previous bar. Apply an optional per-side transaction cost below; slippage, dividends, and taxes are still not modelled."
+          description="Each strategy is simulated bar-by-bar on actual split- and dividend-adjusted price history with no lookahead: the position taken on each bar comes from the signal computed on the previous bar. Apply an optional per-side transaction cost below; slippage, dividends, and taxes are still not modelled."
           details={[
             { label: 'Sharpe ratio', text: 'Mean bar return over its standard deviation, annualized by bar frequency. Above ~1 is good; below 0 means the strategy lost money per unit of risk.' },
             { label: 'Exposure', text: 'Fraction of bars the strategy held the stock — lower exposure with similar return means less time at risk.' },
@@ -316,7 +316,7 @@ function EquityBacktestsContent() {
         </>
       ) : (
         <LiveUnavailable
-          message="Backtesting needs at least 50 bars of price history and no live source is reachable right now (Yahoo Finance, plus FMP when a key is configured)."
+          message="Backtesting needs at least 50 bars of price history, and no source is reachable. Add a Tiingo or FMP key on the Integrations page — the keyless source was withdrawn on terms grounds."
         />
       )}
     </div>

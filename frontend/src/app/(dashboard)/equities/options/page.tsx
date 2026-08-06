@@ -22,7 +22,8 @@ import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/rou
 // Everything options-level is USER-ENTERED, and the page says so. This is a
 // settled decision, not a gap waiting to be filled: the P2-O1 audit
 // (2026-08-05) found NO usable keyless chain source — CBOE's delayed feed is
-// prohibited by its own terms, and Yahoo's options endpoint 401s — and the
+// prohibited by its own terms, and Yahoo's options endpoint both 401s and is
+// now blocked outright on terms grounds — and the
 // owner closed P2-O3 on that basis. "Copy these from your broker's chain" is
 // the honest framing, and it costs the user little since they are looking at
 // that chain anyway when sizing a trade.

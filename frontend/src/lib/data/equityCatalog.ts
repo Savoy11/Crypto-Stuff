@@ -27,8 +27,10 @@ export function equityReferenceAgeDays(now: Date = new Date()): number {
 // helper and the age line on the equity detail page's footnote are that
 // consumer; without one, the date was a comment wearing a const's clothes.
 //
-// Symbols use Yahoo Finance notation (BRK-B, not BRK.B) so one symbol string
-// works across every live source (Yahoo, FMP).
+// Symbols use the dash form of the class-share convention (BRK-B, not BRK.B),
+// which every provider in the quote ladder accepts, so one symbol string works
+// across all of them. (The convention is Yahoo's originally; Yahoo itself is no
+// longer a Finance Now data source — see lib/server/sourceTerms.ts.)
 
 export type SectorId =
   | 'technology'
@@ -78,7 +80,7 @@ export function mapSectorName(raw: string | null | undefined): SectorId {
 }
 
 export interface EquityEntry {
-  /** Yahoo-style ticker, also the route param (lowercased). */
+  /** Ticker, also the route param (lowercased). */
   symbol: string
   name: string
   sector: SectorId

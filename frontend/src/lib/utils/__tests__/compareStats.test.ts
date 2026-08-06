@@ -105,7 +105,7 @@ const DAY = 86_400_000
 
 describe('toDailyCloses', () => {
   it('snaps midnight-stamped and market-open-stamped points to the same date key', () => {
-    // The production failure: crypto at UTC midnight vs a Yahoo bar at 13:30 UTC
+    // The production failure: crypto at UTC midnight vs an equity bar at 13:30 UTC
     // the same day shared zero exact timestamps.
     const day0 = Date.UTC(2026, 0, 5)
     const crypto = toDailyCloses([{ t: day0, close: 100 }])

@@ -1,6 +1,6 @@
 // Bonds & Rates catalog for the Macro Markets module.
 // Treasury yield indices and bond futures, all verified to price live through
-// /live-data/security-quotes (Yahoo symbols) on 2026-07-21. The official
+// /live-data/security-quotes on 2026-07-21. The official
 // yield curve comes from /live-data/treasury-yield-curve (treasury.gov,
 // keyless).
 //
@@ -18,7 +18,7 @@ export const RATES_CATEGORY_INFO: Record<RatesCategoryId, { label: string; color
 export interface RatesEntry {
   /** Route param: /macro/rates/[slug]. */
   slug: string
-  /** Yahoo symbol, e.g. '^TNX' or 'ZN=F'. */
+  /** Index or contract symbol, e.g. '^TNX' or 'ZN=F'. */
   symbol: string
   name: string
   category: RatesCategoryId

@@ -68,7 +68,7 @@ interface CryptoChartResponse { ok: boolean; candles?: Array<{ date: string; clo
 /**
  * Fetch a symbol's close history as {t(ms), close}[], from the right source.
  * Every series is snapped to daily closes on UTC-date boundaries
- * (toDailyCloses) — crypto arrives midnight-stamped, Yahoo bars carry
+ * (toDailyCloses) — crypto arrives midnight-stamped, equity bars carry
  * market-open epochs, and CoinGecko returns hourly points on short ranges;
  * without the shared date grid, cross-class rows never align (null
  * correlations, fragmented chart) and hourly points break annualization.
@@ -287,7 +287,7 @@ function CompareInner() {
             connectNulls
           />
         ) : (
-          <LiveUnavailable message="No live history source is reachable for the selected symbols right now — the comparison appears once Yahoo Finance / CoinGecko (or FMP with a key) responds." />
+          <LiveUnavailable message="No live history source is reachable for the selected symbols. Crypto history is keyless (CoinGecko); stock, fund and macro history now needs a Tiingo or FMP key, since the keyless source was withdrawn on terms grounds." />
         )}
       </div>
 

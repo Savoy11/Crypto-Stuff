@@ -17,7 +17,8 @@ import type { FxRatesResponse } from '@/app/live-data/fx-rates/route'
 import type { FxRatesExtendedResponse } from '@/app/live-data/fx-rates-extended/route'
 
 // Currencies registry + converter — Macro Markets module.
-// Intraday pair quotes via security-quotes (Yahoo); the converter uses daily
+// Intraday pair quotes via security-quotes (keyed providers; coverage of FX
+// pair symbols is partial since the Yahoo removal); the converter uses daily
 // ECB reference rates (/live-data/fx-rates) and says so, including the date.
 
 type SortKey = 'name' | 'category' | 'rate' | 'change'

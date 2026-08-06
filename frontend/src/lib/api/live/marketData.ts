@@ -4,11 +4,20 @@
 //
 // The source ladder is REGISTRY-DRIVEN (see providers.ts): fetchSecurityQuotes
 // walks getEquityQuoteProviders() — user-added custom quote feeds first, then
-// built-ins by priority (FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage
-// → Yahoo). Providers are enabled/disabled and keyed from the
-// Integrations page; utilization is recorded per attempt so the page shows
-// which source is actually serving. Route handlers fall through to static
-// catalog reference prices when every live source fails, so pages always render.
+// built-ins by priority (FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage).
+// Providers are enabled/disabled and keyed from the Integrations page;
+// utilization is recorded per attempt so the page shows which source is
+// actually serving. Route handlers fall through to static catalog reference
+// prices when every live source fails, so pages always render.
+//
+// ⚠ EVERY RUNG IS NOW KEYED. Yahoo's keyless spark endpoint sat at the bottom
+// of this ladder until 2026-08-06 and was, in practice, what made quotes work
+// out of the box. It was removed on terms grounds (lib/server/sourceTerms.ts).
+// With no key configured the ladder throws, callers fall through to catalog
+// reference prices — amber `ref` tags on stocks and funds, and an honest dash
+// on macro instruments, whose catalogs deliberately carry no reference price.
+// That is a real loss of function, not a bug to work around: the fix is a free
+// API key on the Integrations page, not a substitute scraper.
 
 import {
   getEquityQuoteProviders,
@@ -34,14 +43,8 @@ export interface SecurityQuote {
   volume: number | null
 }
 
-/** Provider id that served the quotes ('yahoo-finance', 'fmp', 'custom-…') or 'reference'. */
+/** Provider id that served the quotes ('fmp', 'tiingo', 'custom-…') or 'reference'. */
 export type QuoteSource = string
-
-// Yahoo occasionally rejects the default undici UA.
-const BROWSER_HEADERS: Record<string, string> = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-  Accept: 'application/json, text/plain, */*',
-}
 
 function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = []
@@ -60,14 +63,15 @@ function requireKey(providerId: string): string {
 // crucially only accepts a SINGLE symbol per quote (batch is paid). So FMP is
 // used only for small requests (detail pages) where its market-cap/prev-close
 // data is worth a per-symbol call; larger batches throw fast and the ladder
-// falls to Yahoo (keyless, batched).
+// moves on to a provider that batches (Tiingo, 50/request) rather than firing
+// one call per symbol against a 250/day allowance.
 const FMP_STABLE = 'https://financialmodelingprep.com/stable'
 const FMP_MAX_SYMBOLS = 4
 
 export async function fetchFmpQuotes(symbols: string[]): Promise<Record<string, SecurityQuote>> {
   const key = requireKey('fmp')
   if (symbols.length > FMP_MAX_SYMBOLS) {
-    throw new Error(`FMP free tier is single-symbol; skipping ${symbols.length}-symbol batch (use Yahoo)`)
+    throw new Error(`FMP free tier is single-symbol; skipping ${symbols.length}-symbol batch (needs a batching provider)`)
   }
   const quotes: Record<string, SecurityQuote> = {}
   await Promise.all(symbols.map(async (symbol) => {
@@ -225,91 +229,6 @@ export async function fetchAlphaVantageQuotes(symbols: string[]): Promise<Record
   return quotes
 }
 
-// ─── Yahoo spark ──────────────────────────────────────────────────────────────
-
-interface SparkSeries {
-  symbol: string
-  closes: number[]
-  previousClose: number | null
-  marketPrice: number | null
-}
-
-function parseSparkPayload(payload: unknown): SparkSeries[] {
-  const series: SparkSeries[] = []
-  if (!payload || typeof payload !== 'object') return series
-  const root = payload as Record<string, unknown>
-
-  // Shape A: { spark: { result: [{ symbol, response: [{ meta, indicators }] }] } }
-  const spark = root.spark as { result?: Array<Record<string, unknown>> } | undefined
-  if (spark?.result) {
-    for (const entry of spark.result) {
-      const symbol = String(entry.symbol ?? '')
-      const response = (entry.response as Array<Record<string, unknown>> | undefined)?.[0]
-      if (!symbol || !response) continue
-      const meta = response.meta as Record<string, unknown> | undefined
-      const quote = ((response.indicators as Record<string, unknown> | undefined)
-        ?.quote as Array<Record<string, unknown>> | undefined)?.[0]
-      const closes = ((quote?.close ?? []) as Array<number | null>).filter((c): c is number => c != null)
-      series.push({
-        symbol,
-        closes,
-        previousClose: typeof meta?.chartPreviousClose === 'number' ? meta.chartPreviousClose : null,
-        marketPrice: typeof meta?.regularMarketPrice === 'number' ? meta.regularMarketPrice : null,
-      })
-    }
-    return series
-  }
-
-  // Shape B: { AAPL: { symbol, close: [...], chartPreviousClose } }
-  for (const [key, value] of Object.entries(root)) {
-    if (!value || typeof value !== 'object') continue
-    const entry = value as Record<string, unknown>
-    const closes = ((entry.close ?? []) as Array<number | null>).filter((c): c is number => c != null)
-    if (closes.length === 0) continue
-    series.push({
-      symbol: String(entry.symbol ?? key),
-      closes,
-      previousClose: typeof entry.chartPreviousClose === 'number' ? entry.chartPreviousClose
-        : typeof entry.previousClose === 'number' ? entry.previousClose : null,
-      marketPrice: null,
-    })
-  }
-  return series
-}
-
-export async function fetchYahooQuotes(symbols: string[]): Promise<Record<string, SecurityQuote>> {
-  const quotes: Record<string, SecurityQuote> = {}
-  for (const group of chunk(symbols, 20)) {
-    const params = new URLSearchParams({
-      symbols: group.join(','), range: '5d', interval: '1d',
-      includeTimestamps: 'false',
-    })
-    const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/spark?${params}`, {
-      headers: BROWSER_HEADERS, next: { revalidate: 60 },
-    })
-    if (!res.ok) throw new Error(`Yahoo spark ${res.status}`)
-    for (const s of parseSparkPayload(await res.json())) {
-      const price = s.marketPrice ?? s.closes[s.closes.length - 1]
-      if (price == null) continue
-      const prev = s.closes.length >= 2 && s.closes[s.closes.length - 1] === price
-        ? s.closes[s.closes.length - 2]
-        : (s.closes.length >= 1 ? s.closes[s.closes.length - 1] : s.previousClose)
-      const change = prev != null ? price - prev : null
-      quotes[s.symbol.toUpperCase()] = {
-        symbol: s.symbol.toUpperCase(),
-        price,
-        change,
-        changePercent: change != null && prev ? (change / prev) * 100 : null,
-        previousClose: prev,
-        marketCap: null,
-        volume: null,
-      }
-    }
-  }
-  if (Object.keys(quotes).length === 0) throw new Error('Yahoo returned no quotes')
-  return quotes
-}
-
 // ─── Custom quote feeds (user-added on the Integrations page) ────────────────
 
 /** Walk a dot-path ("data.last") into an object. */
@@ -434,7 +353,6 @@ async function fetchFromProvider(p: AnyActiveProvider, symbols: string[]): Promi
     case 'twelve-data':   return fetchTwelveDataQuotes(symbols)
     case 'tiingo':        return fetchTiingoQuotes(symbols)
     case 'alpha-vantage': return fetchAlphaVantageQuotes(symbols)
-    case 'yahoo-finance': return fetchYahooQuotes(symbols)
     default: throw new Error(`No fetcher for provider ${p.id}`)
   }
 }
@@ -445,9 +363,11 @@ async function fetchFromProvider(p: AnyActiveProvider, symbols: string[]): Promi
  * This is a **residual** ladder, not a first-success one (W4-C4). The previous
  * version returned as soon as a provider didn't throw, no matter how little it
  * covered: a rate-limited provider answering 12 of 50 symbols ended the walk,
- * and the other 38 fell through to catalog reference prices without Yahoo — the
- * free, keyless, reliable rung — ever being asked. The failure was invisible,
- * because 38 `reference: true` quotes render as a normal page with amber tags.
+ * and the other 38 fell through to catalog reference prices without the rungs
+ * below ever being asked. The failure was invisible, because 38
+ * `reference: true` quotes render as a normal page with amber tags. That
+ * matters more since the keyless rung went, not less — with every provider
+ * keyed and rate-limited, partial answers are now the common case.
  *
  * Each provider is asked only for what is still missing, which also means a
  * partial answer costs the next provider a smaller request rather than a
@@ -536,45 +456,59 @@ export interface SecurityChart {
   currency: string
 }
 
-const RANGE_INTERVAL: Record<ChartRange, string> = {
-  '1mo': '1d', '3mo': '1d', '6mo': '1d', '1y': '1d', '5y': '1wk', 'max': '1mo',
+/** Trading days to keep per range — both chart fetchers slice to this. */
+const RANGE_DAYS: Record<ChartRange, number> = {
+  '1mo': 22, '3mo': 66, '6mo': 130, '1y': 260, '5y': 1300, 'max': 10000,
 }
 
-export async function fetchYahooChart(symbol: string, range: ChartRange): Promise<SecurityChart> {
-  const params = new URLSearchParams({ range, interval: RANGE_INTERVAL[range], events: 'div,splits' })
-  const res = await fetch(
-    `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?${params}`,
-    { headers: BROWSER_HEADERS, next: { revalidate: 300 } }
-  )
-  if (!res.ok) throw new Error(`Yahoo chart ${res.status}`)
-  const payload = await res.json() as {
-    chart?: { result?: Array<{
-      meta?: {
-        chartPreviousClose?: number; currency?: string
-        fiftyTwoWeekHigh?: number; fiftyTwoWeekLow?: number
-      }
-      timestamp?: number[]
-      indicators?: { quote?: Array<{ close?: Array<number | null> }> }
-    }> }
-  }
-  const result = payload.chart?.result?.[0]
-  if (!result?.timestamp) throw new Error('Yahoo chart: empty result')
-  const closes = result.indicators?.quote?.[0]?.close ?? []
-  const points: ChartPoint[] = []
-  result.timestamp.forEach((t, i) => {
-    const close = closes[i]
-    if (close != null) points.push({ t: t * 1000, close })
-  })
-  if (points.length === 0) throw new Error('Yahoo chart: no points')
+/** 52-week high/low and previous close from a sorted, ascending close series. */
+function summarize(symbol: string, range: ChartRange, points: ChartPoint[]): SecurityChart {
+  const closes = points.map((p) => p.close)
+  const lastYear = closes.slice(-260)
   return {
     symbol: symbol.toUpperCase(),
     range,
     points,
-    previousClose: result.meta?.chartPreviousClose ?? null,
-    fiftyTwoWeekHigh: result.meta?.fiftyTwoWeekHigh ?? null,
-    fiftyTwoWeekLow: result.meta?.fiftyTwoWeekLow ?? null,
-    currency: result.meta?.currency ?? 'USD',
+    previousClose: closes.length >= 2 ? closes[closes.length - 2] : null,
+    // A 1-month chart genuinely does not contain a 52-week range. Reporting the
+    // max of 22 bars as `fiftyTwoWeekHigh` would be a wrong number, not a
+    // narrow one, so short ranges report null and the UI omits the field.
+    fiftyTwoWeekHigh: lastYear.length >= 200 ? Math.max(...lastYear) : null,
+    fiftyTwoWeekLow: lastYear.length >= 200 ? Math.min(...lastYear) : null,
+    currency: 'USD',
   }
+}
+
+/**
+ * Tiingo end-of-day closes.
+ *
+ * Replaced Yahoo as the head of the chart ladder on 2026-08-06. `adjClose` is
+ * split+dividend adjusted, which is the same basis /live-data/security-ohlcv
+ * puts its candles on — a chart and a candlestick of the same symbol must not
+ * disagree across a split.
+ *
+ * ⚠ Tiingo covers US-listed equities, ETFs and mutual funds. It does NOT carry
+ * futures (`GC=F`), FX pairs (`EURUSD=X`) or yield indices (`^TNX`), so macro
+ * instrument charts fall through to FMP and, failing that, report unavailable.
+ * That gap is a consequence of the Yahoo removal, not an oversight.
+ */
+export async function fetchTiingoChart(symbol: string, range: ChartRange): Promise<SecurityChart> {
+  const key = requireKey('tiingo')
+  const start = new Date(Date.now() - RANGE_DAYS[range] * 1.5 * 86_400_000).toISOString().slice(0, 10)
+  const res = await fetch(
+    `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(symbol.toLowerCase())}/prices?startDate=${start}&token=${key}`,
+    { headers: { Accept: 'application/json' }, next: { revalidate: 300 } }
+  )
+  if (!res.ok) throw new Error(`Tiingo chart ${res.status}`)
+  const rows = await res.json() as Array<{ date: string; close: number; adjClose?: number }>
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error('Tiingo chart: empty result')
+  const points = rows
+    .map((row) => ({ t: new Date(row.date).getTime(), close: row.adjClose ?? row.close }))
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.close))
+    .sort((a, b) => a.t - b.t)
+    .slice(-RANGE_DAYS[range])
+  if (points.length === 0) throw new Error('Tiingo chart: no points')
+  return summarize(symbol, range, points)
 }
 
 export async function fetchFmpChart(symbol: string, range: ChartRange): Promise<SecurityChart> {
@@ -587,28 +521,38 @@ export async function fetchFmpChart(symbol: string, range: ChartRange): Promise<
   // /stable returns the array directly (newest-first), not { historical: [...] }.
   const rows = await res.json() as Array<{ date: string; close: number }>
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('FMP chart: empty result')
-  const days: Record<ChartRange, number> = { '1mo': 22, '3mo': 66, '6mo': 130, '1y': 260, '5y': 1300, 'max': 10000 }
   const points = rows
     .map((row) => ({ t: new Date(row.date).getTime(), close: row.close }))
+    .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.close))
     .sort((a, b) => a.t - b.t)
-    .slice(-days[range])
-  const closes = points.map((p) => p.close)
-  return {
-    symbol: symbol.toUpperCase(),
-    range,
-    points,
-    previousClose: closes.length >= 2 ? closes[closes.length - 2] : null,
-    fiftyTwoWeekHigh: Math.max(...closes.slice(-260)),
-    fiftyTwoWeekLow: Math.min(...closes.slice(-260)),
-    currency: 'USD',
-  }
+    .slice(-RANGE_DAYS[range])
+  if (points.length === 0) throw new Error('FMP chart: no points')
+  return summarize(symbol, range, points)
 }
 
+/**
+ * Price-history ladder: Tiingo → FMP, each rung skipped when it has no key.
+ *
+ * Per-leg try/catch rather than allSettled — this is a fallback ladder, and
+ * firing both burns the smaller allowance for nothing (CLAUDE.md, "Resilient
+ * multi-fetch"). When neither rung has a key this throws, and
+ * /live-data/security-chart returns ok:false so the UI shows LiveUnavailable
+ * instead of an empty chart that reads as "flat".
+ */
 export async function fetchSecurityChart(symbol: string, range: ChartRange): Promise<SecurityChart> {
-  try {
-    return await fetchYahooChart(symbol, range)
-  } catch (err) {
-    if (getProviderKey('fmp')) return fetchFmpChart(symbol, range)
-    throw err
+  let lastError: Error = new Error(
+    'No price-history provider is configured. Add a Tiingo or FMP key on the Integrations page.'
+  )
+  for (const attempt of [
+    { key: 'tiingo', run: () => fetchTiingoChart(symbol, range) },
+    { key: 'fmp', run: () => fetchFmpChart(symbol, range) },
+  ]) {
+    if (!getProviderKey(attempt.key)) continue
+    try {
+      return await attempt.run()
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+    }
   }
+  throw lastError
 }
