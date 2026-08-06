@@ -117,6 +117,8 @@ as a question with your reasoning — do not change it.
 | `MIN_SLEEVE_LEG_PCT` (2%) ≠ `MIN_RUNG_PCT` (1%) | Different concepts (position vs duration slice), documented in the engine |
 | Sector exclusions leave index-weight exposure in the core | The catalog has no screened fund; the engine says so in a note. Silently dropping the core is the wrong "fix" |
 | Legacy `risk`/`max_risk` fields still on v1 staking API | Public-contract decision (2026-07-19): additive-only, no deprecation date |
+| No options chain browser beside the Trade Risk Scorer | Owner decision 2026-08-05 (P2-O1): there is NO keyless chain source — CBOE's delayed feed is prohibited by its own terms, Yahoo's options endpoint 401s. The scorer takes hand-entered legs on purpose. Do not add a chain fetch, and do not "improve" the scorer by inferring bid/ask/IV |
+| `ivRank` is manual-entry only in the options scorer | No keyless source carries IV *history*. Computing it forward needs persistence and a 52-week warm-up — flagged as a product decision, not an oversight |
 
 When a review establishes a *new* deliberate decision, propose adding it to this table —
 that's how it stays cheaper than re-litigating.

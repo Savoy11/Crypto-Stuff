@@ -158,15 +158,47 @@ without a chain, P2-O4 delivers real new capability with no dependency at all, a
 can be adopted later without rework — a keyed row is additive to the provider registry by
 design. Nothing about choosing A forecloses B.
 
+### DECIDED — Option A, owner, 2026-08-05
+
+**Options chains stay not-available.** P2-O3 and the chain half of P2-O5 are closed, not
+deferred with a date. The Trade Risk Scorer (`/equities/options`) continues to serve the use
+case with hand-entered legs, and its copy already tells the user to copy those numbers from
+their broker's chain.
+
+**This is revisitable, and the trigger is named.** The owner's framing was "revisit after
+testing" — so this is a decision made on the current evidence, not a permanent position.
+Reopen it if any of these change:
+
+1. **A licensed source becomes worth its cost.** Tradier is the first candidate: a documented
+   API with an explicit delayed tier, no scraping question, and a free developer sandbox to
+   evaluate before committing. Re-run the plan comparison in §4 — pricing moves.
+2. **Live use shows the manual-entry scorer is the wrong shape.** If entering four legs by
+   hand is what stops people using it, that is evidence a chain browser earns its cost. If
+   people use it happily against their broker's screen, that is evidence it doesn't.
+3. **Yahoo's options endpoint reopens.** It returned 401 on both hosts here; if a later probe
+   shows it answering keyless, the calculus changes — though it would then need judging
+   against the app's existing Yahoo posture, not a new stricter rule.
+
+What choosing A does **not** do: it doesn't reject options as a product area (the scorer
+shipped, and is wired into the agents, the v1 API and MCP), and it doesn't foreclose B — a
+keyed provider row is additive to the registry by design, so adopting one later is new work,
+not rework.
+
+**If B is ever taken, the delayed-data convention must be settled first**, before any route
+ships: every surface showing a delayed number renders the delay in the `ProvenanceNotice`
+pattern (always visible, never only-when-stale), and the delay metadata travels through
+`/api/v1` verbatim so external consumers cannot mistake delayed for live. That question is
+unanswered because it never had to be answered — not because it was decided.
+
 ---
 
 ## Verdicts
 
 | Surface | Verdict | Basis |
 |---|---|---|
-| **P2-O3** options chain browser | **NO-GO (keyless)** — pending owner decision on a keyed source | CBOE prohibited by terms; Yahoo options 401 on both hosts. No keyless path exists. |
+| **P2-O3** options chain browser | **CLOSED** — Option A, owner, 2026-08-05 (revisitable, triggers above) | CBOE prohibited by terms; Yahoo options 401 on both hosts. No keyless path exists, and a keyed one isn't worth its cost yet. |
 | **P2-O4** futures term structure | **GO** | 9/9 contract months via the v8 chart API already in production; control consistency verified; curve shapes sane. |
-| **P2-O5** integration | **Split** | The chain half follows O3. The scorer half (`score_options_trade` tool + `/api/v1/options/score`) is independent of all of this and can proceed whenever. |
+| **P2-O5** integration | **Scorer half SHIPPED**; chain half closed with O3 | `score_options_trade` + `/api/v1/options/score` + MCP mirror shipped 2026-08-05. `get_options_chain` and `/api/v1/options/chain` are not built. |
 | IV rank source | **None keyless** | Stays manual entry; forward-persistence is a separate product decision. |
 
 `DATA-AVAILABILITY.md` updated in the same change.

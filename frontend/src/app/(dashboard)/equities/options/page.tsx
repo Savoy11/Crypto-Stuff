@@ -18,10 +18,19 @@ import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/rou
 // Trade Risk Scorer (P2-O2) — the UI for lib/risk/profiles/optionsTrade.ts,
 // which shipped complete and tested with zero consumers.
 //
-// Everything options-level is USER-ENTERED in this version, and the page says
-// so: there is no chain feed yet (that is P2-O3, gated on the P2-O1 data
-// audit), and the honest framing until then is "copy these numbers from your
-// broker's chain" — which the user is looking at anyway when sizing a trade.
+// Everything options-level is USER-ENTERED, and the page says so. This is a
+// settled decision, not a gap waiting to be filled: the P2-O1 audit
+// (2026-08-05) found NO usable keyless chain source — CBOE's delayed feed is
+// prohibited by its own terms, and Yahoo's options endpoint 401s — and the
+// owner closed P2-O3 on that basis. "Copy these from your broker's chain" is
+// the honest framing, and it costs the user little since they are looking at
+// that chain anyway when sizing a trade.
+//
+// Do NOT "improve" this by inferring a bid, ask or IV rank: a fabricated
+// input produces a confident score built on nothing, and the failure would be
+// indistinguishable from a real result. See the do-not-fix registry in
+// docs/agents/code-checker.md.
+//
 // The one live number is the underlying price, prefillable from
 // /live-data/security-quotes with the usual live/ref labeling.
 //
@@ -227,8 +236,9 @@ function OptionsScorerInner() {
       <p className="text-xs text-text-muted leading-relaxed rounded-card border border-border bg-bg-card p-3">
         This scores the risk of a trade <em>you</em> describe — liquidity, IV environment, assignment,
         time decay, and whether the loss is bounded. It does not recommend trades, and nothing here is
-        investment advice. There is no options chain feed yet, so copy strikes and quotes from your
-        broker&rsquo;s chain; the underlying price is the one number this page can fetch live.
+        investment advice. Finance Now doesn&rsquo;t carry an options chain — no free source permits
+        it — so copy strikes and quotes from your broker&rsquo;s chain; the underlying price is the
+        one number this page can fetch live.
       </p>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
