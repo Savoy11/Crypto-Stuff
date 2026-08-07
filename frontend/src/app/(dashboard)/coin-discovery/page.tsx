@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Search, Plus, Star, X, ChevronDown, ChevronUp, Coins, Trash2, TrendingUp, AlertTriangle, Eye, ExternalLink, Database, LayoutGrid, Rows3 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { DerivedNote } from '@/components/ui/DerivedNote'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import type { CandidateCoin, CoinDiscoveryResponse } from '@/app/live-data/coin-discovery/route'
 
@@ -472,6 +473,9 @@ function CoinDiscoveryPageInner() {
 
       {/* Data provenance */}
       <SourceLine id="coin-discovery" />
+      <DerivedNote what="Discovery scores" scale="0–100, higher = safer">
+        The market data underneath is the provider&rsquo;s; the ranking built from it is ours.
+      </DerivedNote>
 
       {/* Source selector */}
       <div className="flex items-center gap-3 flex-wrap">

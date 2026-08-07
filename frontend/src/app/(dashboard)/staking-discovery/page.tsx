@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Shield, Building2, Wallet, Layers, Search, RefreshCw, Radio } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { DerivedNote } from '@/components/ui/DerivedNote'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { STALE_TIME_LONG, GC_TIME } from '@/lib/constants'
@@ -438,6 +439,9 @@ function StakingPlatformsPageInner() {
 
       {/* Data provenance */}
       <SourceLine id="staking-discovery" />
+      <DerivedNote what="Risk scores" scale="0–100, higher = safer">
+        APRs come from the protocols; the risk score beside them is our own weighting.
+      </DerivedNote>
 
       {/* The live-discovery half of this page (DefiLlama/Yearn/Pendle/Beefy) is
           covered by the SourceLine above. The directory platforms come from the

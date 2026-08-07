@@ -3777,6 +3777,10 @@ ul, ol {
   color: rgb(196 181 253 / var(--tw-text-opacity, 1));
 }
 
+.text-violet-300\/90 {
+  color: rgb(196 181 253 / 0.9);
+}
+
 .text-violet-400 {
   --tw-text-opacity: 1;
   color: rgb(167 139 250 / var(--tw-text-opacity, 1));

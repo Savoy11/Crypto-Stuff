@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
+import { DerivedNote } from '@/components/ui/DerivedNote'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { clsx } from 'clsx'
 import {
@@ -557,6 +558,10 @@ function StakingPageInner() {
 
       {/* Data provenance — reads the same registry that powers /data-sources */}
       <SourceLine id="staking-rates" asOf={updatedAt} />
+      <DerivedNote what="Risk scores" scale="0–100, higher = safer">
+        Composed by weighting six risk dimensions from the curated profiles below — no provider
+        publishes this number.
+      </DerivedNote>
 
       {/* Provenance / freshness notice for the curated provider catalog. The
           SourceLine above covers the live APR feeds; this covers the risk
