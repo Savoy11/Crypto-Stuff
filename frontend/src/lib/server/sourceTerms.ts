@@ -29,6 +29,20 @@
 // aging. Use `probeSiteTerms()` (termsProbe.ts) to re-check a host, and read
 // the document yourself before flipping a verdict.
 //
+// ⚠ ALMOST EVERY ENTRY HERE IS `seeded`, NOT `verified` — READ `review` BEFORE
+// TRUSTING ONE. The registry was written in an environment whose network policy
+// blocked every publisher and provider host at the gateway, so not one terms
+// document could be opened while it was being authored. The entries are honest
+// starting positions drawn from each provider's publicly documented posture
+// (published API docs, documented free tiers, openly advertised RSS feeds) —
+// they are NOT readings, and the first cut of this file wrongly presented them
+// as such by giving them all a `verifiedAt` date.
+//
+// `npm run terms:report` runs the probe over every registered host and writes a
+// review worksheet. Run it from the owner's machine, read the documents it
+// links, and flip entries to `verified` as you go. Until then, treat a seeded
+// `approved` or `conditional` as "nobody has objected yet", not as a clearance.
+//
 // ⚠ VERIFICATION IS HOST-DEPENDENT, like the data audits (see CLAUDE.md).
 // Several publishers 403 datacenter IPs on their own legal pages, so a probe
 // run from CI or a cloud box can report "couldn't read the terms" for a site
@@ -49,6 +63,21 @@ export type TermsVerdict = 'approved' | 'conditional' | 'prohibited'
 /** How solid the finding is. Drives whether the UI nudges for a re-read. */
 export type TermsConfidence = 'high' | 'medium' | 'low'
 
+/**
+ * - `verified` — a human opened this site's terms document and read the
+ *   relevant clauses on `reviewedAt`. The registry's promise.
+ * - `seeded`   — the entry was written from the provider's publicly documented
+ *   posture (published API docs, a documented free tier, an openly advertised
+ *   RSS feed) WITHOUT the terms document being read end-to-end. A reasonable
+ *   starting position, and explicitly not a review.
+ *
+ * Seeded entries still serve data: these feeds have been in production for
+ * months, and breaking the app over a documentation gap is the wrong failure —
+ * the same reasoning that makes verdicts go stale rather than expire. But they
+ * are counted, badged in the UI, and are the work queue.
+ */
+export type ReviewState = 'verified' | 'seeded'
+
 export interface SourceTermsEntry {
   /** Registrable host. Matches this host exactly OR any subdomain of it. */
   domain: string
@@ -65,8 +94,23 @@ export interface SourceTermsEntry {
   finding: string
   /** Obligations that must keep holding for a `conditional` verdict. */
   conditions?: string[]
-  /** ISO date (YYYY-MM-DD) the terms were last reviewed for this project. */
-  verifiedAt: string
+  /**
+   * Has anyone actually READ this site's terms for this project?
+   *
+   * This field exists because the first cut of this registry did not have it,
+   * and every entry carried a `verifiedAt` date that made it look reviewed when
+   * none of them had been read end-to-end. A verdict nobody checked, wearing a
+   * date that says somebody did, is worse than no registry at all — it launders
+   * an assumption into a record. So the two states are now distinct and
+   * required, and a seeded entry is flagged everywhere it surfaces.
+   */
+  review: ReviewState
+  /**
+   * ISO date (YYYY-MM-DD) of that review — or, for a `seeded` entry, the date
+   * the entry was WRITTEN. Read it together with `review`; on its own it means
+   * only "this text is this old".
+   */
+  reviewedAt: string
   confidence: TermsConfidence
 }
 
@@ -79,8 +123,8 @@ export const SOURCE_TERMS_REVIEW_AFTER_DAYS = 180
 
 /**
  * The registry was seeded on this date as part of the Yahoo removal. Entries
- * carry their own `verifiedAt`; this is the batch marker so a reviewer can tell
- * a seeded entry from one someone has since re-read on purpose.
+ * carry their own `reviewedAt`; this is the batch marker, so a reviewer can tell
+ * a seeded entry from one someone has since read on purpose.
  */
 export const SOURCE_TERMS_SEEDED = '2026-08-06'
 
@@ -98,17 +142,22 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html',
     finding:
       'The query1/query2.finance.yahoo.com v8/v10 endpoints are undocumented internals of Yahoo\'s own web app — Yahoo publishes no third-party API terms granting programmatic access to them, and its Terms of Service prohibit accessing the services by automated means and reproducing or redistributing content. Covers finance.yahoo.com and feeds.finance.yahoo.com (per-ticker RSS) as well: the RSS feeds are published under the same ToS with no separate grant. Removed as a data source 2026-08-06.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'high',
   },
   {
     domain: 'cboe.com',
     name: 'Cboe Global Markets',
     verdict: 'prohibited',
-    termsUrl: 'https://www.cboe.com/us_terms_of_use/',
+    termsUrl: 'https://www.cboe.com/delayed_quotes/options/',
     finding:
-      'Terms of use prohibit automated extraction of quote data. This is why Finance Now carries no options chain and the Trade Risk Scorer takes hand-entered option quotes instead — see docs/assessments/P2-O1-options-data.md.',
-    verifiedAt: '2026-08-05',
+      'The delayed-quote pages carry a notice, checked verbatim across four product pages (CBOE, OPTIONS, VIX, futures): downloading quote-table data "by using auto-extraction programs/queries and/or software" is strictly prohibited, Cboe blocks the IP addresses of parties who attempt it, and access by any means other than manual ticker-symbol entry is prohibited. cdn.cboe.com/api/global/delayed_quotes/* is the backing API for exactly those pages, so a server-side route polling it is the prohibited pattern described almost word for word. Programmatic use is routed through the paid All Access API. This is why Finance Now carries no options chain and the Trade Risk Scorer takes hand-entered legs.',
+    reviewedAt: '2026-08-05',
+    // The one VERIFIED entry in this registry: read on the owner's machine
+    // during the P2-O1 audit, evidence written up in
+    // docs/assessments/P2-O1-options-data.md. Everything else is seeded.
+    review: 'verified',
     confidence: 'high',
   },
 
@@ -124,7 +173,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'Send a descriptive User-Agent including a contact email on every request',
       'Stay under 10 requests/second across all EDGAR hosts',
     ],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'high',
   },
   {
@@ -138,7 +188,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'Attribute CoinGecko wherever its prices are displayed',
       'Respect the free-tier rate limit (~30 calls/min) or supply a paid key',
     ],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'high',
   },
   {
@@ -149,7 +200,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Publishes a free, keyless, openly documented API for TVL, stablecoin supply and yields, offered for third-party use. No registration; fair-use rate limiting. Covers api.llama.fi, stablecoins.llama.fi, coins.llama.fi and yields.llama.fi.',
     conditions: ['Attribute DefiLlama', 'Keep request volume within fair use — no bulk mirroring'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -163,7 +215,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'A valid FMP API key must be configured — no keyless path',
       'Stay within the plan\'s request cap and redistribution scope',
     ],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -174,7 +227,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Commercial market-data API with a registered free tier for personal and non-commercial use. Access is by API key; the free tier is explicitly not for commercial redistribution.',
     conditions: ['Valid API key required', 'Free tier is personal / non-commercial only'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -185,7 +239,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Commercial market-data API. Keyed access under the plan\'s licence; the free tier carries a hard credit budget (8 credits/min) and is for non-commercial use.',
     conditions: ['Valid API key required', 'Respect the plan credit budget'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -196,7 +251,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Commercial market-data API with a free tier for personal use. Keyed access; end-of-day and IEX data carry exchange-derived redistribution limits set by the plan.',
     conditions: ['Valid API key required', 'Free tier is personal use — no redistribution'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -207,7 +263,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Documented public API issued against a free key, offered for third-party application use at 25 requests/day on the free tier.',
     conditions: ['Valid API key required', 'Free tier is 25 requests/day — do not exceed'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -218,7 +275,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Commercial API. Keyed access under a plan licence; attribution to CoinMarketCap is required wherever its data is displayed.',
     conditions: ['Valid API key required', 'Attribute CoinMarketCap on any surface showing its data'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -229,7 +287,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Publishes documented, keyless public market-data REST endpoints intended for programmatic use, under per-endpoint request weights. Note this is a terms verdict, not an availability one: binance.com answers 451 from many hosts on geographic grounds.',
     conditions: ['Respect the published per-endpoint request weights'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -239,7 +298,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.binance.us/terms',
     finding: 'Same documented keyless public market-data endpoints as the global venue, under US terms and weights.',
     conditions: ['Respect the published per-endpoint request weights', 'Report the serving venue — it is a different market than binance.com'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -249,7 +309,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.okx.com/docs-v5/en/#overview',
     finding: 'Documented keyless public market-data API (v5) with published rate limits, offered for programmatic use.',
     conditions: ['Respect the published v5 rate limits'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -263,7 +324,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'Attribute StockTwits on any surface showing its messages',
       'Display only — do not mirror, store long-term, or re-serve message content',
     ],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'low',
   },
   {
@@ -278,7 +340,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'Register OAuth credentials before increasing volume',
       'Expect and accept 403s from datacenter IPs rather than working around them',
     ],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'low',
   },
   {
@@ -292,7 +355,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'Link or embed via the YouTube player — never download or re-host video',
       'Data API searches only on an explicit user action (quota)',
     ],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -303,7 +367,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Open-source CDN serving the community `fawazahmed0/currency-api` dataset. The CDN permits public asset delivery; the dataset itself is community-maintained and is not an official central-bank source.',
     conditions: ['Label extended-tier FX as community-sourced, never as ECB — the UI already does'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -314,7 +379,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Article text is CC BY-SA licensed and the REST summary API is public, subject to the Wikimedia User-Agent policy requiring an identifying agent string.',
     conditions: ['Send an identifying User-Agent', 'Attribute Wikipedia and preserve CC BY-SA on reused text'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'high',
   },
 
@@ -326,7 +392,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://home.treasury.gov/footer/data-quality',
     finding:
       'Daily par yield curve XML published by a U.S. federal agency. U.S. government works are not subject to copyright and the data is published expressly for public reuse.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'high',
   },
   {
@@ -336,7 +403,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://frankfurter.dev/',
     finding:
       'Open-source, keyless API republishing the ECB\'s daily reference rates, which the ECB publishes for free reuse with attribution. No registration and no usage restriction stated.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'high',
   },
   {
@@ -346,7 +414,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.nasdaqtrader.com/Trader.aspx?id=symboldirdefs',
     finding:
       'Symbol directory files published on a public FTP/HTTP endpoint expressly as a reference resource for market participants. Listing metadata only — no quotes.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -355,7 +424,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://mempool.space/docs/api/rest',
     finding: 'Open-source Bitcoin explorer publishing a documented, keyless REST API for public use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'high',
   },
   {
@@ -364,7 +434,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://www.blockchain.com/explorer/api',
     finding: 'Documented keyless explorer API published for public use; used here only as a fallback for chain stats.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -373,7 +444,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://alternative.me/crypto/fear-and-greed-index/',
     finding: 'Publishes the Fear & Greed Index over a documented keyless API and asks only for a link back to the index page.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -382,7 +454,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.lido.fi/',
     finding: 'Protocol publishes documented keyless APR endpoints for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -391,7 +464,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.marinade.finance/',
     finding: 'Protocol publishes documented keyless APY endpoints for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -400,7 +474,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.jito.network/',
     finding: 'Protocol publishes documented keyless APY endpoints for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
 
@@ -416,7 +491,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'Search only on an explicit user action — 100 quota units each',
       'Do not persist API responses beyond the permitted cache window',
     ],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -427,7 +503,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Commercial news-aggregation API. Keyed access under a plan licence; the free tier ended April 2026, so any use now is under a paid plan\'s terms.',
     conditions: ['Paid API key required', 'Attribute CryptoPanic and link back to source articles'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -437,7 +514,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://messari.io/terms-of-service',
     finding: 'Commercial research and data API. Keyed access under the plan licence; redistribution of research content is restricted.',
     conditions: ['Valid API key required', 'Display with attribution — no redistribution of research content'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -448,7 +526,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Commercial social-analytics API. Keyed access under the plan licence. Note this is a terms verdict, not an availability one — LunarCrush also blocks datacenter IPs.',
     conditions: ['Valid API key required', 'Attribute LunarCrush on any surface showing its scores'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -458,7 +537,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://santiment.net/terms-and-conditions/',
     finding: 'Commercial on-chain and social analytics GraphQL API. Keyed access under the plan licence.',
     conditions: ['Valid API key required', 'Stay within the plan\'s metric and history entitlements'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
 
@@ -474,7 +554,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.rocketpool.net/',
     finding: 'Protocol publishes documented keyless network-stats endpoints for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -483,7 +564,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.stride.zone/',
     finding: 'Protocol publishes documented keyless liquid-staking APY endpoints for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -492,7 +574,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.beefy.finance/',
     finding: 'Protocol publishes a documented keyless vault/APY API for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -501,7 +584,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.yearn.fi/',
     finding: 'Protocol publishes a documented keyless vault/APY API for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -510,7 +594,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     verdict: 'approved',
     termsUrl: 'https://docs.pendle.finance/Developers/Overview',
     finding: 'Protocol publishes a documented keyless market/yield API for public/integrator use.',
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
 
@@ -527,7 +612,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.coindesk.com/terms',
     finding: 'Publishes a public RSS feed. Syndication of headline/link/summary with attribution and a link back is the intended use; full-text reproduction is not.',
     conditions: ['Headline, link and feed summary only', 'Attribute and link back to the origin article'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -537,7 +623,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://cointelegraph.com/terms-and-privacy',
     finding: 'Publishes a public RSS feed for syndication of headline/link/summary with attribution.',
     conditions: ['Headline, link and feed summary only', 'Attribute and link back to the origin article'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -547,7 +634,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://decrypt.co/terms',
     finding: 'Publishes a public RSS feed for syndication of headline/link/summary with attribution.',
     conditions: ['Headline, link and feed summary only', 'Attribute and link back to the origin article'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -557,7 +645,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://bitcoinmagazine.com/terms-of-use',
     finding: 'Publishes a public RSS feed for syndication of headline/link/summary with attribution.',
     conditions: ['Headline, link and feed summary only', 'Attribute and link back to the origin article'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -568,7 +657,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'feeds.content.dowjones.io serves MarketWatch\'s public top-stories RSS. Dow Jones publishes it for syndication; the terms are personal, non-commercial use with attribution, and expressly not bulk reproduction of article text.',
     conditions: ['Headline, link and feed summary only', 'Attribute MarketWatch and link back', 'Personal, non-commercial use'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -578,7 +668,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.marketwatch.com/terms-of-use',
     finding: 'Same terms as the Dow Jones feed host — syndication of headline/link/summary, personal and non-commercial, with attribution.',
     conditions: ['Headline, link and feed summary only', 'Attribute and link back', 'Personal, non-commercial use'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -588,7 +679,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.nbcuniversal.com/terms',
     finding: 'Publishes public RSS feeds per desk for syndication of headline/link/summary with attribution and a link back.',
     conditions: ['Headline, link and feed summary only', 'Attribute CNBC and link back'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -598,7 +690,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.investing.com/about-us/terms-and-conditions',
     finding: 'Publishes per-desk RSS feeds for syndication. Terms permit personal, non-commercial use of the feed with attribution; scraping the site itself is prohibited separately.',
     conditions: ['RSS feed only — never scrape the HTML site', 'Headline, link and summary only, with attribution'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -608,7 +701,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://oilprice.com/terms-of-use',
     finding: 'Publishes a public RSS feed and permits syndication of headline/link/summary with attribution and a link back.',
     conditions: ['Headline, link and feed summary only', 'Attribute and link back'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
   {
@@ -618,7 +712,8 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     termsUrl: 'https://www.fxstreet.com/about/terms-of-service',
     finding: 'Publishes a public RSS feed for syndication with attribution and a link back to the origin article.',
     conditions: ['Headline, link and feed summary only', 'Attribute and link back'],
-    verifiedAt: '2026-08-06',
+    reviewedAt: '2026-08-06',
+    review: 'seeded',
     confidence: 'medium',
   },
 ]
@@ -664,7 +759,13 @@ export interface SourceTermsDecision {
   entry: SourceTermsEntry | null
   /** `'unreviewed'` when there is no entry — distinct from a verdict. */
   status: TermsVerdict | 'unreviewed'
-  /** Days since `verifiedAt`; null when unreviewed. */
+  /**
+   * Whether the entry backing this decision was actually read. `null` when
+   * there is no entry. A caller showing the verdict should show this too — a
+   * seeded `approved` is a working assumption, not a clearance.
+   */
+  review: ReviewState | null
+  /** Days since `reviewedAt`; null when unreviewed. */
   ageDays: number | null
   /** Verdict older than the review window. Stale ≠ disallowed — it is a prompt. */
   stale: boolean
@@ -685,7 +786,7 @@ export interface SourceTermsDecision {
 export function checkSourceTerms(url: string, now: Date = new Date()): SourceTermsDecision {
   const host = hostOf(url)
   if (!host) {
-    return { allowed: false, host: '', entry: null, status: 'unreviewed', ageDays: null, stale: false, reason: 'Not a parseable URL.' }
+    return { allowed: false, host: '', entry: null, status: 'unreviewed', review: null, ageDays: null, stale: false, reason: 'Not a parseable URL.' }
   }
 
   const entry = matchTermsEntry(host)
@@ -695,13 +796,14 @@ export function checkSourceTerms(url: string, now: Date = new Date()): SourceTer
       host,
       entry: null,
       status: 'unreviewed',
+      review: null,
       ageDays: null,
       stale: false,
       reason: `No terms review on record for ${host}. Check the site's terms of use, then add an entry to SOURCE_TERMS before Finance Now fetches from it.`,
     }
   }
 
-  const ageDays = Math.floor((now.getTime() - Date.parse(`${entry.verifiedAt}T00:00:00Z`)) / 86_400_000)
+  const ageDays = Math.floor((now.getTime() - Date.parse(`${entry.reviewedAt}T00:00:00Z`)) / 86_400_000)
   const stale = ageDays > SOURCE_TERMS_REVIEW_AFTER_DAYS
 
   if (entry.verdict === 'prohibited') {
@@ -710,22 +812,31 @@ export function checkSourceTerms(url: string, now: Date = new Date()): SourceTer
       host,
       entry,
       status: 'prohibited',
+      review: entry.review,
       ageDays,
       stale,
       reason: `${entry.name}'s terms do not permit this use, so Finance Now does not fetch from ${host}. ${entry.finding}`,
     }
   }
 
+  // A seeded entry says so in the reason itself. Anything rendering this string
+  // — an error message, a log line, the Integrations panel — then carries the
+  // caveat automatically, instead of it living only in a field nobody reads.
+  const caveat = entry.review === 'seeded'
+    ? ' ⚠ Seeded entry — the terms document has not been read for this project; treat as a working assumption, not a clearance.'
+    : ''
+
   return {
     allowed: true,
     host,
     entry,
     status: entry.verdict,
+    review: entry.review,
     ageDays,
     stale,
-    reason: entry.verdict === 'approved'
+    reason: (entry.verdict === 'approved'
       ? `${entry.name}: terms permit programmatic use.`
-      : `${entry.name}: permitted subject to ${entry.conditions?.length ?? 0} condition(s) — ${(entry.conditions ?? []).join('; ')}.`,
+      : `${entry.name}: permitted subject to ${entry.conditions?.length ?? 0} condition(s) — ${(entry.conditions ?? []).join('; ')}.`) + caveat,
   }
 }
 
@@ -785,27 +896,38 @@ export function assertSourceNotProhibited(url: string, now: Date = new Date()): 
  */
 export function getSourceTermsProvenance(now: Date = new Date()): {
   source: string
-  verifiedAt: string
+  reviewedAt: string
   ageDays: number
   stale: boolean
   confidence: TermsConfidence
   total: number
   prohibited: number
+  /** Entries past the review window. */
   needsReview: number
+  /** Entries whose terms document has actually been read. */
+  verified: number
+  /** Entries written from documented posture, never read. The work queue. */
+  seeded: number
 } {
-  const ages = SOURCE_TERMS.map((e) => Math.floor((now.getTime() - Date.parse(`${e.verifiedAt}T00:00:00Z`)) / 86_400_000))
+  const ages = SOURCE_TERMS.map((e) => Math.floor((now.getTime() - Date.parse(`${e.reviewedAt}T00:00:00Z`)) / 86_400_000))
   // Date the registry by its OLDEST entry, not its newest. Re-reading one site's
   // terms does not refresh the other forty — same rule as the data catalogs.
   const oldest = ages.length > 0 ? Math.max(...ages) : 0
   const oldestEntry = SOURCE_TERMS[ages.indexOf(oldest)]
+  const seeded = SOURCE_TERMS.filter((e) => e.review === 'seeded').length
   return {
     source: 'Finance Now source terms registry (lib/server/sourceTerms.ts)',
-    verifiedAt: oldestEntry?.verifiedAt ?? SOURCE_TERMS_SEEDED,
+    reviewedAt: oldestEntry?.reviewedAt ?? SOURCE_TERMS_SEEDED,
     ageDays: oldest,
     stale: oldest > SOURCE_TERMS_REVIEW_AFTER_DAYS,
-    confidence: SOURCE_TERMS.some((e) => e.confidence === 'low') ? 'low' : 'medium',
+    // Registry-level confidence is bounded by its weakest entry, and while
+    // anything is seeded that bound is 'low'. Averaging would let 47 unread
+    // entries hide behind one real review.
+    confidence: seeded > 0 || SOURCE_TERMS.some((e) => e.confidence === 'low') ? 'low' : 'medium',
     total: SOURCE_TERMS.length,
     prohibited: SOURCE_TERMS.filter((e) => e.verdict === 'prohibited').length,
     needsReview: ages.filter((a) => a > SOURCE_TERMS_REVIEW_AFTER_DAYS).length,
+    verified: SOURCE_TERMS.length - seeded,
+    seeded,
   }
 }

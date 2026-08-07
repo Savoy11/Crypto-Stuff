@@ -23,7 +23,7 @@ describe('registry integrity', () => {
       // A one-word "allowed" is not a finding; the point of the field is that a
       // later reader can go and check the same clause.
       expect(e.finding.length, e.domain).toBeGreaterThan(40)
-      expect(Number.isNaN(Date.parse(`${e.verifiedAt}T00:00:00Z`)), e.domain).toBe(false)
+      expect(Number.isNaN(Date.parse(`${e.reviewedAt}T00:00:00Z`)), e.domain).toBe(false)
     }
   })
 
@@ -31,6 +31,25 @@ describe('registry integrity', () => {
     for (const e of SOURCE_TERMS.filter((x) => x.verdict === 'conditional')) {
       expect(e.conditions?.length, `${e.domain} is conditional on nothing in particular`).toBeGreaterThan(0)
     }
+  })
+
+  it('declares an explicit review state on every entry', () => {
+    // The bug this guards: the first cut of the registry had no such field, so
+    // 47 entries written from documented posture carried a date that read as
+    // "someone checked this". A verdict nobody read must be distinguishable
+    // from one someone did, or the registry launders assumptions into records.
+    for (const e of SOURCE_TERMS) {
+      expect(['verified', 'seeded'], e.domain).toContain(e.review)
+    }
+  })
+
+  it('does not let a seeded entry claim high confidence in the aggregate', () => {
+    // Registry-level confidence is bounded by its weakest entry while anything
+    // is unread — one genuine review must not cover for forty-seven that
+    // aren't.
+    const p = getSourceTermsProvenance(NOW)
+    if (p.seeded > 0) expect(p.confidence).toBe('low')
+    expect(p.verified + p.seeded).toBe(p.total)
   })
 
   it('has no duplicate domains', () => {
@@ -86,6 +105,22 @@ describe('checkSourceTerms', () => {
     expect(d.stale).toBe(false)
   })
 
+  it('says so in the reason when the verdict rests on an unread entry', () => {
+    // The caveat travels in `reason` rather than only in a field, so every
+    // surface that renders the string — error messages, logs, the Integrations
+    // panel — carries it without having to remember to.
+    const seeded = SOURCE_TERMS.find((e) => e.review === 'seeded' && e.verdict !== 'prohibited')
+    if (!seeded) return
+    const d = checkSourceTerms(`https://${seeded.domain}/`, NOW)
+    expect(d.review).toBe('seeded')
+    expect(d.reason).toMatch(/Seeded entry/)
+    // …and it must NOT appear on an entry someone actually read.
+    const verified = SOURCE_TERMS.find((e) => e.review === 'verified')
+    if (verified && verified.verdict !== 'prohibited') {
+      expect(checkSourceTerms(`https://${verified.domain}/`, NOW).reason).not.toMatch(/Seeded entry/)
+    }
+  })
+
   it('allows a conditional host and surfaces the conditions in the reason', () => {
     const d = checkSourceTerms('https://data.sec.gov/api/xbrl/frames/x.json', NOW)
     expect(d.allowed).toBe(true)
@@ -134,8 +169,8 @@ describe('provenance', () => {
   it('dates the registry by its OLDEST entry, not its newest', () => {
     // Re-reading one site's terms does not refresh the other forty. Same rule
     // the hand-maintained data catalogs follow.
-    const oldest = SOURCE_TERMS.reduce((a, b) => (a.verifiedAt <= b.verifiedAt ? a : b))
-    expect(getSourceTermsProvenance(NOW).verifiedAt).toBe(oldest.verifiedAt)
+    const oldest = SOURCE_TERMS.reduce((a, b) => (a.reviewedAt <= b.reviewedAt ? a : b))
+    expect(getSourceTermsProvenance(NOW).reviewedAt).toBe(oldest.reviewedAt)
   })
 
   it('counts prohibited entries and entries past the review window', () => {
@@ -179,5 +214,41 @@ describe('every declared data-source host has a terms verdict', () => {
 
   it('lists no yahoo host at all any more', () => {
     expect(hosts.filter((h) => h.endsWith('yahoo.com'))).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// News publishers specifically.
+//
+// The news feeds are the app's only KEYLESS content sources, and the only ones
+// whose permission rests on a publisher's syndication policy rather than an API
+// licence — so they are the set most worth naming explicitly rather than
+// leaving to the generic host sweep above.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('news publishers', () => {
+  // The hosts behind the nine feeds in news/, market-news/ and macro-news/.
+  const NEWS_HOSTS = [
+    'www.coindesk.com', 'cointelegraph.com', 'decrypt.co', 'bitcoinmagazine.com',
+    'feeds.content.dowjones.io', 'search.cnbc.com',
+    'www.investing.com', 'oilprice.com', 'www.fxstreet.com',
+  ]
+
+  it.each(NEWS_HOSTS)('%s has a verdict and is permitted', (host) => {
+    const d = checkSourceTerms(`https://${host}/`, NOW)
+    expect(d.status, `${host}: ${d.reason}`).not.toBe('unreviewed')
+    expect(d.allowed, `${host}: ${d.reason}`).toBe(true)
+  })
+
+  it.each(NEWS_HOSTS)('%s records what may be displayed, not just that it is allowed', (host) => {
+    // The condition that actually constrains the code. Publisher RSS terms
+    // routinely permit headline + link + feed summary and nothing more, and the
+    // route shows a summary — so "allowed" without this recorded is a verdict
+    // that cannot be checked against the implementation.
+    const entry = checkSourceTerms(`https://${host}/`, NOW).entry!
+    expect(entry.verdict, `${host} should be conditional, not blanket-approved`).toBe('conditional')
+    expect(
+      entry.conditions?.some((c) => /headline|summary|link|attribut/i.test(c)),
+      `${host} has no condition describing what may be displayed`
+    ).toBe(true)
   })
 })

@@ -383,6 +383,28 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 > The fix for any of the key-gated rows is a free API key on the Integrations page — **not
 > a substitute scraper.**
 
+> ⚠ **47 of 48 registry entries are `seeded`, not `verified` — check `review` before
+> trusting one.** The registry was authored in an environment whose network policy
+> blocked every publisher and provider host at the gateway, so not one terms document
+> could be opened. The entries are honest starting positions drawn from each
+> provider's publicly documented posture (published API docs, documented free tiers,
+> openly advertised RSS feeds) — they are **not readings**. Only the Cboe entry is
+> `verified`, from the P2-O1 audit on the owner's machine.
+>
+> A seeded `approved`/`conditional` means *nobody has objected yet*, not *cleared*.
+> Seeded entries still serve data — breaking the app over a documentation gap is the
+> wrong failure, same reasoning as staleness — but they are counted, badged on
+> /data-sources, and carry the caveat in `decision.reason` so every surface that
+> renders it inherits the warning.
+>
+> **To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
+> that can reach these sites writes a review worksheet — current verdict, what the
+> probe saw, a link to the document, and a conclusion box per host. Read the
+> documents, then flip `review` to `'verified'`. The open queue for the news
+> publishers is `docs/audits/terms-review-news-2026-08-07.md`. **The news feeds are
+> the priority**: they are the app's only keyless content sources, and their
+> permission rests on a publisher syndication policy rather than an API licence.
+
 **Three verdicts**, because two would collapse a real distinction:
 - `approved` — permitted, unconditionally enough to just use it.
 - `conditional` — permitted *while conditions hold* (attribution, a rate limit, "headline
@@ -409,6 +431,13 @@ flow a lie.
   then edit the URL" is a hole straight through the gate). A hard block is `403` with no
   override; anything else needing a human is `409` carrying the report, and the
   Integrations UI shows the matched clauses and asks for `termsAcknowledged`.
+
+**Two review states**, and the split is not cosmetic:
+- `verified` — someone opened the document and read the relevant clauses on `reviewedAt`.
+- `seeded` — written from documented posture, never read. The first cut of this file
+  had no such field, so 47 unread entries all carried a date that read as "checked".
+  A verdict nobody read, wearing a date saying somebody did, launders an assumption
+  into a record — which is worse than having no registry.
 
 **Two rules the probe follows, and you should too:**
 1. **A keyword scan is not a reading.** Only `blocked` is enforced automatically;

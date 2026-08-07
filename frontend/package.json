@@ -29,6 +29,7 @@
     "restart": "npx kill-port 3000 & rmdir /s /q .next & npm run dev",
     "update": "git pull && npm install --no-audit --no-fund && npm run restart",
     "data-sources": "tsx scripts/gen-data-sources.ts",
+    "terms:report": "tsx scripts/terms-report.mjs",
     "fund-facts": "node scripts/build-fund-facts.mjs",
     "fee-worksheet": "tsx scripts/gen-transfer-fee-worksheet.ts"
   },

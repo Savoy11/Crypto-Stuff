@@ -271,8 +271,16 @@ export function scanTermsText(text: string): TermsSignal[] {
 export type ProbeOutcome =
   /** Registry says prohibited, or robots.txt disallows the path. Refuse the source. */
   | 'blocked'
-  /** Registry already approves this host. Nothing to ask the user. */
+  /** Registry approves this host on a verdict someone actually read. */
   | 'registry-approved'
+  /**
+   * Registry permits it, but on a `seeded` entry — written from the provider's
+   * documented posture, never read. Distinct from `registry-approved` because
+   * collapsing them is how "nobody has objected yet" starts reading as "checked
+   * and cleared", which is the exact failure this whole module exists to stop.
+   * Does not block or prompt: the entry stands until someone reads it.
+   */
+  | 'registry-seeded'
   /** Readable terms with restrictive language. Needs an explicit human decision. */
   | 'needs-review'
   /** Nothing restrictive found, but a keyword scan is not a reading. Needs acknowledgement. */
@@ -441,7 +449,7 @@ export async function probeSiteTerms(rawUrl: string, now: Date = new Date()): Pr
       ...base,
       robots,
       terms,
-      outcome: 'registry-approved',
+      outcome: registry.entry.review === 'verified' ? 'registry-approved' : 'registry-seeded',
       summary: registry.reason + (registry.stale ? ` This review is ${registry.ageDays} days old — worth re-reading.` : ''),
       hardBlock: false,
       requiresAcknowledgement: false,

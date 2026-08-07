@@ -58,7 +58,7 @@ function SourceTermsPanel() {
               app cannot fetch it however it is configured. User-added sources are checked against their
               robots.txt and terms before they can be saved.
               {p && (
-                <> Registry dated by its oldest entry: <span className="font-mono">{p.verifiedAt}</span>
+                <> Registry dated by its oldest entry: <span className="font-mono">{p.reviewedAt}</span>
                   {p.needsReview > 0 && (
                     <span className="text-amber-400"> · {p.needsReview} entr{p.needsReview === 1 ? 'y' : 'ies'} past the review window</span>
                   )}
@@ -72,6 +72,29 @@ function SourceTermsPanel() {
             </span>
           )}
         </div>
+
+        {/* The registry's own honesty notice. Most entries were written from
+            each provider's documented posture without the terms document being
+            read, and that has to be visible HERE — on the page that otherwise
+            reads as a clearance — not only in a code comment. */}
+        {p && p.seeded > 0 && (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <div className="flex items-start gap-2">
+              <ShieldAlert size={13} className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                <span className="font-semibold">{p.seeded} of {p.total} entries have not been read.</span>{' '}
+                They are marked <span className="font-mono">seeded</span>: written from each provider’s
+                publicly documented posture — published API docs, a documented free tier, an openly
+                advertised RSS feed — without the terms document itself being opened. That is a working
+                assumption, not a clearance, and the news publishers in particular turn on a syndication
+                policy that has to be read to be known. Run{' '}
+                <code className="font-mono text-amber-300">npm run terms:report -- --seeded</code> from a
+                machine that can reach these sites to produce a review worksheet.
+                {p.verified > 0 && <> {p.verified} entr{p.verified === 1 ? 'y has' : 'ies have'} been verified.</>}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Prohibited first, always visible — these explain gaps elsewhere. */}
@@ -111,6 +134,14 @@ function SourceTermsPanel() {
                   <span className="text-sm font-medium text-text-primary">{e.name}</span>
                   <span className="font-mono text-[11px] text-text-muted">{e.domain}</span>
                   <span className={clsx('px-1.5 py-0.5 text-[10px] font-semibold rounded border', meta.cls)}>{meta.label}</span>
+                  {e.review === 'seeded' && (
+                    <span
+                      title="Written from the provider's documented posture; the terms document has not been read for this project."
+                      className="px-1.5 py-0.5 text-[10px] font-semibold rounded border text-amber-400/90 bg-amber-400/5 border-amber-500/20"
+                    >
+                      unread
+                    </span>
+                  )}
                   <a href={e.termsUrl} target="_blank" rel="noopener noreferrer"
                      className="ml-auto inline-flex items-center gap-1 text-[11px] text-accent-blue hover:underline shrink-0">
                     Terms <ExternalLink size={9} />
@@ -127,7 +158,7 @@ function SourceTermsPanel() {
                   </ul>
                 ) : null}
                 <p className="mt-1.5 text-[10px] text-text-muted/70">
-                  Reviewed {e.verifiedAt} · confidence {e.confidence}
+                  {e.review === 'verified' ? `Read ${e.reviewedAt}` : `Written ${e.reviewedAt}, not yet read`} · confidence {e.confidence}
                 </p>
               </div>
             )

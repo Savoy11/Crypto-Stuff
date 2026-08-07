@@ -17,6 +17,18 @@ Integrations page.
 > to make that reading explicit, dated, enforced, and re-checkable — not to be right
 > about the law on its own.
 
+> ⚠ **The registry ships almost entirely `seeded`, and that is a deliberate,
+> visible state — not a claim of review.** It was authored in an environment whose
+> network policy blocked every publisher and provider host at the gateway, so no
+> terms document could be opened. 47 of 48 entries are starting positions drawn from
+> documented posture; only Cboe is `verified` (P2-O1, owner's machine, 2026-08-05).
+>
+> The first cut of this file had no `review` field at all, and gave every entry a
+> `verifiedAt` date — which made 47 assumptions look like 47 readings. That is the
+> specific failure this field exists to prevent, and it is worth stating plainly
+> because a compliance record that overstates its own basis is more dangerous than
+> no record: it stops the next person from checking.
+
 ---
 
 ## The three pieces
@@ -39,7 +51,8 @@ Integrations page.
   termsUrl: 'https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html',
   finding: '…what the document says, specific enough to find the clause again…',
   conditions: ['…'],              // required when verdict is 'conditional'
-  verifiedAt: '2026-08-06',
+  review: 'seeded',               // 'verified' = someone read it | 'seeded' = nobody has
+  reviewedAt: '2026-08-06',       // date of that read, or of writing for a seeded entry
   confidence: 'high',
 }
 ```
@@ -55,6 +68,11 @@ Three verdicts, because two would collapse a real distinction:
   recorded is one nobody keeps.
 - **`prohibited`** — forbidden, or no terms grant it and the site's general ToS forbid
   automated access. Hard-blocked in code.
+
+**`review` and `confidence` are orthogonal, and both matter.** `review` says whether
+anyone opened the document; `confidence` says how clear-cut the answer is once you
+have. A `seeded` entry with `high` confidence means "the provider's posture is
+unambiguous and we expect the document to confirm it" — still not a reading.
 
 **Staleness, not expiry.** A verdict older than `SOURCE_TERMS_REVIEW_AFTER_DAYS` (180)
 is reported stale; it is *not* disallowed. Terms change, but breaking the app because
@@ -154,9 +172,41 @@ availability findings must come from the owner's machine, never from CI.
 
 ---
 
+## Closing out the seeded entries
+
+```bash
+npm run terms:report -- --seeded     # everything unread
+npm run terms:report -- --news       # just the news publishers (do these first)
+npm run terms:report -- --news --out docs/audits/terms-review-news-<date>.md
+```
+
+Run it **from a machine that can reach these sites** — the same rule as
+`npm run audit`. It writes a markdown worksheet per host: current verdict, what the
+probe saw, a link to the document, the clauses it flagged, and a conclusion box.
+Read the documents, fill the boxes, then flip `review` to `'verified'` with an
+updated `reviewedAt`. The `/data-sources` counts and the registry `confidence` grade
+key off that field, so they correct themselves.
+
+**Do the news publishers first.** They are the app's only keyless content sources,
+and unlike the market-data APIs their permission rests on a publisher syndication
+policy rather than a licence attached to a key. Four questions settle each one:
+
+1. Is there a **separate RSS/syndication policy** distinct from the site ToS?
+   Publishers often permit far more via RSS than their general terms suggest.
+2. Does it restrict use to **personal / non-commercial**? Most news RSS terms do.
+3. What may be **displayed** — headline and link only, or headline + summary? The
+   route renders the feed summary, so a headline-and-link-only policy is a code
+   change, not a note.
+4. Is **attribution** required, and in what form? Record it as a `conditions` entry.
+
+The open queue is `docs/audits/terms-review-news-2026-08-07.md`.
+
 ## Maintenance
 
-- **Adding a source:** read the terms, add an entry, run `npx vitest run sourceTerms`.
+- **Adding a source:** read the terms, add an entry with `review: 'verified'`, run
+  `npx vitest run sourceTerms`. If you are adding it without reading the document,
+  say so with `review: 'seeded'` — that is a legitimate state, and pretending
+  otherwise is what this field exists to stop.
 - **Re-verifying:** `POST /live-data/source-terms { url }` runs the probe, or
   `GET /live-data/source-terms` returns the whole registry. Both are surfaced on the
   **/data-sources** page, prohibited entries first — they explain missing functionality
@@ -164,7 +214,7 @@ availability findings must come from the owner's machine, never from CI.
 - **Changing a verdict:** read the document yourself and update `verifiedAt`. Never
   downgrade a verdict on the strength of a CI probe.
 
-The seed registry (2026-08-06) was written from each provider's published terms and
-carries a `confidence` field per entry; entries marked `low` (Reddit, StockTwits) are
-the ones where public terms are least clear about third-party display use, and are the
-first that should be re-read on the owner's machine.
+Entries also carry a `confidence` field, orthogonal to `review`: `review` says whether
+anyone read the document, `confidence` says how clear-cut the answer is once you have.
+The `low` ones (Reddit, StockTwits) are where public terms are least explicit about
+third-party display use.
