@@ -84,9 +84,11 @@ module "eks" {
       username = "system:node:{{EC2PrivateDNSName}}"
       groups   = ["system:bootstrappers", "system:nodes"]
     },
-    # CI/CD deploy role
+    # CI/CD deploy role. Must reference the role Terraform actually creates —
+    # a hardcoded name here silently maps a role that does not exist, and the
+    # deploy then fails at kubectl time with an opaque authorization error.
     {
-      rolearn  = "arn:aws:iam::${local.account_id}:role/fn-cicd-deploy-role"
+      rolearn  = aws_iam_role.cicd_deploy.arn
       username = "fn-cicd"
       groups   = ["fn-deployers"]
     },
@@ -356,6 +358,93 @@ resource "helm_release" "metrics_server" {
   set {
     name  = "replicas"
     value = "2"
+  }
+
+  depends_on = [module.eks]
+}
+
+###############################################################################
+# RBAC for the CI/CD deploy role
+#
+# aws_auth_roles above maps the deploy role to the "fn-deployers" group, but a
+# group with no binding grants nothing: the role authenticates to the cluster and
+# then fails every kubectl apply with a bare "cannot ... at the cluster scope".
+# These two resources are what make that mapping mean something.
+#
+# It must be created by Terraform rather than applied by the pipeline, because
+# the pipeline would need this permission to apply it.
+#
+# Secrets are deliberately absent — they are managed by the External Secrets
+# Operator, and the deploy workflow says so where it applies the base manifests.
+###############################################################################
+
+resource "kubernetes_cluster_role" "fn_deployers" {
+  metadata {
+    name = "fn-deployers"
+  }
+
+  # Namespace is cluster-scoped and the workflow applies namespace.yaml.
+  rule {
+    api_groups = [""]
+    resources  = ["namespaces"]
+    verbs      = ["get", "list", "watch", "create", "patch", "update"]
+  }
+
+  rule {
+    api_groups = [""]
+    resources  = ["configmaps", "services", "persistentvolumeclaims"]
+    verbs      = ["get", "list", "watch", "create", "patch", "update"]
+  }
+
+  # Pods are read-only: needed for rollout status and smoke tests, never written.
+  rule {
+    api_groups = [""]
+    resources  = ["pods", "pods/log", "events"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["apps"]
+    resources  = ["deployments", "statefulsets", "replicasets"]
+    verbs      = ["get", "list", "watch", "create", "patch", "update"]
+  }
+
+  # kubectl rollout status and the production rollback path read status subresources.
+  rule {
+    api_groups = ["apps"]
+    resources  = ["deployments/status", "statefulsets/status"]
+    verbs      = ["get", "list", "watch"]
+  }
+
+  rule {
+    api_groups = ["autoscaling"]
+    resources  = ["horizontalpodautoscalers"]
+    verbs      = ["get", "list", "watch", "create", "patch", "update"]
+  }
+
+  rule {
+    api_groups = ["networking.k8s.io"]
+    resources  = ["ingresses"]
+    verbs      = ["get", "list", "watch", "create", "patch", "update"]
+  }
+}
+
+resource "kubernetes_cluster_role_binding" "fn_deployers" {
+  metadata {
+    name = "fn-deployers"
+  }
+
+  role_ref {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "ClusterRole"
+    name      = kubernetes_cluster_role.fn_deployers.metadata[0].name
+  }
+
+  # Matches the group name in aws_auth_roles above. These two strings must agree.
+  subject {
+    api_group = "rbac.authorization.k8s.io"
+    kind      = "Group"
+    name      = "fn-deployers"
   }
 
   depends_on = [module.eks]

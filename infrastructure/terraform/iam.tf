@@ -448,6 +448,44 @@ resource "aws_iam_role_policy_attachment" "cluster_autoscaler" {
 }
 
 ###############################################################################
+# GitHub Actions OIDC provider
+###############################################################################
+
+# An AWS account can hold exactly one OIDC provider per URL. The first environment
+# applied into the account creates it; every later environment sets
+# manage_github_oidc_provider = false and reuses it, or the apply fails with
+# EntityAlreadyExists.
+resource "aws_iam_openid_connect_provider" "github" {
+  count = var.manage_github_oidc_provider ? 1 : 0
+
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+
+  # IAM validates token.actions.githubusercontent.com against its own trusted CA
+  # store and ignores this value in practice, but the API still rejects an empty
+  # list. This is GitHub's long-standing root thumbprint.
+  thumbprint_list = ["6938fd4d98bab03faadb97b34396831e3780aea1"]
+
+  tags = merge(local.common_tags, {
+    Name = "${local.name_prefix}-github-oidc"
+  })
+}
+
+data "aws_iam_openid_connect_provider" "github" {
+  count = var.manage_github_oidc_provider ? 0 : 1
+
+  url = "https://token.actions.githubusercontent.com"
+}
+
+locals {
+  github_oidc_provider_arn = (
+    var.manage_github_oidc_provider
+    ? aws_iam_openid_connect_provider.github[0].arn
+    : data.aws_iam_openid_connect_provider.github[0].arn
+  )
+}
+
+###############################################################################
 # CI/CD Deploy Role — assumed by GitHub Actions
 ###############################################################################
 
@@ -460,15 +498,14 @@ resource "aws_iam_role" "cicd_deploy" {
       Effect = "Allow"
       Action = "sts:AssumeRoleWithWebIdentity"
       Principal = {
-        Federated = "arn:aws:iam::${local.account_id}:oidc-provider/token.actions.githubusercontent.com"
+        Federated = local.github_oidc_provider_arn
       }
       Condition = {
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
         }
         StringLike = {
-          # Replace with your actual GitHub org/repo
-          "token.actions.githubusercontent.com:sub" = "repo:your-org/finance-now:*"
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repository}:*"
         }
       }
     }]
@@ -493,23 +530,37 @@ resource "aws_iam_policy" "cicd_deploy" {
         Resource = "*"
       },
       {
-        Sid    = "ECRPushImages"
+        Sid    = "ECRPushImagesThisEnvironment"
         Effect = "Allow"
         Action = [
           "ecr:BatchCheckLayerAvailability",
-          "ecr:BatchGetImage",
           "ecr:CompleteLayerUpload",
-          "ecr:GetDownloadUrlForLayer",
           "ecr:InitiateLayerUpload",
           "ecr:PutImage",
           "ecr:UploadLayerPart",
-          "ecr:DescribeImages",
-          "ecr:DescribeRepositories",
         ]
         Resource = [
           aws_ecr_repository.backend.arn,
           aws_ecr_repository.frontend.arn,
         ]
+      },
+      {
+        # Read is deliberately wider than push. The production deploy promotes a
+        # release by re-tagging the image staging already built and smoke-tested
+        # (fn-staging/* -> fn-production/*), so the production role must be able to
+        # pull from another environment's repositories. Scoped to this project's
+        # repository namespace, never account-wide.
+        Sid    = "ECRPullProjectRepositories"
+        Effect = "Allow"
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:DescribeImages",
+          "ecr:DescribeRepositories",
+          "ecr:ListImages",
+        ]
+        Resource = "arn:aws:ecr:${var.aws_region}:${local.account_id}:repository/${var.project_name}-*"
       },
       {
         Sid    = "EKSDescribe"

@@ -30,10 +30,20 @@ terraform {
     }
   }
 
-  # Remote state in S3 with DynamoDB locking
+  # Remote state in S3 with DynamoDB locking.
+  #
+  # `key` is deliberately NOT set here. A backend block cannot take variables, so a
+  # hardcoded key means every environment writes the same state file — applying
+  # staging would adopt and then destroy production's resources. The key is passed
+  # per environment at init time instead:
+  #
+  #   terraform init -reconfigure -backend-config="key=staging/terraform.tfstate"
+  #   terraform init -reconfigure -backend-config="key=production/terraform.tfstate"
+  #
+  # The bucket, lock table and KMS alias below are created by ./bootstrap, which
+  # keeps its own state locally. See docs/deployment/aws-provisioning.md.
   backend "s3" {
     bucket         = "fn-terraform-state"
-    key            = "production/terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
     kms_key_id     = "alias/fn-terraform-state"

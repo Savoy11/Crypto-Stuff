@@ -29,6 +29,32 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "github_repository" {
+  description = <<-EOT
+    GitHub repository (owner/repo) allowed to assume the CI/CD deploy role via OIDC.
+    This is the only thing standing between the deploy role and any GitHub Actions
+    workflow on the internet, so it is deliberately exact — not a wildcard owner.
+  EOT
+  type        = string
+  default     = "Savoy11/Finance-Now"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$", var.github_repository))
+    error_message = "github_repository must be in owner/repo form, e.g. Savoy11/Finance-Now."
+  }
+}
+
+variable "manage_github_oidc_provider" {
+  description = <<-EOT
+    Create the account-level GitHub OIDC provider. An AWS account can hold exactly one
+    provider per URL, so the first environment applied creates it and every later
+    environment must set this to false and reuse it — otherwise the second apply fails
+    with EntityAlreadyExists.
+  EOT
+  type        = bool
+  default     = true
+}
+
 ###############################################################################
 # VPC
 ###############################################################################

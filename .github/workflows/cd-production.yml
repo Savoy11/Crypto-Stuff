@@ -33,6 +33,9 @@ env:
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
   ECR_REPO_BACKEND: fn-production/backend
   ECR_REPO_FRONTEND: fn-production/frontend
+  # Terraform names this role "${project_name}-${environment}-cicd-deploy-role", so
+  # staging and production can coexist in one account. It is NOT "fn-cicd-deploy-role".
+  CICD_ROLE_NAME: fn-production-cicd-deploy-role
   EKS_CLUSTER: fn-production-eks
   KUBERNETES_NAMESPACE: fn
 
@@ -52,6 +55,23 @@ jobs:
       version_tag: ${{ steps.version.outputs.tag }}
 
     steps:
+      # An unset AWS_ACCOUNT_ID renders the role ARN as arn:aws:iam:::role/... and the
+      # OIDC action retries for over two minutes before failing with "Request ARN is
+      # invalid", which reads like an AWS outage rather than a missing secret. Fail
+      # here instead, naming the secret. See docs/deployment/aws-provisioning.md.
+      - name: Preflight — required secrets
+        run: |
+          missing=()
+          [ -n "${{ secrets.AWS_ACCOUNT_ID }}" ] || missing+=("AWS_ACCOUNT_ID")
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error title=Deploy secrets not configured::Missing repository secret(s): ${missing[*]}"
+            echo "Set them under Settings → Secrets and variables → Actions."
+            echo "See docs/deployment/aws-provisioning.md for the full provisioning runbook."
+            exit 1
+          fi
+          echo "Required deploy secrets are present."
+
       - name: Validate manual trigger confirmation
         if: github.event_name == 'workflow_dispatch'
         run: |
@@ -95,7 +115,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/fn-cicd-deploy-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.CICD_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
           role-session-name: fn-cd-production-${{ github.run_id }}
 
@@ -112,18 +132,19 @@ jobs:
           FRONTEND_SRC="${{ env.ECR_REGISTRY }}/fn-staging/frontend:${VERSION}"
           FRONTEND_DST="${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:${VERSION}"
 
-          # Pull from staging, re-tag for production ECR
+          # Pull from staging, re-tag for production ECR.
+          #
+          # No :latest tag — the production ECR repositories are
+          # image_tag_mutability = IMMUTABLE, so re-pushing :latest fails with
+          # ImageTagAlreadyExistsException on the second release. Deploys reference
+          # the version tag, and the rollback path below does too, so nothing reads it.
           docker pull "$BACKEND_SRC"
           docker tag "$BACKEND_SRC" "$BACKEND_DST"
           docker push "$BACKEND_DST"
-          docker tag "$BACKEND_SRC" "${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_BACKEND }}:latest"
-          docker push "${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_BACKEND }}:latest"
 
           docker pull "$FRONTEND_SRC"
           docker tag "$FRONTEND_SRC" "$FRONTEND_DST"
           docker push "$FRONTEND_DST"
-          docker tag "$FRONTEND_SRC" "${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:latest"
-          docker push "${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_FRONTEND }}:latest"
 
           echo "backend_image=${BACKEND_DST}" >> $GITHUB_OUTPUT
           echo "frontend_image=${FRONTEND_DST}" >> $GITHUB_OUTPUT
@@ -187,7 +208,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/fn-cicd-deploy-role
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.CICD_ROLE_NAME }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Update kubeconfig
@@ -226,7 +247,7 @@ jobs:
             -n ${{ env.KUBERNETES_NAMESPACE }}
 
           # Backend
-          envsubst '${ECR_REGISTRY} ${IMAGE_TAG}' \
+          envsubst '${ECR_REGISTRY} ${ECR_REPO_BACKEND} ${ECR_REPO_FRONTEND} ${IMAGE_TAG}' \
             < infrastructure/kubernetes/backend/deployment.yaml \
             | kubectl apply -f - -n ${{ env.KUBERNETES_NAMESPACE }}
           kubectl apply -f infrastructure/kubernetes/backend/service.yaml \
@@ -235,7 +256,7 @@ jobs:
             -n ${{ env.KUBERNETES_NAMESPACE }}
 
           # Frontend
-          envsubst '${ECR_REGISTRY} ${IMAGE_TAG}' \
+          envsubst '${ECR_REGISTRY} ${ECR_REPO_BACKEND} ${ECR_REPO_FRONTEND} ${IMAGE_TAG}' \
             < infrastructure/kubernetes/frontend/deployment.yaml \
             | kubectl apply -f - -n ${{ env.KUBERNETES_NAMESPACE }}
           kubectl apply -f infrastructure/kubernetes/frontend/service.yaml \
