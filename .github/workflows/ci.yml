@@ -29,10 +29,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'
@@ -93,16 +93,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
           cache: 'pip'
 
       - name: Cache Poetry virtualenv
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/pypoetry
@@ -155,7 +155,7 @@ jobs:
             tests/
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           file: backend/coverage.xml
           flags: backend
@@ -164,7 +164,7 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: backend-test-results
@@ -199,10 +199,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # Node 22: 20 is EOL and its actions are deprecated on GitHub runners.
           # Keep in step with frontend/Dockerfile and package.json `engines`.
@@ -233,7 +233,7 @@ jobs:
           npm run lint
 
       - name: Upload ESLint SARIF
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: frontend/eslint-results.sarif
@@ -297,7 +297,7 @@ jobs:
           npm run build
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-build
           path: frontend/.next/
@@ -312,17 +312,17 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
         with:
           driver-opts: |
             image=moby/buildkit:master
             network=host
 
       - name: Build backend Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/Dockerfile
@@ -338,7 +338,7 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
 
       - name: Build frontend Docker image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
@@ -372,7 +372,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
@@ -385,7 +385,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy scan results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
           category: trivy
@@ -411,10 +411,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: '1.9.8'
 
@@ -434,7 +434,7 @@ jobs:
           terraform validate
 
       - name: Run tflint
-        uses: terraform-linters/setup-tflint@v4
+        uses: terraform-linters/setup-tflint@v6
         with:
           tflint_version: v0.50.0
       - run: |
