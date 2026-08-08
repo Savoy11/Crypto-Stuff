@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { fetchSecurityChart, type ChartRange, type SecurityChart } from '@/lib/api/live/marketData'
 
-// Server-side proxy for price history of any Yahoo-quotable security
-// (stocks, ETFs, mutual funds).
+// Server-side proxy for price history of stocks, ETFs, mutual funds and macro
+// instruments, through the Tiingo → FMP ladder in lib/api/live/marketData.ts.
+// Both rungs are keyed: the keyless one was withdrawn on terms grounds
+// (lib/server/sourceTerms.ts), so an unkeyed instance gets ok:false here and
+// the UI shows LiveUnavailable.
 //   GET /live-data/security-chart?symbol=AAPL&range=1y
 //
 // Response: { ok, updatedAt, chart: SecurityChart } — or ok:false when no

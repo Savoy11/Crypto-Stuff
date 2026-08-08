@@ -1,6 +1,6 @@
 // Currency (fiat FX) catalog for the Macro Markets module.
 // Curated pairs, all verified to price live through /live-data/security-quotes
-// (Yahoo symbols) on 2026-07-21. Daily ECB reference rates for the converter
+// on 2026-07-21. Daily ECB reference rates for the converter
 // come from /live-data/fx-rates (frankfurter.dev, keyless).
 //
 // Like the commodity catalog, this file carries NO reference rates — quotes
@@ -18,7 +18,7 @@ export const CURRENCY_CATEGORY_INFO: Record<CurrencyCategoryId, { label: string;
 export interface CurrencyEntry {
   /** Route param: /macro/currencies/[slug]. */
   slug: string
-  /** Yahoo symbol, e.g. 'EURUSD=X' or 'JPY=X' (= USD/JPY). */
+  /** Pair symbol, e.g. 'EURUSD=X' or 'JPY=X' (= USD/JPY). */
   symbol: string
   /** Display name in market convention, e.g. 'EUR/USD'. */
   name: string

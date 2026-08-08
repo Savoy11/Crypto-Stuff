@@ -9,7 +9,7 @@ import { parseFeedItems } from '@/lib/server/feedParse'
 //   GET /live-data/market-news?symbol=AAPL    → per-ticker headlines
 //   GET /live-data/market-news?limit=20
 //
-// REGISTRY-DRIVEN: built-in feeds (Yahoo Finance News, MarketWatch, CNBC) can
+// REGISTRY-DRIVEN: built-in feeds (MarketWatch, CNBC) can
 // be toggled on the Integrations page, and user-added custom sources
 // (rss / atom / json-news, market: 'equities') run alongside them. All active
 // sources fetch in parallel via Promise.allSettled — any subset may fail
@@ -42,28 +42,30 @@ export interface MarketNewsResponse {
   ok: boolean
   updatedAt: string
   articles: MarketArticle[]
+  /** Why the list is empty, when it is empty for a reason worth stating. */
+  error?: string
 }
 
-// Built-in feed definitions, keyed by provider id in the registry
+// Built-in feed definitions, keyed by provider id in the registry.
+//
+// ⚠ `yahoo-news` was here until 2026-08-06, and with it the ONLY free
+// per-ticker RSS feed (feeds.finance.yahoo.com/rss/2.0/headline?s=SYM). It was
+// removed on terms grounds — see lib/server/sourceTerms.ts. Both survivors are
+// general market wires, which is what changed symbol mode below from "fetch
+// this ticker's feed" to "read the general wires and keep what mentions it".
 const BUILTIN_FEEDS: Record<string, { url: string; source: string }> = {
-  'yahoo-news':  { url: 'https://finance.yahoo.com/news/rssindex', source: 'Yahoo Finance' },
   'marketwatch': { url: 'https://feeds.content.dowjones.io/public/rss/mw_topstories', source: 'MarketWatch' },
   'cnbc':        { url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', source: 'CNBC' },
 }
 
 /**
- * Cap on per-ticker watchlist feeds fetched in one request.
+ * Cap on watchlist symbols honoured in one request.
  *
- * Each symbol is another upstream round-trip, so a 30-name watchlist would turn
+ * Each symbol used to be another upstream round-trip, so a 30-name watchlist would turn
  * one request into 30. Six covers a typical focus list while keeping the fan-out
  * comparable to the general-feed path.
  */
 const MAX_WATCHLIST_FEEDS = 6
-
-function yahooTickerFeedUrl(symbol: string): string {
-  const params = new URLSearchParams({ s: symbol, region: 'US', lang: 'en-US' })
-  return `https://feeds.finance.yahoo.com/rss/2.0/headline?${params}`
-}
 
 // ─── RSS parsing ──────────────────────────────────────────────────────────────
 
@@ -174,10 +176,13 @@ export async function GET(request: NextRequest) {
   const symbol = request.nextUrl.searchParams.get('symbol')?.trim().toUpperCase()
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '20', 10) || 20, 50)
 
-  // Watchlist tickers. Unlike the crypto route — which has text-search providers
-  // and so takes free-text `any` terms — the equity feeds are per-ticker RSS, so
-  // the way to "pull more" here is to fetch each watchlist symbol's own Yahoo
-  // feed and merge. Capped: each symbol is another upstream request.
+  // Watchlist tickers. This used to WIDEN coverage — one extra per-ticker Yahoo
+  // feed per name, genuinely fetching stories the general wires never carried.
+  // With that feed gone the parameter can only NARROW: the same general wires
+  // are read either way, and the watchlist selects from what came back. The cap
+  // therefore no longer limits requests (there are none to limit); it limits how
+  // many names the match test runs over, which is cheap. It is kept so a
+  // 200-name watchlist can't turn into a 200-branch regex sweep per article.
   const watchlist = (request.nextUrl.searchParams.get('watchlist') ?? '')
     .split(',')
     .map((s) => s.trim().toUpperCase())
@@ -192,8 +197,8 @@ export async function GET(request: NextRequest) {
   const customs = active.filter((p): p is AnyActiveProvider & ActiveCustom =>
     !!p.isCustom && ['rss', 'atom', 'json-news'].includes(p.format))
 
-  // Symbol mode: Yahoo's per-ticker feed (if Yahoo is enabled) + symbol-aware
-  // customs + the highest-priority general feed for market context.
+  // Symbol mode: every general wire + symbol-aware customs, then filtered to
+  // articles that actually mention the company (see `symbolMatches` below).
   type Task = { providerId: string; run: () => Promise<Omit<MarketArticle, 'sentiment' | 'category' | 'relatedSymbols' | 'isBreaking'>[]> }
   const tasks: Task[] = []
   const fetchBuiltin = (url: string, source: string) => async () => {
@@ -205,22 +210,9 @@ export async function GET(request: NextRequest) {
     return parseRss(await res.text(), source)
   }
 
-  if (symbol) {
-    const yahoo = builtins.find((p) => p.id === 'yahoo-news')
-    if (yahoo) tasks.push({ providerId: 'yahoo-news', run: fetchBuiltin(yahooTickerFeedUrl(symbol), 'Yahoo Finance') })
-    const general = builtins.find((p) => p.id !== 'yahoo-news') ?? yahoo
-    if (general && general.id !== 'yahoo-news') tasks.push({ providerId: general.id, run: fetchBuiltin(BUILTIN_FEEDS[general.id].url, BUILTIN_FEEDS[general.id].source) })
-  } else {
-    for (const p of builtins) tasks.push({ providerId: p.id, run: fetchBuiltin(BUILTIN_FEEDS[p.id].url, BUILTIN_FEEDS[p.id].source) })
-    // Watchlist mode: add each symbol's own Yahoo feed alongside the general
-    // ones. This is the equity analogue of the crypto route's `any` search —
-    // it genuinely widens coverage rather than just reordering what arrived.
-    if (watchlist.length > 0 && builtins.some((p) => p.id === 'yahoo-news')) {
-      for (const wl of watchlist) {
-        tasks.push({ providerId: 'yahoo-news', run: fetchBuiltin(yahooTickerFeedUrl(wl), 'Yahoo Finance') })
-      }
-    }
-  }
+  // Both modes now read the same set of general wires — there is no per-ticker
+  // feed left to make symbol mode fetch anything different.
+  for (const p of builtins) tasks.push({ providerId: p.id, run: fetchBuiltin(BUILTIN_FEEDS[p.id].url, BUILTIN_FEEDS[p.id].source) })
   for (const p of customs) {
     if (symbol && !p.url.includes('{symbol}') && tasks.length > 0) continue // general-only custom feeds skip symbol mode
     tasks.push({ providerId: p.id, run: () => fetchCustomNews(p, symbol) })
@@ -242,17 +234,27 @@ export async function GET(request: NextRequest) {
       if (seen.has(key)) continue
       seen.add(key)
       const text = `${article.title} ${article.summary}`
-      const related = detectSymbols(text)
-      if (symbol && !related.includes(symbol)) related.unshift(symbol)
+      // The requested symbol used to be force-tagged onto every article,
+      // because in symbol mode every article HAD come from that ticker's own
+      // feed. It doesn't any more — the wires are general — so tagging is now
+      // purely detection. Force-tagging here would relabel unrelated market
+      // stories as being about the company, which is precisely the kind of
+      // fabricated relationship this codebase refuses elsewhere.
       articles.push({
         ...article,
         sentiment: scoreSentiment(text),
         category: classifyCategory(text),
-        relatedSymbols: related,
+        relatedSymbols: detectSymbols(text),
         isBreaking: Date.now() - new Date(article.publishedAt).getTime() < 60 * 60 * 1000,
       })
     }
   }
+
+  // Symbol mode filters rather than fetches now. `detectSymbols` matches the
+  // catalog company name or an unambiguous ticker, so this keeps the stories
+  // that genuinely name the company and drops the rest — an empty result is
+  // the honest answer when the wires simply haven't covered it today.
+  const symbolMatches = (a: MarketArticle) => a.relatedSymbols.includes(symbol!)
 
   articles.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
@@ -267,13 +269,20 @@ export async function GET(request: NextRequest) {
 
   // Never let filtering empty the feed — mirrors applyBias, where an empty
   // watchlist is always a no-op.
-  const shown = watchlistOnly && watchlist.length > 0
-    ? articles.filter(matchesWatchlist)
-    : articles
+  const shown = symbol
+    ? articles.filter(symbolMatches)
+    : watchlistOnly && watchlist.length > 0
+      ? articles.filter(matchesWatchlist)
+      : articles
 
   return NextResponse.json({
     ok: shown.length > 0,
     updatedAt: new Date().toISOString(),
     articles: shown.slice(0, limit),
+    ...(symbol && shown.length === 0
+      ? {
+          error: `No current headline on the general market wires mentions ${symbol}. Finance Now no longer has a per-ticker news feed — the only free one was withdrawn on terms grounds — so symbol news is whatever the market wires happen to cover.`,
+        }
+      : {}),
   } satisfies MarketNewsResponse)
 }

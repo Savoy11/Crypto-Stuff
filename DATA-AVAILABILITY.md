@@ -17,6 +17,41 @@ what is — and is not — backed by real data, with no fabricated figures prese
 > `npm run smoke` runs the fast CI subset. **Do not hand-edit the statuses below
 > without re-running the audit** — that is how this file went stale last time.
 
+> ⚠ **2026-08-06 — YAHOO FINANCE REMOVED AS A DATA SOURCE. THE STATUSES BELOW ARE
+> PRE-REMOVAL FOR EVERY SURFACE IT TOUCHED, AND `npm run audit` HAS NOT BEEN RE-RUN
+> SINCE (it must run on the owner's machine — see the note above).**
+>
+> Yahoo was withdrawn on **terms grounds, not availability**: the
+> `query1/query2.finance.yahoo.com` v8/v10 endpoints are undocumented internals of
+> Yahoo's own web app with no published third-party API terms, and Yahoo's ToS
+> prohibit automated access and redistribution. It is now hard-blocked in code —
+> `frontend/src/lib/server/sourceTerms.ts` refuses `*.yahoo.com` at the socket, so
+> re-adding a fetcher does not bring it back.
+>
+> It was the only **keyless** rung on the equity/fund/macro quote, chart and OHLCV
+> paths, so the honest expectation for the next audit run is:
+>
+> | Surface | Was | Expected now |
+> |---|---|---|
+> | Quotes (stocks/ETFs/funds) | 🟢 Live keyless | 🟡 **Key-gated** — FMP/Finnhub/Twelve Data/Tiingo/Alpha Vantage, else catalog `ref` prices |
+> | Price chart | 🟢 Live keyless | 🟡 **Key-gated** — Tiingo → FMP |
+> | OHLCV / TA / backtests | 🟢 Live keyless | 🟡 **Key-gated** — Tiingo → FMP |
+> | Trailing returns | 🟢 Live keyless | 🟡 **Key-gated**, and capped: one request per symbol, so whole-universe requests are now REFUSED rather than truncated. Fund return screening/sorting is off; the Returns columns still work per page |
+> | Market news | 🟢 Live keyless | 🟡 **Partial** — MarketWatch + CNBC only. The one free per-ticker feed was Yahoo's; symbol news is now the general wires filtered to articles that name the company |
+> | Fund holdings | 🟢 Live keyless | 🟢 **Unchanged** — SEC N-PORT is authoritative and keyless. But sector weights now need an FMP key, and the stock/bond/cash **asset mix has no source at all** |
+> | Commodity / FX / rate quotes | ⬜ Not measured | 🟡 **Key-gated and expected partial** — `GC=F`, `EURUSD=X`, `^TNX` are not covered by Tiingo, so coverage depends on which keyed provider is configured. **This is the surface hit hardest.** |
+> | Futures term structure | 🟢 Live (P2-O4) | 🔴 **Not available** — nothing reachable quotes a dated contract month. The route resolves the months and returns `ok:false` with the reason; the card states it on-page |
+> | FX converter, Treasury yield curve, SEC filings/XBRL, all crypto | — | 🟢 **Unaffected** — keyless and unrelated |
+>
+> Everything above is a *prediction from the code*, not a measurement. Re-run
+> `npm run audit` on the owner's machine and replace this block with what it says.
+>
+> A companion safeguard shipped in the same change: every external host now carries a
+> dated terms verdict in `sourceTerms.ts`, a vitest fails if a host in `dataSources.ts`
+> has no verdict, and user-added feeds are checked against the site's robots.txt and
+> terms (`termsProbe.ts`) before they can be saved. See
+> `docs/architecture/source-terms.md`.
+
 > ✅ **RE-MEASURED 2026-07-29 (second run, evening) on the owner's machine** — `npm run audit`,
 > app on localhost:3000, tree at **`54fbf0c`**. Headline: **76 checks — 60 REAL, 9 FALLBACK,
 > 3 UNCONFIGURED, 1 EMPTY, 3 FAIL.** Macro is measured for the first time.
@@ -113,9 +148,9 @@ Several providers geo-block or bot-block, and the results differ by IP. Verified
 | `polygon-rpc.com` | 403 "tenant disabled" | **Fixed:** same ladder |
 | `kobe.mainnet.jito.network/api/v1/apy` | **404** | **Fixed:** switched to `/stake_pool_stats` |
 | SEC EDGAR / data.sec.gov | 200 | Keyless and authoritative — filings, XBRL, N-PORT |
-| Yahoo Finance spark/chart | 200 | Primary equity quote + OHLCV source |
-| Yahoo Finance **v8 chart, individual futures months** (`CLZ26.NYM`) | 200 | **Measured 2026-08-05 (P2-O1):** 9/9 across NYMEX/COMEX/CBOT, 64 daily bars. Unblocks the futures term-structure view (P2-O4) — same API already in production |
-| Yahoo Finance **options** (`v7/finance/options`) | **401** — both hosts, all symbols | **Measured 2026-08-05 (P2-O1):** auth wall, not a rate limit. The keyless options-chain path is closed. Note Yahoo chart answered 10/10 in the same run — Yahoo is reachable; Yahoo *options* is gated |
+| ~~Yahoo Finance spark/chart~~ | 200 | **NOT USED SINCE 2026-08-06 — removed on terms grounds, not availability.** Reachability is beside the point: there are no published third-party API terms for these endpoints. Hard-blocked in `sourceTerms.ts` |
+| ~~Yahoo Finance **v8 chart, individual futures months**~~ (`CLZ26.NYM`) | 200 | **Measured 2026-08-05 (P2-O1):** 9/9 across NYMEX/COMEX/CBOT, 64 daily bars. Unblocks the futures term-structure view (P2-O4) — same API already in production |
+| ~~Yahoo Finance **options**~~ (`v7/finance/options`) | **401** — both hosts, all symbols | **Measured 2026-08-05 (P2-O1):** auth wall, not a rate limit. The keyless options-chain path is closed. Note Yahoo chart answered 10/10 in the same run — Yahoo is reachable; Yahoo *options* is gated |
 | `cdn.cboe.com` delayed options quotes | 200, complete (greeks + IV + OI) | **Measured 2026-08-05 (P2-O1): technically perfect, PROHIBITED BY TERMS.** Cboe forbids auto-extraction of delayed quote data and blocks the IPs that attempt it; programmatic use runs through the paid All Access API. Not used, and not to be added. Owner decision 2026-08-05: options chains stay not-available; the Trade Risk Scorer takes hand-entered legs instead — see `docs/assessments/P2-O1-options-data.md` |
 | StockTwits | 200 | Keyless equity social |
 | DefiLlama, mempool.space, alternative.me, Lido, Marinade | 200 | All healthy |
@@ -252,13 +287,13 @@ added 2026-07-29; their rows stay ⬜ **Not measured** until the next run.
 ### Equities module
 | Feature / Page | Status | Source | Notes |
 |----------------|--------|--------|-------|
-| Quotes | 🟢 Live | Yahoo Finance (ladder: FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage → Yahoo → catalog) | Yahoo serves in practice. **Stooq has been removed from the ladder entirely** (code re-checked 2026-07-28) — it 404s on every variant, so it was deleted from the registry and the quote path rather than left as a dead rung. Catalog reference is the last resort. |
-| OHLCV / TA / backtests | 🟢 Live | Yahoo Finance | 124 candles for 6M. |
-| Price chart | 🟢 Live | Yahoo | Close-only series by design. **Takes Yahoo range vocab (`6mo`), unlike its sibling `security-ohlcv` (`6M`)** — mismatched vocab returns 400. |
-| Trailing returns | 🟢 Live | Yahoo spark | |
+| Quotes | 🟡 Key-gated _(was 🟢, pre-2026-08-06 measurement)_ | ladder: FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage → catalog | **Every live rung needs a key** since Yahoo was removed. With none configured, stocks and funds render catalog reference prices behind an amber `ref` tag and macro instruments render a dash. **Stooq was removed earlier** (2026-07-28) — 404s on every variant. |
+| OHLCV / TA / backtests | 🟡 Key-gated _(was 🟢)_ | Tiingo → FMP | Both keyed. Route reports `source: 'none'` and the surfaces show their no-live-source state rather than synthetic candles. |
+| Price chart | 🟡 Key-gated _(was 🟢)_ | Tiingo → FMP | Close-only series by design. Tiingo supplies `adjClose`, so charts and candles agree across a split. **Takes range vocab `6mo`, unlike its sibling `security-ohlcv` (`6M`)** — mismatched vocab returns 400. |
+| Trailing returns | 🟡 Key-gated _(was 🟢)_ | Tiingo | One request per symbol now, so `?universe=` is **refused** rather than truncated, and `?symbols=` is capped at 60. Fund return screening/sorting disabled; per-page Returns columns still live. |
 | Stock Registry universe | 🟡 Partial | **curated catalog fallback** | FMP `company-screener` is **PAID-only**; without it the registry is 79 hand-maintained names. P/E backfill from SEC XBRL frames only runs on the FMP path. |
 | Equity screener / outliers | 🟡 Partial | derived from the above | Screens 66 evaluable names across 7 sectors — inherits the catalog's narrowness. Backs the `equity-screener` agent. |
-| Market news | 🟢 Live | Yahoo / MarketWatch / CNBC RSS | |
+| Market news | 🟡 Partial _(was 🟢)_ | MarketWatch / CNBC RSS | Keyless and unaffected in themselves. What went is the **per-ticker** feed — Yahoo's was the only free one — so symbol news is now these general wires filtered to articles that actually name the company. An empty result for a symbol is the honest answer, not a fault. |
 | Stock social | 🟡 Partial | StockTwits + **Reddit (fixed 2026-07-20)** | Reddit was calling the `.json` API, which **403s 100% of the time server-side** — a permanently dead provider that looked like a quiet feed. Switched to the `.rss` Atom feeds already proven in the crypto route. **Known issue:** signals merge by recency, and StockTwits posts are minutes old vs Reddit's hours/days, so at `limit ≤ 30` StockTwits fills every slot and Reddit is starved (0 at limit 20, 10 at 40, 45 at 80). |
 | SEC filings | 🟢 Live | SEC EDGAR | Keyless. |
 | Company fundamentals / ratios | 🟢 Live | SEC EDGAR XBRL | AAPL rev $416B, net margin 26.9% — sanity-checked. |
@@ -285,7 +320,8 @@ cover the module; only the shared quote path is still inferred rather than obser
 | FX rates — official tier | 🟢 Live | ECB daily reference via frankfurter.dev (keyless) | `fx-rates` — **30 currencies**, `date=2026-07-29`, `source=frankfurter-ecb`. Confirms the 30-currency set is ECB's complete published list, not a subset. |
 | FX rates — extended tier | 🟡 Partial | community `fawazahmed0/currency-api` (keyless) | `fx-rates-extended` — **124 of 126 allowlisted currencies priced; KPW and SYP unpriced upstream.** Classified FALLBACK by the harness, which is the honest reading: the tier works, two codes have no rate. North Korean won and Syrian pound are both effectively unquoted in open markets, so this is the source being accurate rather than broken — but the allowlist could drop them. Labeled community-sourced in the UI, never blended with the ECB tier unattributed. |
 | Treasury yield curve | 🟢 Live | treasury.gov daily par curve XML (keyless) | `treasury-yield-curve` — **13 maturities**, 2s10s=+0.45, 3m10y=+0.84, `shape=normal`. Both spreads positive and the curve un-inverted as of this run. 4h revalidate. |
-| Commodity / currency / rate quotes | ⬜ Not measured | existing `security-quotes` ladder | Still inferred, not observed: no macro-instrument quote is exercised directly. Their status tracks the Quotes row above (REAL via yahoo-finance in this run). A dedicated check would close the last macro gap. |
+| Commodity / currency / rate quotes | 🟡 Key-gated, expected partial _(never measured directly)_ | existing `security-quotes` ladder | **The surface the Yahoo removal hit hardest, and still the least-measured.** `GC=F` / `EURUSD=X` / `^TNX` were quoted keylessly and are **not** covered by Tiingo, so coverage now depends entirely on which keyed provider is configured. Unpriced renders a dash — the catalogs carry no reference prices by design. A dedicated check is now the highest-value gap to close. |
+| Futures term structure (forward curve) | 🔴 Not available _(was 🟢, P2-O4)_ | — | Dated contract months (`CLZ26.NYM`) had exactly one reachable source and it was Yahoo. FMP/Tiingo/Finnhub/Twelve Data/Alpha Vantage carry continuous front-months at best; exchange settlement files are licensed. `/live-data/futures-curve` still resolves the months and returns `ok:false` with the reason, and `TermStructureCard` prints it — the section says why rather than vanishing. Front-month prices are unaffected. |
 | CUSIP-level bond quotes | 🔴 Not available | — | Licensed data. Intentionally absent and stated on-page; this row needs no measurement. |
 
 ### Not available

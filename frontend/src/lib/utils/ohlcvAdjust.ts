@@ -4,7 +4,7 @@ import type { OhlcvCandle } from '@/lib/utils/indicators'
  * Rescale raw OHLC by the per-bar split+dividend adjustment factor
  * (adjClose / close), so a split shows a continuous series instead of a
  * catastrophic price cliff that every indicator would read as a crash. Also
- * keeps providers consistent: Yahoo, Tiingo, and FMP must not yield different
+ * keeps providers consistent: Tiingo and FMP must not yield different
  * indicator output for the same symbol just because a different one answered.
  *
  * `adjCloses` is a parallel array (same length/order as `candles`). When an

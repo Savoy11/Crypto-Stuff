@@ -142,7 +142,7 @@ function EquityNewsContent() {
     queryFn: () => {
       const params = new URLSearchParams({ limit: '50' })
       if (symbolFilter !== 'all') params.set('symbol', symbolFilter)
-      // At Strong/Only the route fetches each watchlist ticker's own Yahoo feed,
+      // At Strong/Only the route matches articles against the watchlist tickers,
       // which widens coverage rather than just reordering. Skipped when the user
       // has picked a specific symbol — that's a more explicit intent.
       if (biasSymbols.length > 0 && symbolFilter === 'all') {
@@ -196,10 +196,10 @@ function EquityNewsContent() {
           <PageHeader
             title="Market News"
             subtitle="Earnings, analyst actions, macro, and market stories with ticker tagging"
-            description="Aggregates stock-market headlines from Yahoo Finance, MarketWatch, and CNBC RSS feeds. Each article is classified by category, scored for sentiment from headline keywords, and tagged with catalog tickers it mentions."
+            description="Aggregates stock-market headlines from MarketWatch and CNBC RSS feeds. Each article is classified by category, scored for sentiment from headline keywords, and tagged with catalog tickers it mentions."
             details={[
               { label: 'Ticker detection', text: 'Company-name matching plus $CASHTAG / uppercase ticker matching against the equity catalog. Ticker chips link to the stock detail page.' },
-              { label: 'Symbol filter', text: 'Selecting a symbol also queries Yahoo Finance’s per-ticker feed for dedicated coverage.' },
+              { label: 'Symbol filter', text: 'Selecting a symbol keeps the articles that actually name the company. Finance Now has no per-ticker news feed — the only free one was withdrawn on terms grounds — so a symbol with no coverage today returns nothing rather than general market stories relabelled as its own.' },
             ]}
           />
         </div>

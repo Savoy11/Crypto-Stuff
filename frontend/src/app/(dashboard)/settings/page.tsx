@@ -26,7 +26,11 @@ import {
   TrendingUp,
   Bot,
   Cpu,
+  ShieldAlert,
+  ShieldCheck,
+  ScrollText,
 } from 'lucide-react'
+import type { TermsProbeReport } from '@/lib/server/termsProbe'
 import { timeAgo } from '@/lib/utils/format'
 import { OPTIONAL_MODULES } from '@/lib/modules/registry'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
@@ -918,10 +922,76 @@ const AUTH_OPTIONS: { value: AuthMethod; label: string }[] = [
   { value: 'bearer', label: 'Bearer token (Authorization header)' },
 ]
 
+/**
+ * The terms report, rendered where the user is about to commit to a source.
+ *
+ * It deliberately leads with the site's own words — the matched clauses and a
+ * link to the document — rather than a green tick. A one-word verdict from a
+ * keyword scan would be read as an assurance the scan cannot give, and the
+ * decision this asks for is the user's to make on the real text.
+ */
+function TermsReportPanel({ report }: { report: TermsProbeReport }) {
+  const restrictive = report.terms.signals.filter((s) => s.kind === 'restrictive')
+  const blocked = report.hardBlock
+  return (
+    <div className={clsxLite(
+      'rounded-lg border p-3 space-y-2 text-xs',
+      blocked ? 'border-red-500/30 bg-red-500/10' : 'border-amber-500/30 bg-amber-500/10'
+    )}>
+      <div className="flex items-start gap-2">
+        {blocked ? <ShieldAlert size={14} className="text-red-400 mt-0.5 shrink-0" />
+                 : <ScrollText size={14} className="text-amber-400 mt-0.5 shrink-0" />}
+        <div className="min-w-0">
+          <p className={blocked ? 'text-red-300 font-medium' : 'text-amber-200 font-medium'}>
+            {blocked ? 'Blocked by source terms' : 'Check this site’s terms before using it'}
+          </p>
+          <p className="text-slate-300 mt-0.5 leading-relaxed">{report.summary}</p>
+        </div>
+      </div>
+
+      <div className="text-slate-400 pl-6">
+        <span className="text-slate-500">robots.txt:</span> {report.robots.detail}
+      </div>
+
+      {report.terms.url && (
+        <div className="pl-6">
+          <a href={report.terms.url} target="_blank" rel="noopener noreferrer"
+             className="text-accent-blue hover:underline inline-flex items-center gap-1">
+            Read the terms <ExternalLink size={10} />
+          </a>
+        </div>
+      )}
+
+      {restrictive.length > 0 && (
+        <ul className="pl-6 space-y-1.5">
+          {restrictive.map((s, i) => (
+            <li key={i}>
+              <span className="text-amber-300 font-medium">{s.label}</span>
+              <span className="block text-slate-400 italic mt-0.5 leading-relaxed">“{s.excerpt}”</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+/** Tiny local join — this file doesn't otherwise import clsx. */
+function clsxLite(...parts: Array<string | false | null | undefined>): string {
+  return parts.filter(Boolean).join(' ')
+}
+
 function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category: ProviderCategory; market?: ProviderMarket; onAdd: () => void }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Terms gate state. `report` is whatever the server sent back with a 403/409;
+  // `acknowledged` is the user's explicit "I have read them", which the server
+  // requires before it will save an unreviewed source — and which it ignores
+  // entirely for a hard block.
+  const [termsReport, setTermsReport] = useState<TermsProbeReport | null>(null)
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [checking, setChecking] = useState(false)
   const defaultFormat: FeedFormat = category === 'video'
     ? 'youtube' // channel id or full /feeds/videos.xml URL
     : market === 'equities'
@@ -941,6 +1011,10 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }))
+    // An acknowledgement is about ONE url. Editing it invalidates both the
+    // report and the consent, or a user could get a report for a benign feed
+    // and then save a different site under it.
+    if (field === 'url') { setTermsReport(null); setAcknowledged(false) }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -953,6 +1027,7 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         action: 'add-custom',
+        termsAcknowledged: acknowledged,
         customDef: {
           name: form.name.trim(),
           description: form.description.trim(),
@@ -970,7 +1045,10 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
     })
     const data = await res.json()
     if (!res.ok || data.error) {
-      setError(data.error ?? 'Failed to add provider')
+      // 403 = prohibited outright (no checkbox will help); 409 = we need the
+      // user to read the terms and say so. Both carry the full report.
+      setTermsReport(data.termsReport ?? null)
+      setError(data.termsReport ? null : (data.error ?? 'Failed to add provider'))
       setSaving(false)
       return
     }
@@ -984,8 +1062,31 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
     }
     setSaving(false)
     setOpen(false)
+    setTermsReport(null)
+    setAcknowledged(false)
     setForm({ name: '', description: '', url: '', authMethod: 'none', authHeaderName: '', authQueryParam: '', apiKey: '', format: defaultFormat, jsonArrayPath: '' })
     onAdd()
+  }
+
+  /** Run the check on demand, before committing — same report the save uses. */
+  async function checkTerms() {
+    if (!form.url.trim()) { setError('Enter the endpoint URL first'); return }
+    setChecking(true)
+    setError(null)
+    try {
+      const res = await fetch('/live-data/source-terms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.url.trim() }),
+      })
+      const data = await res.json()
+      if (data.report) setTermsReport(data.report as TermsProbeReport)
+      else setError(data.error ?? 'Terms check failed')
+    } catch {
+      setError('Terms check failed — could not reach the site')
+    } finally {
+      setChecking(false)
+    }
   }
 
   const sourceLabel = category === 'news' ? 'news source'
@@ -1067,6 +1168,45 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
         </div>
       )}
 
+      {/* ── Source terms gate ────────────────────────────────────────────
+          Finance Now will not save a source whose terms forbid this use, and
+          will not save one nobody has checked until you say you have read them.
+          The check runs automatically on save; this button lets you run it
+          before filling in the rest of the form. */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[11px] text-slate-500 leading-relaxed">
+            Every source is checked against the site’s robots.txt and terms of use before it is saved.
+          </p>
+          <button
+            type="button"
+            onClick={checkTerms}
+            disabled={checking || !form.url.trim()}
+            className="shrink-0 flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-slate-700 text-xs text-slate-300 hover:border-slate-600 hover:text-slate-100 transition-colors disabled:opacity-40"
+          >
+            {checking ? <Loader2 size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+            Check terms
+          </button>
+        </div>
+
+        {termsReport && <TermsReportPanel report={termsReport} />}
+
+        {termsReport && !termsReport.hardBlock && termsReport.requiresAcknowledgement && (
+          <label className="flex items-start gap-2 text-xs text-slate-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={acknowledged}
+              onChange={(e) => setAcknowledged(e.target.checked)}
+              className="mt-0.5 accent-violet-500"
+            />
+            <span>
+              I have read {termsReport.host}’s terms and they permit an application like Finance Now to
+              fetch this feed.
+            </span>
+          </label>
+        )}
+      </div>
+
       {error && (
         <div className="flex items-center gap-2 text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
           <XCircle size={12} /> {error}
@@ -1074,7 +1214,14 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
       )}
 
       <div className="flex justify-end">
-        <button type="submit" disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-sm font-medium text-white hover:bg-violet-500 transition-colors disabled:opacity-50">
+        <button
+          type="submit"
+          // Disabled on a hard block, and while an acknowledgement is
+          // outstanding. The server enforces both regardless — this only saves
+          // the user a round-trip to be told no.
+          disabled={saving || !!termsReport?.hardBlock || (!!termsReport?.requiresAcknowledgement && !acknowledged)}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-violet-600 text-sm font-medium text-white hover:bg-violet-500 transition-colors disabled:opacity-50"
+        >
           {saving ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
           Add Source
         </button>

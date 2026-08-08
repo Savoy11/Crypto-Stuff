@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { CORS, options } from '../../../_cors'
 import { fetchSecurityChart, type ChartRange } from '@/lib/api/live/marketData'
 
-// Public agent API — price history for any Yahoo-quotable symbol (stocks,
+// Public agent API — price history for any symbol the security ladder prices (stocks,
 // ETFs, mutual funds, futures, FX pairs, yield indices). Close-only series;
 // for full OHLCV candles agents should use the app's TA tools, which read
 // /live-data/security-ohlcv.
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   const range = (req.nextUrl.searchParams.get('range') ?? '1y') as ChartRange
 
   if (!symbol) {
-    return NextResponse.json({ error: 'Pass ?symbol=AAPL (Yahoo notation).' }, { status: 400, headers: CORS })
+    return NextResponse.json({ error: 'Pass ?symbol=AAPL (market ticker notation: BRK-B, GC=F, ^TNX).' }, { status: 400, headers: CORS })
   }
   if (!VALID_RANGES.includes(range)) {
     return NextResponse.json(

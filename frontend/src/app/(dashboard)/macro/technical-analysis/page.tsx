@@ -40,7 +40,7 @@ import type { SecurityOhlcvResponse } from '@/app/live-data/security-ohlcv/route
 // SHIPPED note claimed everything in that list was done, which was not true of
 // this one. That note is corrected in the same change as this page.
 //
-// No new data route: macro symbols are Yahoo symbols and go through exactly the
+// No new data route: macro symbols go through exactly the
 // same OHLCV path the equities TA page uses.
 
 const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickChart'), { ssr: false })
@@ -84,7 +84,7 @@ const MACRO_INSTRUMENTS: MacroInstrument[] = [
     detailPath: `/macro/currencies/${c.slug}`,
     instrument: INSTRUMENT_BY_KEY[`${SEC_PREFIX}${c.symbol}`],
     // Majors and the index are deep; EM pairs and crosses quote thinly through
-    // Yahoo and gap over local holidays.
+    // the provider and gap over local holidays.
     liquid: c.category === 'major' || c.category === 'index',
   })),
   ...RATES_CATALOG.map((r) => ({
@@ -289,7 +289,7 @@ function ChartTab() {
           ) : (
             <LiveUnavailable
               className="my-12"
-              message={`No OHLCV history came back for ${symbol}. Macro contracts chart through the same Yahoo-first source as equities; front-month futures and thinner FX crosses can gap or return nothing over holidays.`}
+              message={`No OHLCV history came back for ${symbol}. Macro contracts chart through the same keyed provider ladder as equities, and coverage of futures, FX pairs and yield indices is narrower than it was before the keyless source was withdrawn on terms grounds — many macro symbols are simply not carried. Front-month futures and thin FX crosses can also gap over holidays.`}
             />
           )}
         </div>

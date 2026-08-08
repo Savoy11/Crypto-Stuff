@@ -336,7 +336,7 @@ const TOOL_REGISTRY: RegisteredTool[] = [
     market: 'macro',
     tool: {
       name: 'search_macro_instruments',
-      description: 'Search the macro catalogs — 19 commodity futures, 18 FX pairs + dollar index, and 8 treasury yield indices/bond futures — by name, symbol, or category. Returns the Yahoo symbol (usable with get_macro_quote / get_macro_price_history), quote convention, and ETF proxies. Use FIRST to find the right symbol.',
+      description: 'Search the macro catalogs — 19 commodity futures, 18 FX pairs + dollar index, and 8 treasury yield indices/bond futures — by name, symbol, or category. Returns the market symbol (usable with get_macro_quote / get_macro_price_history), quote convention, and ETF proxies. Use FIRST to find the right symbol. NOTE: macro quote coverage depends on the API key configured — an unpriced instrument returns no quote rather than a guess, and you must say so instead of estimating.',
       input_schema: {
         type: 'object',
         properties: {
@@ -354,7 +354,7 @@ const TOOL_REGISTRY: RegisteredTool[] = [
       input_schema: {
         type: 'object',
         properties: {
-          symbols: { type: 'array', items: { type: 'string' }, description: 'Yahoo symbols, e.g. ["GC=F","EURUSD=X","^TNX"]' },
+          symbols: { type: 'array', items: { type: 'string' }, description: 'Market symbols, e.g. ["GC=F","EURUSD=X","^TNX"]' },
         },
         required: ['symbols'],
       },
@@ -368,7 +368,7 @@ const TOOL_REGISTRY: RegisteredTool[] = [
       input_schema: {
         type: 'object',
         properties: {
-          symbol: { type: 'string', description: 'Yahoo symbol, e.g. "CL=F" or "EURUSD=X"' },
+          symbol: { type: 'string', description: 'Market symbol, e.g. "CL=F" or "EURUSD=X"' },
           range: { type: 'string', enum: ['1M', '3M', '6M', '1Y', '5Y', 'MAX'], description: 'Time range (default 1Y)' },
         },
         required: ['symbol'],

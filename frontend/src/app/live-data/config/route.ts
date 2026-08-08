@@ -10,6 +10,7 @@ import {
 import { guardSensitiveRoute } from '@/lib/server/apiGuard'
 import { validatePublicHttpUrl } from '@/lib/server/urlSafety'
 import { pinnedFetch } from '@/lib/server/pinnedFetch'
+import { probeSiteTerms, type TermsProbeReport } from '@/lib/server/termsProbe'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,9 +38,50 @@ export async function POST(req: NextRequest) {
     apiKey?: string
     enabled?: boolean
     customDef?: Omit<CustomProviderDef, 'id'>
+    /**
+     * Set by the UI once the user has been shown the terms report and confirmed
+     * they have read the site's terms. Only ever unblocks a `requiresAcknowledgement`
+     * outcome — a `hardBlock` ignores it entirely.
+     */
+    termsAcknowledged?: boolean
   }
 
   const { providerId, action } = body
+
+  /**
+   * Terms gate for user-added sources.
+   *
+   * Returns a response to send when the source must not be saved (yet), or null
+   * to proceed. Three outcomes, in order of how much they cost the user:
+   *
+   *  - hard block  → 403, no override. The registry says prohibited, or the
+   *                  site's own robots.txt disallows the path. There is no
+   *                  checkbox for this, deliberately.
+   *  - needs ack   → 409 carrying the full report, so the UI can show what the
+   *                  terms actually say and ask. Re-POST with termsAcknowledged.
+   *  - clear       → null.
+   *
+   * Note the probe is skipped once acknowledged: it is a live outbound fetch of
+   * someone else's site, and running it a second time to reach the same answer
+   * is a request we do not need to make. The hard-block half is NOT skipped —
+   * it re-runs from the registry, which is local and free.
+   */
+  async function gateSourceTerms(url: string): Promise<NextResponse | null> {
+    const report: TermsProbeReport = await probeSiteTerms(url)
+    if (report.hardBlock) {
+      return NextResponse.json(
+        { error: report.summary, termsReport: report, blockedBy: 'source-terms' },
+        { status: 403 }
+      )
+    }
+    if (report.requiresAcknowledgement && !body.termsAcknowledged) {
+      return NextResponse.json(
+        { error: report.summary, termsReport: report, needsAcknowledgement: true },
+        { status: 409 }
+      )
+    }
+    return null
+  }
 
   // ── Update custom provider ─────────────────────────────────────────────────
   if (action === 'update-custom') {
@@ -50,6 +92,10 @@ export async function POST(req: NextRequest) {
     }
     const urlError = validatePublicHttpUrl(def.url)
     if (urlError) return NextResponse.json({ error: urlError }, { status: 400 })
+    // Edits go through the same gate as adds — otherwise "add an approved feed,
+    // then edit the URL" is a hole straight through the safeguard.
+    const blocked = await gateSourceTerms(def.url)
+    if (blocked) return blocked
     updateCustomProvider(providerId, def as Omit<CustomProviderDef, 'id' | 'isCustom'>)
     if (body.apiKey !== undefined) {
       saveProviderConfig(providerId, { apiKey: body.apiKey || undefined })
@@ -65,6 +111,8 @@ export async function POST(req: NextRequest) {
     }
     const urlError = validatePublicHttpUrl(def.url)
     if (urlError) return NextResponse.json({ error: urlError }, { status: 400 })
+    const blocked = await gateSourceTerms(def.url)
+    if (blocked) return blocked
     const id = `custom-${Date.now()}`
     addCustomProvider({ ...def, id, isCustom: true } as CustomProviderDef)
     return NextResponse.json({ ok: true, id })
@@ -145,10 +193,8 @@ async function testProvider(provider: { id: string; isCustom?: boolean; url?: st
     case 'twelve-data':   return testTwelveData(key)
     case 'tiingo':        return testTiingo(key)
     case 'alpha-vantage': return testAlphaVantage(key)
-    case 'yahoo-finance': return testYahooFinance()
     case 'yt-bloomberg':      return testYouTubeChannel('UCIALMKvObZNtJ6AmdCLP7Lg', 'Bloomberg Television')
     case 'yt-cnbc':           return testYouTubeChannel('UCrp_UI8XtuYfpiqluWLD7Lw', 'CNBC Television')
-    case 'yt-yahoo-finance':  return testYouTubeChannel('UCEAZeUIeJs0IjQiqTCdVSIg', 'Yahoo Finance')
     case 'yt-ft':             return testYouTubeChannel('UCoUxsWakJucWg46KW5RsvPw', 'Financial Times')
     case 'yt-wsj':            return testYouTubeChannel('UCK7tptUDHh-RYDsdxO1-5QQ', 'The Wall Street Journal')
     case 'yt-coin-bureau':    return testYouTubeChannel('UCqK_GSMbpiV8spgD3ZGloSw', 'Coin Bureau')
@@ -162,7 +208,6 @@ async function testProvider(provider: { id: string; isCustom?: boolean; url?: st
     case 'yt-the-defiant':    return testYouTubeChannel('UCL0J4MLEdLP0-UyLu0hCktg', 'The Defiant')
     case 'yt-crypto-banter':  return testYouTubeChannel('UCN9Nj4tjXbVTLYWN0EKly_Q', 'Crypto Banter')
     case 'youtube-search':    return testYouTubeSearch(key)
-    case 'yahoo-news':    return testRssFeed('https://finance.yahoo.com/news/rssindex', 'Yahoo Finance News')
     case 'marketwatch':   return testRssFeed('https://feeds.content.dowjones.io/public/rss/mw_topstories', 'MarketWatch')
     case 'cnbc':          return testRssFeed('https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', 'CNBC')
     case 'reddit-stocks': return testRedditStocks()
@@ -288,14 +333,6 @@ async function testAlphaVantage(key?: string): Promise<TestResult> {
   const px = data['Global Quote']?.['05. price']
   if (px) return { ok: true, detail: `Connected — AAPL $${parseFloat(px).toFixed(2)}` }
   return { ok: false, error: data.Note ?? data.Information ?? 'No quote returned — check your key or daily limit' }
-}
-
-async function testYahooFinance(): Promise<TestResult> {
-  const res = await fetch('https://query1.finance.yahoo.com/v8/finance/spark?symbols=AAPL&range=1d&interval=1d', {
-    headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36' },
-  })
-  if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
-  return { ok: true, detail: 'Yahoo Finance spark API reachable' }
 }
 
 /** Reachability check for a keyless YouTube channel feed. */

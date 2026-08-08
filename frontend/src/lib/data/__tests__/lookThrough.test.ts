@@ -78,11 +78,11 @@ describe('computeLookThrough', () => {
 
   // The constraint the whole module is built around.
   it('never rescales a partial holdings list', () => {
-    // Yahoo top-10 style: weights sum to 30, not 100.
+    // Partial top-N list: weights sum to 30, not 100.
     const partial = fund('ARKK', [
       ['TSLA', 'Tesla Inc', 20],
       ['COIN', 'Coinbase Global', 10],
-    ], { source: 'yahoo', full: false, holdingsCount: 40 })
+    ], { source: 'catalog', full: false, holdingsCount: 40 })
 
     const r = computeLookThrough([pos('ARKK', 100)], { ARKK: partial })
     // Face value: 20% and 10% of the portfolio, NOT 67%/33%.
@@ -94,7 +94,7 @@ describe('computeLookThrough', () => {
 
   it('carries per-fund coverage rather than blending sources', () => {
     const partial = fund('ARKK', [['TSLA', 'Tesla Inc', 20]], {
-      source: 'yahoo', full: false, holdingsCount: 40, asOf: null,
+      source: 'catalog', full: false, holdingsCount: 40, asOf: null,
     })
     const r = computeLookThrough([pos('VOO', 50), pos('ARKK', 50)], { VOO, ARKK: partial })
 
@@ -102,7 +102,7 @@ describe('computeLookThrough', () => {
     const voo = r.coverage.find((c) => c.symbol === 'VOO')!
     const arkk = r.coverage.find((c) => c.symbol === 'ARKK')!
     expect(voo).toMatchObject({ source: 'sec', full: true, explainedPct: 100, asOf: '2026-06-30' })
-    expect(arkk).toMatchObject({ source: 'yahoo', full: false, explainedPct: 20, holdingsCount: 40 })
+    expect(arkk).toMatchObject({ source: 'catalog', full: false, explainedPct: 20, holdingsCount: 40 })
     expect(r.partial).toBe(true)
   })
 
@@ -116,7 +116,7 @@ describe('computeLookThrough', () => {
   })
 
   it('keeps resolved + unresolved equal to the invested weight', () => {
-    const partial = fund('ARKK', [['TSLA', 'Tesla Inc', 25]], { source: 'yahoo', full: false })
+    const partial = fund('ARKK', [['TSLA', 'Tesla Inc', 25]], { source: 'catalog', full: false })
     const r = computeLookThrough(
       [pos('VOO', 40), pos('ARKK', 30), pos('AAPL', 20, false), pos('GONE', 10)],
       { VOO, ARKK: partial },
@@ -176,7 +176,7 @@ describe('computeFundOverlap', () => {
   // Comparing two top-10 lists caps overlap near 30% however similar the funds
   // really are, so the figure is a floor and must be labelled as one.
   it('marks the result incomparable when either side is partial', () => {
-    const partial = fund('QQQ', [['NVDA', 'NVIDIA Corp', 12]], { source: 'yahoo', full: false })
+    const partial = fund('QQQ', [['NVDA', 'NVIDIA Corp', 12]], { source: 'catalog', full: false })
     const o = computeFundOverlap(VOO, partial)
     expect(o.comparable).toBe(false)
     expect(o.overlapPct).toBe(12)

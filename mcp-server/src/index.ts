@@ -412,9 +412,9 @@ server.tool(
 
 server.tool(
   'get_security_quotes',
-  'Get quotes for stocks, ETFs, mutual funds, and macro instruments (commodity/rate futures like GC=F or ZN=F, FX pairs like EURUSD=X, yield indices like ^TNX). Symbols use Yahoo notation (BRK-B, not BRK.B). Quotes marked reference are static catalog prices, not live readings.',
+  'Get quotes for stocks, ETFs, mutual funds, and macro instruments (commodity/rate futures like GC=F or ZN=F, FX pairs like EURUSD=X, yield indices like ^TNX). Symbols use the dash form for class shares (BRK-B, not BRK.B). Quotes marked reference are static catalog prices, not live readings. NOTE: every live quote provider requires an API key on the Finance Now instance, and macro-instrument coverage is partial — an unpriced symbol comes back absent or reference-flagged, and must be reported as such rather than estimated.',
   {
-    symbols: z.string().describe('Comma-separated tickers in Yahoo notation, max 25. E.g. "AAPL,VOO,GC=F,^TNX".'),
+    symbols: z.string().describe('Comma-separated tickers, max 25. E.g. "AAPL,VOO,GC=F,^TNX".'),
   },
   async ({ symbols }) => {
     const data = await get<{
@@ -445,7 +445,7 @@ server.tool(
   'get_security_history',
   'Get daily close-price history for any quotable security or macro instrument (stocks, ETFs, mutual funds, futures, FX pairs, yield indices). Returns the series summary plus recent closes and the 52-week range.',
   {
-    symbol: z.string().describe('Ticker in Yahoo notation, e.g. "AAPL", "VOO", "GC=F".'),
+    symbol: z.string().describe('Ticker, e.g. "AAPL", "VOO", "GC=F".'),
     range: z.enum(['1mo', '3mo', '6mo', '1y', '5y', 'max']).optional().describe('Lookback window (default 1y).'),
   },
   async ({ symbol, range }) => {

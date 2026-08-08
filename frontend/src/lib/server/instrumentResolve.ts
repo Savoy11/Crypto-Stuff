@@ -31,7 +31,7 @@ function classify(key: string, symbol: string, name: string): {
     const cls = catalog?.class === 'etf' || catalog?.class === 'mutual'
       || catalog?.class === 'commodity' || catalog?.class === 'currency' || catalog?.class === 'rate'
       ? catalog.class : 'equity'
-    return { assetClass: cls, priceSource: 'yahoo', symbol: securitySymbol(key).toUpperCase(), name: catalog?.name ?? name, coingeckoId: null }
+    return { assetClass: cls, priceSource: 'security', symbol: securitySymbol(key).toUpperCase(), name: catalog?.name ?? name, coingeckoId: null }
   }
   // Everything else is a CoinGecko id. The symbol column stores the ticker
   // (BTC); the coingecko id ('bitcoin') goes to the extension table because

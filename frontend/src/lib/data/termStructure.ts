@@ -10,7 +10,7 @@
  * this makes that number visible instead of a caveat.
  *
  * Verified by the P2-O1 audit (owner machine, 2026-08-05): individual contract
- * months resolve through the same Yahoo v8 chart API the app already uses for
+ * months resolved through the same v8 chart API the app used for
  * continuous contracts — 9/9 across NYMEX, COMEX and CBOT, with `CLU26.NYM`
  * matching the `CL=F` control exactly (September being the WTI front month).
  * No new provider and no new licensing question.
@@ -24,7 +24,7 @@ export const MONTH_CODES = ['F', 'G', 'H', 'J', 'K', 'M', 'N', 'Q', 'U', 'V', 'X
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 /**
- * Yahoo's exchange suffix for individual contract months.
+ * Exchange suffix for individual contract months (the .NYM/.CMX/.CBT form).
  *
  * ⚠ Only NYMEX, COMEX and CBOT were VERIFIED by the P2-O1 probe. ICE and CME
  * are constructed by the same rule but unproven — the route drops any month
@@ -41,7 +41,7 @@ export const EXCHANGE_MONTH_SUFFIX: Record<string, string> = {
 }
 
 export interface ContractMonth {
-  /** Yahoo symbol, e.g. 'CLZ26.NYM'. */
+  /** Contract-month symbol, e.g. 'CLZ26.NYM'. */
   symbol: string
   /** Display label, e.g. 'Dec 26'. */
   label: string

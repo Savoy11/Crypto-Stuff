@@ -1,32 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ALL_FUND_SYMBOLS } from '@/lib/data/fundCatalog'
 import { ALL_EQUITY_SYMBOLS } from '@/lib/data/equityCatalog'
+import { getProviderKey, recordProviderFetch } from '@/lib/api/live/providers'
 import { computeReturns, type CloseSeries, type SecurityReturns } from '@/lib/utils/returns'
 
 export type { SecurityReturns }
 
-// Trailing returns for stocks/ETFs/mutual funds — one batched Yahoo spark call
-// per ~20 symbols (range=1y daily closes), computed server-side.
+// Trailing returns for stocks/ETFs/mutual funds, computed server-side from a
+// year of daily closes.
 //   GET /live-data/security-returns?universe=funds|equities
 //   GET /live-data/security-returns?symbols=SPY,QQQ
 //
 // Response: { ok, updatedAt, source, returns: Record<SYMBOL, SecurityReturns> }
 // Percentages; null when the series is too short (e.g. funds younger than the
-// window). Returns {} with source 'none' when Yahoo is unreachable — the UI
-// shows em-dashes rather than fabricated values.
+// window).
+//
+// ⚠ THIS USED TO BE FREE AND IS NOT ANY MORE. Until 2026-08-06 it made one
+// batched Yahoo spark call per ~20 symbols and covered a whole universe in a
+// handful of requests. Yahoo was removed on terms grounds (see
+// lib/server/sourceTerms.ts) and nothing keyless replaces it, so returns now
+// come from Tiingo — one request per symbol.
+//
+// That changes the economics, so the route is capped rather than left to fan
+// out over 118 funds on every page load:
+//   • a `?symbols=` request (the visible page — how the Funds table actually
+//     asks) is served up to MAX_SYMBOLS;
+//   • a whole-`?universe=` request is REFUSED, not silently truncated. A
+//     partial universe would sort and filter as if it were the whole one,
+//     which is the failure mode this project treats as worse than an empty
+//     state (see the FALLBACK-vs-REAL note in CLAUDE.md).
+// With no Tiingo key the route returns {} with source 'none' — the UI already
+// renders em-dashes for that, rather than fabricating a number.
 
 export const dynamic = 'force-dynamic'
 
-const BROWSER_HEADERS: Record<string, string> = {
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-  Accept: 'application/json, text/plain, */*',
-}
+/** Per-symbol upstream calls one request may make. */
+const MAX_SYMBOLS = 60
 
 export interface SecurityReturnsResponse {
   ok: boolean
   updatedAt: string
-  source: 'yahoo' | 'none'
+  source: 'tiingo' | 'none'
   returns: Record<string, SecurityReturns>
+  /** Set when the caller asked for more than this route will fetch. */
+  error?: string
+  /** Symbols requested but not fetched — reported, never silently dropped. */
+  skipped?: string[]
 }
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -35,39 +54,28 @@ function chunk<T>(items: T[], size: number): T[][] {
   return out
 }
 
-function parseSpark(payload: unknown): Record<string, CloseSeries> {
-  const out: Record<string, CloseSeries> = {}
-  if (!payload || typeof payload !== 'object') return out
-  const root = payload as Record<string, unknown>
+/** One year of daily closes for a symbol, or null when Tiingo has no series. */
+async function fetchTiingoSeries(symbol: string, key: string): Promise<CloseSeries | null> {
+  const start = new Date(Date.now() - 400 * 86_400_000).toISOString().slice(0, 10)
+  const res = await fetch(
+    `https://api.tiingo.com/tiingo/daily/${encodeURIComponent(symbol.toLowerCase())}/prices?startDate=${start}&token=${key}`,
+    { headers: { Accept: 'application/json' }, next: { revalidate: 900 } }
+  )
+  if (!res.ok) throw new Error(`Tiingo ${res.status}`)
+  const rows = await res.json() as Array<{ date: string; close: number; adjClose?: number }>
+  if (!Array.isArray(rows) || rows.length === 0) return null
 
-  const push = (symbol: string, closesRaw: Array<number | null>, tsRaw: number[]) => {
-    // Drop null closes and their timestamps in lockstep so indexes stay aligned.
-    const closes: number[] = []
-    const timestamps: number[] = []
-    closesRaw.forEach((c, i) => {
-      if (c != null) { closes.push(c); timestamps.push(tsRaw[i] ?? 0) }
-    })
-    if (closes.length > 0) out[symbol.toUpperCase()] = { closes, timestamps }
+  const closes: number[] = []
+  const timestamps: number[] = []
+  for (const row of [...rows].sort((a, b) => Date.parse(a.date) - Date.parse(b.date))) {
+    // Adjusted closes, so a split or a distribution isn't read as a return.
+    const close = row.adjClose ?? row.close
+    const ms = Date.parse(row.date)
+    if (!Number.isFinite(close) || Number.isNaN(ms)) continue
+    closes.push(close)
+    timestamps.push(Math.floor(ms / 1000))
   }
-
-  const spark = root.spark as { result?: Array<Record<string, unknown>> } | undefined
-  if (spark?.result) {
-    for (const entry of spark.result) {
-      const symbol = String(entry.symbol ?? '')
-      const response = (entry.response as Array<Record<string, unknown>> | undefined)?.[0]
-      if (!symbol || !response) continue
-      const quote = ((response.indicators as Record<string, unknown> | undefined)
-        ?.quote as Array<Record<string, unknown>> | undefined)?.[0]
-      push(symbol, (quote?.close ?? []) as Array<number | null>, (response.timestamp ?? []) as number[])
-    }
-    return out
-  }
-  for (const [key, value] of Object.entries(root)) {
-    if (!value || typeof value !== 'object') continue
-    const entry = value as Record<string, unknown>
-    push(String(entry.symbol ?? key), (entry.close ?? []) as Array<number | null>, (entry.timestamp ?? []) as number[])
-  }
-  return out
+  return closes.length > 0 ? { closes, timestamps } : null
 }
 
 export async function GET(request: NextRequest) {
@@ -75,37 +83,65 @@ export async function GET(request: NextRequest) {
   const symbolsParam = request.nextUrl.searchParams.get('symbols')
 
   let symbols: string[]
-  if (universe === 'funds') symbols = ALL_FUND_SYMBOLS
-  else if (universe === 'equities') symbols = ALL_EQUITY_SYMBOLS
-  else if (symbolsParam) symbols = symbolsParam.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean).slice(0, 200)
-  else return NextResponse.json({ ok: false, error: 'Pass ?universe=funds|equities or ?symbols=SPY,QQQ' }, { status: 400 })
+  if (universe === 'funds' || universe === 'equities') {
+    const size = (universe === 'funds' ? ALL_FUND_SYMBOLS : ALL_EQUITY_SYMBOLS).length
+    return NextResponse.json({
+      ok: false,
+      updatedAt: new Date().toISOString(),
+      source: 'none',
+      returns: {},
+      error: `Whole-universe returns are no longer available: the keyless batched source was withdrawn on terms grounds, and the remaining provider is one request per symbol (${size} would be needed). Request the symbols you are showing instead — ?symbols=SPY,QQQ, up to ${MAX_SYMBOLS}.`,
+    } satisfies SecurityReturnsResponse, { status: 400 })
+  }
+  if (symbolsParam) {
+    symbols = symbolsParam.split(',').map((s) => s.trim().toUpperCase()).filter(Boolean)
+  } else {
+    return NextResponse.json({ ok: false, error: 'Pass ?symbols=SPY,QQQ' }, { status: 400 })
+  }
+
+  const requested = [...new Set(symbols)]
+  const wanted = requested.slice(0, MAX_SYMBOLS)
+  const skipped = requested.slice(MAX_SYMBOLS)
+
+  const key = getProviderKey('tiingo')
+  if (!key) {
+    return NextResponse.json({
+      ok: true,
+      updatedAt: new Date().toISOString(),
+      source: 'none',
+      returns: {},
+      error: 'No trailing-returns provider is configured. Add a Tiingo API key on the Integrations page.',
+      ...(skipped.length > 0 ? { skipped } : {}),
+    } satisfies SecurityReturnsResponse)
+  }
 
   const nowYear = new Date().getUTCFullYear()
   const returns: Record<string, SecurityReturns> = {}
+  let failures = 0
 
-  const results = await Promise.allSettled(
-    chunk(symbols, 20).map(async (group) => {
-      const params = new URLSearchParams({
-        symbols: group.join(','), range: '1y', interval: '1d', includeTimestamps: 'true',
-      })
-      const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/spark?${params}`, {
-        headers: BROWSER_HEADERS, next: { revalidate: 900 },
-      })
-      if (!res.ok) throw new Error(`Yahoo spark ${res.status}`)
-      return parseSpark(await res.json())
+  // Symbols are independent, so allSettled is the right boundary — one delisted
+  // ticker must not cost the other 59. Batched 8 at a time to stay polite
+  // rather than opening 60 sockets at once.
+  for (const group of chunk(wanted, 8)) {
+    const settled = await Promise.allSettled(group.map((s) => fetchTiingoSeries(s, key)))
+    settled.forEach((res, i) => {
+      if (res.status === 'rejected') { failures++; return }
+      if (!res.value) return
+      returns[group[i]] = computeReturns(res.value, nowYear)
     })
-  )
-  for (const r of results) {
-    if (r.status !== 'fulfilled') continue
-    for (const [symbol, series] of Object.entries(r.value)) {
-      returns[symbol] = computeReturns(series, nowYear)
-    }
   }
+
+  const served = Object.keys(returns).length
+  if (served > 0) recordProviderFetch('tiingo', { count: served })
+  else if (failures > 0) recordProviderFetch('tiingo', { error: `all ${failures} symbol requests failed` })
 
   return NextResponse.json({
     ok: true,
     updatedAt: new Date().toISOString(),
-    source: Object.keys(returns).length > 0 ? 'yahoo' : 'none',
+    source: served > 0 ? 'tiingo' : 'none',
     returns,
+    ...(skipped.length > 0
+      ? { skipped, error: `Capped at ${MAX_SYMBOLS} symbols per request; ${skipped.length} not fetched.` }
+      : {}),
   } satisfies SecurityReturnsResponse)
 }

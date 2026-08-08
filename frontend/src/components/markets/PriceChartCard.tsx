@@ -101,7 +101,7 @@ export function PriceChartCard({ symbol, valueFormat = 'usd' }: {
         </>
       ) : (
         <LiveUnavailable
-          message="No live history source is reachable right now (Yahoo Finance chart API, plus FMP when a key is configured). The chart will appear once a source responds."
+          message="No live history source is reachable. Price history now needs an API key — the keyless source was withdrawn on terms grounds. Add a Tiingo or FMP key on the Integrations page."
         />
       )}
     </div>

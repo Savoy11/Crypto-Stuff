@@ -1,6 +1,6 @@
 // Commodity futures catalog for the Macro Markets module.
 // Curated list of front-month continuous contracts, all verified to price
-// live through /live-data/security-quotes (Yahoo symbols) on 2026-07-21.
+// live through /live-data/security-quotes on 2026-07-21.
 //
 // Prices come live — this file deliberately carries NO reference prices.
 // Futures quotes go stale in hours, and a stale number shown as a price is
@@ -18,9 +18,9 @@ export const COMMODITY_CATEGORY_INFO: Record<CommodityCategoryId, { label: strin
 }
 
 export interface CommodityEntry {
-  /** Route param: /macro/commodities/[slug] — Yahoo symbols contain '='. */
+  /** Route param: /macro/commodities/[slug] — contract symbols contain '='. */
   slug: string
-  /** Yahoo continuous front-month symbol, e.g. 'GC=F'. */
+  /** Continuous front-month symbol, e.g. 'GC=F'. */
   symbol: string
   name: string
   category: CommodityCategoryId

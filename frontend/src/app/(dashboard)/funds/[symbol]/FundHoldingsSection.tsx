@@ -10,9 +10,14 @@ import { formatCompact } from '@/lib/utils/format'
 import { STALE_TIME_LONG } from '@/lib/constants'
 import type { FundHoldingsResponse } from '@/app/live-data/fund-holdings/route'
 
-// Full breakdown of a fund's underlying investments: every disclosed position
-// (FMP), or the top-10 + sector/asset mix (Yahoo), or the catalog's indicative
-// list as a last resort — always labelled with its source.
+// Full breakdown of a fund's underlying investments: the fund's own complete
+// N-PORT portfolio (SEC), FMP's aggregated holdings + sector weights, or the
+// catalog's indicative list as a last resort — always labelled with its source.
+//
+// The asset-allocation donut renders only when `assetAllocation` is non-empty,
+// which it now never is: the stock/bond/cash mix had exactly one source and it
+// was withdrawn. The chart code is kept because restoring a source is a route
+// change, not a component rewrite.
 
 const COLLAPSED_ROWS = 25
 
@@ -34,17 +39,19 @@ function sourceLabel(data: FundHoldingsResponse): string {
   if (data.source === 'fmp') {
     return `Full holdings via FMP${data.asOf ? ` · as of ${data.asOf}` : ''}`
   }
-  if (data.source === 'yahoo') return 'Top holdings via Yahoo Finance'
   return 'Indicative holdings — live sources unreachable'
 }
 
-type HoldingsSourceChoice = 'auto' | 'sec' | 'fmp' | 'yahoo'
+// The 'yahoo' option went with the source itself on 2026-08-06 (terms grounds —
+// see lib/server/sourceTerms.ts). It supplied the top-10 list, sector weights
+// and the asset-allocation mix keylessly; sector weights now require an FMP key
+// and the asset mix has no source at all, so that chart no longer renders.
+type HoldingsSourceChoice = 'auto' | 'sec' | 'fmp'
 
 const SOURCE_OPTIONS: Array<[HoldingsSourceChoice, string, string]> = [
-  ['auto', 'Auto', 'Best available: SEC N-PORT, then FMP, then Yahoo'],
+  ['auto', 'Auto', 'Best available: SEC N-PORT, then FMP, then the catalog’s indicative list'],
   ['sec', 'SEC', 'The fund’s own N-PORT filing — complete, authoritative, quarterly'],
-  ['fmp', 'FMP', 'Aggregator holdings (requires FMP API key; ETFs only)'],
-  ['yahoo', 'Yahoo', 'Top-10 holdings + sector weights, keyless'],
+  ['fmp', 'FMP', 'Aggregator holdings + sector weights (requires FMP API key; ETFs only)'],
 ]
 
 export function FundHoldingsSection({ symbol }: { symbol: string }) {
