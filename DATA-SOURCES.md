@@ -5,7 +5,7 @@ change the registry and regenerate. This is the "where does the data come from" 
 `DATA-AVAILABILITY.md` (which tracks whether each surface is live). The same registry powers the
 in-app **/data-sources** page and the per-page provenance badges, so the app and the docs never diverge._
 
-_Last generated: **2026-07-30**_
+_Last generated: **2026-08-08**_
 
 ## Legend
 
@@ -75,6 +75,7 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 | Stock Registry universe | Partial | FMP company-screener `financialmodelingprep.com` _(paid)_<br>Curated catalog<br>[SEC XBRL frames (P/E backfill)](https://www.sec.gov/edgar) `data.sec.gov` | — | `/live-data/stock-universe` |
 | Equity screener / outliers | Partial | Derived from stock-universe | — | `/live-data/stock-outliers` |
 | Market calendar (earnings / econ) | Key-gated | FMP `financialmodelingprep.com` _(key)_ | — | `/live-data/market-calendar` |
+| Trade Risk Scorer (options) | Derived | Finance Now risk engine (lib/risk/profiles/optionsTrade.ts)<br>User-entered option quotes (from their broker chain)<br>[Yahoo Finance](https://finance.yahoo.com) `query1.finance.yahoo.com` | on demand | `/api/v1/options/score` |
 
 - **Stock / ETF / fund quotes** — Registry-driven provider ladder (Integrations page). Yahoo serves in practice; catalog reference is the last resort, labeled with an amber `ref` tag. Reference/fallback data: `lib/data/equityCatalog.ts`, `lib/data/fundCatalog.ts`.
 - **Stock social sentiment** — Reddit 403s from datacenter IPs without OAuth — expect StockTwits-heavy results server-side. Budget allocated round-robin so one active source still fills the limit.
@@ -82,6 +83,7 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 - **Stock Registry universe** — FMP screener is PAID-only; without a key the registry falls back to ~79 curated names. P/E backfilled from SEC XBRL frames on the FMP path only. Reference/fallback data: `lib/data/equityCatalog.ts (~79 names)`.
 - **Equity screener / outliers** — Sector z-scores over whatever universe stock-universe returns — inherits its narrowness on the catalog fallback.
 - **Market calendar (earnings / econ)** — Earnings needs a free FMP key; economic calendar needs a paid one. Reports configured:false without one.
+- **Trade Risk Scorer (options)** — Every option-level figure is entered by the user — Finance Now carries NO options chain, because no free source permits one (CBOE prohibits auto-extraction; Yahoo’s options endpoint requires auth). See docs/assessments/P2-O1-options-data.md. Only the underlying price is fetched, through the shared quote ladder. The score itself is this app’s computation, not any provider’s figure.
 
 ## ETFs & Funds
 
@@ -103,12 +105,14 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 | FX rates (extended tier, +127) | Live | [currency-api (community)](https://github.com/fawazahmed0/currency-api) `cdn.jsdelivr.net` | — | `/live-data/fx-rates-extended` |
 | Treasury par yield curve | Live | [U.S. Treasury](https://home.treasury.gov) `home.treasury.gov` | 4h revalidate | `/live-data/treasury-yield-curve` |
 | Macro news (commodities/bonds/FX) | Live | Investing.com / OilPrice / FXStreet / CNBC / Dow Jones RSS | — | `/live-data/macro-news` |
+| Futures term structure (forward curve) | Live | [Yahoo Finance](https://finance.yahoo.com) `query1.finance.yahoo.com` | — | `/live-data/futures-curve` |
 | Commodity / FX / rate quotes + charts | Live | [Yahoo Finance](https://finance.yahoo.com) `query1.finance.yahoo.com` | — | `/live-data/security-quotes · security-chart · security-ohlcv` |
 
 - **FX rates (official tier)** — ECB’s complete published set of ~30 reference currencies.
 - **FX rates (extended tier, +127)** — Community-sourced, not ECB — the UI shows a distinct disclosure and never blends the two tiers without attribution.
 - **Treasury par yield curve** — Official 13-maturity daily par curve (XML).
 - **Macro news (commodities/bonds/FX)** — 8 keyless RSS feeds with a content-first pillar classifier.
+- **Futures term structure (forward curve)** — Individual contract months (CLZ26.NYM style) through the same v8 chart API as continuous front-months — no new provider. Verified 9/9 across NYMEX/COMEX/CBOT by the P2-O1 audit (2026-08-05). Unlisted months are dropped and reported; thin contracts are excluded outright.
 - **Commodity / FX / rate quotes + charts** — Futures, FX pairs, and yield indices price through the existing equity quote/chart routes (no new plumbing). Catalogs carry no reference prices — unpriced renders an honest dash. Reference/fallback data: `lib/data/commodityCatalog.ts`, `lib/data/currencyCatalog.ts`, `lib/data/ratesCatalog.ts`.
 
 ## Shared / Cross-module
@@ -132,4 +136,4 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 
 ---
 
-_47 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._
+_49 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._

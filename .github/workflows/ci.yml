@@ -265,6 +265,27 @@ jobs:
           cd frontend
           npm test
 
+      # Two separate guarantees, both previously unenforced.
+      #
+      # 1. --verify fails when a /live-data route fetches a host the registry
+      #    does not name. This is the gap the source-terms test cannot cover:
+      #    that test walks the hosts IN dataSources.ts, so a host nobody
+      #    declared is invisible to it. Until 2026-08-08 --verify printed its
+      #    findings and exited 0, so it gated nothing either.
+      #
+      # 2. DATA-SOURCES.md is generated, never hand-edited, and drifts silently
+      #    when someone adds a registry entry without regenerating — it was two
+      #    surfaces stale when this step was written. The `-I` skips the
+      #    "Last generated" stamp, which changes daily and would otherwise fail
+      #    this every day after the commit.
+      - name: Data-source registry ↔ route code
+        run: |
+          cd frontend
+          npm run data-sources -- --verify
+          cd ..
+          git diff --exit-code -I'^_Last generated' DATA-SOURCES.md \
+            || { echo "::error::DATA-SOURCES.md is stale — run 'npm run data-sources' and commit the result"; exit 1; }
+
       - name: Build Next.js application
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000

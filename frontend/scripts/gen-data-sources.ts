@@ -117,7 +117,19 @@ function hostsInRoute(routeId: string): Set<string> {
   return hosts
 }
 
-function verify(): void {
+/**
+ * Cross-checks the registry against the route code. Returns the number of drift
+ * items so the caller can set a non-zero exit code.
+ *
+ * This used to print its findings and exit 0, which made it advisory in the one
+ * situation that matters: a route fetching a host nobody registered. The
+ * source-terms enforcement (lib/server/__tests__/sourceTerms.test.ts) can only
+ * check hosts that ARE in the registry, so an unregistered host slips past both
+ * — the test never sees it and this printed a warning that failed nothing.
+ * Verified 2026-08-08 by adding a Yahoo fetch to a route without declaring it:
+ * this caught it, the test suite did not, and the exit code was 0.
+ */
+function verify(): number {
   console.log('\n── Registry ↔ code drift check ──')
   // Map every owned route id (own id + covers[] + ids named in `route`) to its entry.
   const ownerOf = new Map<string, DataSourceEntry>()
@@ -149,6 +161,7 @@ function verify(): void {
     if (missing.length) { console.log(`  ⚠ "${id}" fetches ${missing.join(', ')} not named in "${entry.id}"`); issues++ }
   }
   console.log(issues ? `\n${issues} drift item(s) — reconcile registry with code.` : '  ✓ no drift: every route host is represented in the registry.')
+  return issues
 }
 
 /** Registry entries often summarise several sibling hosts under one label
@@ -162,4 +175,16 @@ function isBundled(host: string, reg: Set<string>): boolean {
 const md = renderMarkdown()
 fs.writeFileSync(outFile, md)
 console.log(`Wrote ${path.relative(repoRoot, outFile)} (${DATA_SOURCES.length} surfaces).`)
-if (process.argv.includes('--verify')) verify()
+if (process.argv.includes('--verify')) {
+  const issues = verify()
+  // exitCode rather than process.exit(): lets stdout flush before the runtime
+  // tears down, so CI shows which routes drifted and not just a bare failure.
+  if (issues > 0) {
+    console.error(
+      `\nA route fetches a host the registry does not name. Add it to the provider ` +
+      `list in src/lib/data/dataSources.ts — that is also what puts it in front of ` +
+      `the source-terms check, which cannot review a host it has never heard of.`
+    )
+    process.exitCode = 1
+  }
+}
