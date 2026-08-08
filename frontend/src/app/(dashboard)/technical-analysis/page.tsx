@@ -41,6 +41,12 @@ const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickCh
 // All OHLCV-supported coin IDs (keyed by internal id, e.g. "btc", "eth")
 const SUPPORTED_IDS = Object.keys(COINGECKO_IDS)
 
+// Crypto carries intraday ranges (1H, 4H) that the equity and macro surfaces
+// deliberately do not. Crypto trades continuously and moves far enough within a
+// session for an hourly candle to carry signal; an hourly view of a yield index
+// or a large-cap equity is mostly market microstructure and gaps. This is a
+// considered difference between the surfaces, not drift — do not "align" the
+// three range lists. (Recorded in the do-not-fix registry, docs/agents/code-checker.md.)
 const RANGES = ['1H', '4H', '1M', '3M', '6M', 'YTD', '1Y', '3Y', '5Y', '10Y', 'MAX'] as const
 type Range = typeof RANGES[number]
 

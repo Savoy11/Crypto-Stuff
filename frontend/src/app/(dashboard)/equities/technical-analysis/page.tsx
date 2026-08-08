@@ -139,6 +139,10 @@ function SymbolSearch({ symbol, onSelect }: { symbol: string; onSelect: (s: stri
 // shared CandlestickChart, indicator registry, signal engine, and pattern
 // detector — fed by /live-data/security-ohlcv instead of the crypto route.
 
+// Daily bars only, starting at 1M. The crypto surface offers 1H/4H on purpose
+// and this one does not: equities trade a ~6.5h session, so an intraday series
+// is dominated by open/close effects and overnight gaps rather than trend. Not
+// an oversight — see the note on the crypto page's RANGES.
 const RANGES = ['1M', '3M', '6M', '1Y', '5Y', 'MAX'] as const
 type Range = typeof RANGES[number]
 

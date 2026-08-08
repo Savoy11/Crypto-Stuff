@@ -105,6 +105,10 @@ const SCANNER_INSTRUMENTS = MACRO_INSTRUMENTS.filter((m) => m.liquid)
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
 
+// No intraday, for the same reason as equities. Also no MAX: these are
+// continuous front-month futures and Yahoo FX series, so the far end of a "max"
+// window is stitched across rolled contracts and reads as one price history
+// when it is not. 5Y is the longest window the stitching stays honest over.
 type Range = '3M' | '6M' | '1Y' | '2Y' | '5Y'
 const RANGES: Range[] = ['3M', '6M', '1Y', '2Y', '5Y']
 
