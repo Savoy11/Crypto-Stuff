@@ -56,7 +56,6 @@ function categoryLabel(row: FundUniverseEntry): string {
 
 const SOURCE_LABELS: Record<string, string> = {
   fmp: 'Live via Financial Modeling Prep',
-  yahoo: 'Live via Yahoo Finance',
   reference: 'Reference prices — no live source reachable',
 }
 
@@ -196,11 +195,14 @@ export function FundsClient() {
         const [min, max] = v.split(':', 2)
         rangePatch[k] = { min, max }
       }
+      // Return bounds from an old deep link are dropped rather than restored:
+      // nothing applies them any more, and a filter chip counting a bound that
+      // does nothing is worse than losing the bound.
+      for (const k of RETURN_KEYS) delete rangePatch[k]
       if (Object.keys(rangePatch).length > 0) setRanges((prev) => ({ ...prev, ...rangePatch }))
     },
   )
 
-  const returnsFilterActive = RETURN_KEYS.some((k) => rangeActive(ranges[k]))
   const activeFilterCount =
     (type !== 'all' ? 1 : 0) + (issuer !== 'all' ? 1 : 0) + (style !== 'all' ? 1 : 0) + (curatedOnly ? 1 : 0) +
     (industry !== 'all' ? 1 : 0) + (riskLevel !== 'all' ? 1 : 0) + (strategy !== 'all' ? 1 : 0) +
@@ -225,19 +227,27 @@ export function FundsClient() {
     ]
   }, [universeData])
 
-  // Trailing returns for the curated catalog — powers the return-range screens.
-  const { data: returnsFilterData } = useQuery<SecurityReturnsResponse>({
-    queryKey: ['security-returns', 'funds'],
-    queryFn: () => fetch('/live-data/security-returns?universe=funds').then((r) => r.json()),
-    staleTime: 1000 * 60 * 15,
-    enabled: returnsFilterActive || columnTab === 'returns',
-  })
+  // NOTE (2026-08-06): there is no catalog-wide returns query any more.
+  //
+  // The return-range SCREENS and return SORTING were fed by one call that
+  // priced the whole 118-fund catalog in a handful of batched requests. That
+  // batching was Yahoo's, and Yahoo was removed as a data source on terms
+  // grounds (lib/server/sourceTerms.ts). What is left costs one upstream
+  // request per symbol, so a catalog-wide sweep on every keystroke is not a
+  // trade worth making — and a screen that quietly saw only the visible page
+  // would sort and filter as though it had seen everything, which is the
+  // failure this codebase treats as worse than an empty state.
+  //
+  // Returns are therefore PAGE-SCOPED now: the Returns columns are live and
+  // correct for the rows on screen, while screening and sorting by return are
+  // disabled with an on-page explanation. Restoring them needs a provider that
+  // batches trailing returns — then re-add the universe query and drop the
+  // RETURNS_UNAVAILABLE guards below.
 
   // ── Filter + sort the whole universe (facts-based; quotes are page-scoped) ──
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase()
     const nowYear = new Date().getFullYear()
-    const ret = (row: FundUniverseEntry) => returnsFilterData?.returns?.[row.symbol]
     const subset = universe.filter((row) =>
       (!curatedOnly || row.inCatalog) &&
       (type === 'all' || row.type === type) &&
@@ -252,10 +262,6 @@ export function FundsClient() {
       inRange(row.inceptionYear != null ? nowYear - row.inceptionYear : null, ranges.age) &&
       inRange(row.referencePrice, ranges.price) &&
       inRange(row.yieldPct, ranges.yield) &&
-      inRange(ret(row)?.m1, ranges.m1) &&
-      inRange(ret(row)?.m3, ranges.m3) &&
-      inRange(ret(row)?.ytd, ranges.ytd) &&
-      inRange(ret(row)?.y1, ranges.y1) &&
       (!query ||
         row.symbol.toLowerCase().includes(query) ||
         row.name.toLowerCase().includes(query) ||
@@ -271,10 +277,11 @@ export function FundsClient() {
         case 'price':    return row.referencePrice ?? -Infinity
         case 'expense':  return row.expenseRatioPct ?? (sortAsc ? Infinity : -Infinity)
         case 'yield':    return row.yieldPct ?? -Infinity
-        case 'm1':       return ret(row)?.m1 ?? -Infinity
-        case 'm3':       return ret(row)?.m3 ?? -Infinity
-        case 'ytd':      return ret(row)?.ytd ?? -Infinity
-        case 'y1':       return ret(row)?.y1 ?? -Infinity
+        // Return keys fall through to AUM on purpose: sorting the universe by a
+        // figure known only for the visible page would reorder nothing while
+        // looking like it had. The headers are non-sortable to match.
+        case 'm1': case 'm3': case 'ytd': case 'y1':
+                         return row.aumB ?? -Infinity
         default:         return row.aumB ?? -Infinity
       }
     }
@@ -283,7 +290,7 @@ export function FundsClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [universe, type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc, returnsFilterData])
+  }, [universe, type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc])
 
   // Reset to first page whenever the result set changes
   useEffect(() => { setPage(0) }, [type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc])
@@ -311,8 +318,7 @@ export function FundsClient() {
     staleTime: 1000 * 60 * 15,
     placeholderData: keepPreviousData,
   })
-  const displayReturns = (symbol: string) =>
-    pageReturnsData?.returns?.[symbol] ?? returnsFilterData?.returns?.[symbol]
+  const displayReturns = (symbol: string) => pageReturnsData?.returns?.[symbol]
 
   const rows = pageEntries.map((e) => {
     const quote = quoteData?.quotes?.[e.symbol.toUpperCase()]
@@ -584,15 +590,16 @@ export function FundsClient() {
           </FilterGroup>
 
           <FilterGroup title="Returns" active={RETURN_KEYS.filter((k) => rangeActive(ranges[k])).length}>
-            <RangeField label="1 month return" unit="%" range={ranges.m1} onChange={setRange('m1')} />
-            <RangeField label="3 month return" unit="%" range={ranges.m3} onChange={setRange('m3')} />
-            <RangeField label="YTD return" unit="%" range={ranges.ytd} onChange={setRange('ytd')} />
-            <RangeField label="1 year return" unit="%" range={ranges.y1} onChange={setRange('y1')} />
+            <p className="text-[11px] text-text-muted leading-relaxed">
+              Screening by trailing return is unavailable. It needed a source that could price the
+              whole catalog in one batched call; that source was withdrawn on terms grounds, and the
+              remaining providers charge one request per symbol. A screen that could only see the
+              current page would filter as though it had seen every fund, so it is off rather than
+              wrong.
+            </p>
             <p className="text-[10px] text-text-muted/80 leading-relaxed">
-              Price returns from daily closes, excl. distributions. Return screens cover the curated set; other funds are excluded while a bound is set.
-              {returnsFilterActive && returnsFilterData?.source === 'none' && (
-                <span className="text-amber-400/80"> Price-history source unreachable — return screens exclude all funds.</span>
-              )}
+              Trailing returns are still shown, live, for the funds on the current page — switch the
+              table to the <span className="text-text-secondary">Returns</span> columns.
             </p>
           </FilterGroup>
         </aside>
@@ -630,10 +637,13 @@ export function FundsClient() {
                 </>
               ) : (
                 <>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="1M" colKey="m1" /></div>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="3M" colKey="m3" /></div>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="YTD" colKey="ytd" /></div>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="1Y" colKey="y1" /></div>
+                  {/* Not sortable: returns are known only for the visible page, so
+                      ordering the whole universe by them would reorder nothing while
+                      appearing to. See the returns note above. */}
+                  <div className="col-span-1 flex justify-end text-xs font-medium uppercase tracking-wider text-text-muted">1M</div>
+                  <div className="col-span-1 flex justify-end text-xs font-medium uppercase tracking-wider text-text-muted">3M</div>
+                  <div className="col-span-1 flex justify-end text-xs font-medium uppercase tracking-wider text-text-muted">YTD</div>
+                  <div className="col-span-1 flex justify-end text-xs font-medium uppercase tracking-wider text-text-muted">1Y</div>
                 </>
               )}
             </div>
@@ -784,12 +794,13 @@ export function FundsClient() {
 
             {returnsMissing && (
               <p className="px-4 py-2 border-t border-border text-[11px] text-amber-400/80">
-                Trailing returns unavailable — price-history source unreachable. Columns show — instead of stale values.
+                {pageReturnsData?.error
+                  ?? 'Trailing returns unavailable — price-history source unreachable. Columns show — instead of stale values.'}
               </p>
             )}
             {columnTab === 'returns' && !returnsMissing && (
               <p className="px-4 py-2 border-t border-border text-[11px] text-text-muted">
-                Trailing price returns from daily closes (Yahoo Finance) · YTD measured from last close of the prior year · excludes distributions
+                Trailing price returns from adjusted daily closes · visible page only · YTD measured from last close of the prior year · excludes distributions
               </p>
             )}
           </div>

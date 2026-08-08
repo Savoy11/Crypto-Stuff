@@ -18,7 +18,7 @@ const TRADING_DAYS = 252
  * Snap each point to the UTC midnight of its calendar date and collapse
  * same-day points to the LAST close (the daily close). Session-review fix:
  * this is what makes cross-venue series comparable at all — crypto history
- * arrives stamped at UTC midnight, Yahoo equity bars at market-open epoch
+ * arrives stamped at UTC midnight, equity bars at market-open epoch
  * seconds, FMP at midnight, so exact-timestamp joins across those calendars
  * share ZERO keys (every cross-class correlation was null and mixed charts
  * fragmented). It also collapses CoinGecko's hourly auto-granularity on

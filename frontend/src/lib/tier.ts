@@ -117,9 +117,12 @@ export const TIER_CATEGORIES: Record<string, TierCategory> = {
     label: 'Stock Quotes & Charts',
     description: 'Equity / ETF / fund prices, plus OHLCV for TA & backtests',
     market: 'equities',
-    freeSource: 'yahoo-finance',
+    // Informational row: it mirrors the enabled equity price providers rather
+    // than the free/paid toggle, so these two only name the ladder's head.
+    // 'fmp' since the Yahoo removal (2026-08-06) left no keyless rung.
+    freeSource: 'fmp',
     freeSourceLabel: 'Provider ladder',
-    paidSource: 'yahoo-finance',
+    paidSource: 'fmp',
     paidSourceLabel: 'Provider ladder',
     queryParam: 'source',
     providerCategory: 'price',

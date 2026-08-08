@@ -55,7 +55,13 @@ export interface DataSourceEntry {
 const SEC_EDGAR: SourceProvider = { name: 'SEC EDGAR', host: 'data.sec.gov', url: 'https://www.sec.gov/edgar', role: 'primary', auth: 'none' }
 const COINGECKO: SourceProvider = { name: 'CoinGecko', host: 'api.coingecko.com', url: 'https://www.coingecko.com/en/api', role: 'primary', auth: 'none' }
 const DEFILLAMA = (host: string): SourceProvider => ({ name: 'DefiLlama', host, url: 'https://defillama.com/docs/api', role: 'primary', auth: 'none' })
-const YAHOO: SourceProvider = { name: 'Yahoo Finance', host: 'query1.finance.yahoo.com', url: 'https://finance.yahoo.com', role: 'primary', auth: 'none' }
+// Yahoo Finance was the `YAHOO` preset here — the keyless primary on six of the
+// entries below — until 2026-08-06, when it was removed as a data source on
+// terms grounds (lib/server/sourceTerms.ts hard-blocks *.yahoo.com). What
+// replaced it, per surface, is spelled out in each entry's notes; several
+// surfaces have no keyless source any more, and two have no source at all.
+const TIINGO: SourceProvider = { name: 'Tiingo', host: 'api.tiingo.com', url: 'https://www.tiingo.com/documentation/general/overview', role: 'primary', auth: 'key' }
+const FMP: SourceProvider = { name: 'FMP', host: 'financialmodelingprep.com', url: 'https://site.financialmodelingprep.com/developer/docs', role: 'fallback', auth: 'key' }
 
 export const DATA_SOURCES: DataSourceEntry[] = [
   // ── CRYPTO — market data ───────────────────────────────────────────────────
@@ -195,29 +201,31 @@ export const DATA_SOURCES: DataSourceEntry[] = [
   // ── EQUITIES ───────────────────────────────────────────────────────────────
   {
     id: 'security-quotes', surface: 'Stock / ETF / fund quotes', module: 'equities',
-    route: '/live-data/security-quotes', status: 'partial',
+    route: '/live-data/security-quotes', status: 'key-gated',
     providers: [
       { name: 'FMP', host: 'financialmodelingprep.com', url: 'https://site.financialmodelingprep.com/developer/docs', role: 'primary', auth: 'key' },
       { name: 'Finnhub / Twelve Data / Tiingo / Alpha Vantage', role: 'fallback', auth: 'key' },
-      YAHOO,
       { name: 'Catalog reference prices', role: 'fallback', auth: 'none' },
     ],
     staticData: ['lib/data/equityCatalog.ts', 'lib/data/fundCatalog.ts'],
-    notes: 'Registry-driven provider ladder (Integrations page). Yahoo serves in practice; catalog reference is the last resort, labeled with an amber `ref` tag.',
+    notes: 'Registry-driven provider ladder (Integrations page). EVERY live rung needs an API key since the keyless one was withdrawn on terms grounds (2026-08-06) — with no key, stocks and funds fall to catalog reference prices behind an amber `ref` tag, and macro instruments (no reference price by design) show a dash.',
   },
   {
     id: 'security-ohlcv', surface: 'Stock OHLCV / TA / backtests', module: 'equities',
-    route: '/live-data/security-ohlcv', status: 'live',
-    providers: [YAHOO, { name: 'Tiingo', host: 'api.tiingo.com', role: 'fallback', auth: 'key' }, { name: 'FMP', host: 'financialmodelingprep.com', role: 'fallback', auth: 'key' }],
+    route: '/live-data/security-ohlcv', status: 'key-gated',
+    providers: [TIINGO, FMP],
+    notes: 'Both rungs are keyed. Without one the route returns source:"none" and the TA, backtest and candlestick surfaces show their no-live-source state rather than synthetic candles.',
   },
   {
     id: 'security-returns', surface: 'Trailing returns (1M/3M/YTD/1Y)', module: 'equities',
-    route: '/live-data/security-returns', status: 'live', providers: [YAHOO],
+    route: '/live-data/security-returns', status: 'key-gated', providers: [TIINGO],
+    notes: 'One request per symbol now (the batched source was withdrawn), so the route serves up to 60 named symbols and REFUSES whole-universe requests rather than silently truncating. Screening and sorting funds by trailing return is off as a result; the Returns columns are still live for the visible page.',
   },
   {
     id: 'market-news', surface: 'Stock market news', module: 'equities',
-    route: '/live-data/market-news', status: 'live',
-    providers: [{ name: 'Yahoo Finance / MarketWatch / CNBC RSS', role: 'primary', auth: 'none' }],
+    route: '/live-data/market-news', status: 'partial',
+    providers: [{ name: 'MarketWatch / CNBC RSS', role: 'primary', auth: 'none' }],
+    notes: 'General market wires only. The one free PER-TICKER feed was Yahoo’s and went on terms grounds, so symbol news is now these wires filtered to articles that actually name the company — an empty result is the honest answer when they haven’t covered it.',
   },
   {
     id: 'stock-social', surface: 'Stock social sentiment', module: 'equities',
@@ -269,8 +277,8 @@ export const DATA_SOURCES: DataSourceEntry[] = [
   {
     id: 'fund-holdings', surface: 'ETF / fund holdings', module: 'funds',
     route: '/live-data/fund-holdings', status: 'live',
-    providers: [{ ...SEC_EDGAR, name: 'SEC N-PORT' }, { name: 'FMP', host: 'financialmodelingprep.com', role: 'fallback', auth: 'key' }, { name: 'Yahoo top-10', role: 'fallback', auth: 'none' }, { name: 'Catalog', role: 'fallback', auth: 'none' }],
-    notes: 'N-PORT is keyless and authoritative. UITs (e.g. SPY) file no N-PORT and correctly fall back to indicative top holdings.',
+    providers: [{ ...SEC_EDGAR, name: 'SEC N-PORT' }, { name: 'FMP', host: 'financialmodelingprep.com', role: 'fallback', auth: 'key' }, { name: 'Catalog', role: 'fallback', auth: 'none' }],
+    notes: 'N-PORT is keyless and authoritative, and holdings are unaffected by the Yahoo removal. Two side panels are: SECTOR WEIGHTS now need an FMP key (N-PORT carries no GICS classification), and the stock/bond/cash ASSET MIX has no source at all — that section no longer renders. UITs (e.g. SPY) file no N-PORT and correctly fall back to indicative top holdings.',
   },
   {
     id: 'fund-holdings-history', surface: 'Holdings quarter-over-quarter diff', module: 'funds',
@@ -306,16 +314,16 @@ export const DATA_SOURCES: DataSourceEntry[] = [
   },
   {
     id: 'futures-curve', surface: 'Futures term structure (forward curve)', module: 'macro',
-    route: '/live-data/futures-curve', status: 'live',
-    providers: [YAHOO],
-    notes: 'Individual contract months (CLZ26.NYM style) through the same v8 chart API as continuous front-months — no new provider. Verified 9/9 across NYMEX/COMEX/CBOT by the P2-O1 audit (2026-08-05). Unlisted months are dropped and reported; thin contracts are excluded outright.',
+    route: '/live-data/futures-curve', status: 'unavailable',
+    providers: [{ name: 'None — no reachable source quotes dated contract months', role: 'primary', auth: 'none' }],
+    notes: 'Dated contract months (CLZ26.NYM style) priced through Yahoo’s v8 chart API, verified 9/9 across NYMEX/COMEX/CBOT by the P2-O1 audit (2026-08-05). Yahoo was withdrawn on terms grounds 2026-08-06 and nothing else the app can reach quotes a dated month — FMP/Tiingo/Finnhub/Twelve Data/Alpha Vantage carry continuous front-months at best, exchange settlement files are licensed. The route resolves the contract months and returns ok:false with the reason; the card states it on-page. Front-month prices are unaffected.',
   },
   {
     id: 'macro-quotes', surface: 'Commodity / FX / rate quotes + charts', module: 'macro',
-    route: '/live-data/security-quotes · security-chart · security-ohlcv', status: 'live',
-    providers: [YAHOO],
+    route: '/live-data/security-quotes · security-chart · security-ohlcv', status: 'key-gated',
+    providers: [FMP, { name: 'Finnhub / Twelve Data / Alpha Vantage', role: 'fallback', auth: 'key' }],
     staticData: ['lib/data/commodityCatalog.ts', 'lib/data/currencyCatalog.ts', 'lib/data/ratesCatalog.ts'],
-    notes: 'Futures, FX pairs, and yield indices price through the existing equity quote/chart routes (no new plumbing). Catalogs carry no reference prices — unpriced renders an honest dash.',
+    notes: 'Futures, FX pairs, and yield indices still price through the equity quote/chart routes (no separate plumbing). ⚠ This is the surface the Yahoo removal hit hardest: symbols like GC=F, EURUSD=X and ^TNX were quoted keylessly and are NOT covered by Tiingo, so coverage now depends on the keyed provider you configure and is expected to be partial. Catalogs carry no reference prices, so anything unpriced renders an honest dash rather than a stale number. The FX converter and Treasury yield curve are keyless and unaffected.',
   },
 
   // ── SHARED / OTHER ─────────────────────────────────────────────────────────
@@ -329,7 +337,7 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     route: '/live-data/portfolio-prices + /live-data/security-quotes', status: 'live',
     providers: [
       COINGECKO,
-      { name: 'Equity quote ladder (FMP → … → Yahoo)', role: 'primary', auth: 'none' },
+      { name: 'Equity quote ladder (FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage)', role: 'primary', auth: 'key' },
     ],
     notes: 'Prices split by instrument class: CoinGecko ids price through portfolio-prices, sec:-keyed stocks/funds/macro through the security-quotes ladder. Lists themselves are user data (Postgres), not a provider feed.',
   },
@@ -337,11 +345,12 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     id: 'compare', surface: 'Compare (growth-of-100, window stats, correlation)', module: 'shared',
     route: '/live-data/security-chart + /live-data/chart', status: 'derived',
     providers: [
-      YAHOO,
+      TIINGO,
+      FMP,
       COINGECKO,
       { name: 'Finance Now computation (alignment, stats, correlation)', role: 'derived', auth: 'none' },
     ],
-    notes: 'Price series are provider data (Yahoo for stocks/funds/macro, CoinGecko closes for crypto); the growth-of-100 normalization, window statistics, and correlation matrix are computed by Finance Now, not published figures.',
+    notes: 'Price series are provider data (Tiingo or FMP for stocks/funds, CoinGecko closes for crypto); the growth-of-100 normalization, window statistics, and correlation matrix are computed by Finance Now, not published figures. Comparing a stock against a macro instrument may now come back one-sided — the equity leg is keyed and the macro leg often uncovered since the Yahoo removal.',
   },
   {
     id: 'brief', surface: 'AI Daily Brief', module: 'shared',
@@ -358,10 +367,10 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     providers: [
       { name: 'Finance Now risk engine (lib/risk/profiles/optionsTrade.ts)', role: 'derived', auth: 'none' },
       { name: 'User-entered option quotes (from their broker chain)', role: 'primary', auth: 'none' },
-      YAHOO,
+      FMP,
     ],
     cadence: 'on demand',
-    notes: 'Every option-level figure is entered by the user — Finance Now carries NO options chain, because no free source permits one (CBOE prohibits auto-extraction; Yahoo\u2019s options endpoint requires auth). See docs/assessments/P2-O1-options-data.md. Only the underlying price is fetched, through the shared quote ladder. The score itself is this app\u2019s computation, not any provider\u2019s figure.',
+    notes: 'Every option-level figure is entered by the user — Finance Now carries NO options chain, because no source it may use publishes one (Cboe’s terms prohibit auto-extraction; Yahoo’s options endpoint required auth and Yahoo is now blocked outright on terms grounds). See docs/assessments/P2-O1-options-data.md. Only the underlying price is fetched, through the shared quote ladder, which is keyed. The score itself is this app’s computation, not any provider’s figure.',
   },
   {
     id: 'portfolio-builder', surface: 'Portfolio Builder (allocations, drift, suitability)', module: 'shared',
@@ -369,7 +378,7 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     providers: [
       { name: 'Finance Now engine (lib/data/portfolioBuilder.ts)', role: 'derived', auth: 'none' },
       COINGECKO,
-      { name: 'Equity quote ladder (FMP → … → Yahoo)', role: 'fallback', auth: 'none' },
+      { name: 'Equity quote ladder (FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage)', role: 'fallback', auth: 'key' },
     ],
     staticData: ['lib/data/portfolioBuilder.ts', 'lib/data/fundCatalog.ts'],
     notes: 'Allocations, bond ladders, diversification and suitability scores are Finance Now’s own computation (pure engine, vitest-tested) — not provider figures. Live prices enter only for drift-vs-actual monitoring; unpriced positions are excluded, never valued at cost.',

@@ -21,7 +21,6 @@ import type { FundHoldingsResponse } from '@/app/live-data/fund-holdings/route'
 const SOURCE_LABEL: Record<string, string> = {
   sec: 'SEC N-PORT',
   fmp: 'FMP',
-  yahoo: 'Yahoo top 10',
   catalog: 'catalog snapshot',
 }
 
@@ -127,7 +126,7 @@ export function FundOverlapSection({ symbols }: { symbols: string[] }) {
               </span>
             </div>
 
-            {/* Coverage travels with the number — a full N-PORT list and a Yahoo
+            {/* Coverage travels with the number — a full N-PORT list and a partial
                 top-10 are not the same object, and blending them unlabelled
                 would breach the coverage rule. */}
             <p className="mt-1 text-[11px] text-text-muted">

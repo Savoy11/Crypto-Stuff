@@ -5,7 +5,8 @@ import { fetchSecurityQuotes, referenceSecurityQuotes, type SecurityQuote } from
 // Public agent API — quotes for anything the security ladder prices: stocks,
 // ETFs, mutual funds, and macro instruments (futures like GC=F, FX pairs like
 // EURUSD=X, yield indices like ^TNX). Same provider ladder AND the same
-// fallback semantics the UI reads (FMP → … → Yahoo → catalog reference,
+// fallback semantics the UI reads (FMP → Finnhub → Twelve Data → Tiingo →
+// Alpha Vantage → catalog reference,
 // reference rows marked `reference: true`) — one source of truth.
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,7 @@ export async function GET(req: NextRequest) {
   const param = req.nextUrl.searchParams.get('symbols')?.trim()
   if (!param) {
     return NextResponse.json(
-      { error: 'Pass ?symbols=AAPL,VOO — comma-separated tickers in Yahoo notation (BRK-B, GC=F, EURUSD=X, ^TNX).' },
+      { error: 'Pass ?symbols=AAPL,VOO — comma-separated tickers in market ticker notation (BRK-B, GC=F, EURUSD=X, ^TNX).' },
       { status: 400, headers: CORS },
     )
   }

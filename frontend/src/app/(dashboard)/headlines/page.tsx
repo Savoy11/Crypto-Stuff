@@ -319,7 +319,7 @@ export default function HeadlinesPage() {
             description="Merges the suite's general news feeds into one ranked view. Only modules enabled in your bundle contribute stories, so the sections below change with your entitlements."
             details={[
               { label: 'Ranking', text: 'Breaking stories first, then most recent. The top strip draws from all enabled modules; module sections below exclude anything already promoted so nothing repeats.' },
-              { label: 'Sources', text: 'Crypto stories come from /live-data/news (multi-provider RSS + JSON). Market stories come from /live-data/market-news (Yahoo Finance, MarketWatch, CNBC).' },
+              { label: 'Sources', text: 'Crypto stories come from /live-data/news (multi-provider RSS + JSON). Market stories come from /live-data/market-news (MarketWatch, CNBC).' },
               { label: 'Funds', text: 'The Funds module has no general feed of its own — fund coverage is symbol-scoped on fund detail pages — so it shares the Markets section with Equities.' },
             ]}
           />

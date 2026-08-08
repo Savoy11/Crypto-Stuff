@@ -21,7 +21,15 @@ export type AssetClass = (typeof ASSET_CLASSES)[number]
 
 // Which live-data route can price this instrument. 'manual' means the user
 // supplies the value (a house, a private holding) and nothing is fetched.
-export const PRICE_SOURCES = ['coingecko', 'yahoo', 'fmp', 'stooq', 'catalog', 'manual'] as const
+// 'security' means "price it through the /live-data/security-* ladder", whatever
+// provider currently heads that ladder. It replaced 'yahoo' on 2026-08-06 when
+// Yahoo was removed as a data source: naming a row after one provider was
+// always a small lie, and became a wrong one.
+//
+// 'yahoo' and 'stooq' are retained as INERT legacy values so existing rows keep
+// validating — nothing writes them and nothing branches on them. Dropping either
+// needs a data migration, which is not worth it for a column no code reads.
+export const PRICE_SOURCES = ['coingecko', 'security', 'yahoo', 'fmp', 'stooq', 'catalog', 'manual'] as const
 export type PriceSource = (typeof PRICE_SOURCES)[number]
 
 export const instruments = pgTable('instruments', {

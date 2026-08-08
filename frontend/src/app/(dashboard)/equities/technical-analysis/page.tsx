@@ -31,7 +31,7 @@ const CandlestickChart = dynamic(() => import('@/components/charts/CandlestickCh
 // ─── Symbol search ───────────────────────────────────────────────────────────
 // Combobox over the Stock Registry universe (all active common stocks when an
 // FMP key is configured, curated catalog otherwise) plus the ETF catalog —
-// with free-text passthrough, because the OHLCV chain (Yahoo primary) charts
+// with free-text passthrough, because the OHLCV chain (Tiingo → FMP) charts
 // far more than the suggestion list: any US-listed stock, ETF, ADR, mutual
 // fund (daily NAV), or international listing with an exchange suffix
 // (7203.T, BMW.DE). An unknown ticker simply tries; no data shows the
@@ -124,7 +124,7 @@ function SymbolSearch({ symbol, onSelect }: { symbol: string; onSelect: (s: stri
           >
             <span className="text-text-secondary">Chart </span>
             <span className="font-mono font-semibold text-text-primary">{query.trim().toUpperCase()}</span>
-            <span className="text-text-muted"> directly — any Yahoo-listed ticker works (ADRs, international suffixes like 7203.T)</span>
+            <span className="text-text-muted"> directly — anything the configured provider covers works (ADRs, international suffixes like 7203.T)</span>
           </button>
         </div>
       )}
@@ -337,7 +337,7 @@ function ChartTab() {
           ) : (
             <LiveUnavailable
               className="my-12"
-              message="No OHLCV source is reachable right now (Yahoo Finance chart API, plus FMP when a key is configured). The chart will appear once a source responds."
+              message="No OHLCV source is reachable. Candles now need an API key — the keyless source was withdrawn on terms grounds. Add a Tiingo or FMP key on the Integrations page."
             />
           )}
         </div>
@@ -540,7 +540,7 @@ function EquityTaContent() {
       <PageHeader
         title="Equity Technical Analysis"
         subtitle="Candlestick charting, 18 indicators, pattern detection, and a momentum screener"
-        description="The same TA engine as the crypto module — indicator registry, signal aggregation, and pattern detection — running on daily/weekly stock candles from Yahoo Finance (FMP fallback with a key)."
+        description="The same TA engine as the crypto module — indicator registry, signal aggregation, and pattern detection — running on daily/weekly stock candles from Tiingo (FMP fallback). Both need an API key."
         details={[
           { label: 'Signals', text: 'The summary aggregates RSI, MACD, moving-average posture, and stochastic into buy/neutral/sell counts. Informational only.' },
           { label: 'Drawings', text: 'Trendlines, horizontal rays, rectangles, and Fibonacci retracements — click two points on the chart.' },

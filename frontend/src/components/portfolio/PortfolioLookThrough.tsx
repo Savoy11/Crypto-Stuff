@@ -24,7 +24,6 @@ import type { FundHoldingsResponse } from '@/app/live-data/fund-holdings/route'
 const SOURCE_LABEL: Record<string, string> = {
   sec: 'SEC N-PORT',
   fmp: 'FMP',
-  yahoo: 'Yahoo top 10',
   catalog: 'catalog snapshot',
 }
 
@@ -222,7 +221,7 @@ export function PortfolioLookThrough({ portfolio }: { portfolio: Portfolio }) {
       </div>
 
       {/* Coverage travels with the numbers, per fund — a full N-PORT list and a
-          Yahoo top-10 are different objects and must never be blended silently. */}
+          a partial indicative list are different objects and must never be blended silently. */}
       <div className="rounded-card border border-border bg-bg-card p-4">
         <h3 className="text-xs font-medium text-text-secondary uppercase tracking-wider">Coverage by fund</h3>
         <ul className="mt-2 space-y-1 text-[11px]">

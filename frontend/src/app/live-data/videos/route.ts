@@ -71,7 +71,6 @@ function cleanDescription(raw: string): string {
 const BUILTIN_CHANNELS: Record<string, string> = {
   'yt-bloomberg':      'UCIALMKvObZNtJ6AmdCLP7Lg',
   'yt-cnbc':           'UCrp_UI8XtuYfpiqluWLD7Lw',
-  'yt-yahoo-finance':  'UCEAZeUIeJs0IjQiqTCdVSIg',
   'yt-ft':             'UCoUxsWakJucWg46KW5RsvPw',
   'yt-wsj':            'UCK7tptUDHh-RYDsdxO1-5QQ',
   'yt-coin-bureau':    'UCqK_GSMbpiV8spgD3ZGloSw',

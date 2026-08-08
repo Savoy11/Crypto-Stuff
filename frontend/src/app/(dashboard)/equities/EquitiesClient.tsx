@@ -185,7 +185,7 @@ export function EquitiesClient() {
             ? `${universe.length.toLocaleString()} equities across ${sectorsCovered} sectors · refreshed daily`
             : `${universe.length} curated equities · add an FMP key for the full daily universe`}
           icon={<LineChart size={20} aria-hidden />}
-          description="The universe is sourced daily from Financial Modeling Prep (all actively-traded common stocks, sector-tagged) and cached for 24h; live quotes for the visible page ladder through FMP and Yahoo. Without an FMP key it falls back to a curated large-cap list."
+          description="The universe is sourced daily from Financial Modeling Prep (all actively-traded common stocks, sector-tagged) and cached for 24h; live quotes for the visible page ladder through the configured providers. Every quote provider needs an API key. Without one, the universe falls back to a curated large-cap list and prices show as reference values."
         />
         <div className="flex items-center gap-3 shrink-0">
           <div className="relative">

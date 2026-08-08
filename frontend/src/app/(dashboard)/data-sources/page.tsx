@@ -1,13 +1,173 @@
 'use client'
 
 import React, { useMemo, useState } from 'react'
-import { ExternalLink, Database, KeyRound, ShieldCheck } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { ExternalLink, Database, KeyRound, ShieldCheck, ShieldAlert, Scale, ChevronDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import {
   DATA_SOURCES, SOURCE_STATUS_META, PROVIDER_AUTH_META,
   type DataSourceEntry, type SourceStatus,
 } from '@/lib/data/dataSources'
+import type { SourceTermsListResponse } from '@/app/live-data/source-terms/route'
+
+const VERDICT_META = {
+  approved:    { label: 'Approved',    cls: 'text-emerald-400 bg-emerald-400/10 border-emerald-500/20' },
+  conditional: { label: 'Conditional', cls: 'text-amber-400 bg-amber-400/10 border-amber-500/20' },
+  prohibited:  { label: 'Prohibited',  cls: 'text-red-400 bg-red-500/10 border-red-500/20' },
+} as const
+
+/**
+ * The terms-compliance record, on the page that already answers "where does
+ * this data come from?" — because "and are we allowed to use it?" is the same
+ * question's other half, and keeping them apart is how a source ends up in the
+ * app that nobody checked.
+ *
+ * Prohibited entries are listed FIRST and expanded by default. They are the
+ * ones that explain missing functionality elsewhere in the app, so burying
+ * them under thirty approvals would defeat the point.
+ */
+function SourceTermsPanel() {
+  const [open, setOpen] = useState(false)
+  const { data } = useQuery<SourceTermsListResponse>({
+    queryKey: ['source-terms'],
+    queryFn: () => fetch('/live-data/source-terms').then((r) => r.json()),
+    staleTime: Infinity, // a static in-repo registry; it cannot change without a deploy
+  })
+
+  const entries = useMemo(() => {
+    const order = { prohibited: 0, conditional: 1, approved: 2 }
+    return [...(data?.entries ?? [])].sort(
+      (a, b) => order[a.verdict] - order[b.verdict] || a.name.localeCompare(b.name)
+    )
+  }, [data])
+
+  const prohibited = entries.filter((e) => e.verdict === 'prohibited')
+  const p = data?.provenance
+
+  return (
+    <div className="rounded-xl border border-border bg-bg-card overflow-hidden">
+      <div className="p-4 border-b border-border">
+        <div className="flex items-start gap-2 flex-wrap">
+          <Scale size={14} className="text-text-muted mt-0.5" />
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-text-primary">Source terms &amp; permitted use</h2>
+            <p className="mt-1 text-[11px] text-text-muted leading-relaxed">
+              What each site’s terms of use say about being read by software, and the verdict that
+              follows. A <span className="text-red-400">prohibited</span> host is blocked in code — the
+              app cannot fetch it however it is configured. User-added sources are checked against their
+              robots.txt and terms before they can be saved.
+              {p && (
+                <> Registry dated by its oldest entry: <span className="font-mono">{p.reviewedAt}</span>
+                  {p.needsReview > 0 && (
+                    <span className="text-amber-400"> · {p.needsReview} entr{p.needsReview === 1 ? 'y' : 'ies'} past the review window</span>
+                  )}
+                  .</>
+              )}
+            </p>
+          </div>
+          {p && (
+            <span className="text-[11px] text-text-muted shrink-0">
+              {p.total} sources · {p.prohibited} prohibited
+            </span>
+          )}
+        </div>
+
+        {/* The registry's own honesty notice. Most entries were written from
+            each provider's documented posture without the terms document being
+            read, and that has to be visible HERE — on the page that otherwise
+            reads as a clearance — not only in a code comment. */}
+        {p && p.seeded > 0 && (
+          <div className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+            <div className="flex items-start gap-2">
+              <ShieldAlert size={13} className="text-amber-400 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                <span className="font-semibold">{p.seeded} of {p.total} entries have not been read.</span>{' '}
+                They are marked <span className="font-mono">seeded</span>: written from each provider’s
+                publicly documented posture — published API docs, a documented free tier, an openly
+                advertised RSS feed — without the terms document itself being opened. That is a working
+                assumption, not a clearance, and the news publishers in particular turn on a syndication
+                policy that has to be read to be known. Run{' '}
+                <code className="font-mono text-amber-300">npm run terms:report -- --seeded</code> from a
+                machine that can reach these sites to produce a review worksheet.
+                {p.verified > 0 && <> {p.verified} entr{p.verified === 1 ? 'y has' : 'ies have'} been verified.</>}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Prohibited first, always visible — these explain gaps elsewhere. */}
+      {prohibited.map((e) => (
+        <div key={e.domain} className="p-4 border-b border-border bg-red-500/[0.04]">
+          <div className="flex items-center gap-2 flex-wrap">
+            <ShieldAlert size={13} className="text-red-400 shrink-0" />
+            <span className="text-sm font-semibold text-text-primary">{e.name}</span>
+            <span className="font-mono text-[11px] text-text-muted">{e.domain}</span>
+            <span className={clsx('px-1.5 py-0.5 text-[10px] font-semibold rounded border', VERDICT_META.prohibited.cls)}>
+              {VERDICT_META.prohibited.label}
+            </span>
+          </div>
+          <p className="mt-1.5 text-[11px] text-text-muted leading-relaxed">{e.finding}</p>
+          <a href={e.termsUrl} target="_blank" rel="noopener noreferrer"
+             className="mt-1 inline-flex items-center gap-1 text-[11px] text-accent-blue hover:underline">
+            Terms <ExternalLink size={9} />
+          </a>
+        </div>
+      ))}
+
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-1.5 px-4 py-2.5 text-xs text-text-muted hover:text-text-secondary transition-colors"
+      >
+        <ChevronDown size={12} className={clsx('transition-transform', open && 'rotate-180')} />
+        {open ? 'Hide' : 'Show'} the other {entries.length - prohibited.length} reviewed sources
+      </button>
+
+      {open && (
+        <div className="divide-y divide-border/60 border-t border-border">
+          {entries.filter((e) => e.verdict !== 'prohibited').map((e) => {
+            const meta = VERDICT_META[e.verdict]
+            return (
+              <div key={e.domain} className="p-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-text-primary">{e.name}</span>
+                  <span className="font-mono text-[11px] text-text-muted">{e.domain}</span>
+                  <span className={clsx('px-1.5 py-0.5 text-[10px] font-semibold rounded border', meta.cls)}>{meta.label}</span>
+                  {e.review === 'seeded' && (
+                    <span
+                      title="Written from the provider's documented posture; the terms document has not been read for this project."
+                      className="px-1.5 py-0.5 text-[10px] font-semibold rounded border text-amber-400/90 bg-amber-400/5 border-amber-500/20"
+                    >
+                      unread
+                    </span>
+                  )}
+                  <a href={e.termsUrl} target="_blank" rel="noopener noreferrer"
+                     className="ml-auto inline-flex items-center gap-1 text-[11px] text-accent-blue hover:underline shrink-0">
+                    Terms <ExternalLink size={9} />
+                  </a>
+                </div>
+                <p className="mt-1.5 text-[11px] text-text-muted leading-relaxed">{e.finding}</p>
+                {e.conditions?.length ? (
+                  <ul className="mt-1.5 space-y-0.5">
+                    {e.conditions.map((c, i) => (
+                      <li key={i} className="text-[11px] text-text-secondary flex gap-1.5">
+                        <span className="text-amber-400/70">•</span>{c}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <p className="mt-1.5 text-[10px] text-text-muted/70">
+                  {e.review === 'verified' ? `Read ${e.reviewedAt}` : `Written ${e.reviewedAt}, not yet read`} · confidence {e.confidence}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const MODULE_TITLES: Record<DataSourceEntry['module'], string> = {
   crypto: 'Crypto', equities: 'Equities', funds: 'ETFs & Funds', macro: 'Macro Markets', shared: 'Shared / Cross-module',
@@ -94,8 +254,11 @@ export default function DataSourcesPage() {
         details={[
           { label: 'Status', text: 'Live = real provider at request time · Partial = some fields static/estimate · Key-gated = needs a key/paid plan · Derived = computed from other live data · Not available = no free source (shown as an explicit notice).' },
           { label: 'Provenance', text: 'Individual pages show a matching source badge. Full status audit lives in DATA-AVAILABILITY.md; the machine-generated inventory in DATA-SOURCES.md (npm run data-sources).' },
+          { label: 'Permitted use', text: 'Every host below has a dated terms verdict (see the panel underneath). Prohibited hosts are blocked in code, and a source nobody has reviewed cannot be added without an explicit acknowledgement.' },
         ]}
       />
+
+      <SourceTermsPanel />
 
       {/* Status summary */}
       <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">

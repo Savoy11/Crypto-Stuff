@@ -32,6 +32,7 @@
 
 import { Agent, fetch as undiciFetch } from 'undici'
 import { isPrivateAddress, resolvePublicAddresses } from '@/lib/server/urlSafety'
+import { assertSourceNotProhibited } from '@/lib/server/sourceTerms'
 
 type LookupCallback = (
   err: NodeJS.ErrnoException | null,
@@ -75,14 +76,29 @@ export interface PinnedFetchInit {
   signal?: AbortSignal
   method?: string
   body?: string
+  /**
+   * Skip the source-terms gate. Reserved for the terms probe itself, which has
+   * to reach robots.txt and the terms document of a host precisely BECAUSE it
+   * is unreviewed — gating it would make the safeguard unable to run. Nothing
+   * that consumes a site's data may set this.
+   */
+  skipTermsCheck?: boolean
 }
 
 /**
  * fetch(), with the connection pinned to a pre-validated address.
  *
- * Throws — before opening anything — if the URL fails string-level or
- * resolve-level validation. Address-literal URLs skip pinning: there is no
- * name to rebind, and the literal was already checked.
+ * Throws — before opening anything — if the source-terms registry prohibits
+ * this host (see sourceTerms.ts), or if the URL fails string-level or
+ * resolve-level validation. Address-literal URLs skip pinning: there is no name
+ * to rebind, and the literal was already checked.
+ *
+ * The terms gate lives here because this is the one function an arbitrary,
+ * user-supplied URL passes through — custom feeds from the Integrations page
+ * reach upstream via customFeeds.ts and marketData.ts, and both go through
+ * here. Putting the check at the socket rather than at the save means a source
+ * that was configured before a verdict changed stops working when the verdict
+ * changes, instead of quietly continuing.
  *
  * The body is buffered and re-wrapped in a standard `Response` so the pinned
  * agent can be closed here rather than left to a caller who may never get
@@ -94,18 +110,25 @@ export interface PinnedFetchInit {
  * dispatcher. Callers that relied on it now hit their upstream every time.
  */
 export async function pinnedFetch(url: string, init: PinnedFetchInit = {}): Promise<Response> {
+  // Runs BEFORE address resolution: a prohibited host should not cost a DNS
+  // lookup, and the answer doesn't depend on where it resolves. Note this is
+  // the `notProhibited` form, not the strict one — see sourceTerms.ts for why
+  // an unreviewed host is gated at save time rather than here.
+  const { skipTermsCheck, ...fetchInit } = init
+  if (!skipTermsCheck) assertSourceNotProhibited(url)
+
   const resolution = await resolvePublicAddresses(url)
   if ('error' in resolution) throw new Error(resolution.error)
 
   // Address literal — nothing to pin, already validated, so the platform
   // fetch (and its cache integration) is fine here.
   if (resolution.addresses.length === 0) {
-    return fetch(url, init as RequestInit)
+    return fetch(url, fetchInit as RequestInit)
   }
 
   const agent = pinnedAgent(resolution.addresses)
   try {
-    const res = await undiciFetch(url, { ...init, dispatcher: agent })
+    const res = await undiciFetch(url, { ...fetchInit, dispatcher: agent })
     const body = await res.arrayBuffer()
     return new Response(body, {
       status: res.status,

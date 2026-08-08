@@ -95,9 +95,10 @@ frontend/src/
 │       ├── config/route.ts
 │       ├── network-fees/route.ts   # Live BTC fees + all 16-network gas prices
 │       ├── staking-rates/route.ts  # Live APR from Lido, Marinade, Jito
-│       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→…→Yahoo→reference)
-│       ├── security-chart/route.ts  # Price history for any Yahoo-quotable symbol
-│       ├── security-ohlcv/route.ts  # Full OHLCV candles for stocks (Yahoo→FMP)
+│       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→…→Alpha Vantage→reference; ALL KEYED)
+│       ├── security-chart/route.ts  # Price history (Tiingo→FMP; both keyed)
+│       ├── security-ohlcv/route.ts  # Full OHLCV candles (Tiingo→FMP; both keyed)
+│       ├── source-terms/route.ts    # Terms registry + live robots/terms probe
 │       ├── market-news/route.ts     # Stock-market RSS news: sentiment, category, ticker tags
 │       ├── stock-social/route.ts    # Reddit finance subs + StockTwits sentiment
 │       ├── sec-filings/route.ts     # SEC EDGAR filings feed (ticker→CIK→submissions; tabbed 10-K/10-Q/8-K on equity detail)
@@ -105,9 +106,9 @@ frontend/src/
 │       ├── company-profile/route.ts # SEC EDGAR registrant metadata (SIC, HQ, incorporation) + Wikipedia summary
 │       ├── stock-universe/route.ts  # Stock Registry universe — FMP stock-screener (daily-cached) w/ curated fallback; ?symbol= single lookup
 │       ├── stock-outliers/route.ts  # Sector-relative z-score outliers over the universe (cheap/expensive/highYield/high-lowBeta) — backs the Equity Screener agent
-│       ├── fund-holdings/route.ts   # Full ETF/fund portfolio: SEC N-PORT direct (keyless, authoritative) → FMP → Yahoo top-10 → catalog
+│       ├── fund-holdings/route.ts   # Full ETF/fund portfolio: SEC N-PORT direct (keyless, authoritative) → FMP → catalog
 │       ├── fund-holdings-history/route.ts # Quarter-over-quarter holdings diff from N-PORT filings (EDGAR direct; FMP fallback)
-│       ├── security-returns/route.ts # Batched trailing 1M/3M/YTD/1Y returns (Yahoo spark) — backs the fund screener Returns tab/filters
+│       ├── security-returns/route.ts # Trailing 1M/3M/YTD/1Y returns (Tiingo, per symbol, capped at 60; whole-universe requests refused)
 │       ├── fx-rates/route.ts        # Daily ECB reference FX (frankfurter.dev, keyless) — Macro currency converter, official tier
 │       ├── fx-rates-extended/route.ts # +127 more currencies (community currency-api, keyless) — converter's labeled extended tier
 │       ├── treasury-yield-curve/route.ts # Official 13-maturity daily par curve (treasury.gov XML, keyless) + spreads/shape
@@ -168,6 +169,8 @@ frontend/src/
 │   │                               #   categorize.ts (first-match rules), recurring.ts (cadence detection)
 │   ├── agents/                     # Agent runner, prompts, tools
 │   ├── server/                     # Server-only helpers (apiGuard, edgar, secFundamentals, customFeeds…)
+│   │   ├── sourceTerms.ts          # ← SOURCE TERMS REGISTRY — may we use this website?
+│   │   └── termsProbe.ts           #   robots.txt + terms probe for unreviewed hosts
 │   ├── api/                        # API client functions
 │   │   └── live/                   # Live data fetchers (CoinGecko, DefiLlama, marketData.ts, providers.ts)
 │   ├── utils/
@@ -212,6 +215,9 @@ frontend/src/
    - **Wrap at the component boundary, not inside the page's JSX.** `export default function Page() { return <ModuleGate module="x"><PageInner /></ModuleGate> }` — so a disabled module never mounts `PageInner` and its queries never fire. Wrapping the returned JSX instead renders the lock notice while still fetching everything behind it
 
 3. **If you need a live data API route:** `src/app/live-data/your-route/route.ts`
+   - **If it fetches a host the app doesn't already use, read that site's terms first** and
+     add an entry to `lib/server/sourceTerms.ts` + `lib/data/dataSources.ts`. The test suite
+     fails on an unregistered host — see "Source Terms" below
    - Always add `export const dynamic = 'force-dynamic'` (prevents static caching)
    - Use `next: { revalidate: N }` on individual `fetch()` calls (N in seconds)
    - Return `NextResponse.json(...)` with a typed interface exported from the route
@@ -228,7 +234,7 @@ frontend/src/
 
 ## Live Data Architecture
 
-All external API calls happen in **server-side route handlers** (`/live-data/*`), never from client components. This keeps API keys off the client and lets Next.js cache responses.
+All external API calls happen in **server-side route handlers** (`/live-data/*`), never from client components. This keeps API keys off the client and lets Next.js cache responses. Every host also has to clear the **source-terms registry** before it is fetched — see "Source Terms" below.
 
 ```
 Client component
@@ -306,7 +312,7 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 
 ### `src/lib/data/equityCatalog.ts` (Equities module)
 - **`EQUITY_CATALOG`** — 79 large-cap US stocks with sector (11 GICS sectors in `SECTOR_INFO`), industry, and approximate reference values (price, market cap, P/E, dividend yield, beta). Reference values are fallbacks — live quotes override price/change.
-- Symbols use Yahoo notation (`BRK-B`, not `BRK.B`) so one string works across Yahoo and FMP.
+- Symbols use the dash form of the class-share convention (`BRK-B`, not `BRK.B`) — every provider in the quote ladder accepts it, so one string works across all of them.
 - To add a stock: append to `EQUITY_CATALOG`; the registry table, detail route, and quote universe pick it up automatically.
 
 ### `src/lib/data/fundCatalog.ts` (Funds module)
@@ -336,14 +342,113 @@ Pure engine, no API calls, covered by `__tests__/portfolioBuilder.test.ts` (86 t
 ### Quote plumbing for both modules (`src/lib/api/live/marketData.ts`)
 **All four equity data surfaces are registry-driven** (same provider system as crypto — `src/lib/api/live/providers.ts`, configured on the Integrations page, persisted to `.provider-config.json`; providers carry `market: 'crypto' | 'equities'` so the two sides never cross). Every surface records per-provider utilization, supports toggling/reordering built-ins, and accepts user-added custom feeds (SSRF-validated, auth via header/query/bearer, tolerant JSON field extraction in `src/lib/server/customFeeds.ts`):
 
-- **Quotes** (`fetchSecurityQuotes` → `getEquityQuoteProviders()`): custom `json-quote` feeds first, then FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage (key-gated) → Yahoo spark → catalog reference prices. `{symbol}` (per-symbol) or `{symbols}` (batch) placeholders. **Stooq used to be the last live rung and is gone** — it 404s on every variant (confirmed in the 2026-07-19 audit) and has been removed from the registry and the quote path; catalog reference is the real last resort. The only remnant is the legacy `'stooq'` value in `PRICE_SOURCES` (db/schema/instruments.ts), which is inert. Don't re-add it as a fallback.
-- **News** (`/live-data/market-news` → `getEquityProviders('news')`): built-ins Yahoo Finance News / MarketWatch / CNBC plus custom `rss`/`atom`/`json-news` feeds, all active sources merged in parallel.
+- **Quotes** (`fetchSecurityQuotes` → `getEquityQuoteProviders()`): custom `json-quote` feeds first, then FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage → catalog reference prices. **Every live rung is keyed** since the Yahoo removal (2026-08-06) — see below. `{symbol}` (per-symbol) or `{symbols}` (batch) placeholders. **Stooq used to be the last live rung and is gone** — it 404s on every variant (confirmed in the 2026-07-19 audit) and has been removed from the registry and the quote path; catalog reference is the real last resort. The only remnant is the legacy `'stooq'` value in `PRICE_SOURCES` (db/schema/instruments.ts), which is inert. Don't re-add it as a fallback.
+- **News** (`/live-data/market-news` → `getEquityProviders('news')`): built-ins MarketWatch / CNBC plus custom `rss`/`atom`/`json-news` feeds, all active sources merged in parallel. **There is no per-ticker feed** — Yahoo's was the only free one. Symbol mode reads the same general wires and filters to articles that actually name the company, and does **not** force-tag the requested symbol onto unrelated stories.
 - **Social** (`/live-data/stock-social` → `getEquityProviders('social')`): built-ins Reddit Finance / StockTwits plus custom `json-social` feeds. (Reddit 403s from datacenter IPs without OAuth — expect StockTwits-only in server/CI environments.)
-- **OHLCV / TA / backtests** (`/live-data/security-ohlcv` → `getEquityOhlcvProviders()`): custom `json-ohlcv` feeds first, then Yahoo Finance → Tiingo → FMP.
+- **OHLCV / TA / backtests** (`/live-data/security-ohlcv` → `getEquityOhlcvProviders()`): custom `json-ohlcv` feeds first, then Tiingo → FMP. Both keyed; with neither the route reports `source: 'none'` and the TA/backtest/candlestick surfaces show their no-live-source state.
 
 UI labels non-live prices with a small amber `ref` tag; KPIs needing live data show "requires live quotes" instead of fabricated values.
 
 The **TopBar data-tier dropdown** (`TierSwitch` / `src/lib/tier.ts`) breaks sourcing down per category. Categories carry a `market: 'crypto' | 'equities'` field: crypto rows respond to the free/paid/custom toggle as before; equity rows are `informational: true` — they reflect the live registry (enabled providers per category, scoped by market) rather than the toggle, since equity sourcing is managed entirely on the Integrations page. Multi-select option lists are market-scoped so crypto selectors never pull in equity providers that share a `category` id.
+
+---
+
+## Source Terms — may we use this website?
+
+**Before any host is fetched, there is a dated verdict on what its terms of use permit.**
+`src/lib/server/sourceTerms.ts` is the registry; `termsProbe.ts` is the live check for a
+site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
+
+> ⚠ **Yahoo Finance was removed as a data source on 2026-08-06 — on terms grounds, not
+> availability.** The `query1/query2.finance.yahoo.com` v8/v10 endpoints are undocumented
+> internals of Yahoo's own web app with no published third-party API terms, while Yahoo's
+> ToS prohibit automated access and redistribution. It is **hard-blocked in code**:
+> `pinnedFetch` refuses `*.yahoo.com` at the socket, so re-adding a fetcher does not bring
+> it back. **Do not reintroduce it** without changing the registry verdict, which means
+> re-reading the terms and being able to defend the change.
+>
+> It was the only **keyless** rung on the equity/fund/macro quote, chart and OHLCV paths.
+> What that cost, all of it deliberate and visible rather than papered over:
+>
+> | Surface | Now |
+> |---|---|
+> | Quotes, charts, OHLCV/TA/backtests (stocks, funds, macro) | **Key-gated.** FMP/Finnhub/Twelve Data/Tiingo/Alpha Vantage for quotes, Tiingo→FMP for history. No key ⇒ catalog `ref` prices for stocks/funds, an honest dash for macro |
+> | **Macro instrument quotes** (`GC=F`, `EURUSD=X`, `^TNX`) | **Hit hardest.** Tiingo does not carry them, so coverage depends on the keyed provider configured and is expected to be partial |
+> | **Futures term structure** (`/live-data/futures-curve`) | **No source at all.** Nothing reachable quotes a dated contract month. The route resolves the months and returns `ok:false` with the reason; `TermStructureCard` prints it. Front-month prices are unaffected |
+> | Trailing returns | One request per symbol. `?universe=` is **refused**, not truncated; `?symbols=` capped at 60. Fund return **screening and sorting are off** — a screen that could only see the visible page would filter as though it had seen every fund. Per-page Returns columns still live |
+> | Per-ticker news | **Gone.** Symbol mode reads the general wires and keeps articles that name the company. It no longer force-tags the requested symbol onto unrelated stories |
+> | Fund holdings | Unaffected (SEC N-PORT, keyless). But sector weights now need an FMP key, and the stock/bond/cash **asset mix has no source** — that section doesn't render |
+> | FX converter, Treasury curve, SEC filings/XBRL, all of crypto | **Unaffected** — keyless and unrelated |
+>
+> The fix for any of the key-gated rows is a free API key on the Integrations page — **not
+> a substitute scraper.**
+
+> ⚠ **47 of 48 registry entries are `seeded`, not `verified` — check `review` before
+> trusting one.** The registry was authored in an environment whose network policy
+> blocked every publisher and provider host at the gateway, so not one terms document
+> could be opened. The entries are honest starting positions drawn from each
+> provider's publicly documented posture (published API docs, documented free tiers,
+> openly advertised RSS feeds) — they are **not readings**. Only the Cboe entry is
+> `verified`, from the P2-O1 audit on the owner's machine.
+>
+> A seeded `approved`/`conditional` means *nobody has objected yet*, not *cleared*.
+> Seeded entries still serve data — breaking the app over a documentation gap is the
+> wrong failure, same reasoning as staleness — but they are counted, badged on
+> /data-sources, and carry the caveat in `decision.reason` so every surface that
+> renders it inherits the warning.
+>
+> **To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
+> that can reach these sites writes a review worksheet — current verdict, what the
+> probe saw, a link to the document, and a conclusion box per host. Read the
+> documents, then flip `review` to `'verified'`. The open queue for the news
+> publishers is `docs/audits/terms-review-news-2026-08-07.md`. **The news feeds are
+> the priority**: they are the app's only keyless content sources, and their
+> permission rests on a publisher syndication policy rather than an API licence.
+
+**Three verdicts**, because two would collapse a real distinction:
+- `approved` — permitted, unconditionally enough to just use it.
+- `conditional` — permitted *while conditions hold* (attribution, a rate limit, "headline
+  and link only", "personal use"). Most of the registry. The conditions are the
+  maintainer's obligation, not something code enforces; writing them down is the point.
+- `prohibited` — hard-blocked, no override, anywhere.
+
+**Two assertion forms, and the split is the design:**
+- `assertSourceNotProhibited` (used by `pinnedFetch`) — only `prohibited` fails. A
+  decision about *someone else's terms*, so it binds every request forever.
+- `assertSourceAllowed` (strict) — an unreviewed host fails too. A decision about *us*,
+  enforced at test time and at save time, where a human can be asked.
+
+Collapsing them would either let a prohibited host through or make the acknowledgement
+flow a lie.
+
+**Enforcement, by path:**
+- **Built-ins → test time.** `__tests__/sourceTerms.test.ts` walks every `host` in
+  `lib/data/dataSources.ts` and fails if one is unregistered or prohibited. Add a route
+  fetching a new host and the suite fails until someone reads that site's terms. (It
+  caught ten already-shipping hosts with no review on its first run.)
+- **User-added feeds → save time, then socket.** `/live-data/config` runs
+  `probeSiteTerms()` on `add-custom` **and** `update-custom` (or "add an approved feed,
+  then edit the URL" is a hole straight through the gate). A hard block is `403` with no
+  override; anything else needing a human is `409` carrying the report, and the
+  Integrations UI shows the matched clauses and asks for `termsAcknowledged`.
+
+**Two review states**, and the split is not cosmetic:
+- `verified` — someone opened the document and read the relevant clauses on `reviewedAt`.
+- `seeded` — written from documented posture, never read. The first cut of this file
+  had no such field, so 47 unread entries all carried a date that read as "checked".
+  A verdict nobody read, wearing a date saying somebody did, launders an assumption
+  into a record — which is worse than having no registry.
+
+**Two rules the probe follows, and you should too:**
+1. **A keyword scan is not a reading.** Only `blocked` is enforced automatically;
+   "nothing prohibitive found" still asks a human.
+2. **"Couldn't read it" is not permission.** Publishers 403 datacenter IPs, including on
+   their legal pages. `unknown` asks a human, exactly like `needs-review`. Same rule as
+   the data audits: verify on the owner's machine, never downgrade a verdict on a CI probe.
+
+Verdicts go **stale** (180 days) rather than expiring — terms change, but breaking the app
+because nobody re-read a document is the wrong failure. The registry is dated by its
+**oldest** entry, not its newest, exactly like the hand-maintained data catalogs.
 
 ---
 
@@ -480,17 +585,17 @@ Risk/status color convention used across the app:
 | Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
 | Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data |
 | Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
-| Portfolios | `/portfolios` | 🟢 Live | Live prices + history (`/live-data/portfolio-*`). **DB-backed** via `/api/user/portfolios` (+`/[id]` PUT/DELETE): store keeps its sync Zustand interface via optimistic mutations + client-UUID ids; consumers call `hydratePortfolios()` on mount; one-time localStorage import. Holdings resolve through the instrument layer (`lib/server/instrumentResolve.ts` — global rows, cgId round-trips via `instrument_crypto.coingecko_id`). **Look-through tab** (`lib/data/lookThrough.ts`): true underlying-issuer exposure across held funds + direct positions, a "held twice over" callout, and per-fund coverage. Weights are target allocations (stated on the panel). A Yahoo top-10 list is **never scaled to 100%** — the unexplained tail is reported, not redistributed |
+| Portfolios | `/portfolios` | 🟢 Live | Live prices + history (`/live-data/portfolio-*`). **DB-backed** via `/api/user/portfolios` (+`/[id]` PUT/DELETE): store keeps its sync Zustand interface via optimistic mutations + client-UUID ids; consumers call `hydratePortfolios()` on mount; one-time localStorage import. Holdings resolve through the instrument layer (`lib/server/instrumentResolve.ts` — global rows, cgId round-trips via `instrument_crypto.coingecko_id`). **Look-through tab** (`lib/data/lookThrough.ts`): true underlying-issuer exposure across held funds + direct positions, a "held twice over" callout, and per-fund coverage. Weights are target allocations (stated on the panel). A partial holdings list is **never scaled to 100%** — the unexplained tail is reported, not redistributed |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
 | Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
 | Videos | `/videos` | 🟢 Live | Video search + AI analysis (`/live-data/videos`, `video-search`, `video-analyze`) |
 | Data Sources | `/data-sources` | — | Per-provider status and utilization, read from the provider registry |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
-| Compare | `/compare` | 🟢 Live | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`). Fund selections also get a **holdings-overlap** section (`lib/data/lookThrough.ts`) — the question correlation can't answer: whether two funds move together because they hold the same companies or because they track the same economy. Partial holdings lists are labelled as floors, never rescaled |
+| Compare | `/compare` | 🟡 Key-gated | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`). Fund selections also get a **holdings-overlap** section (`lib/data/lookThrough.ts`) — the question correlation can't answer: whether two funds move together because they hold the same companies or because they track the same economy. Partial holdings lists are labelled as floors, never rescaled |
 | Budget | `/budget`, `/budget/transactions` | 🟢 User data | BUDGET module (ROADMAP Phase 2): accounts (balance = opening anchor + transactions), manual entry, idempotent CSV import (import-hash dedupe; saved per-bank column mappings auto-matched by header signature), rule-based auto-categorization (first-match-wins, server-side), monthly budgets vs actuals (unbudgeted ≠ $0), recurring detection (suggestions until confirmed). Pure logic in `lib/budget/` (vitest), persistence via `/api/user/budget/*`. No external providers — no SourceLine on these pages |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
-| Trade Risk Scorer | `/equities/options` | 🟢 Derived | EQUITIES module. Describe an options position (1–4 legs, structure presets) and see it scored across liquidity, IV environment, assignment, time decay and defined risk — canonical 0–100 higher-is-safer, per-dimension with evidence. Engine is `lib/risk/profiles/optionsTrade.ts` (pure, tested). **There is deliberately NO options chain browser**: the P2-O1 audit found no usable keyless source (CBOE prohibited by its terms, Yahoo options 401s), and the owner closed P2-O3 on 2026-08-05. Option-level numbers are hand-entered from the user's broker chain — never infer them. Also exposed as the `score_options_trade` agent tool, `POST /api/v1/options/score`, and an MCP tool |
+| Trade Risk Scorer | `/equities/options` | 🟢 Derived | EQUITIES module. Describe an options position (1–4 legs, structure presets) and see it scored across liquidity, IV environment, assignment, time decay and defined risk — canonical 0–100 higher-is-safer, per-dimension with evidence. Engine is `lib/risk/profiles/optionsTrade.ts` (pure, tested). **There is deliberately NO options chain browser**: the P2-O1 audit found no usable keyless source (Cboe prohibited by its terms, Yahoo options 401s and Yahoo is now blocked outright on terms grounds), and the owner closed P2-O3 on 2026-08-05. Option-level numbers are hand-entered from the user's broker chain — never infer them. Also exposed as the `score_options_trade` agent tool, `POST /api/v1/options/score`, and an MCP tool |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
 
 ### Equities module (`/equities`)
@@ -524,14 +629,14 @@ One module (`macro` entitlement), three areas. Owner spec + status: `docs/ROADMA
 | Commodities | `/macro/commodities`, `/[slug]` | 🟢 Live | `commodityCatalog.ts` — 19 verified front-month contracts, 5 categories. `quoteBasis: 'usd'\|'cents'` renders each market's convention (472.75¢/bu, never "$472"). Detail: chart + facts + ETF proxies → /funds. **`etfProxies` are genuine single-commodity exposure**, not the broad-basket DBC these used to point to. Deep, multi-issuer lineups for the liquid metals/energy markets (gold: GLD/IAU/GLDM/SGOL/AAAU/BAR/OUNZ; silver: SLV/SIVR/PSLV; WTI: USO/OILK/USL; nat gas: UNG/UNL) — each variant genuinely differs (expense ratio, K-1 vs 1099 tax form, front-month vs laddered roll, physical-redemption feature), all added to `fundCatalog.ts` and verified both quotable AND actively trading (5-day history, not just a cached price) before inclusion. Copper/grain/platinum/palladium get one verified proxy each (CPER/CORN/WEAT/SOYB/CANE/PPLT/PALL) — genuinely thinner markets, not an under-researched gap; broad-basket funds (DBB, COPX-style miner ETFs) are deliberately excluded even as a single option since that's the exact overstated-specificity problem this fix corrected. Heating oil, coffee, cocoa, cotton, live cattle, and lean hogs are **deliberately empty** — their single-commodity ETFs/ETNs (UHN, JO, NIB, BAL, COW) were confirmed delisted (last trade 2019–2023) 2026-07-21; don't backfill with a basket fund to avoid a blank list |
 | Currencies | `/macro/currencies`, `/[slug]` | 🟢 Live | `currencyCatalog.ts` — 17 pairs + DXY (18 entries), per-pair `precision`. **`etfProxies`** (new `FundCategoryId: 'currency'` in `fundCatalog.ts`): the 6 USD majors get their CurrencyShares trust (FXE/FXB/FXY/FXF/FXC/FXA — holds currency deposits, direct exposure); Dollar Index gets UUP/UDN/USDU (long/short/alt-index). Deliberately empty for every EM pair and every cross — EM single-currency funds (FXM/BZF/CYB/ICN/SZR) confirmed delisted, crosses have never had a dedicated fund (only vs-USD trusts exist), NZD/KRW never had one. **Converter is two-tier**: 30 ECB currencies (`/live-data/fx-rates`, frankfurter.dev — verified to be ECB's *complete* published set, not a subset) plus 127 more via `/live-data/fx-rates-extended` (community `fawazahmed0/currency-api`, keyless, hand-verified allowlist excluding crypto tickers/precious-metal ounce codes/IMF SDR/defunct pre-euro currencies from that feed's ~340 raw codes). Grouped by `<optgroup>` in the UI; any conversion touching an extended-tier currency shows a distinct disclosure (community-sourced, not ECB) instead of the "official" ECB copy — the two tiers are never blended without attribution |
 | Bonds & Rates | `/macro/rates`, `/[slug]` | 🟢 Live | `ratesCatalog.ts` — 4 CBOE yield indices + 4 CBOT futures. Curve chart from `/live-data/treasury-yield-curve` = **official** treasury.gov 13-maturity daily par curve (keyless XML, regex-parsed, 4h revalidate) + 2s10s/3m10y spreads + shape. Overview-page bond ETF shelf → /funds. **CUSIP-level bond quotes are licensed data — intentionally absent, stated on-page.** Detail pages carry a per-instrument **"Duration-Matched Funds"** section (`etfProxies`, distinct from the commodity/currency "ETF Proxies" naming since nobody buys "the 10-year yield" directly — the match is by maturity band, not asset identity): 13-week yield → SGOV/BIL (0-3mo bills); 5-year yield + 5yr future → IEI (3-7Y, added to fill the SHY↔IEF duration gap); 10-year yield + 10yr future → IEF; 30-year yield + 30yr future → TLT; 2yr future → SHY. General credit/inflation/aggregate funds (LQD/HYG/TIP/BND/AGG) stay overview-only since they don't map to a specific curve point |
-| Macro TA | `/macro/technical-analysis` | 🟢 Derived | Shared candlestick/indicator engine over all 45 macro instruments — **no new data route**, macro symbols are Yahoo symbols on the same `security-ohlcv` path as equities. Chart tab (grouped picker, 5 ranges, 6 chart types, 16 indicators, patterns) + Scanner tab (RSI 14 / vs-SMA50 / composite signal). **Scanner covers 29 of 45**: the 6 delisted-ETF commodities and the 10 EM/cross FX pairs are excluded because their series gap enough that a ranked RSI beside a liquid contract reads as comparable when it isn't — the exclusion is stated on-page and all 45 still chart. Levels go through `formatInstrumentQuote()`, so grains stay ¢/bu and yields stay % |
+| Macro TA | `/macro/technical-analysis` | 🟢 Derived | Shared candlestick/indicator engine over all 45 macro instruments — **no new data route**, macro symbols ride the same `security-ohlcv` path as equities. ⚠ That path is keyed and its macro coverage is narrower since the Yahoo removal — many macro symbols simply aren't carried by the remaining providers, and unpriced renders a dash. Chart tab (grouped picker, 5 ranges, 6 chart types, 16 indicators, patterns) + Scanner tab (RSI 14 / vs-SMA50 / composite signal). **Scanner covers 29 of 45**: the 6 delisted-ETF commodities and the 10 EM/cross FX pairs are excluded because their series gap enough that a ranked RSI beside a liquid contract reads as comparable when it isn't — the exclusion is stated on-page and all 45 still chart. Levels go through `formatInstrumentQuote()`, so grains stay ¢/bu and yields stay % |
 
 `PriceChartCard` takes `valueFormat: 'usd' | 'plain'` (default `'usd'`, existing pages unchanged) — use `'plain'` for FX, yields, and cents-quoted contracts so axes aren't $-mislabeled. **Cross-cutting integration shipped 2026-07-21**: `market: 'macro'` exists across the provider registry (11 built-in rows; macro routes are registry-driven with utilization), tier categories, Integrations sections, and agents (`macro-research`/`macro-screener`, toolset `'macro'`); all 45 macro instruments (19 commodities + 18 currencies + 8 rates) are `sec:`-keyed entries in `instruments.ts` (classes `commodity`/`currency`/`rate`, `detailPath` slug routing) so watchlists/portfolios/Compare can hold them.
 
 ### ETFs & Funds module (`/funds`)
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
-| Fund Registry | `/funds` | 🟢 Live | `fundCatalog.ts` + live quotes; 118 ETFs/mutual funds. Catalog carries provenance (`getFundDataProvenance()`, stale after 120d) rendered on detail pages — its expense ratios are computed on by `computeFeeDrag`, the builder's fee math, and `reviewPlan`'s fee-creep check |
+| Fund Registry | `/funds` | 🟡 Key-gated | `fundCatalog.ts` + live quotes; 118 ETFs/mutual funds. Catalog carries provenance (`getFundDataProvenance()`, stale after 120d) rendered on detail pages — its expense ratios are computed on by `computeFeeDrag`, the builder's fee math, and `reviewPlan`'s fee-creep check |
 | Fund Detail | `/funds/[symbol]` | 🟢 Live | Live chart/news + fund facts; Fee Drag Analyzer, top holdings |
 
 ---
@@ -583,7 +688,7 @@ A separate, agent-optimised REST API lives at `/api/v1/`. It is distinct from `/
 | `GET /api/v1/transfer/routes?from=binance&to=coinbase&coin=usdt&amount=1000` | Transfer route finder |
 | `GET /api/v1/staking/opportunities?coin=eth&category=liquid&max_risk=5` | Staking options with risk scores |
 | `GET /api/v1/news?coin=btc&sentiment=negative&limit=10` | News with sentiment/category tagging |
-| `GET /api/v1/securities/quotes?symbols=AAPL,VOO,GC=F` | Stock/ETF/fund/macro quotes (Yahoo notation, max 25; same ladder + reference fallback as the UI, `reference: true` rows labeled) |
+| `GET /api/v1/securities/quotes?symbols=AAPL,VOO,GC=F` | Stock/ETF/fund/macro quotes (max 25; same keyed ladder + reference fallback as the UI, `reference: true` rows labeled) |
 | `GET /api/v1/securities/history?symbol=AAPL&range=1y` | Daily close history for any quotable symbol (1mo–max) |
 | `GET /api/v1/macro/yield-curve` | Official treasury.gov 13-maturity par curve + 2s10s/3m10y spreads + shape |
 | `GET /api/v1/macro/fx-rates?symbols=EUR,JPY` | Daily ECB reference FX (official tier only — extended community tier deliberately not exposed) |
@@ -615,7 +720,7 @@ A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes Finan
 | `get_staking_opportunities` | Staking options filtered by coin, category, max risk |
 | `compare_staking_risk` | Side-by-side risk comparison of staking providers |
 | `get_crypto_news` | Recent news with sentiment, category, and coin tags |
-| `get_security_quotes` | Stock/ETF/fund/macro quotes (Yahoo notation; reference prices flagged) |
+| `get_security_quotes` | Stock/ETF/fund/macro quotes (reference prices flagged) |
 | `get_security_history` | Daily close history + 52-week range for any quotable symbol |
 | `get_yield_curve` | Official Treasury par curve with spreads and shape |
 | `get_fx_rates` | Daily ECB reference FX rates (official tier) |
@@ -660,6 +765,10 @@ Next *build-time* poison pill (it fails the bundle if a module reaches the clien
 dependency, so it does not exist in `node_modules` — vitest could not resolve it, and all seven
 `lib/server/` modules importing it were untestable. The alias restores that; the real bundler check
 is unaffected. Add tests for `lib/server/` freely.
+
+`lib/server/sourceTerms.ts` and `termsProbe.ts` are pure and tested for the same reason —
+`sourceTerms.test.ts` doubles as the repo-wide guard that every host in `dataSources.ts`
+carries a terms verdict, so a new undocumented source fails the suite rather than shipping.
 
 Anything producing a **dollar figure or a percentage a user acts on** should be pure and tested:
 `computeNetworkFees()`, `computeFeeDrag()`, `portfolioBuilder.ts`, `lookThrough.ts`, `lib/budget/`,
