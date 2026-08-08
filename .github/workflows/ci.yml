@@ -193,7 +193,7 @@ jobs:
 
   # ─── Frontend: Lint & Type Check ──────────────────────────────────────────
   frontend-check:
-    name: Frontend Check (ESLint + TypeScript + Build)
+    name: Frontend Check (ESLint + TypeScript + Tests + Build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -244,6 +244,26 @@ jobs:
         run: |
           cd frontend
           npm run type-check
+
+      # Runs BEFORE the build: the suite takes seconds and the build takes over a
+      # minute, so a logic regression should not wait on a bundle to be reported.
+      #
+      # This is a step inside frontend-check rather than its own job on purpose.
+      # The ci-success gate is `if: always()` and checks each job's result by
+      # name, so a new job that is added to `needs:` but missed in the check
+      # block — or vice versa — passes silently. A step in an already-gated job
+      # cannot be un-gated by omission.
+      #
+      # Until 2026-08-08 CI never ran these tests at all. The frontend suite
+      # (587 tests) executed only when someone ran it locally, which meant the
+      # source-terms enforcement in lib/server/__tests__/sourceTerms.test.ts —
+      # the check that fails the build when a data source is unregistered or
+      # prohibited — could not fail anything. A well-written checker that never
+      # runs is indistinguishable from no checker.
+      - name: Run frontend tests
+        run: |
+          cd frontend
+          npm test
 
       - name: Build Next.js application
         env:
