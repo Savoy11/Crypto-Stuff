@@ -666,6 +666,10 @@ ul, ol {
   position: relative;
 }
 
+.sticky {
+  position: sticky;
+}
+
 .inset-0 {
   inset: 0px;
 }
@@ -1565,6 +1569,10 @@ ul, ol {
 
 .max-w-\[88\%\] {
   max-width: 88%;
+}
+
+.max-w-\[92vw\] {
+  max-width: 92vw;
 }
 
 .max-w-\[calc\(100vw-2rem\)\] {
@@ -2534,6 +2542,10 @@ ul, ol {
   background-color: rgb(251 191 36 / 0.1);
 }
 
+.bg-amber-400\/5 {
+  background-color: rgb(251 191 36 / 0.05);
+}
+
 .bg-amber-500 {
   --tw-bg-opacity: 1;
   background-color: rgb(245 158 11 / var(--tw-bg-opacity, 1));
@@ -2776,6 +2788,10 @@ ul, ol {
 
 .bg-red-500\/5 {
   background-color: rgb(239 68 68 / 0.05);
+}
+
+.bg-red-500\/\[0\.04\] {
+  background-color: rgb(239 68 68 / 0.04);
 }
 
 .bg-red-900\/20 {
@@ -3494,6 +3510,10 @@ ul, ol {
   color: rgb(253 230 138 / var(--tw-text-opacity, 1));
 }
 
+.text-amber-200\/90 {
+  color: rgb(253 230 138 / 0.9);
+}
+
 .text-amber-300 {
   --tw-text-opacity: 1;
   color: rgb(252 211 77 / var(--tw-text-opacity, 1));
@@ -4129,8 +4149,8 @@ ul, ol {
   border-color: rgb(30 36 51 / 0.8);
 }
 
-.hover\:border-red-400\/30:hover {
-  border-color: rgb(248 113 113 / 0.3);
+.hover\:border-red-400\/40:hover {
+  border-color: rgb(248 113 113 / 0.4);
 }
 
 .hover\:border-red-500\/30:hover {
@@ -4279,6 +4299,11 @@ ul, ol {
 .hover\:text-red-400:hover {
   --tw-text-opacity: 1;
   color: rgb(248 113 113 / var(--tw-text-opacity, 1));
+}
+
+.hover\:text-slate-100:hover {
+  --tw-text-opacity: 1;
+  color: rgb(241 245 249 / var(--tw-text-opacity, 1));
 }
 
 .hover\:text-slate-200:hover {

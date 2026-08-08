@@ -121,7 +121,7 @@ spec:
               drop: [ALL]
 
         - name: run-migrations
-          image: ${ECR_REGISTRY}/fn-backend:${IMAGE_TAG}
+          image: ${ECR_REGISTRY}/${ECR_REPO_BACKEND}:${IMAGE_TAG}
           command: ["alembic", "upgrade", "head"]
           envFrom:
             - configMapRef:
@@ -138,7 +138,7 @@ spec:
 
       containers:
         - name: backend
-          image: ${ECR_REGISTRY}/fn-backend:${IMAGE_TAG}
+          image: ${ECR_REGISTRY}/${ECR_REPO_BACKEND}:${IMAGE_TAG}
           imagePullPolicy: Always
           ports:
             - name: http

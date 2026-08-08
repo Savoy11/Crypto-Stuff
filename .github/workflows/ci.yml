@@ -193,7 +193,7 @@ jobs:
 
   # ─── Frontend: Lint & Type Check ──────────────────────────────────────────
   frontend-check:
-    name: Frontend Check (ESLint + TypeScript + Build)
+    name: Frontend Check (ESLint + TypeScript + Tests + Build)
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -244,6 +244,47 @@ jobs:
         run: |
           cd frontend
           npm run type-check
+
+      # Runs BEFORE the build: the suite takes seconds and the build takes over a
+      # minute, so a logic regression should not wait on a bundle to be reported.
+      #
+      # This is a step inside frontend-check rather than its own job on purpose.
+      # The ci-success gate is `if: always()` and checks each job's result by
+      # name, so a new job that is added to `needs:` but missed in the check
+      # block — or vice versa — passes silently. A step in an already-gated job
+      # cannot be un-gated by omission.
+      #
+      # Until 2026-08-08 CI never ran these tests at all. The frontend suite
+      # (587 tests) executed only when someone ran it locally, which meant the
+      # source-terms enforcement in lib/server/__tests__/sourceTerms.test.ts —
+      # the check that fails the build when a data source is unregistered or
+      # prohibited — could not fail anything. A well-written checker that never
+      # runs is indistinguishable from no checker.
+      - name: Run frontend tests
+        run: |
+          cd frontend
+          npm test
+
+      # Two separate guarantees, both previously unenforced.
+      #
+      # 1. --verify fails when a /live-data route fetches a host the registry
+      #    does not name. This is the gap the source-terms test cannot cover:
+      #    that test walks the hosts IN dataSources.ts, so a host nobody
+      #    declared is invisible to it. Until 2026-08-08 --verify printed its
+      #    findings and exited 0, so it gated nothing either.
+      #
+      # 2. DATA-SOURCES.md is generated, never hand-edited, and drifts silently
+      #    when someone adds a registry entry without regenerating — it was two
+      #    surfaces stale when this step was written. The `-I` skips the
+      #    "Last generated" stamp, which changes daily and would otherwise fail
+      #    this every day after the commit.
+      - name: Data-source registry ↔ route code
+        run: |
+          cd frontend
+          npm run data-sources -- --verify
+          cd ..
+          git diff --exit-code -I'^_Last generated' DATA-SOURCES.md \
+            || { echo "::error::DATA-SOURCES.md is stale — run 'npm run data-sources' and commit the result"; exit 1; }
 
       - name: Build Next.js application
         env:

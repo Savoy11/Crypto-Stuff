@@ -8,7 +8,7 @@ import {
   TrendingUp, TrendingDown, Minus, RefreshCw, Activity,
   CandlestickChart as CandlestickIcon, AreaChart as AreaIcon, BarChart2,
   LineChart as LineIcon, Layers, GitBranch,
-  MousePointer2, PenLine, MoveHorizontal, Square, Hash, Trash2, Loader2, Search,
+  Loader2, Search,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ModuleGate } from '@/components/layout/ModuleGate'
@@ -16,6 +16,9 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import type { ChartType, DrawingTool, Drawing } from '@/components/charts/CandlestickChart'
+import { ALL_INDICATORS } from '@/components/charts/indicatorRegistry'
+import { IndicatorPicker } from '@/components/charts/IndicatorPicker'
+import { DrawingToolbar } from '@/components/charts/DrawingToolbar'
 import type { LucideIcon } from 'lucide-react'
 import {
   rsi, sma, computeSignalSummary, detectPatterns,
@@ -136,6 +139,10 @@ function SymbolSearch({ symbol, onSelect }: { symbol: string; onSelect: (s: stri
 // shared CandlestickChart, indicator registry, signal engine, and pattern
 // detector — fed by /live-data/security-ohlcv instead of the crypto route.
 
+// Daily bars only, starting at 1M. The crypto surface offers 1H/4H on purpose
+// and this one does not: equities trade a ~6.5h session, so an intraday series
+// is dominated by open/close effects and overnight gaps rather than trend. Not
+// an oversight — see the note on the crypto page's RANGES.
 const RANGES = ['1M', '3M', '6M', '1Y', '5Y', 'MAX'] as const
 type Range = typeof RANGES[number]
 
@@ -150,35 +157,12 @@ const CHART_TYPES: { type: ChartType; label: string; Icon: LucideIcon }[] = [
   { type: 'baseline',    label: 'Baseline',    Icon: Layers },
 ]
 
-const INDICATORS: Array<{ key: string; label: string; group: 'overlay' | 'panel' }> = [
-  { key: 'ema20',    label: 'EMA 20',          group: 'overlay' },
-  { key: 'ema50',    label: 'EMA 50',          group: 'overlay' },
-  { key: 'ema200',   label: 'EMA 200',         group: 'overlay' },
-  { key: 'sma20',    label: 'SMA 20',          group: 'overlay' },
-  { key: 'sma50',    label: 'SMA 50',          group: 'overlay' },
-  { key: 'sma200',   label: 'SMA 200',         group: 'overlay' },
-  { key: 'bb',       label: 'Bollinger Bands', group: 'overlay' },
-  { key: 'keltner',  label: 'Keltner',         group: 'overlay' },
-  { key: 'donchian', label: 'Donchian',        group: 'overlay' },
-  { key: 'vwap',     label: 'VWAP',            group: 'overlay' },
-  { key: 'psar',     label: 'Parabolic SAR',   group: 'overlay' },
-  { key: 'ichimoku', label: 'Ichimoku',        group: 'overlay' },
-  { key: 'rsi',      label: 'RSI (14)',        group: 'panel' },
-  { key: 'macd',     label: 'MACD',            group: 'panel' },
-  { key: 'stoch',    label: 'Stochastic',      group: 'panel' },
-  { key: 'stochrsi', label: 'Stoch RSI',       group: 'panel' },
-  { key: 'cci',      label: 'CCI (20)',        group: 'panel' },
-  { key: 'williamsr', label: 'Williams %R',    group: 'panel' },
-]
-
-const DRAWING_TOOLS: Array<{ tool: DrawingTool; label: string; Icon: LucideIcon }> = [
-  { tool: 'none',      label: 'Select',     Icon: MousePointer2 },
-  { tool: 'trendline', label: 'Trendline',  Icon: PenLine },
-  { tool: 'hray',      label: 'H-Ray',      Icon: MoveHorizontal },
-  { tool: 'rectangle', label: 'Rectangle',  Icon: Square },
-  { tool: 'fib',       label: 'Fibonacci',  Icon: Hash },
-]
-
+// Indicators and drawing tools come from the shared TA engine, not a private
+// list. This page used to declare 18 of the 62 the engine can render and 5 of
+// the 6 drawing tools — not by decision, but because three pages each kept
+// their own copy and only crypto's was ever extended.
+//
+// Stocks and ETFs carry real volume, so the full set applies here.
 const SIGNAL_STYLES: Record<Signal, { label: string; color: string; Icon: LucideIcon }> = {
   strong_buy:  { label: 'Strong Buy',  color: 'text-emerald-400', Icon: TrendingUp },
   buy:         { label: 'Buy',         color: 'text-emerald-400', Icon: TrendingUp },
@@ -260,30 +244,6 @@ function ChartTab() {
           ))}
         </select>
 
-        {/* Drawing tools */}
-        <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5">
-          {DRAWING_TOOLS.map(({ tool, label, Icon }) => (
-            <button
-              key={tool}
-              onClick={() => setDrawingTool(tool)}
-              title={label}
-              className={clsx('p-1.5 rounded transition-colors',
-                drawingTool === tool ? 'bg-accent-blue/20 text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
-            >
-              <Icon size={13} aria-hidden />
-            </button>
-          ))}
-          {drawings.length > 0 && (
-            <button
-              onClick={() => setDrawings([])}
-              title="Clear drawings"
-              className="p-1.5 rounded text-text-muted hover:text-red-400 transition-colors"
-            >
-              <Trash2 size={13} aria-hidden />
-            </button>
-          )}
-        </div>
-
         <button
           onClick={() => refetch()}
           className="ml-auto flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-border bg-bg-elevated text-xs text-text-secondary hover:text-text-primary transition-colors"
@@ -292,23 +252,24 @@ function ChartTab() {
         </button>
       </div>
 
-      {/* Indicator chips */}
-      <div className="flex flex-wrap gap-1.5">
-        {INDICATORS.map(({ key, label, group }) => (
-          <button
-            key={key}
-            onClick={() => toggleIndicator(key)}
-            className={clsx('px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors',
-              active.has(key)
-                ? group === 'overlay'
-                  ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                  : 'bg-violet-500/15 text-violet-400 border-violet-500/30'
-                : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Indicators */}
+      <IndicatorPicker
+        indicators={ALL_INDICATORS}
+        active={active}
+        onToggle={toggleIndicator}
+        onClearAll={() => setActive(new Set())}
+      />
+
+      {/* Drawing toolbar — its own row directly above the chart, matching the
+          crypto and macro surfaces. It used to sit up in the controls row beside
+          the symbol picker, so the same control lived in two different places
+          depending on which asset class you were looking at. */}
+      <DrawingToolbar
+        active={drawingTool}
+        onChange={setDrawingTool}
+        drawings={drawings}
+        onClear={() => setDrawings([])}
+      />
 
       {/* Chart + sidebar */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">

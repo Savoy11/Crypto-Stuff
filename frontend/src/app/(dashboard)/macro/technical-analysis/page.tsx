@@ -14,7 +14,10 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
-import type { ChartType } from '@/components/charts/CandlestickChart'
+import type { ChartType, DrawingTool, Drawing } from '@/components/charts/CandlestickChart'
+import { indicatorsFor, VOLUME_INDICATORS } from '@/components/charts/indicatorRegistry'
+import { IndicatorPicker } from '@/components/charts/IndicatorPicker'
+import { DrawingToolbar } from '@/components/charts/DrawingToolbar'
 import type { LucideIcon } from 'lucide-react'
 import {
   rsi, sma, computeSignalSummary, detectPatterns,
@@ -102,6 +105,10 @@ const SCANNER_INSTRUMENTS = MACRO_INSTRUMENTS.filter((m) => m.liquid)
 
 // ─── Controls ─────────────────────────────────────────────────────────────────
 
+// No intraday, for the same reason as equities. Also no MAX: these are
+// continuous front-month futures and Yahoo FX series, so the far end of a "max"
+// window is stitched across rolled contracts and reads as one price history
+// when it is not. 5Y is the longest window the stitching stays honest over.
 type Range = '3M' | '6M' | '1Y' | '2Y' | '5Y'
 const RANGES: Range[] = ['3M', '6M', '1Y', '2Y', '5Y']
 
@@ -114,26 +121,16 @@ const CHART_TYPES: Array<{ type: ChartType; label: string; Icon: LucideIcon }> =
   { type: 'baseline',    label: 'Baseline',    Icon: Layers },
 ]
 
-const INDICATORS: Array<{ key: string; label: string; group: 'overlay' | 'panel' }> = [
-  { key: 'ema20',     label: 'EMA 20',          group: 'overlay' },
-  { key: 'ema50',     label: 'EMA 50',          group: 'overlay' },
-  { key: 'ema200',    label: 'EMA 200',         group: 'overlay' },
-  { key: 'sma50',     label: 'SMA 50',          group: 'overlay' },
-  { key: 'sma200',    label: 'SMA 200',         group: 'overlay' },
-  { key: 'bb',        label: 'Bollinger Bands', group: 'overlay' },
-  { key: 'keltner',   label: 'Keltner',         group: 'overlay' },
-  { key: 'donchian',  label: 'Donchian',        group: 'overlay' },
-  { key: 'psar',      label: 'Parabolic SAR',   group: 'overlay' },
-  { key: 'ichimoku',  label: 'Ichimoku',        group: 'overlay' },
-  { key: 'rsi',       label: 'RSI (14)',        group: 'panel' },
-  { key: 'macd',      label: 'MACD',            group: 'panel' },
-  { key: 'stoch',     label: 'Stochastic',      group: 'panel' },
-  { key: 'stochrsi',  label: 'Stoch RSI',       group: 'panel' },
-  { key: 'cci',       label: 'CCI (20)',        group: 'panel' },
-  { key: 'williamsr', label: 'Williams %R',     group: 'panel' },
-]
-// VWAP is deliberately absent: it needs meaningful volume, and continuous
-// front-month futures and FX series don't carry it usefully.
+// Indicators come from the shared TA engine. Macro instruments price through the
+// same OHLCV path as equities, but FX pairs and yield indices carry no meaningful
+// volume, so the 11 volume-derived indicators are withheld rather than shown
+// drawing a flat or nonsense series. The picker names them, so the omission is
+// visible instead of just looking like a shorter menu.
+const MACRO_INDICATORS = indicatorsFor(false)
+
+const VOLUME_EXCLUDED_NOTE =
+  `Not offered here: ${VOLUME_INDICATORS.map((i) => i.label).join(', ')}. ` +
+  `These read candle volume, which FX pairs and yield indices do not carry.`
 
 const SIGNAL_STYLES: Record<Signal, { label: string; color: string; Icon: LucideIcon }> = {
   strong_buy:  { label: 'Strong Buy',  color: 'text-emerald-400', Icon: TrendingUp },
@@ -164,6 +161,8 @@ function ChartTab() {
   const [range, setRange] = useState<Range>('1Y')
   const [chartType, setChartType] = useState<ChartType>('candlestick')
   const [active, setActive] = useState<Set<string>>(new Set(['ema50', 'ema200', 'rsi', 'macd']))
+  const [drawingTool, setDrawingTool] = useState<DrawingTool>('none')
+  const [drawings, setDrawings] = useState<Drawing[]>([])
 
   const { data, isLoading, isFetching, refetch } = useOhlcv(symbol, range)
   const candles = useMemo(() => data?.candles ?? [], [data])
@@ -194,7 +193,9 @@ function ChartTab() {
             named areas is a list to browse, not a universe to search. */}
         <select
           value={symbol}
-          onChange={(e) => setSymbol(e.target.value)}
+          // Drawings are anchored to price levels, so they are meaningless once
+          // the instrument changes — gold's trendline on a EUR/USD chart.
+          onChange={(e) => { setSymbol(e.target.value); setDrawings([]) }}
           className="bg-bg-secondary border border-border rounded px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-blue/60 min-w-[220px]"
           aria-label="Macro instrument"
         >
@@ -245,23 +246,24 @@ function ChartTab() {
         </button>
       </div>
 
-      {/* Indicator chips */}
-      <div className="flex flex-wrap gap-1.5">
-        {INDICATORS.map(({ key, label, group }) => (
-          <button
-            key={key}
-            onClick={() => toggleIndicator(key)}
-            className={clsx('px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors',
-              active.has(key)
-                ? group === 'overlay'
-                  ? 'bg-accent-blue/15 text-accent-blue border-accent-blue/30'
-                  : 'bg-violet-500/15 text-violet-400 border-violet-500/30'
-                : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      {/* Indicators */}
+      <IndicatorPicker
+        indicators={MACRO_INDICATORS}
+        active={active}
+        onToggle={toggleIndicator}
+        onClearAll={() => setActive(new Set())}
+        footnote={VOLUME_EXCLUDED_NOTE}
+      />
+
+      {/* Drawing toolbar. This page shipped without one even though it renders
+          the same CandlestickChart as the other two surfaces, so trendlines and
+          Fibonacci were available on a stock but not on gold. */}
+      <DrawingToolbar
+        active={drawingTool}
+        onChange={setDrawingTool}
+        drawings={drawings}
+        onClear={() => setDrawings([])}
+      />
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
         <div className="xl:col-span-3 rounded-card border border-border bg-bg-card p-3">
@@ -278,6 +280,9 @@ function ChartTab() {
                 candles={candles}
                 activeIndicators={active}
                 chartType={chartType}
+                drawingTool={drawingTool}
+                drawings={drawings}
+                onDrawingComplete={(d: Drawing) => { setDrawings((prev) => [...prev, d]); setDrawingTool('none') }}
                 patterns={patterns}
               />
             </div>
