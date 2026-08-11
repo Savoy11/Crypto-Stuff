@@ -52,6 +52,15 @@ structure, regulatory research, disclosures and tax compliance are decided once,
 - [ ] **Which countries can access which product**, and whether geo-blocking is cheaper than
       compliance in the hard jurisdictions. (Chronolens tracks the site-side implementation;
       the *decision* is here.)
+- [ ] 🔁 **Standing item: re-check data-source licensing on a cadence, for both products.**
+      Not a one-time gate. A licence change is *silent* — a broken feed announces itself, but a
+      provider changing its terms breaks nothing: the code keeps fetching while the business
+      becomes non-compliant. Applies to CAEP's provider registry (CoinGecko, FMP, Finnhub,
+      Twelve Data, Tiingo, Alpha Vantage, exchange APIs) exactly as it does to Chronolens's
+      eleven feeds. Quarterly once live, plus on every trigger: a new source is added, ads or
+      affiliate links go live, beta → public, a new jurisdiction opens, a provider announces
+      terms/pricing changes, or a plan is upgraded. Each product's checklist tracks its own
+      per-source verification; the obligation to keep looking lives here.
 
 ## 3. Disclosures & public documents
 
