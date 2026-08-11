@@ -1420,3 +1420,42 @@ tool reads exactly what the UI reads — one source of truth, no agent-only data
   (the profile was written for it, the chains are on equities/ETFs). If macro options (options
   on futures) ever matter, revisit — don't pre-build an entitlement for a module that may
   never earn one.
+
+---
+
+## Maintenance — dependency majors held for verification (2026-08-11)
+
+Queue-clearing pass on 2026-08-11 merged every Dependabot PR that was **CI-green and current
+with `main`** (#78, #55, #46, #53) plus the type-stub and test-tooling majors (#48, #51, #56).
+The six below were **deliberately not merged**: each changes runtime or build behaviour, each
+was ~48 commits behind `main`, and **none had a CI run recent enough to mean anything** — a
+green result from 2026-07-30 does not describe today's `main`.
+
+They merge cleanly. That is not the same as building, which is the whole reason they are here
+rather than on `main`.
+
+**Do not batch these.** One PR at a time: rebase onto current `main`, let CI run, read the
+result, then merge or close. Landing several at once makes a red build ambiguous about which
+bump caused it.
+
+| PR | Bump | Why it is held |
+|---|---|---|
+| #54 | TypeScript 5.9.3 → **7.0.2** (frontend) | Compiler major (native port). `package.json` declares `^5.4.0`; strict mode is on repo-wide, so new inference can surface errors anywhere. Expect real work, not a version-string edit. |
+| #47 | TypeScript 5.9.3 → **7.0.2** (`mcp-server/`) | Same major, separate package. Pair it with #54 so the two TS versions do not drift. |
+| #52 | recharts 2.15.4 → **3.10.1** (frontend) | Breaking API changes, and **~11 files** import it. Charts render without throwing when props go stale, so this needs looking at the pages, not just a green `tsc`. |
+| #50 | date-fns 3.6.0 → **4.4.0** (frontend) | **~11 files.** v4's timezone handling changed; date bugs are silent and land in user-visible figures. |
+| #45 | node 22-alpine → **26-alpine** (frontend Docker) | Two LTS jumps. Affects the built image and both CD workflows, not local dev — verify against staging before production. |
+| #59 | redis 5.3.1 → **8.0.1** (backend) | Client major on a runtime dependency. |
+
+Also open, awaiting a Dependabot rebase (both conflict only on `backend/poetry.lock`, which
+#55/#56 regenerated — the lock must be regenerated, not hand-resolved, or its `content-hash`
+stops matching `pyproject.toml`):
+
+- **#57** structlog 24.4.0 → 26.1.0
+- **#58** pytest-asyncio 0.23.8 → 1.4.0
+
+Both are low-risk and were approved to merge; they just need the rebase to land first.
+
+**Closed in the same pass**, superseded rather than deferred — reasons recorded on each PR:
+#38 (its `macro-news` route and `macroPillar.ts` already on `main`), #21 (149 behind; only
+long-rewritten docs remained), #39 (175-line checklist under the retired CAEP name).
