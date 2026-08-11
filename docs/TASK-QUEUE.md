@@ -1445,17 +1445,45 @@ bump caused it.
 | #52 | recharts 2.15.4 → **3.10.1** (frontend) | Breaking API changes, and **~11 files** import it. Charts render without throwing when props go stale, so this needs looking at the pages, not just a green `tsc`. |
 | #50 | date-fns 3.6.0 → **4.4.0** (frontend) | **~11 files.** v4's timezone handling changed; date bugs are silent and land in user-visible figures. |
 | #45 | node 22-alpine → **26-alpine** (frontend Docker) | Two LTS jumps. Affects the built image and both CD workflows, not local dev — verify against staging before production. |
-| #59 | redis 5.3.1 → **8.0.1** (backend) | Client major on a runtime dependency. |
+| #59 | redis 5.3.1 → **8.1.0** (backend) | Client major on a runtime dependency. Dependabot moved the target from 8.0.1 to 8.1.0 during its rebase; the branch name still says `redis-8.0.1`. |
 
-Also open, awaiting a Dependabot rebase (both conflict only on `backend/poetry.lock`, which
-#55/#56 regenerated — the lock must be regenerated, not hand-resolved, or its `content-hash`
-stops matching `pyproject.toml`):
+### What CI said once these were rebased
 
-- **#57** structlog 24.4.0 → 26.1.0
-- **#58** pytest-asyncio 0.23.8 → 1.4.0
+Rebasing them onto current `main` produced the signal that was missing, and it split the group:
 
-Both are low-risk and were approved to merge; they just need the rebase to land first.
+- **#54 (TypeScript 7, frontend) — red.** The one bump that would have broken the build. It is
+  the reason this section exists.
+- **#47 (TypeScript 7, `mcp-server`) — green.** It passes because that package is small. Merging
+  it alone would leave the two packages on different major TypeScript versions, which is exactly
+  the drift noted above — **land it with #54 or not at all.**
+- **#59 (redis 8.1.0) — green.** Worth remembering that a green run on a runtime client major
+  mostly proves it imports, not that it behaves.
+- **#45, #50, #52** — still unrebased, still unverified.
+
+### Resolved — merged 2026-08-11
+
+- **#57** structlog 24.4.0 → 26.1.0 — green after rebase, merged.
+- **#58** pytest-asyncio 0.23.8 → 1.4.0 — green after rebase, merged.
+
+Both took **two** rebase cycles, and the reason generalises: every Poetry PR rewrites
+`backend/poetry.lock`'s `content-hash`, so any two of them conflict by construction and only one
+can merge per cycle. Expect to serialise them — rebase, merge, rebase the next. Hand-resolving
+the lock is not the shortcut it looks like; a hand-edited `content-hash` stops matching
+`pyproject.toml`.
 
 **Closed in the same pass**, superseded rather than deferred — reasons recorded on each PR:
 #38 (its `macro-news` route and `macroPillar.ts` already on `main`), #21 (149 behind; only
 long-rewritten docs remained), #39 (175-line checklist under the retired CAEP name).
+
+### Unrelated finding: `main` shows a permanent red X
+
+Pushing to `main` triggers `cd-staging.yml`, which fails its preflight with
+`Missing repository secret(s): AWS_ACCOUNT_ID` — every time, on every push, since the
+provisionable AWS deploy path landed. Nothing is wrong with the code; the deploy path has
+simply never been provisioned (runbook: `docs/deployment/aws-provisioning.md`).
+
+Worth fixing or muting, because it costs the signal: `ci.yml` runs on `pull_request` only
+(`push` is scoped to `develop`), so **`main` has no post-merge test/lint/build run at all** —
+the sole green signal in this repo is a PR's own pre-merge CI. A red X on `main` that everyone
+learns to ignore, sitting next to no real `main` verification, is how a genuine breakage gets
+missed.
