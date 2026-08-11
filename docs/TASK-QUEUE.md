@@ -1420,3 +1420,70 @@ tool reads exactly what the UI reads — one source of truth, no agent-only data
   (the profile was written for it, the chains are on equities/ETFs). If macro options (options
   on futures) ever matter, revisit — don't pre-build an entitlement for a module that may
   never earn one.
+
+---
+
+## Maintenance — dependency majors held for verification (2026-08-11)
+
+Queue-clearing pass on 2026-08-11 merged every Dependabot PR that was **CI-green and current
+with `main`** (#78, #55, #46, #53) plus the type-stub and test-tooling majors (#48, #51, #56).
+The six below were **deliberately not merged**: each changes runtime or build behaviour, each
+was ~48 commits behind `main`, and **none had a CI run recent enough to mean anything** — a
+green result from 2026-07-30 does not describe today's `main`.
+
+They merge cleanly. That is not the same as building, which is the whole reason they are here
+rather than on `main`.
+
+**Do not batch these.** One PR at a time: rebase onto current `main`, let CI run, read the
+result, then merge or close. Landing several at once makes a red build ambiguous about which
+bump caused it.
+
+| PR | Bump | Why it is held |
+|---|---|---|
+| #54 | TypeScript 5.9.3 → **7.0.2** (frontend) | Compiler major (native port). `package.json` declares `^5.4.0`; strict mode is on repo-wide, so new inference can surface errors anywhere. Expect real work, not a version-string edit. |
+| #47 | TypeScript 5.9.3 → **7.0.2** (`mcp-server/`) | Same major, separate package. Pair it with #54 so the two TS versions do not drift. |
+| #52 | recharts 2.15.4 → **3.10.1** (frontend) | Breaking API changes, and **~11 files** import it. Charts render without throwing when props go stale, so this needs looking at the pages, not just a green `tsc`. |
+| #50 | date-fns 3.6.0 → **4.4.0** (frontend) | **~11 files.** v4's timezone handling changed; date bugs are silent and land in user-visible figures. |
+| #45 | node 22-alpine → **26-alpine** (frontend Docker) | Two LTS jumps. Affects the built image and both CD workflows, not local dev — verify against staging before production. |
+| #59 | redis 5.3.1 → **8.1.0** (backend) | Client major on a runtime dependency. Dependabot moved the target from 8.0.1 to 8.1.0 during its rebase; the branch name still says `redis-8.0.1`. |
+
+### What CI said once these were rebased
+
+Rebasing them onto current `main` produced the signal that was missing, and it split the group:
+
+- **#54 (TypeScript 7, frontend) — red.** The one bump that would have broken the build. It is
+  the reason this section exists.
+- **#47 (TypeScript 7, `mcp-server`) — green.** It passes because that package is small. Merging
+  it alone would leave the two packages on different major TypeScript versions, which is exactly
+  the drift noted above — **land it with #54 or not at all.**
+- **#59 (redis 8.1.0) — green.** Worth remembering that a green run on a runtime client major
+  mostly proves it imports, not that it behaves.
+- **#45, #50, #52** — still unrebased, still unverified.
+
+### Resolved — merged 2026-08-11
+
+- **#57** structlog 24.4.0 → 26.1.0 — green after rebase, merged.
+- **#58** pytest-asyncio 0.23.8 → 1.4.0 — green after rebase, merged.
+
+Both took **two** rebase cycles, and the reason generalises: every Poetry PR rewrites
+`backend/poetry.lock`'s `content-hash`, so any two of them conflict by construction and only one
+can merge per cycle. Expect to serialise them — rebase, merge, rebase the next. Hand-resolving
+the lock is not the shortcut it looks like; a hand-edited `content-hash` stops matching
+`pyproject.toml`.
+
+**Closed in the same pass**, superseded rather than deferred — reasons recorded on each PR:
+#38 (its `macro-news` route and `macroPillar.ts` already on `main`), #21 (149 behind; only
+long-rewritten docs remained), #39 (175-line checklist under the retired CAEP name).
+
+### Unrelated finding: `main` shows a permanent red X
+
+Pushing to `main` triggers `cd-staging.yml`, which fails its preflight with
+`Missing repository secret(s): AWS_ACCOUNT_ID` — every time, on every push, since the
+provisionable AWS deploy path landed. Nothing is wrong with the code; the deploy path has
+simply never been provisioned (runbook: `docs/deployment/aws-provisioning.md`).
+
+Worth fixing or muting, because it costs the signal: `ci.yml` runs on `pull_request` only
+(`push` is scoped to `develop`), so **`main` has no post-merge test/lint/build run at all** —
+the sole green signal in this repo is a PR's own pre-merge CI. A red X on `main` that everyone
+learns to ignore, sitting next to no real `main` verification, is how a genuine breakage gets
+missed.
