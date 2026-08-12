@@ -125,6 +125,27 @@ module registry.
 > legacy-backend rewrite), optimistic Zustand store with client-UUID ids,
 > one-time localStorage imports, plan→portfolio drift link persisted.
 > Wallets / watchlist remain.
+>
+> **Update (2026-08-12) — verified in source; two items remain, not three.**
+> **Watchlist is DONE** (the note above predates it): `/api/user/watchlists`
+> (+`/[id]`), `useWatchlistStore` optimistic with client-UUID ids and a
+> one-time merging localStorage import. Still open:
+> - **Wallets are still localStorage.** `useWalletStore` persists to
+>   `fn:wallets` via zustand `persist`; there is no `/api/user/wallets` route
+>   (the namespace holds only budget, builder-plans, portfolios, watchlists).
+>   Mechanical work — portfolios/watchlists are the template.
+> - **The trade ledger is scaffolded but unwired.** `trade_transactions` is
+>   fully defined (`schema/invest.ts`, created in migration 0000, with a
+>   `(portfolio_id, instrument_id, executed_at)` index whose comment says it
+>   exists to keep cost-basis recomputation a range scan) and has **zero
+>   consumers** — no route, no UI, no cost-basis function. What exists instead
+>   is `holdings.avg_cost_basis` (surfaced as `entryPrice`), a hand-entered
+>   number the portfolios page computes unrealized P&L from. Realized P&L does
+>   not exist. **So the "Done when" below is NOT met — trades cannot be
+>   recorded.** Wiring it needs `/api/user/trades`, a pure+tested lot-tracking
+>   cost-basis function (house rule for anything producing a dollar figure), a
+>   FIFO-vs-average decision, and entry UI — plus a migration story for existing
+>   holdings that carry an `avg_cost_basis` with no trades behind it.
 - Migrate portfolios / wallets / watchlist pages from localStorage & mocks to
   DB-backed API routes.
 - Trade transaction history (buy/sell/transfer) → cost basis, realized and
@@ -164,6 +185,20 @@ the month's budget page tells the truth.
 with history and a credible 12-month projection.
 
 ### Phase 4 — Equities module (first new asset class)
+> Progress (2026-08-12, backfilled — this phase shipped without ever being
+> annotated here): **delivered as the `equities` suite module.** Stock Registry
+> (`/equities`, universe from `/live-data/stock-universe` with the
+> `equityCatalog.ts` fallback), detail pages, market news, social, TA,
+> strategy backtests, and the market calendar. The **data connector decision
+> is settled** — not one provider but a registry-driven ladder: FMP → Finnhub
+> → Twelve Data → Tiingo → Alpha Vantage for quotes, Tiingo → FMP for history,
+> all keyed since the Yahoo removal (2026-08-06), falling back to catalog
+> `ref` prices. `instrument_equity` exists (`schema/instruments.ts`, migration
+> 0000) and watchlists/portfolios/Compare resolve equities through the
+> instrument core, as the Phase 0 design intended.
+>
+> **One bullet is not deliverable here:** net-worth pickup depends on Phase 3,
+> which is unstarted. Everything else in this phase is done.
 - Data connector (FMP / Polygon / Alpha Vantage — decide at phase start).
 - `instrument_equity` extension; quotes, charts, news reuse existing UI shells.
 - Portfolio/watchlist/net-worth pick equities up automatically via the
@@ -440,7 +475,13 @@ went to `docs/BUSINESS-CHECKLIST.md`, which is worked separately from both produ
 
 ## Open decisions (revisit at the phase that needs them)
 
-- Equities data provider (FMP vs Polygon vs Alpha Vantage) — Phase 4.
+- ~~Equities data provider (FMP vs Polygon vs Alpha Vantage) — Phase 4.~~
+  **SETTLED** (recorded 2026-08-12; decided in practice when the module
+  shipped). Not a single provider — a registry-driven ladder, configurable on
+  the Integrations page: FMP → Finnhub → Twelve Data → Tiingo → Alpha Vantage
+  for quotes, Tiingo → FMP for OHLCV/history, catalog `ref` prices last.
+  Polygon was never adopted. Every live rung is keyed since the Yahoo removal
+  (2026-08-06), so "no key" is a real state the UI renders honestly.
 - Bank sync provider (Plaid vs Teller) if/when CSV import isn't enough.
 - Whether the FastAPI backend returns for scoring/backtesting workloads.
 - Billing model: per-module licenses vs. tiered bundles — Phase 6.
