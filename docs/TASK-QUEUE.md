@@ -1423,6 +1423,202 @@ tool reads exactly what the UI reads — one source of truth, no agent-only data
 
 ---
 
+## Phase 3 — Production-readiness review of all built modules (queued 2026-08-12)
+
+> **Owner directive (2026-08-12), recorded ahead of the initial rollout:** every built
+> module gets a feature-level review with three goals — (1) evaluate each feature for
+> production readiness, (2) produce the canonical list of what each module actually
+> contains, so the project documents can be trued against it, and (3) decide explicitly
+> whether new tools need to be added for the initial rollout. Three strictly serial
+> waves: the agent builds the resource, then owner + agent review every tool against
+> it, then a final gate verifies everything decided actually landed.
+>
+> (Task IDs here are `P3-W*` — each wave is one task, so wave and task ids coincide.
+> Not to be confused with the risk-scale spec's open-question IDs P1–P6, which live in
+> that document's §10 table.)
+
+**How this differs from what already exists.** The 2026-06-14 production-readiness
+scorecard (`docs/audit/production-readiness-scorecard.md`) is stack-level — auth, infra,
+pipelines. The code-auditor charter hunts defects. This phase is neither: it decides,
+feature by feature, what the initial rollout ships, what gets fixed first, and what gets
+hidden or cut. Defects found along the way are filed the normal way (W1's defect
+appendix → normal intake), never fixed inline. The verification rule is inherited from
+the scorecard's hardest-won lesson: **verify a claim by following the path a request
+takes, not by grepping for the pieces it should contain.** A feature "exists" when a
+user can reach it and it does what its on-page copy claims.
+
+**Scope: the seven registry modules + one cross-cutting section.** Modules from
+`src/lib/modules/registry.ts`: core, crypto, equities, macro, funds, budget, builder.
+Cross-cutting: the 11 AI agents, the public `/api/v1` surface, and the MCP server —
+they ship too, and the owner backlog already flags that three agents have no invocation
+trigger.
+
+**Known seeds (2026-08-12 code-vs-docs pass) — start from these, don't rediscover
+them:**
+- Budget: complete CRUD API with no management UI for categorization rules; categories
+  read-only in the UI (POST/PATCH/DELETE exist, unreachable); recurring rules
+  confirm-only — no edit, deactivate, or dismiss, so "confirm-or-ignore" has no ignore.
+- Invest: `trade_transactions` fully schemed, zero consumers — no recorded trades, no
+  realized P&L (ROADMAP Phase 1 note, updated 2026-08-12).
+- Wallets: still localStorage-only (`fn:wallets`), no `/api/user/wallets` route.
+- Macro: futures term structure shipped 2026-08-05, sourceless since the 2026-08-06
+  Yahoo removal; macro OHLCV coverage narrowed for the same reason.
+
+**Ground rules for every wave:**
+1. Read `docs/agents/code-checker.md`'s do-not-fix registry FIRST. This repo is dense
+   with deliberate decisions that read as gaps; flagging one as "not production ready"
+   is a false positive that costs owner review time.
+2. Data-availability verdicts come from `DATA-AVAILABILITY.md` or an owner-machine run
+   — never from a container `npm run audit` (the IP-dependence rule). Wave 2 has the
+   owner present; live verification belongs there.
+3. New-tool candidates are checked against `docs/audits/rejected-proposals.md` before
+   being proposed, and W2 rejections are recorded there with reasons — the standing
+   cross-read rule between the two TASK-QUEUE writers applies to everything this phase
+   spawns.
+
+### Scheduling
+
+```
+P3-W1 (agent, solo)  →  P3-W2 (owner + agent, decisions)  →  P3-W3 (gate)
+```
+
+Strictly serial: W2 works from W1's committed doc; W3 verifies W2's recorded decisions.
+No wave starts before its predecessor's artifact exists.
+
+### P3-W1 — Feature inventory + readiness assessment (agent, solo)
+
+**Owns:** `docs/assessments/P3-production-review.md` (new — the only file this wave
+writes; everything else is read-only).
+
+<details><summary>Deployable prompt</summary>
+
+```
+In the Finance Now repo, build the working resource for the production-readiness review
+of all built modules: docs/assessments/P3-production-review.md. Read CLAUDE.md first,
+then docs/agents/code-checker.md (the do-not-fix registry), DATA-AVAILABILITY.md,
+docs/audits/rejected-proposals.md, and the Phase 3 preamble in docs/TASK-QUEUE.md
+(scope, seeds, ground rules).
+
+Walk every module in src/lib/modules/registry.ts (core, crypto, equities, macro, funds,
+budget, builder) plus a cross-cutting section (11 AI agents, /api/v1, MCP server). For
+each module, enumerate every page its routePrefixes own, and every distinct feature on
+each page — a page is not a feature (e.g. /assets carries a registry, a screener, and
+the reserves tab; a fund detail page carries a chart, fund facts, a fee-drag analyzer,
+and holdings).
+
+Record per feature:
+- What it does, in one line, and the route + owning files.
+- Data sources, keyed/keyless, and the DATA-AVAILABILITY status — copied, not
+  re-derived (container data audits are void; the IP-dependence rule).
+- Reachability BOTH directions: backend capability with no UI (the budget-rules
+  lesson) and UI promises with no backing.
+- Whether every user-actionable number it renders comes from pure, tested code (house
+  rule), and whether provenance/SourceLine is present where required.
+- Documentation status: is the feature in CLAUDE.md's feature inventory,
+  DATA-AVAILABILITY.md, ROADMAP? Undocumented features go in the "add to project
+  documents" appendix.
+- A verdict: READY / NEEDS-FIX (what, scoped) / NEEDS-OWNER-DECISION (the question,
+  stated) / NOT-FOR-ROLLOUT (why).
+- Where a gap suggests a new tool, a candidate entry — after checking
+  docs/audits/rejected-proposals.md so nothing already rejected is re-proposed blind
+  (cite the prior rejection if you disagree with it).
+
+Verify by following the path a request takes — walk each feature from route to render:
+gate, query, route handler, upstream, render. Parts-inventory verification (the table
+exists, the route exists) produced the scorecard's false "fixed" claims; don't repeat
+that.
+
+Hard rules: read-only outside the new doc — no fixes, no code changes, no doc edits
+elsewhere. Defects go in the doc's defect appendix for normal filing. Start from the
+known seeds in the Phase 3 preamble rather than rediscovering them. Date the doc and
+record the commit SHA reviewed.
+
+Output shape, built to be walked through with the owner one module per sitting:
+per module — a feature table (feature / route / sources / reachable / tested /
+documented / verdict) and a short summary with verdict counts. Then three cross-module
+appendices: (A) undocumented features to add to project documents, (B) new-tool
+candidates with rationale, (C) defects found (file, line, one-line failure mode).
+```
+</details>
+
+### P3-W2 — Joint review of every tool (owner + agent — not autonomously deployable)
+
+> Depends on P3-W1's doc being committed. This wave is a working session WITH the
+> owner, module by module; the agent facilitates and records.
+
+**Owns:** decision annotations inside `docs/assessments/P3-production-review.md`; new
+entries in `docs/audits/rejected-proposals.md` for rejected tool candidates.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Facilitate the Phase 3 Wave 2 review session in the Finance Now repo. Read CLAUDE.md,
+then docs/assessments/P3-production-review.md in full before the owner joins. Work
+module by module — one module per sitting is fine; record progress so sittings can
+resume.
+
+For each feature row, present the W1 finding and capture ONE owner decision:
+- SHIP — ready as-is for the initial rollout.
+- FIX-FIRST — scoped; becomes a queued task (normal steward/scout flow: disjoint
+  ownership, deployable prompt).
+- HIDE — stays in the codebase, gated or de-routed out of the rollout (the T5
+  pattern: page retained, route redirected, decision documented).
+- CUT — removed; recoverable from git history (the /backtests precedent).
+
+For each new-tool candidate in appendix B: APPROVED (scoped into a queued task) or
+REJECTED (recorded in docs/audits/rejected-proposals.md with the reason — the
+cross-read rule between TASK-QUEUE writers applies).
+
+Where readiness rides on live data availability, verify DURING this session on the
+owner's machine (npm run audit or the specific route) — this is the one wave where the
+IP-dependence rule is satisfiable on demand.
+
+Record every decision in the doc, dated. An undecided row gets an explicit OPEN marker
+and what unblocks it — nothing is silently skipped. End each sitting by refreshing the
+running FIX-FIRST list and approved-tools list at the top of the doc, so W3's entry
+conditions are checkable at a glance.
+```
+</details>
+
+### P3-W3 — Final rollout gate
+
+> Depends on P3-W2 complete: every feature row carries a decision, every OPEN marker
+> resolved or explicitly accepted by the owner.
+
+**Owns:** the final-verdict section of `docs/assessments/P3-production-review.md`;
+feature-inventory rows in CLAUDE.md, `DATA-AVAILABILITY.md`, and `docs/ROADMAP.md` that
+W2 decisions require.
+
+<details><summary>Deployable prompt</summary>
+
+```
+Run the Phase 3 rollout gate for the Finance Now repo. Read CLAUDE.md, then
+docs/assessments/P3-production-review.md — the decisions recorded in it are the spec
+for this wave. Entry conditions: every W2 FIX-FIRST task is closed or has been
+explicitly re-decided by the owner; every approved new tool is shipped or explicitly
+deferred (deferral recorded, dated).
+
+Then verify, in source, request-path style (never parts-inventory):
+1. Every FIX-FIRST item actually landed — follow the request through gate, route,
+   upstream, render; do not trust the task's own completion claim.
+2. Every SHIP feature is documented: a row in CLAUDE.md's feature inventory, a
+   DATA-AVAILABILITY.md row, ROADMAP annotation where applicable. Appendix A
+   (undocumented features) must be empty or each remaining entry explicitly deferred
+   by the owner.
+3. Every HIDE/CUT decision is enforced and verified BY URL, not by nav absence — a
+   hidden module must lock on direct navigation (the ModuleGate lesson), a cut page
+   must actually redirect.
+4. The initial-rollout feature list, per module, is written out as the final section:
+   what ships, what is hidden, what was cut, accepted exceptions, each dated.
+
+Close with a dated go/no-go verdict pinned to a commit SHA. This document becomes the
+rollout's reference: anything shipping that isn't on the list, or on the list but not
+shipping, is a defect against this gate.
+```
+</details>
+
+---
+
 ## Maintenance — dependency majors held for verification (2026-08-11)
 
 Queue-clearing pass on 2026-08-11 merged every Dependabot PR that was **CI-green and current
