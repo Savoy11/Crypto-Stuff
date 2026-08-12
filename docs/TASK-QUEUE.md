@@ -1,4 +1,4 @@
-# CAEP Task Queue — Phase 1
+# Finance Now Task Queue — Phase 1
 
 Prioritized backlog of 14 requested items, restructured into 14 deployable tasks across 4 waves.
 Each task below has a ready-to-paste prompt for a remote agent.
