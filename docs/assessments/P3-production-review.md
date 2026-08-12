@@ -35,6 +35,54 @@ backing (✅, or ⚠ see notes) · **Test** = user-actionable numbers come from 
 vitest-covered code (✅ / ➖ none rendered / ⚠ gap) · **Doc** = present in CLAUDE.md
 feature inventory / DATA-AVAILABILITY / ROADMAP as applicable.
 
+## Executive summary
+
+**93 features inventoried across 7 modules + the cross-cutting agent/API/MCP surface.**
+
+| Module | Features | READY | NEEDS-FIX | OWNER-DECISION | NOT-FOR-ROLLOUT |
+|---|---:|---:|---:|---:|---:|
+| Core | 14 | 6 | 7 | 1 | — |
+| Crypto | 19 | 11 | 5 | 2 | **1** |
+| Equities | 19 | 15 | 4 | — | — |
+| Macro Markets | 12 | 8 | 3 | 1 | — |
+| ETFs & Funds | 12 | 8 | 4 | — | — |
+| Budget | 11 | 5 | 6 | — | — |
+| Portfolio Builder | 6 | 6 | — | — | — |
+| **Total (module tables)** | **93** | **59** | **29** | **4** | **1** |
+
+Cross-cutting adds 16 findings (agents/v1/MCP): 11 NEEDS-FIX, 3 owner decisions,
+2 of which are real runtime bugs.
+
+**The eight real bugs** (full list in Appendix C, D-1…D-8): the env-only FMP key on
+two fund routes; macro TA's impossible 2Y range; the MCP transfer-routes tool crashing
+on the current API shape; the v1 transfer API pricing six coins at $1 with no warning;
+`/assets/<garbage>` rendering the USDC page; the permanently dead Risk History tab
+showing fabricated-looking zeros; pump-report routes ignoring the enabled toggle; and
+the ungated retained `/global-adoption` page one deleted redirect away from returning
+outside its entitlement.
+
+**The five owner decisions for Wave 2** (beyond per-feature SHIP/FIX/HIDE/CUT calls):
+- **D1 — Rollout posture on entitlements:** localStorage + client-side ModuleGate is
+  safe only if the initial rollout ships all modules free. Paid SKUs need DB-backed
+  entitlements first (Phase 6 / auth.md Goal B step 4).
+- **D2 — Public API exposure:** `/api/v1` has no rate limit and no auth, and fans
+  anonymous requests into the owner's keyed provider quota. Ship it, gate it, or
+  fence it at deploy.
+- **D3 — The ×10 question:** ^TNX-family yield scaling is internally contradictory
+  (UI vs agent docs). Needs a configured key on the owner's machine; if the UI is
+  wrong, every rates KPI is off by 10×.
+- **D4 — Placeholder surfaces:** three never-invocable agents, the orphaned
+  video-analyze feature, four orphaned crypto routes, the sourceless term-structure
+  card, the permanently-n/a sparkline column: wire, retire, or knowingly ship each.
+- **D5 — MCP `run_audit`:** an undocumented tool that shells out, inside an otherwise
+  market-data server — decide before any external distribution.
+
+**The one systemic pattern:** behavior is broadly honest (no fabricated values found
+on any live surface except D-6), but **the boundaries drift** — copy vs code, docs vs
+code, MCP/agent metadata vs API shape, and the house testing rule vs ~14 clusters of
+untested user-actionable math (D-24). The cheap structural fix is B12 (boundary drift
+guard); the rest is scoped, enumerated work.
+
 ---
 
 ## Module: Core (always on)
@@ -117,7 +165,7 @@ question is explicit: ship all modules free (current state is safe for that) or 
 DB-backed entitlements first (Phase 6). Nothing to fix in W1; W2 must decide the
 rollout posture.
 
-**Summary:** 14 features — 6 READY, 6 NEEDS-FIX (portfolio math tests + false copy
+**Summary:** 14 features — 6 READY, 7 NEEDS-FIX (portfolio math tests + false copy
 being the substantive ones), 1 NEEDS-OWNER-DECISION (orphaned video-analyze), plus the
 entitlement-posture decision. Nothing NOT-FOR-ROLLOUT.
 
@@ -125,7 +173,99 @@ entitlement-posture decision. Nothing NOT-FOR-ROLLOUT.
 
 ## Module: Crypto
 
-_(section filled from the request-path sweep — see tables below)_
+Eleven routed pages plus the de-routed `/global-adoption`, all ModuleGated at the
+component boundary (verified per file). The original product: deepest feature set,
+best provenance implementations (transfer fees, reserves), best-tested scoring
+(risk engine) — and also the module carrying the app's single worst data-honesty
+violation (CR9) and a real routing bug (module flag below).
+
+| # | Feature | Route | Data path | Reach | Test | Doc | Verdict |
+|---|---------|-------|-----------|:-----:|:----:|:---:|---------|
+| CR1 | Coin Registry: sortable/paginated table (null-safe, N/A never fabricated), type/mkt-cap/safety/chain/band screener, table-grid toggle, discovered-coin merge, breadth KPIs | `/assets` | `markets` (tier-driven source), `risk-scores` | ✅ | ✅ applyParams tested | ✅ | READY¹ |
+| CR2 | Safety Score column + band pill (enrich-before-filter — the R2 H1 fix) | `/assets` | `risk-scores` (shared query key) | ✅ | ✅ | ✅ | READY |
+| CR3 | 30d sparkline column — permanently "n/a" (no free list-scale trend source; labeled) | `/assets` | none | ✅ honest | ➖ | ✅ | NEEDS-OWNER-DECISION² |
+| CR4 | Reserve Monitor tab: DefiLlama live supply + snapshot attestation/composition, always-visible ReserveProvenance, stale escalation | `/assets?tab=reserves` | `reserves` | ✅ | ✅ reserves.test | ✅ | READY |
+| CR5 | Coin detail: header identity + gauge, market cards, LiveRiskPanel (pillars, confidence, honest empties), per-coin news, embedded TA (9 ids, stated) | `/assets/[id]` | `markets`, `risk-scores`, `news`, `ohlcv` | ✅ | ✅ risk engine | ✅ | READY³ |
+| CR6 | Detail on-chain analytics section (price history + 4 analytics panels) | `/assets/[id]` | `chart` + `analyticsBundle` — **hardcoded null** | ⚠⁴ | ➖ | ⚠ | NEEDS-OWNER-DECISION⁴ |
+| CR7 | Detail Reserves tab (live view + provenance; L1 "not applicable" state) | `/assets/[id]` | `reserves` | ⚠⁵ | ✅ | ✅ | NEEDS-FIX⁵ |
+| CR8 | **Risk History tab** | `/assets/[id]` | `getAssetScores()` — **hardcoded `[]`** | ❌⁶ | ➖ | ⚠ | **NOT-FOR-ROLLOUT⁶** |
+| CR9 | Pump Report tab: heuristic metrics + AI investigate + streaming chat (needs Anthropic key) | `/assets/[id]`, `/wallets` | `pump-report/metrics·investigate·chat` | ✅ | ⚠ metrics untested | ✅ | READY |
+| CR10 | News: multi-provider feed, 4-layer asset detection, sentiment/category/keyword/bias filters, well-partitioned empty/error/no-provider states | `/news` | `news` (keyless RSS defaults) | ✅ | ✅ bias/feedParse | ✅ | READY |
+| CR11 | Social: signal feed + per-asset sentiment bars, custom subreddits | `/social` | `social` | ✅ | ✅ socialBlend | ✅ | READY⁷ |
+| CR12 | Wallets: watch any address (11 chains, RPC ladders), browser-wallet connect (address-only, disclosed), read-only exchange APIs (server-side secrets) | `/wallets` | `wallet/*` | ✅ | ➖ passthrough | ✅ | READY |
+| CR13 | Transfer Fee Calculator: 22 coins × 30 exchanges × 18 networks, multi-stop route builder, tested path math, live BTC fee + gas sidebar, model ProvenanceNotice + stale degradation | `/transfer-fees` | `network-fees`, `coin-list` | ✅ | ✅ transferFees + networkFees | ✅ | READY⁸ |
+| CR14 | Staking: 55-provider cards, live/est APR badges (own-key-only live labeling), category/coin/adjacent-yield filters, provenance | `/staking` | `staking-rates` | ⚠⁹ | ⚠ aprDisplay untested | ✅ | NEEDS-FIX⁹ |
+| CR15 | Staking Discovery: live on-chain pools (DefiLlama/Yearn/Pendle/Beefy) with canonical Safety badges, curated directory, defunct toggle (where Celsius actually lives) | `/staking-discovery` | `staking-discovery` | ✅ | ✅ stakingAdapter | ✅ | READY |
+| CR16 | Coin Discovery: scored candidates (/10 with reasons + breakdown), dismiss/add flows, search-add, added-coins registry merge | `/coin-discovery` | `coin-discovery`, `coin-search` | ⚠¹⁰ | ⚠¹⁰ | ✅ | NEEDS-FIX¹⁰ |
+| CR17 | Crypto TA: chart tab (~80 assets, 11 ranges, 62 indicators, drawing tools), technical read, signal summary, S/R, key levels, market structure (OKX funding/OI + stablecoin supply), multi-timeframe grid, thesis builder (R/R), patterns, scanner (7 setups, bounded concurrency), backtests (tested engine, Sharpe/Sortino) | `/technical-analysis` | `ohlcv`, `funding-rates`, `reserves`, `markets` | ✅ | ⚠¹¹ | ✅ | NEEDS-FIX¹¹ |
+| CR18 | Risk Scores leaderboard: stablecoin 5-pillar (fatal-flaw strikethrough) + major-asset composites, per-pillar audit trail, honest N/A, per-source status footer | `/risk-scores` (no nav — by design) | `risk-scores` | ✅ | ✅ best-tested | ✅ | READY |
+| CR19 | De-routed `/global-adoption` (redirects to `/headlines`; page + route retained per T5) | redirect | — | ⚠¹² | — | ✅ | NEEDS-FIX¹² |
+
+**Notes:**
+1. KPI strip issues a second full `markets` fetch (`pageSize:100_000`) — duplicate
+   query per visit; and `fetchLiveMarkets` swallows failures into empty quotes, so a
+   dead upstream renders a full table of N/A prices rather than the error card.
+2. A permanently-"n/a" column in the initial rollout invites "is it broken?" tickets.
+   W2: keep (honest placeholder) or drop the column until a source exists.
+3. `ScoreBreakdown` imported but unused; `latestRiskScore` destructured and unused.
+   Cosmetic.
+4. `analyticsBundle` is hardcoded `null` in live mode, so the section *always* renders
+   "not available" and its four chart components are unreachable dead UI. Honest, but
+   permanently dead weight on the page. W2: cut the section or scope a real source.
+5. The dead legacy branch of the Reserves tab still carries **"Verified by
+   {attestor}"** copy — the exact language the M5 audit scrubbed from the live
+   surfaces. Unreachable today, but it's a regression waiting for whoever revives the
+   branch. Delete the dead branch.
+6. **The single worst data-honesty violation in the app.** The Risk History tab's API
+   returns a hardcoded `[]`, the chart has no empty state, and the tab renders empty
+   axes captioned **"Avg: 0.0 / Latest: 0.0"** — fabricated-looking zeros on a
+   product whose identity is never fabricating values. The code comment claims the
+   chart shows a not-available notice; it does not. Hide the tab (or give it a real
+   `LiveUnavailable`) before rollout; making it real is the risk-spec's P6
+   (score-history persistence) — Appendix B.
+7. Social page has no `isError` branch — a failed fetch renders the generic "no
+   signals found" empty state; down and empty are indistinguishable. Small fix.
+8. One state gap in an otherwise model page: on a *first-load* fees failure the
+   "using static estimates" status bar can't render (it sits inside `{data && …}`),
+   so the static fallback is silent. Small fix. The cumulative multi-leg reduce is
+   untested (path math beneath it is tested).
+9. **The page's copy promises things the page doesn't render:** the header describes
+   the six-dimension risk scoring and a 0–100 DerivedNote for scores that never
+   appear on `/staking` (they render on `/staking-discovery` and `/api/v1`), and
+   claims "Celsius is included as an educational cautionary example" while this page
+   unconditionally filters defunct providers — Celsius can never render here. Fix the
+   copy, or render the scores (Appendix B candidate — the engine and API already
+   serve them).
+10. The `DerivedNote` beside the recommendations says "0–100, higher = safer" while
+    the cards render **/10** scores — it describes the app's canonical scale, not the
+    numbers next to it. And the entire candidate scoring + "Strong Add" threshold
+    logic lives untested in the route. Copy fix + test extraction.
+11. The TA *indicator* math is heavily tested; the **price-target math is not**:
+    `patternProjection` (measured-move targets + invalidation), `detectPatterns`,
+    `detectSupportResistance`, `fibRetracement`, `buildTechnicalRead`, scanner
+    `detectSetups`, and the thesis builder's `computeRiskReward` have zero test hits
+    while emitting dollar levels users trade against. This is the module's test-gap
+    cluster.
+12. Latent gate gap: the retained page is not in any module's `routePrefixes` and not
+    ModuleGate-wrapped — it is unreachable *solely* via the Next redirect. The config
+    comment says "delete this entry to re-enable the page," which would re-enable it
+    **outside the crypto entitlement gate**. Fix the comment (and ideally wrap the
+    page) so the trap can't spring.
+
+**Module flag (real bug):** `buildLiveAssetDetail` falls back
+`ASSET_CATALOG.find(...) ?? ASSET_CATALOG[0]` — **`/assets/<any-garbage>` renders the
+USDC detail page** instead of the coin-not-found state (which is unreachable in
+practice). Wrong data with a 200, the exact failure class this repo's conventions
+exist to prevent. Appendix C.
+
+**Orphaned routes (zero page consumers):** `pump-report/scan`, `fear-greed`,
+`btc-stats`, `defi-tvl` — all live, maintained, terms-registered, and unused by any
+UI. Wire them into a surface (the TA market-structure panel is the natural home for
+the last three) or remove them — Appendix B.
+
+**Summary:** 19 features — 11 READY, 5 NEEDS-FIX, 2 NEEDS-OWNER-DECISION,
+**1 NOT-FOR-ROLLOUT** (Risk History tab). Plus one real bug (unknown-id fallback)
+and four orphaned routes.
 
 ---
 
@@ -192,9 +332,9 @@ found on any page. SourceLine present on all pages** (ids verified in
    degrades silently to "fill in the trade" copy — masks a real-bug class; low
    severity, Appendix C.
 
-**Summary:** 19 features — 14 READY, 4 NEEDS-FIX (XBRL ratio test gap, sentiment-score
-test gap, TA copy, calendar copy), 1 with a Wave 2 inconsistency question (E1 note).
-Nothing NOT-FOR-ROLLOUT. The module's honest-degradation story is exemplary; its gap
+**Summary:** 19 features — 15 READY, 4 NEEDS-FIX (XBRL ratio test gap, sentiment-score
+test gap, TA copy, calendar copy); one Wave 2 inconsistency question rides on E1's
+note. Nothing NOT-FOR-ROLLOUT. The module's honest-degradation story is exemplary; its gap
 pattern is *test coverage on derived numbers*, not behavior.
 
 ---
@@ -484,15 +624,88 @@ _(section filled from the request-path sweep — see tables below)_
 
 ---
 
-## Appendix A — Undocumented features to add to project documents
+## Appendix A — Documentation corrections (features undocumented or misdocumented)
 
-_(consolidated after the per-module sweep)_
+Project documents claiming something the code contradicts, or missing something the
+code ships. Each is a doc edit, not a code change.
+
+| # | Document | Correction |
+|---|---|---|
+| A1 | CLAUDE.md (Videos row) | Advertises "Video search + AI analysis" — the analysis half (`video-analyze`) has no UI (C2). Either drop the claim or build the trigger (B4) |
+| A2 | CLAUDE.md (equity TA row) + `/equities/technical-analysis` subtitle | "18 indicators" — the shared registry ships ~62; both copies predate the shared-engine migration |
+| A3 | CLAUDE.md (marketData section) | Claims built-in provider "reordering" — no such action exists in UI or `/live-data/config` |
+| A4 | CLAUDE.md (module registry / entitlements) | Implies entitlements persist like other user data — they are localStorage-only (`useEntitlementStore`); no `/api/user/entitlements` route exists. Load-bearing for the rollout-posture decision (D1) |
+| A5 | CLAUDE.md (MCP table) | Lists 12 tools; the server ships 13 — `run_audit` is undocumented (and needs decision D5) |
+| A6 | CLAUDE.md + `docs/agents/*` charters | Reference `docs/audits/rejected-proposals.md`, which **does not exist**. Create the scaffold (it is Wave 2's rejection ledger) or fix the references |
+| A7 | `mcp-server/` | No README, though `index.ts:11` points to one; server metadata still self-describes as pre-rebrand "Crypto Asset Evaluation Platform" ignoring the securities/macro/options tools |
+| A8 | CLAUDE.md (equities backtests row) | Fee tiers (0–25bps/side) and the tested fee math are undocumented |
+| A9 | DATA-AVAILABILITY.md | Standing: owner-machine re-run owed since the Yahoo removal (its own header says so); the macro-quote check (its action item 18) remains the highest-value gap |
 
 ## Appendix B — New-tool candidates
 
-_(consolidated after the per-module sweep; each checked against the rejected-proposals
-record — see Appendix C on that file's absence)_
+Checked against the rejected-proposals ledger **by intent only — the file does not
+exist** (A6); no candidate below is knowingly re-proposing a rejected idea. The one
+adjacent decided item: an options *chain browser* is closed by owner decision
+(2026-08-05) with named reopen triggers — nothing here touches it.
+
+| # | Candidate | Rationale | Effort shape |
+|---|---|---|---|
+| B1 | **Budget management UI** — rules manager, category editor, account rename/archive, recurring edit/deactivate + suggestion dismiss, import-profile delete | Closes all 6 Budget NEEDS-FIX; every API already exists (one new route: `import-profiles/[id]`, plus a dismiss persistence choice) | UI-only, medium |
+| B2 | **Trade ledger** — `/api/user/trades` CRUD + pure tested cost-basis engine (FIFO vs avg decision) + entry UI | ROADMAP Phase 1's unmet "Done when"; `trade_transactions` table + index already built | Medium; enables realized P&L |
+| B3 | Wallets → DB (`/api/user/wallets`) | Last localStorage holdout of Phase 1; portfolios/watchlists are the template | Small, mechanical |
+| B4 | video-analyze trigger UI (ask-about-this-video on `/videos` cards) | The orphaned feature (C2) — route is complete, incl. quota guards | Small UI |
+| B5 | Invocation UI for `data-scraper` / `equity-data-scraper` / `equity-diligence` — **or retire them** | Standing owner-backlog item, confirmed still unreachable (X4) | Decision first |
+| B6 | macro-screener panel on `/macro` (mirror of the equity OutlierScanPanel) | Whitelisted agent, deep-link-only today (X5) | Small UI |
+| B7 | Render canonical Safety scores on `/staking` provider cards | The page's own copy already describes them; engine + API + discovery page already serve them (CR14) | Small UI |
+| B8 | Futures term-structure provider (keyed) | Reopens M5 from P2-O1's GO design; engine tested and kept alive; sourcing decision, not build work | Provider eval first |
+| B9 | Fund asset-mix derived from N-PORT position categories | Would revive the dead allocation donut (F-note-4) from data already fetched | Medium server |
+| B10 | Score-history persistence (risk-spec P6) | The only honest path to making the Risk History tab real (CR8) | Medium; needs storage + scheduled capture |
+| B11 | Wire orphaned crypto routes (`fear-greed`, `btc-stats`, `defi-tvl`) into the TA market-structure panel (or delete them) | Four maintained, terms-registered routes with zero consumers | Small either way |
+| B12 | **Boundary drift guard** — vitest diffing v1 discovery counts, MCP tool descriptions/counts, and agent-prompt catalog claims against the catalogs' actual exports | The cross-cutting section shows every unguarded boundary drifted (16 vs 18 networks, 12 vs 13 tools, pre-suite prompts, broken MCP formatter). Cheap standing prevention | Small test |
 
 ## Appendix C — Defects found (for normal filing, NOT fixed in this review)
 
-_(consolidated after the per-module sweep)_
+**Real bugs (wrong behavior a user or consumer can hit):**
+
+| # | Where | Failure |
+|---|---|---|
+| D-1 | `fund-holdings/route.ts:31`, `fund-holdings-history/route.ts:18` | FMP key read from env at module scope, not `getProviderKey('fmp')` — an Integrations-UI key silently does nothing on exactly these two routes (F-note-2) |
+| D-2 | `macro/technical-analysis/page.tsx:112` vs `security-ohlcv/route.ts:25` | 2Y range button sends vocabulary the route rejects → 400 on every instrument, rendered as a provider-coverage message (M-note-8) |
+| D-3 | `mcp-server/src/index.ts:158` | `find_transfer_routes` formats `feeUsd`/`estimatedTimeMin`/`warning.level` — fields the v1 response does not serve → TypeError on virtually any successful lookup (P1) |
+| D-4 | `api/v1/transfer/routes/route.ts:24-41,109-121` | Local `STATIC_GAS` lacks ton/near networks (routes silently vanish); 6 of 22 accepted coins priced at `?? 1` → `$1/coin` amounts with no fallback warning (V1) |
+| D-5 | `lib/api/live/overlay.ts:71` | Unknown coin id falls back to `ASSET_CATALOG[0]` — `/assets/<garbage>` renders the USDC page; not-found state unreachable (crypto module flag) |
+| D-6 | `lib/api/risk-scores.ts:14` + `HistoricalScoreChart` | Risk History tab: hardcoded `[]`, no empty state, renders "Avg: 0.0 / Latest: 0.0" — fabricated-looking zeros (CR8, NOT-FOR-ROLLOUT) |
+| D-7 | `live-data/pump-report/investigate·chat` | Ignore the per-agent `enabled` toggle (disabled agent still runs) and return 500 instead of 503 on missing key (X3) |
+| D-8 | `(dashboard)/global-adoption/page.tsx` | Retained page is neither in `routePrefixes` nor ModuleGate-wrapped — deleting the redirect (as the config comment invites) re-enables it outside the entitlement gate (CR19) |
+
+**Wrong or misleading copy/states (the app claiming what the code doesn't do):**
+
+| # | Where | Claim vs reality |
+|---|---|---|
+| D-9 | `portfolios/page.tsx:927-929` | Claims Sharpe (4% rf) + max drawdown (computed nowhere on the page); claims localStorage-only persistence (store is DB-backed); stale "live mode"; residual "Coin" labels; SourceLine absent from detail view where P&L renders (C-note-6) |
+| D-10 | `staking/page.tsx:541-545` | Describes six-dimension scores + 0–100 DerivedNote never rendered on the page; claims Celsius included while defunct providers are unconditionally filtered (CR14) |
+| D-11 | `coin-discovery/page.tsx:476` | DerivedNote "0–100, higher = safer" beside /10 scores (CR16) |
+| D-12 | `macro/page.tsx` | Hardcoded "Live" chips + "quotes below are live" while a no-key deploy renders all dashes with no banner (`ok:true`, empty quotes) (M-note-1) |
+| D-13 | `macro/rates/RatesClient.tsx:92-94` | 10Y KPI captioned "live intraday" exactly when unpriced (M-note-7) |
+| D-14 | `CurrenciesClient.tsx:128` | Converter claims extended tier is "cross-checked against ECB where both cover the same currency" — overlap is empty by construction (M-note-6) |
+| D-15 | `equities/technical-analysis/page.tsx:503` + CLAUDE.md | "18 indicators" vs ~62 (E-note-5 / A2) |
+| D-16 | `equities/calendar/page.tsx:45-47` | "free API key required" while the economic calendar is a paid FMP endpoint whose 402 is swallowed (E-note-8) |
+| D-17 | `agent-config/page.tsx:372-379` | Placeholder agents described as "runs autonomously…" with no invocation path (X4); brief's 503 banner conflates missing-key with agent-disabled and omits the UI key path (C-note-3) |
+| D-18 | `settings/page.tsx:914` | Custom-feed format offers "WebSocket stream" the fetch path doesn't implement (C-note-11) |
+| D-19 | `api/v1/staking/opportunities/route.ts:39-44,170` | `aprSource: 'live'` on Lido-derived rates; `source` string names live feeds that aren't fetched (V2) |
+| D-20 | v1 discovery + MCP metadata | 16 coins/16 networks vs 22/18 served; discovery omits `/options/score`; MCP `get_network_fees` enumerates 16; staking MCP tools legacy-scale-only; app-assistant system prompt describes the pre-suite app; options tool says 1-4 legs vs 8 accepted (V3, P2-P4, X1) |
+| D-21 | `assets/[id]/page.tsx:1169` | Dead legacy branch still carries "Verified by {attestor}" — the exact M5-scrubbed language (CR-note-5) |
+| D-22 | `transfer-fees/page.tsx:708-716` | First-load fees failure hides the "using static estimates" bar (inside `{data && …}`) (CR-note-8) |
+| D-23 | `equities/social` page | Carried from DATA-AVAILABILITY item 10: page reported stuck on "Fetching social signals…" while route + direct fetch work — pre-existing, needs owner-machine repro |
+
+**Untested user-actionable numbers (one grouped item — the recurring house-rule gap):**
+
+| # | Cluster |
+|---|---|
+| D-24 | `portfolioUtils.ts` P&L/weighted risk; Est. Annual Income + backtest-tab math (in-component); XBRL ratios (`company-facts` route) + client multiples; `computeReturns` (fund Returns columns); `fund-holdings-history` diff/turnover + `nport.ts`; FX converter cross-rate/inverse; all four macro quote formatters; rates-page curve merge; TA price-target cluster (`patternProjection`, `detectPatterns`, `detectSupportResistance`, `fibRetracement`, `buildTechnicalRead`, `detectSetups`, `computeRiskReward`); coin-discovery scoring/thresholds; `aprDisplay`/`resolveLiveAprKey`; stock-social `sentimentScore`; budget balance/actuals aggregation |
+
+**Cleanups (cosmetic):** unused `ScoreBreakdown` import + unused `latestRiskScore`
+(coin detail); duplicate markets fetch for `/assets` KPIs (CR-note-1); `zod`
+undeclared in `mcp-server/package.json` (transitive); stale "Yahoo FX series" comment
+in macro TA; `security-quotes?universe=` and `market-news?watchlistOnly=1` params with
+zero consumers.
