@@ -23,7 +23,7 @@ aws rds describe-db-cluster-snapshots \
 ```bash
 # Create snapshot
 kubectl exec -n fn postgres-0 -- \
-  pg_dump -U caep -Fc caep > fn-backup-$(date +%Y%m%d-%H%M%S).dump
+  pg_dump -U fn -Fc fn > fn-backup-$(date +%Y%m%d-%H%M%S).dump
 
 # Upload to S3
 aws s3 cp fn-backup-*.dump s3://fn-backups/postgres/ --sse AES256
@@ -47,7 +47,7 @@ aws s3 cp s3://fn-backups/postgres/<backup-file>.dump .
 
 # Restore
 kubectl exec -i -n fn postgres-0 -- \
-  pg_restore -U caep -d caep --clean --if-exists < <backup-file>.dump
+  pg_restore -U fn -d fn --clean --if-exists < <backup-file>.dump
 ```
 
 ### Point-in-Time Recovery (PITR)

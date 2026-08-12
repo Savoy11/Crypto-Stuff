@@ -206,7 +206,7 @@ output "api_keys_secrets_arn" {
 
 output "database_url_template" {
   description = "Template DATABASE_URL — replace PASSWORD with secret value"
-  value       = "postgresql+asyncpg://caep:PASSWORD@${aws_rds_cluster.fn.endpoint}:5432/caep"
+  value       = "postgresql+asyncpg://fn:PASSWORD@${aws_rds_cluster.fn.endpoint}:5432/fn"
   sensitive   = true
 }
 

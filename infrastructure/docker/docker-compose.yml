@@ -10,7 +10,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql+asyncpg://caep:caep@postgres:5432/caep
+      - DATABASE_URL=postgresql+asyncpg://fn:fn@postgres:5432/fn
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=dev-secret-key-change-in-production
       - DEBUG=true
@@ -80,9 +80,12 @@ services:
     image: timescale/timescaledb:2.28.3-pg15
     container_name: fn-postgres
     environment:
-      POSTGRES_DB: caep
-      POSTGRES_USER: caep
-      POSTGRES_PASSWORD: caep
+      # Renamed caep → fn 2026-08; POSTGRES_* only applies at first initdb, so
+      # an existing postgres_data volume keeps the old names — see
+      # docs/deployment/caep-db-rename.md for the in-place rename.
+      POSTGRES_DB: fn
+      POSTGRES_USER: fn
+      POSTGRES_PASSWORD: fn
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
     ports:
       - "5432:5432"
@@ -93,7 +96,7 @@ services:
       - fn-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U caep -d caep"]
+      test: ["CMD-SHELL", "pg_isready -U fn -d fn"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -196,7 +199,7 @@ services:
     image: prometheuscommunity/postgres-exporter:v0.15.0
     container_name: fn-postgres-exporter
     environment:
-      DATA_SOURCE_NAME: "postgresql://caep:caep@postgres:5432/caep?sslmode=disable"
+      DATA_SOURCE_NAME: "postgresql://fn:fn@postgres:5432/fn?sslmode=disable"
     ports:
       - "9187:9187"
     depends_on:

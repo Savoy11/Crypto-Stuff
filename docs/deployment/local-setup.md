@@ -57,7 +57,7 @@ poetry install
 # Configure environment
 cp .env.example .env
 # Edit .env with your values — at minimum set:
-#   DATABASE_URL=postgresql+asyncpg://caep:caep@localhost:5432/caep
+#   DATABASE_URL=postgresql+asyncpg://fn:fn@localhost:5432/fn
 #   REDIS_URL=redis://localhost:6379/0
 #   SECRET_KEY=$(python -c "import secrets; print(secrets.token_hex(32))")
 
@@ -137,7 +137,7 @@ npm run lint
 
 **Migration errors**: Ensure TimescaleDB extension is installed:
 ```bash
-docker exec -it fn-postgres psql -U caep -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+docker exec -it fn-postgres psql -U fn -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
 ```
 
 **Frontend auth redirect loop**: Ensure `NEXT_PUBLIC_USE_MOCK=true` in `.env.local` for local development without backend.

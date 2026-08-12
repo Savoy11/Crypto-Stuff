@@ -110,7 +110,7 @@ as a question with your reasoning — do not change it.
 | Celsius (defunct) in the staking catalog | Deliberately retained as the educational cautionary example |
 | Sequential provider ladders not parallelised | See failure-boundary rules above |
 | `config/route.ts` save-time URL checks are string-level | On purpose — a Save should not fail because DNS was down; fetch-time paths carry the resolved checks |
-| `LOCAL_USER_EMAIL = 'local@caep.local'` not rebranded | Sentinel keys the local user's DB row; renaming orphans all existing data |
+| `LOCAL_USER_EMAIL = 'local@fn.local'` + legacy `local@caep.local` adoption lookup in `getOrCreateLocalUser()` | Sentinel renamed 2026-08 (pre-production window); the legacy row is renamed in place, preserving its id. Do not remove the legacy lookup until the sunset in `docs/deployment/caep-db-rename.md` — removing it early orphans pre-rename data |
 | Crypto pages under `/assets` though the nav says "Coins" | Route kept to preserve deep links (T4 decision) |
 | `/live-data/chart` serves synthetic OHLC | Marked `synthetic: true`; its one consumer (Compare) reads closes only. New consumers must be close-only or use `/live-data/ohlcv` |
 | Macro catalogs carry no reference prices | Futures/FX quotes stale in hours; unpriced = honest dash |

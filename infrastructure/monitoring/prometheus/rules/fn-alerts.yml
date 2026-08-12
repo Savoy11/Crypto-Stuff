@@ -79,7 +79,7 @@ groups:
 
       - alert: HighDatabaseConnections
         expr: |
-          pg_stat_database_numbackends{datname="caep"}
+          pg_stat_database_numbackends{datname="fn"}
           / pg_settings_max_connections * 100 > 80
         for: 5m
         labels:
@@ -90,7 +90,7 @@ groups:
           summary: "PostgreSQL connection pool above 80%"
           description: >
             Database connections are at {{ printf "%.1f" $value }}% of max_connections.
-            Current: {{ with query "pg_stat_database_numbackends{datname='caep'}" }}{{ . | first | value | printf "%.0f" }}{{ end }}.
+            Current: {{ with query "pg_stat_database_numbackends{datname='fn'}" }}{{ . | first | value | printf "%.0f" }}{{ end }}.
             Consider increasing max_connections or reviewing connection pooling config.
 
       - alert: DatabaseDown

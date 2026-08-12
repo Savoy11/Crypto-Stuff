@@ -33,11 +33,12 @@ export default {
   out: './drizzle',
   dialect: 'postgresql',
   dbCredentials: {
-    // Database name deliberately NOT renamed in the Finance Now rebrand:
-    // existing local installs have their data in caep_app, and changing the
-    // fallback would silently point at an empty database. Set DATABASE_URL to
-    // use a different name.
-    url: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/caep_app',
+    // Renamed caep_app → fn_app in the 2026-08 pre-production identity sweep.
+    // Installs created before then have their data in caep_app: either run
+    //   ALTER DATABASE caep_app RENAME TO fn_app;
+    // (as a superuser, with no active connections) or set DATABASE_URL to the
+    // old name. See docs/deployment/caep-db-rename.md.
+    url: process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/fn_app',
   },
   verbose: true,
   strict: true,

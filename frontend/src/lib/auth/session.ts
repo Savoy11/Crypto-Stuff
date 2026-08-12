@@ -30,11 +30,14 @@ import { auth } from './config'
 // sessions simply start winning, and setting FN_ALLOW_LOCAL_USER=false turns
 // the fallback off entirely.
 
-// Deliberately NOT renamed in the Finance Now rebrand: this sentinel keys the
-// local user's DB row, and every portfolio/watchlist/builder-plan hangs off
-// that row. Changing the string would find-or-create a fresh user and orphan
-// all existing data. It is never shown in the UI.
-const LOCAL_USER_EMAIL = 'local@caep.local'
+// Renamed local@caep.local → local@fn.local in the 2026-08 pre-production
+// identity sweep (docs/deployment/caep-db-rename.md). The row id is what every
+// portfolio/watchlist/builder-plan points at, so getOrCreateLocalUser() adopts
+// an existing legacy row by renaming it IN PLACE — never by creating a fresh
+// row, which would orphan all existing data. Keep the legacy lookup until
+// every install has run a post-rename build once. Never shown in the UI.
+const LOCAL_USER_EMAIL = 'local@fn.local'
+const LEGACY_LOCAL_USER_EMAIL = 'local@caep.local'
 
 function localUserFlag(): string | undefined {
   return process.env.FN_ALLOW_LOCAL_USER ?? process.env.CAEP_ALLOW_LOCAL_USER
@@ -57,6 +60,19 @@ async function getOrCreateLocalUser(): Promise<string> {
     .where(eq(sql`lower(${users.email})`, LOCAL_USER_EMAIL))
     .limit(1)
   if (existing) return existing.id
+
+  // Pre-rename installs have the row under the legacy email. Rename it in
+  // place so it keeps its id (and everything hanging off it). Concurrent
+  // requests may both run this update; it is idempotent.
+  const [legacy] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(sql`lower(${users.email})`, LEGACY_LOCAL_USER_EMAIL))
+    .limit(1)
+  if (legacy) {
+    await db.update(users).set({ email: LOCAL_USER_EMAIL }).where(eq(users.id, legacy.id))
+    return legacy.id
+  }
 
   const [created] = await db
     .insert(users)

@@ -260,7 +260,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "pg_stat_database_numbackends{datname=\"caep\"}",
+          "expr": "pg_stat_database_numbackends{datname=\"fn\"}",
           "legendFormat": "Active Connections",
           "refId": "A"
         },
@@ -309,13 +309,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(pg_stat_database_xact_commit{datname=\"caep\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_xact_commit{datname=\"fn\"}[$__rate_interval])",
           "legendFormat": "Commits/s",
           "refId": "A"
         },
         {
           "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
-          "expr": "rate(pg_stat_database_xact_rollback{datname=\"caep\"}[$__rate_interval])",
+          "expr": "rate(pg_stat_database_xact_rollback{datname=\"fn\"}[$__rate_interval])",
           "legendFormat": "Rollbacks/s",
           "refId": "B"
         }

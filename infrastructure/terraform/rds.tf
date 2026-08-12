@@ -153,12 +153,15 @@ resource "aws_secretsmanager_secret_version" "rds_password" {
 }
 
 resource "aws_rds_cluster" "fn" {
-  cluster_identifier          = "${local.name_prefix}-aurora"
-  engine                      = "aurora-postgresql"
-  engine_version              = var.rds_engine_version
-  engine_mode                 = "provisioned"
-  database_name               = "caep"
-  master_username             = "caep"
+  cluster_identifier = "${local.name_prefix}-aurora"
+  engine             = "aurora-postgresql"
+  engine_version     = var.rds_engine_version
+  engine_mode        = "provisioned"
+  # database_name / master_username are create-time attributes — changing them
+  # on a live cluster forces replacement (i.e. destroys data). Renamed
+  # caep → fn 2026-08 while no cluster exists; do not rename again post-launch.
+  database_name               = "fn"
+  master_username             = "fn"
   master_password             = random_password.rds_master.result
   manage_master_user_password = false
 

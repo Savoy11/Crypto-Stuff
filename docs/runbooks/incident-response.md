@@ -59,7 +59,7 @@ kubectl logs -l app=fn-backend -n fn --tail=200 | grep "ERROR\|CRITICAL"
 
 **Step 3 — Check database**
 ```bash
-kubectl exec -it postgres-0 -n fn -- psql -U caep -c "SELECT count(*) FROM pg_stat_activity;"
+kubectl exec -it postgres-0 -n fn -- psql -U fn -c "SELECT count(*) FROM pg_stat_activity;"
 # High connection count may indicate pool exhaustion
 ```
 
