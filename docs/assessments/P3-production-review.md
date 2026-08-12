@@ -51,7 +51,117 @@ _(section filled from the request-path sweep — see tables below)_
 
 ## Module: Equities
 
-_(section filled from the request-path sweep — see tables below)_
+Eight pages under `/equities`. The no-key story is consistent everywhere
+(post-2026-08-06): quotes fall to catalog reference behind the amber `ref` tag,
+chart/OHLCV surfaces render `LiveUnavailable` naming the terms withdrawal and the key
+fix, calendar/universe render `configured:false` setup cards. **No fabricated values
+found on any page. SourceLine present on all pages** (ids verified in
+`dataSources.ts`).
+
+| # | Feature | Route | Data path | Reach | Test | Doc | Verdict |
+|---|---------|-------|-----------|:-----:|:----:|:---:|---------|
+| E1 | Stock Registry: sortable/paginated universe (FMP screener; 79-name curated fallback), visible-page live quotes, dual `ref` tags (price + mkt cap) | `/equities` | `stock-universe`, `security-quotes` | ✅ | ✅ P/E backfill tested | ✅ | READY¹ |
+| E2 | Screener: range filters + 11 sector chips + search, deep-linkable URL state | `/equities` | client-side | ✅ | ➖ | ✅ | READY¹ |
+| E3 | AI Outlier Scan panel (equity-screener agent) | `/equities` | `/api/agents/research` → `get_stock_outliers` | ✅ | ➖ | ✅ | READY |
+| E4 | Detail header: quote, `ref` tag, non-catalog ticker resolution (FMP profile), Analyze-with-AI deep link | `/equities/[symbol]` | `security-quotes`, `stock-universe?symbol=` | ✅ | ➖ | ✅ | READY |
+| E5 | Price History chart (6 ranges) + 52-week range bar | `/equities/[symbol]` | `security-chart` (keyed) | ✅ | ➖ | ✅ | READY² |
+| E6 | Financial Ratios & Metrics: 4 groups × 5 rows from SEC XBRL + client-side valuation multiples; YoY chips; annual revenue/earnings chart | `/equities/[symbol]` | `company-facts` (keyless) | ✅ | ⚠³ | ✅ | **NEEDS-FIX³** |
+| E7 | Company profile card (EDGAR registrant + Wikipedia) + EDGAR statement quick-links | `/equities/[symbol]` | `company-profile` (keyless) | ✅ | ➖ | ✅ | READY |
+| E8 | SEC filings feed: 10-K/10-Q/8-K tabs, 8-K item labels, archive pager to the 1990s | `/equities/[symbol]` | `sec-filings` (keyless) | ✅ | ➖ | ✅ | READY |
+| E9 | Sector peers table (top-8 by mkt cap, live quotes; curated catalog only) | `/equities/[symbol]` | `security-quotes` | ✅ | ➖ | ✅ | READY |
+| E10 | Per-ticker news (general wires filtered to articles naming the company — deliberate, post-Yahoo) | `/equities/[symbol]`, `/equities/news` | `market-news` | ✅ | ➖ | ✅ | READY |
+| E11 | Market News page: 50-article feed, category/sentiment/Breaking tags, symbol + keyword filters, watchlist bias (tested) | `/equities/news` | `market-news` (keyless) | ✅ | ✅ bias/feedParse/pubDate | ✅ | READY |
+| E12 | Stock Social: Reddit + StockTwits feed with per-provider attribution | `/equities/social` | `stock-social` (keyless) | ✅ | ✅ socialBlend | ✅ | READY⁴ |
+| E13 | Sentiment Overview: per-symbol −100..+100 score + pos/neg split, method disclosed on-page | `/equities/social` | computed in `stock-social/route.ts:226` | ✅ | ⚠⁴ | ✅ | NEEDS-FIX⁴ |
+| E14 | Equity TA: universe combobox (free-text passthrough), candlestick chart, 6 ranges, shared indicator registry + drawing tools | `/equities/technical-analysis` | `security-ohlcv` (keyed) | ✅ | ✅ indicators ×3 + ohlcvAdjust | ⚠⁵ | NEEDS-FIX⁵ |
+| E15 | TA Signal Summary + pattern detection (top 5, confidence %) | `/equities/technical-analysis` | `computeSignalSummary` / `detectPatterns` | ✅ | ⚠⁶ | ✅ | READY⁶ |
+| E16 | TA Screener tab: 24 fixed large-caps, RSI(14) / vs SMA50 / composite | `/equities/technical-analysis` | 24× `security-ohlcv` | ✅ | ⚠⁶ | ✅ | READY⁶ |
+| E17 | Strategy Backtests: 3 strategies on real history, fee tiers (0–25bps/side), full metrics, growth-of-$100 curve, round-trips table | `/equities/backtests` | `security-ohlcv` (keyed) | ✅ | ✅ equityBacktest (incl. fees) | ⚠⁷ | READY⁷ |
+| E18 | Market Calendar: 14-day earnings (free FMP key) + US economic events (paid FMP tier) | `/equities/calendar` | `market-calendar` | ⚠⁸ | ➖ | ✅ | NEEDS-FIX⁸ |
+| E19 | Trade Risk Scorer: 1–4 legs, presets, manual IV rank (pinned), 5-dimension composite score with evidence; quote prefill is the one live number | `/equities/options` | pure `optionsTrade.ts` + `security-quotes` prefill | ✅ | ✅ profiles + presets | ✅ | READY⁹ |
+
+**Notes:**
+1. One behavioral inconsistency for Wave 2: sorting the registry by price orders on the
+   *reference* price while the cell displays the live quote
+   (`EquitiesClient.tsx:106`) — ordering and display can disagree.
+2. With no key, the 52-week bar silently hides (returns null) rather than rendering its
+   own empty state — the chart above it explains, so acceptable; noted for completeness.
+3. **Every XBRL-derived ratio** (margins, ROE, ROA, current ratio, D/E, FCF, YoY
+   growth) is computed inline in `company-facts/route.ts:206-229`, and the four
+   valuation multiples client-side in `FinancialRatios.tsx:52-55` — none of it is in a
+   tested pure module. This is the largest single block of untested user-actionable
+   numbers in the app. Fix: extract to `lib/` + vitest (the `secFundamentals.ts`
+   pattern, which is tested, sits right next to it).
+4. The sentiment *score* (a number users act on) is untested — `socialBlend.test.ts`
+   covers provider blending only. Small extraction + test.
+5. Copy defect: the page subtitle still says **"18 indicators"**; the shared registry
+   renders ~63 (the 18 predates the shared-engine migration; the code comment documents
+   the migration, the subtitle wasn't updated). CLAUDE.md's feature inventory carries
+   the same stale "18 indicators" — Appendix A.
+6. Signal-summary vote weighting and pattern detection have degenerate-input tests
+   only; underlying indicator math is heavily tested. Correctness-of-aggregation test
+   is a nice-to-have, not a blocker.
+7. Backtests' symbol select is the 79-name curated catalog while TA charts any ticker —
+   an inconsistency worth a Wave 2 decision (bounded select may be deliberate). Fee
+   tiers are undocumented in CLAUDE.md — Appendix A.
+8. On a **free** FMP key the economic-events panel is permanently "No notable events
+   returned" — the econ calendar is a paid endpoint (402), which the route swallows via
+   `allSettled` and the page copy ("free API key required") misattributes. Fix: state
+   the paid gate in the panel's empty state.
+9. `scoreOptionsTrade` is wrapped in a catch that returns null, so an engine throw
+   degrades silently to "fill in the trade" copy — masks a real-bug class; low
+   severity, Appendix C.
+
+**Summary:** 19 features — 14 READY, 4 NEEDS-FIX (XBRL ratio test gap, sentiment-score
+test gap, TA copy, calendar copy), 1 with a Wave 2 inconsistency question (E1 note).
+Nothing NOT-FOR-ROLLOUT. The module's honest-degradation story is exemplary; its gap
+pattern is *test coverage on derived numbers*, not behavior.
+
+---
+
+## Module: ETFs & Funds
+
+Two pages. Registry universe is keyless (NASDAQ directory + SEC company_tickers);
+holdings are keyless and authoritative (SEC N-PORT). The Returns surface is the app's
+model citizen for degrading honestly (screening/sorting deliberately OFF post-Yahoo
+rather than screening a page and pretending it screened the universe).
+
+| # | Feature | Route | Data path | Reach | Test | Doc | Verdict |
+|---|---------|-------|-----------|:-----:|:----:|:---:|---------|
+| F1 | Fund Registry: ~30k-row universe (every US-listed ETF + SEC mutual-fund classes + 118 curated), compact hydration, per-directory outage banners | `/funds` | `fund-universe` (keyless) | ✅ | ➖ | ✅ | READY |
+| F2 | Screener sidebar: type/style/issuer/industry/risk/strategy + expense/AUM/age/price/yield ranges, deep-linkable URL | `/funds` | client-side | ✅ | ➖ | ✅ | READY |
+| F3 | Sortable table: page-scoped live quotes with `ref` tags, expense color bands, LEV/INV badges, trading-restriction clock | `/funds` | `security-quotes` | ✅ | ➖ | ✅ | READY |
+| F4 | Returns tab: trailing 1M/3M/YTD/1Y, visible page only; screening/sorting on returns deliberately OFF with an explanatory panel | `/funds` | `security-returns` (Tiingo, keyed, cap 60; `?universe=` refused) | ✅ | ⚠¹ | ✅ | **NEEDS-FIX¹** |
+| F5 | Fund detail header: quote + `ref`, badges, non-catalog resolution, trading-restriction banner | `/funds/[symbol]` | `security-quotes`, `fund-universe?symbol=` | ✅ | ➖ | ✅ | READY |
+| F6 | Price chart + 52-week bar | `/funds/[symbol]` | `security-chart` (keyed) | ✅ | ➖ | ✅ | READY |
+| F7 | Fund Facts (11 rows, hover explainers) + always-visible ProvenanceNotice (stale >120d) | `/funds/[symbol]` | `fundCatalog.ts` | ✅ | ✅ catalog provenance tested | ✅ | READY |
+| F8 | Fee Drag Analyzer: projections vs 3bps benchmark, negative drag rendered as a saving | `/funds/[symbol]` | pure `computeFeeDrag` | ✅ | ✅ fundCatalog.test | ✅ | READY |
+| F9 | Underlying Investments: full portfolio (N-PORT → FMP → catalog), source pills, KPI strip, equity cross-links | `/funds/[symbol]` | `fund-holdings` | ⚠² | ➖ | ✅ | NEEDS-FIX² |
+| F10 | Sector weights (FMP leg only) | `/funds/[symbol]` | `fund-holdings` FMP leg | ⚠² | ➖ | ✅ | NEEDS-FIX² |
+| F11 | Holdings Change History: quarter-vs-quarter N-PORT diff — NEW/EXIT/ADD/TRIM, period pickers, est. turnover | `/funds/[symbol]` | `fund-holdings-history` (EDGAR → FMP) | ⚠² | ⚠³ | ✅ | NEEDS-FIX²³ |
+| F12 | Fund news (symbol mode for ETFs, general for mutual funds — commented rationale) | `/funds/[symbol]` | `market-news` | ✅ | ➖ | ✅ | READY |
+
+**Notes:**
+1. **`computeReturns` (`lib/utils/returns.ts:23`) — the 1M/3M/YTD/1Y percentages users
+   compare funds on — has zero tests.** YTD prior-year-close boundary and short-series
+   null logic unverified. Clear house-rule violation; small fix.
+2. **Real bug: `fund-holdings/route.ts:31` and `fund-holdings-history/route.ts:18`
+   read `process.env.FMP_API_KEY` at module scope instead of `getProviderKey('fmp')`.**
+   Everywhere else in the app a key saved in the Integrations UI wins over env; on
+   these two routes a UI-saved FMP key silently does nothing — no FMP holdings
+   fallback, no sector weights — while quotes/universe/calendar accept the same key.
+   The history route's key-missing copy even instructs `.env.local`, confirming
+   env-only. Fix: resolve via `getProviderKey` like every other consumer.
+3. Holdings-history diff math (deltaPct, NEW/EXIT/ADD/TRIM classification,
+   `turnoverPct = Σ|Δ|/2`) and the `nport.ts` parser are untested — figures users act
+   on. Extraction + vitest.
+4. The Asset Allocation donut never renders — `assetAllocation` is always `[]` since
+   the only source was withdrawn on terms grounds; documented as deliberate at both
+   ends and invisible to users. Fine for rollout as-is; N-PORT per-position categories
+   are a possible future derived source (Appendix B).
+
+**Summary:** 12 features — 8 READY, 4 NEEDS-FIX (one real bug — the env-only FMP key;
+two test gaps; both scoped). Nothing NOT-FOR-ROLLOUT.
 
 ---
 
