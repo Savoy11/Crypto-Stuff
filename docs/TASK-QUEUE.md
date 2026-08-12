@@ -1148,6 +1148,19 @@ Tasks within a wave own disjoint file sets, same rule as Phase 1.
 > 12/15 probes, full report in `docs/assessments/P2-O1-options-data.md`. Its
 > verdicts reshape W1/W2:
 >
+> > ⚠ **Correction (2026-08-12) — read this before trusting the P2-O4 lines
+> > below.** "The v8 chart API already in production" was **Yahoo's**, and Yahoo
+> > was removed as a data source on **2026-08-06 — one day after P2-O4 shipped
+> > against it** — on terms grounds, hard-blocked at the socket in `pinnedFetch`
+> > (see CLAUDE.md, "Source Terms"). So "no new provider, no licensing question"
+> > was true when written and is not true now. **P2-O4's code shipped and works;
+> > it just has no source.** Nothing reachable quotes a dated contract month, so
+> > `/live-data/futures-curve` resolves the months and returns `ok:false` with
+> > the reason, which `TermStructureCard` prints. That is the designed
+> > degradation, not a regression — front-month prices are unaffected. The task
+> > is **not** reopened: it needs a provider that quotes dated contracts, which
+> > is a sourcing decision, not build work.
+>
 > - **P2-O4 futures term structure — GO, unblocked, buildable now.** 9/9 individual
 >   contract months resolve through the v8 chart API already in production
 >   (64 daily bars; `CLU26.NYM` matches the `CL=F` control exactly, as expected
@@ -1178,6 +1191,7 @@ Tasks within a wave own disjoint file sets, same rule as Phase 1.
 >   v8 chart API — no new provider. Curve shape is stated as the ETF roll cost it
 >   actually is, thin contracts are excluded with the reason on-page, and a curve
 >   is refused below 3 resolved months rather than drawn from a partial fetch.
+>   (Sourceless since 2026-08-06 — see the correction at the top of this block.)
 > - **P2-O5 scorer half shipped 2026-08-05**: `score_options_trade` agent tool,
 >   `POST /api/v1/options/score` (+ `GET` for the schema), OpenAPI entry, and the
 >   MCP mirror. Additive only — no existing endpoint contract touched. The chain
