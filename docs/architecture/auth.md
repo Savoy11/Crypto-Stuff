@@ -36,7 +36,9 @@ no session, local denied   → null → caller returns 401
 
 Local-user mode exists because the auth wall is off: rows still need an owner,
 and re-enabling login to get one would override the owner's decision. It
-resolves to a single account, `local@caep.local`, created on first use. That
+resolves to a single account, `local@fn.local`, created on first use (installs
+from before the 2026-08 rename hold it as `local@caep.local`; the row is
+adopted — renamed in place, id preserved — on first touch). That
 account has `password_hash = NULL` and **cannot be logged into** — it only owns
 rows.
 

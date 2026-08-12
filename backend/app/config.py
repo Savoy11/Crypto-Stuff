@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     # ------------------------------------------------------------------ #
     # Database
     # ------------------------------------------------------------------ #
-    DATABASE_URL: str = "postgresql+asyncpg://caep:caep@localhost:5432/caep"
+    DATABASE_URL: str = "postgresql+asyncpg://fn:fn@localhost:5432/fn"
     DATABASE_POOL_SIZE: int = 20
     DATABASE_MAX_OVERFLOW: int = 10
     DATABASE_POOL_TIMEOUT: int = 30

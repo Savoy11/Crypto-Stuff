@@ -67,7 +67,7 @@ spec:
 
           env:
             - name: POSTGRES_DB
-              value: "caep"
+              value: "fn"
             - name: PGDATA
               value: "/var/lib/postgresql/data/pgdata"
             - name: POSTGRES_INITDB_ARGS
@@ -133,9 +133,9 @@ spec:
               command:
                 - pg_isready
                 - -U
-                - caep
+                - fn
                 - -d
-                - caep
+                - fn
             initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 10
@@ -146,9 +146,9 @@ spec:
               command:
                 - pg_isready
                 - -U
-                - caep
+                - fn
                 - -d
-                - caep
+                - fn
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5
