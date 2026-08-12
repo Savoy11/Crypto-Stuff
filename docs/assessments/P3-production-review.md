@@ -39,7 +39,87 @@ feature inventory / DATA-AVAILABILITY / ROADMAP as applicable.
 
 ## Module: Core (always on)
 
-_(section filled from the request-path sweep — see tables below)_
+Ten pages, always-on. The landing page, the two cross-module user-data surfaces
+(watchlist, portfolios), the AI surfaces, and the two meta pages (Integrations,
+Data Sources). Provenance discipline is good — every core SourceLine id resolves in
+the registry, and `/data-sources` is the model page.
+
+| # | Feature | Route | Data path | Reach | Test | Doc | Verdict |
+|---|---------|-------|-----------|:-----:|:----:|:---:|---------|
+| C1 | Headlines: Top Stories merge (crypto + markets, breaking-first, round-robin), per-module sections following entitlements, watchlist-bias reorder | `/headlines` | `news`, `market-news` | ✅ | ✅ bias tested | ✅ | READY¹ |
+| C2 | Videos: channel-feed grid (keyless Atom), whole-of-YouTube search (key + quota guards), scope/order/duration controls, market/channel filters | `/videos` | `videos`, `video-search` | ⚠² | ➖ | ⚠² | **NEEDS-OWNER-DECISION²** |
+| C3 | Daily Brief: one-shot AI morning brief grounded in ≤30 portfolio+watchlist symbols, last-brief persistence | `/brief` | POST `/api/agents/research`, `/api/user/*` | ⚠³ | ➖ | ✅ | NEEDS-FIX³ |
+| C4 | Watchlist: multi-list CRUD, cross-class search-add, live-price table (reference quotes treated as missing, never shown), partial-price disclosure | `/watchlist` | `/api/user/watchlists`, `portfolio-prices` + `security-quotes` | ⚠⁴ | ➖ | ✅ | READY⁴ |
+| C5 | Portfolios: card list, full editor (cross-asset, target alloc, validation), category/allocation charts, holdings table with P&L | `/portfolios` | `/api/user/portfolios`, `portfolio-prices`, `security-quotes` | ✅ | ⚠⁵ | ✅ | **NEEDS-FIX⁵⁶** |
+| C6 | Portfolios Analysis tab: per-holding risk, weighted risk, concentration warnings + Est. Annual Income (labeled "ref yields") | `/portfolios` | client-computed | ✅ | ⚠⁵ | ✅ | NEEDS-FIX⁵ |
+| C7 | Portfolios Look-through tab: underlying-issuer exposure across held funds | `/portfolios` | `fund-holdings` per fund | ✅ | ✅ lookThrough.test | ✅ | READY |
+| C8 | Portfolios Backtest tab: date presets, growth summary, return-by-holding chart (crypto-only history, stated on-page) | `/portfolios` | `portfolio-history` + prices | ✅ | ⚠⁵ | ✅ | NEEDS-FIX⁵ |
+| C9 | Compare: 2–6 symbols, growth-of-100 (common window), return/vol/drawdown/Sharpe (0% rf, stated), correlation matrix, fund holdings-overlap, reference fundamentals | `/compare` | `chart` (close-only, pinned), `security-chart`, `fund-holdings` | ✅ | ✅ compareStats + lookThrough | ✅ | READY⁷ |
+| C10 | Research: market selector → agent, example prompts, `?agent=`/`?symbol=`/`?task=` deep links, watchlist payload, toolsUsed chips | `/research` | POST `/api/agents/research` (whitelist of 5) | ⚠⁸ | ➖ | ✅ | READY⁸ |
+| C11 | AI Agents config: 10 tabs / 11 agents, provider+model+temperature+prompt editing, save/reset | `/agent-config` | `/api/agents/prompts` | ⚠⁹ | ➖ | ✅ | NEEDS-FIX⁹ |
+| C12 | Integrations: Suite Module toggles, watchlist-bias panel, agent enable/disable, 11 provider sections (toggle/key/test/status), utilization lines, subreddit manager | `/settings` | `/live-data/config`, `/api/agents/prompts` | ⚠¹⁰ | ➖ | ⚠¹⁰ | NEEDS-FIX¹⁰ |
+| C13 | Custom feeds: SSRF-validated URL, auth modes, format + JSON path, terms probe with clause report + acknowledgement, hard-block on prohibited | `/settings` | POST `/live-data/config`, `source-terms` | ⚠¹¹ | ✅ termsProbe/urlSafety | ✅ | NEEDS-FIX¹¹ |
+| C14 | Data Sources: verdict-sorted source-terms registry (seeded/"unread" badges + honesty notice), status tiles as filters, module-grouped provider rows | `/data-sources` | `source-terms` GET, static registry | ✅ | ✅ sourceTerms + dataSources tests | ✅ | READY |
+
+**Notes:**
+1. Watchlist-bias "Strong" only widens the fetch on `/news` and `/equities/news` —
+   Headlines and Videos reorder only, while the Settings hint says Strong "pulls extra
+   watchlist articles" globally. Copy fix on the hint (or implement augmentation).
+2. **`/live-data/video-analyze` is a fully orphaned feature** — GET lists providers,
+   POST answers questions about a video with timestamped citations, and **no page or
+   component calls it**. CLAUDE.md's feature table sells Videos as "Video search + AI
+   analysis"; the analysis half has no UI. Same class as the three placeholder agents:
+   Wave 2 decides build-the-trigger-UI vs stop advertising it.
+3. The research route returns 503 for **both** missing-key and agent-disabled;
+   `/brief` maps any 503 to "needs an Anthropic API key in `.env.local`" — wrong
+   instruction for a user who disabled the agent in Settings, and it omits the
+   Integrations-UI key path (which `getProviderKey()` prefers). Small fix: distinguish
+   the two errors, mention both key paths.
+4. List rename is API-possible (PUT accepts full body) with no UI control. Minor.
+5. **The app's most important untested money math is here.** `computeHoldings` /
+   `computeMetrics` (`lib/data/portfolioUtils.ts`) produce the P&L dollars and
+   percentages, and weighted risk — no test file. Est. Annual Income and the whole
+   Backtest-tab arithmetic are computed in-component, untested. (Contrast: Compare's
+   equivalent stats are tested in `compareStats.test.ts`.) Extraction + vitest is the
+   fix; behavior is believed correct but unverified.
+6. **False copy in the portfolios PageHeader** (`page.tsx:927-929`): claims Sharpe
+   (4% rf) and max drawdown which nothing on the page computes; claims portfolios are
+   localStorage-only and "not synced" (false — the store is DB-backed); stale "live
+   mode" phrasing. Plus residual "Coin" labels on cross-asset tables, and SourceLine
+   renders only in list view — absent from the detail view where P&L displays.
+7. Compare's universe is catalog-limited (79 stocks + 118 funds + coin catalog) — a
+   non-catalog ticker can't be compared although `security-chart` could serve it.
+   Wave 2 scope question, not a defect.
+8. `macro-screener` is whitelisted but reachable only via `?agent=` deep link — no
+   panel (its equity twin has one on `/equities`). An unknown `agentId` silently falls
+   back to the crypto research-analyst instead of erroring. Both minor.
+9. Three tab descriptions oversell placeholder agents — `data-scraper` /
+   `equity-data-scraper` "runs autonomously…", `equity-diligence` "investigates…" —
+   but none has an invocation trigger anywhere (CLAUDE.md confirms). A user can tune
+   prompts for agents that never run, with no hint. Copy fix now; trigger-UI-or-retire
+   is the standing owner-backlog decision.
+10. Two silent-failure deploy footguns: `/live-data/config` GET and
+    `/api/agents/prompts` GET are `guardSensitiveRoute`-protected, and on a
+    non-localhost deploy without `FN_ADMIN_TOKEN` both pages swallow the denial —
+    Integrations renders empty provider sections, agent-config shows "No agents
+    configured" with no explanation. Also CLAUDE.md doc drift: claims provider
+    **reordering** (no such action exists in UI or API) and claims entitlements
+    persist to Postgres (they are localStorage-only — see next).
+11. The custom-feed format dropdown offers **"WebSocket stream"** which the fetch path
+    does not implement (server logs a warning, feed contributes 0 items, user sees
+    nothing). Remove the option or implement it.
+
+**Production flag (owner decision, rollout-gating):** module entitlements live in
+localStorage (`useEntitlementStore`) and `<ModuleGate>` is client-side — fine for a
+personal tool, **not a paywall**. `docs/architecture/auth.md` Goal B step 4 already
+records this as the step with "real security weight." For the initial rollout the
+question is explicit: ship all modules free (current state is safe for that) or build
+DB-backed entitlements first (Phase 6). Nothing to fix in W1; W2 must decide the
+rollout posture.
+
+**Summary:** 14 features — 6 READY, 6 NEEDS-FIX (portfolio math tests + false copy
+being the substantive ones), 1 NEEDS-OWNER-DECISION (orphaned video-analyze), plus the
+entitlement-posture decision. Nothing NOT-FOR-ROLLOUT.
 
 ---
 
@@ -167,7 +247,134 @@ two test gaps; both scoped). Nothing NOT-FOR-ROLLOUT.
 
 ## Module: Macro Markets
 
-_(section filled from the request-path sweep — see tables below)_
+Eight pages. The keyless backbone (macro news, ECB FX, Treasury curve) is measured
+REAL; the quote surface is the one the Yahoo removal hit hardest — every intraday
+macro quote rides the keyed `security-quotes` ladder, Tiingo doesn't carry macro
+symbols, and the catalogs deliberately hold no reference prices, so no-key renders
+dashes. The module's engines are well-tested (treasuryCurve, termStructure,
+macroPillar, feedParse/pubDate, macroProfiles); its gaps are copy-vs-state and one
+real range bug.
+
+| # | Feature | Route | Data path | Reach | Test | Doc | Verdict |
+|---|---------|-------|-----------|:-----:|:----:|:---:|---------|
+| M1 | Overview: three area cards with 13-symbol live quote strips, per-kind formatting | `/macro` | `security-quotes` | ⚠¹ | ⚠ | ✅ | NEEDS-FIX¹ |
+| M2 | Macro News: 8-feed pillar-classified aggregate (balanced merge, dedupe, 14-day cutoff, Breaking, related-instrument links) | `/macro/news` | `macro-news` (keyless) | ✅ | ✅ pillar/feed/pubDate tested² | ✅ | READY² |
+| M3 | Commodities registry: 19 contracts, convention-true prices (¢/bu never "$"), price column deliberately unsortable (units incomparable), honest-label movers | `/macro/commodities` | `security-quotes` | ✅ | ⚠³ | ✅ | READY³ |
+| M4 | Commodity detail: quote, chart (¢-aware axes), facts, single-commodity ETF proxies (verified-delisting empty states) | `/macro/commodities/[slug]` | `security-quotes`, `security-chart` | ✅ | ⚠³ | ✅ | READY⁴ |
+| M5 | Futures term-structure card | commodity + rate-future details | `futures-curve` | ✅ honest | ✅ engine (21 tests, kept alive) | ✅ | **NEEDS-OWNER-DECISION⁵** |
+| M6 | Currencies registry: 18 pairs + DXY, per-pair precision, category chips | `/macro/currencies` | `security-quotes` | ✅ | ⚠³ | ✅ | READY |
+| M7 | Two-tier FX converter: 30 ECB + 127 community currencies, optgroup split, per-tier disclosure, swap | `/macro/currencies` | `fx-rates` + `fx-rates-extended` (both keyless) | ⚠⁶ | ⚠⁶ | ✅ | NEEDS-FIX⁶ |
+| M8 | Currency detail: rate, chart (plain axes), inverse rate, CurrencyShares proxies | `/macro/currencies/[slug]` | `security-quotes`, `security-chart` | ✅ | ⚠³ | ✅ | READY |
+| M9 | Rates: official Treasury par curve chart (latest/1M/year-start overlays), 2s10s/3m10y/shape KPIs, yields+futures table, bond ETF shelf, CUSIP-absence statement | `/macro/rates` | `treasury-yield-curve` (keyless), `security-quotes` | ⚠⁷ | ✅ buildCurveData tested; ⚠ client merge | ✅ | READY⁷ |
+| M10 | Rates detail: yield-neutral change coloring, chart, duration-matched funds | `/macro/rates/[slug]` | `security-quotes`, `security-chart` | ✅ | ⚠³ | ✅ | READY |
+| M11 | Macro TA chart tab: 45 instruments (thin marked), 6 chart types, shared indicators (volume-derived withheld with named reason), drawing tools | `/macro/technical-analysis` | `security-ohlcv` (keyed) | ⚠⁸ | ✅ indicators | ✅ | **NEEDS-FIX⁸ (bug)** |
+| M12 | Macro TA scanner: 29 liquid instruments, RSI-14 / vs-SMA50 / composite (29-of-45 deliberate, stated on-page) | `/macro/technical-analysis` | 29× `security-ohlcv` | ✅ | ⚠ | ✅ | READY⁹ |
+
+**Notes:**
+1. The overview's "Live" chips are hardcoded strings, and with zero keys the quote
+   route returns `ok:true` with empty quotes — so every strip dashes, **no error
+   banner fires**, and the header still says "quotes below are live." The key-gated
+   SourceLine badge is the only honest signal. Fix: derive the chip/copy from
+   priced-count (the commodities page already does this right with "N priced live").
+2. Route-local pieces (sentiment regexes, balanced merge, related-instrument
+   detection) are untested; the load-bearing classifiers are. Acceptable.
+3. Recurring macro test gap: **all four quote-convention formatters are untested**
+   (`formatInstrumentQuote`, `formatCommodityPrice`, `formatFxRate`,
+   `formatRatesQuote`) — these are exactly the "corn as $482 overstates ~100×"
+   guards the module's honesty rests on. One small test file covers all four.
+4. Shared `PriceChartCard` no-key copy says "Add a Tiingo or FMP key" — for macro
+   symbols Tiingo can't help; only FMP can. Mildly misleading shared copy.
+5. Term structure is **sourceless since 2026-08-06** (route returns `ok:false` +
+   reason; card prints it; registry status `unavailable`). Working as designed — but
+   the Wave 2 question is explicit: adopt a keyed provider that quotes dated contract
+   months, or ship the card stating unavailability indefinitely. The engine is tested
+   and kept alive for restoration.
+6. Converter works keyless and degrades honestly, but its disclosure claims the
+   extended tier is "**cross-checked against ECB where both cover the same
+   currency**" — no runtime cross-check exists and none is possible (the extended
+   allowlist deliberately excludes every ECB code, so overlap is empty). At best it
+   describes the 2026-07-21 hand-verification; as written it reads as an ongoing
+   control. Copy fix. Also: the cross-rate/inverse math (a $-figure users act on) is
+   computed in-component, untested.
+7. The 10-Year KPI subtitle falls back to "**live intraday**" exactly when there is
+   no live price — an unpriced dash captioned "live intraday" in a no-key deploy.
+   Copy fix. Separately, the ×10 question in the module flag below.
+8. **Real bug: the 2Y range button can never work.** The page sends `range=2Y`;
+   `security-ohlcv` accepts only `1M/3M/6M/1Y/5Y/MAX` and returns 400 — and the
+   failure renders as `LiveUnavailable` blaming post-Yahoo provider coverage,
+   misdirecting the user from what is a client/server vocabulary mismatch. Fails on
+   every instrument even with valid keys. (Not covered by the do-not-fix "different
+   ranges per asset class" entry — that covers which ranges are *offered*, not
+   offering one the backend rejects.)
+9. Scanner fires 29 keyed OHLCV requests per visit (900s route revalidate softens
+   it) — meaningful FMP free-tier budget; noted for Wave 2's operational review.
+
+**Module flag (owner question, needs a live key on the owner's machine):**
+**^TNX/^IRX/^FVX/^TYX scaling is internally contradictory.** The UI renders the raw
+quote as the yield (`price.toFixed(2) + '%'`) while the agent prompts/tools document
+the same quote ladder as yield×10 ("^TNX 42.5 = 4.25%"), and no ÷10 normalization
+exists in `marketData.ts`. One of the two is wrong depending on provider convention —
+either every rates KPI is off by 10× or the agent instructions are. Cannot be settled
+from a container; verify in Wave 2 with a configured key.
+
+**Summary:** 12 features — 8 READY, 3 NEEDS-FIX (one real bug: the 2Y range; two
+copy-vs-state), 1 NEEDS-OWNER-DECISION (term-structure sourcing), plus the ×10
+verification question. Nothing NOT-FOR-ROLLOUT.
+
+---
+
+## Cross-cutting: AI agents, /api/v1, MCP server
+
+### AI agents (11)
+
+Six agents are runnable end-to-end (app-assistant, research-analyst, equity-research,
+equity-screener, macro-research, pump-report ×2 via their own routes); key resolution
+(UI key wins over env) and disabled-agent 503s verified end-to-end on the runner
+routes. All agent-run routes are `guardSensitiveRoute`-protected.
+
+| # | Feature | Verdict | Finding |
+|---|---------|---------|---------|
+| X1 | app-assistant (AssistantWidget, all 26 tools, web_search) | **NEEDS-FIX** | Its system prompt describes the **pre-suite app**: 25 exchanges / 16 coins / 16 networks (actual 30/22/18), ~70 stocks (79), ~55 funds (118), Compare 2–4 (2–6), and names Dashboard/Reserves/Global Adoption as live pages (de-routed/folded). The flagship assistant misinforms users about the product it fronts. Fix: refresh `prompts.ts` defaults (T6 extended, not overwritten). |
+| X2 | research-analyst / equity-research / equity-screener / macro-research | READY | Whitelisted, invocable, honest 503s naming the fix surface. |
+| X3 | pump-report-investigator / pump-report-chat | NEEDS-FIX | Their routes **ignore the per-agent `enabled` toggle** — a "disabled" pump agent still runs (exposure bounded by localhost/token guard, but the Integrations toggle is a lie for these two). Also return 500 instead of 503 on missing key. |
+| X4 | data-scraper / equity-data-scraper / equity-diligence | **NEEDS-OWNER-DECISION** | Confirmed unreachable: no invocation path exists. Configurable and toggleable, described in `/agent-config` as "runs autonomously…". Standing owner-backlog decision: give them a trigger UI or retire them. |
+| X5 | macro-screener | NEEDS-FIX (small) | Whitelisted and functional but reachable only via `?agent=` deep link — its equity twin has a panel. Add the panel or note the deep link in UI. |
+
+### Public /api/v1 (12 endpoints + OpenAPI spec)
+
+Same-source-as-UI verified on quotes/network-fees/staking/news. Error hygiene is
+notably good (502 on upstream failure, never fake-empty; options/score returns all
+validation errors; staking carries `referenceData` provenance). **Request logging
+exists** (`middleware.ts` — one JSON line per v1 request incl. a `legacyRiskFilter`
+flag), so the risk-spec's E2 precondition for any future deprecation decision is
+satisfied. No v1 route touches user data (grep-clean of `db`/`getCurrentUserId`) —
+today's surface is market-data-only, as Phase 6 assumes.
+
+| # | Finding | Verdict |
+|---|---------|---------|
+| V1 | **`/transfer/routes` drifted from the shared fee module**: its local `STATIC_GAS` lacks `ton_network`/`near_network` (those routes silently vanish), and its price map covers 16 of the 22 accepted coins — LINK/TON/SHIB/UNI/NEAR/ARB fall through to `?? 1`, so `amountUsd`/`feePercent` are computed at **$1/coin with no fallback warning**. The UI path passes the full maps; v1 ≠ UI here despite the shared engine. | **NEEDS-FIX (correctness bug in a public API)** |
+| V2 | Staking `source` string claims live feeds it doesn't fetch ("Rocket Pool … Stride"; only Lido/Marinade/Jito are), and ETH rates *derived from Lido* for Coinbase/Kraken/Binance emit `aprSource: 'live'` — mislabeled derivation on a public contract. | NEEDS-FIX |
+| V3 | Discovery route (`GET /api/v1/`) omits `POST /options/score` from its endpoint list and says 16 coins/16 networks vs the 22/18 actually served (openapi.json itself is complete; `/network-fees` description also says "16"). | NEEDS-FIX (small) |
+| V4 | `/securities/history` returns no `source` field — the one v1 endpoint whose provider is undisclosed. | NEEDS-FIX (small) |
+| V5 | **No rate limiting, no auth, CORS `*`** — `securities/quotes` fans each anonymous request into the keyed provider ladder (25 symbols/request), so a public deploy lets third parties burn the owner's provider quotas. Known Phase 6 gap (ROADMAP), now load-bearing given production intent. | **NEEDS-OWNER-DECISION (rollout-gating)** |
+| V6 | Fallback price constants in `/prices` and `/transfer/routes` (BTC 95000…) are always disclosed via `source: 'fallback'` but undated — unlike every provenance-stamped catalog. | NEEDS-FIX (small) |
+
+### MCP server (13 tools)
+
+| # | Finding | Verdict |
+|---|---------|---------|
+| P1 | **`find_transfer_routes` is broken at runtime**: it formats `hop.feeUsd` / `route.estimatedTimeMin` / `warning.level` — fields the v1 response does not serve (actual: `exchangeFee`/`networkFee`/`totalFeeUsd`, `estimatedTime`, `severity`; the OpenAPI spec explicitly warns about `severity` vs `level`). TypeError on virtually any successful route lookup. | **NEEDS-FIX (broken tool)** |
+| P2 | Both staking tools describe and render **only the legacy 1–10 risk scale**; the canonical `safetyScore`/`band` (the additive fields R2 shipped) are never surfaced. The MCP layer is the exact consumer the additive migration was for. | NEEDS-FIX |
+| P3 | `get_network_fees` says "all 16 supported networks" and enumerates 16; the endpoint serves 18 (TON, NEAR missing). | NEEDS-FIX (small) |
+| P4 | Server self-describes as "Crypto Asset Evaluation Platform — transfer fees, staking…" (pre-rebrand, pre-suite — ignores securities/macro/options tools). CLAUDE.md's MCP table lists 12 tools; there are 13. No README in `mcp-server/` though `index.ts` points to one. `zod` used but undeclared (transitive). | NEEDS-FIX (small) |
+| P5 | **`run_audit` is an undocumented 13th tool** that shells out (`npx tsc`, `shell: true`), probes live-data routes, and walks the frontend source tree — a local dev/maintenance tool inside an otherwise market-data server. Needs an explicit decision before any external distribution. | NEEDS-OWNER-DECISION |
+
+**Summary:** the cross-cutting surface is where drift concentrates — every layer
+(agent prompts, discovery metadata, MCP descriptions/formatters) lags the app it
+fronts, because nothing regression-tests the boundary. Two real bugs (V1, P1), one
+production gate (V5), two owner decisions (X4, P5). A cheap standing guard worth
+considering in Wave 2: a vitest that diffs the discovery/MCP counts against the
+catalogs' actual exports, so counts can't drift silently again.
 
 ---
 
