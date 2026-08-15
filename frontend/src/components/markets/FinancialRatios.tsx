@@ -6,6 +6,7 @@ import { Calculator } from 'lucide-react'
 import { ExplainedLabel } from '@/components/ui/ExplainedLabel'
 import { STALE_TIME_LONG } from '@/lib/constants'
 import { formatCompact, formatCompactNumber, formatCurrency, formatRatio } from '@/lib/utils/format'
+import { computeValuationMultiples } from '@/lib/utils/companyRatios'
 import type { CompanyFactsResponse } from '@/app/live-data/company-facts/route'
 
 // Financial ratios & metrics computed from SEC EDGAR XBRL company facts
@@ -49,10 +50,21 @@ export function FinancialRatios({ symbol, price, priceIsLive }: FinancialRatiosP
   const f = data?.fundamentals
   const ra = data?.ratios
 
-  const marketCap = f?.sharesOutstanding != null ? price * f.sharesOutstanding : null
-  const pe = f?.epsDiluted != null && f.epsDiluted !== 0 ? price / f.epsDiluted : null
-  const ps = marketCap != null && f?.revenue ? marketCap / f.revenue : null
-  const pb = marketCap != null && f?.equity ? marketCap / f.equity : null
+  const { marketCap, pe, ps, pb } = computeValuationMultiples(f, price)
+
+  // The route falls back to EarningsPerShareBasic when a registrant reports no
+  // diluted figure, and reports which one it used. Labelling a basic figure
+  // "Diluted EPS" — with hover text calling it "the most conservative per-share
+  // earnings figure" — overstated it by the entire option/convertible overhang,
+  // and P/E is computed from the same number, so the mislabel propagated.
+  const epsBasis = f?.epsBasis
+  const epsLabel = epsBasis === 'basic' ? 'Basic EPS' : epsBasis === 'diluted' ? 'Diluted EPS' : 'EPS'
+  const epsExplain = epsBasis === 'basic'
+    ? 'Profit per share over the shares actually outstanding. This registrant reports no diluted figure, so options and convertibles are NOT counted — the diluted number would be lower. P/E above uses this same figure.'
+    : epsBasis === 'diluted'
+      ? 'Profit per share counting all potential shares from options and convertibles — the most conservative per-share earnings figure, and the one P/E uses here.'
+      : 'Profit per share for the fiscal year, as filed. The basis (basic or diluted) is not identified in this registrant’s facts.'
+  const peLabel = epsBasis === 'basic' ? 'P/E (FY, basic)' : epsBasis === 'diluted' ? 'P/E (FY, diluted)' : 'P/E (FY)'
 
   const groups: Array<{ title: string; rows: Row[] }> = f && ra ? [
     {
@@ -60,8 +72,8 @@ export function FinancialRatios({ symbol, price, priceIsLive }: FinancialRatiosP
       rows: [
         { label: 'Market Cap', value: usd(marketCap), ref: !priceIsLive,
           explain: 'The total value the market puts on the company (share price × shares outstanding). It sets the company’s size class — mega, large, mid cap — and its weight in indexes.' },
-        { label: 'P/E (FY, diluted)', value: times(pe), ref: !priceIsLive,
-          explain: 'How many dollars you pay for $1 of annual profit. A high P/E means the market expects strong growth; a low one can signal a bargain — or a business in trouble. Only meaningful vs. peers and history.' },
+        { label: peLabel, value: times(pe), ref: !priceIsLive,
+          explain: 'How many dollars you pay for $1 of annual profit. A high P/E means the market expects strong growth; a low one can signal a bargain — or a business in trouble. Only meaningful vs. peers and history. Blank for a loss-making company: a negative multiple is a category error, not a cheap stock.' },
         { label: 'Price / Sales', value: times(ps), ref: !priceIsLive,
           explain: 'Market cap per dollar of revenue. Useful when earnings are thin or negative, where P/E breaks down. Compare within the same industry — software commands far higher P/S than retail.' },
         { label: 'Price / Book', value: times(pb), ref: !priceIsLive,
@@ -107,8 +119,8 @@ export function FinancialRatios({ symbol, price, priceIsLive }: FinancialRatiosP
           explain: 'Total sales for the fiscal year — the top line. Sustained revenue growth is the raw material for everything else; margins can only be squeezed so far.' },
         { label: 'Net Income', value: usd(f.netIncome), growth: ra.netIncomeGrowthYoY,
           explain: 'Profit after every expense and tax — the earnings behind EPS and the P/E ratio.' },
-        { label: 'Diluted EPS', value: f.epsDiluted != null ? formatCurrency(f.epsDiluted) : dash,
-          explain: 'Profit per share counting all potential shares from options and convertibles — the most conservative per-share earnings figure, and the one P/E uses here.' },
+        { label: epsLabel, value: f.eps != null ? formatCurrency(f.eps) : dash,
+          explain: epsExplain },
         { label: 'Operating Cash Flow', value: usd(f.operatingCashFlow),
           explain: 'Actual cash the operations generated. Harder to massage than accounting earnings — persistent gaps between net income and operating cash flow are a classic warning sign.' },
         { label: 'Free Cash Flow', value: usd(f.freeCashFlow),

@@ -193,6 +193,15 @@ function CompareInner() {
   )
 
   const chartData = useMemo(() => normalizeToCommonStart(series), [series])
+  // Symbols the user asked for that returned no usable history. The chart's
+  // LiveUnavailable only fires when EVERY series is empty, and crypto is keyless
+  // so it practically always resolves — meaning a stock in a mixed comparison
+  // used to vanish from the legend with no banner and a bare '—' in the table.
+  // Partial coverage has to be named, not inferred from an absence (D-12 class).
+  const missing = useMemo(
+    () => symbols.filter((s) => !chartData.present.includes(s)),
+    [symbols, chartData.present],
+  )
   // Stats over the SAME common-start window the chart is rebased to — otherwise
   // series with different history depths report non-comparable "window" figures
   // side by side (review finding).
@@ -288,6 +297,18 @@ function CompareInner() {
           />
         ) : (
           <LiveUnavailable message="No live history source is reachable for the selected symbols. Crypto history is keyless (CoinGecko); stock, fund and macro history now needs a Tiingo or FMP key, since the keyless source was withdrawn on terms grounds." />
+        )}
+        {!loading && chartData.rows.length > 1 && missing.length > 0 && (
+          <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-300">
+            <span className="font-medium">Charted {chartData.present.length} of {symbols.length}.</span>{' '}
+            No history returned for{' '}
+            <span className="font-mono">{missing.join(', ')}</span>
+            {missing.every((s) => OPTION_BY_SYMBOL.get(s)?.kind !== 'crypto')
+              ? ' — stock and fund history needs a Tiingo or FMP key on the Integrations page.'
+              : ' — the series is missing or too short to align over this window.'}{' '}
+            Everything below is computed over the remaining {chartData.present.length}, so the
+            correlation matrix and window statistics do not describe the full selection.
+          </p>
         )}
       </div>
 

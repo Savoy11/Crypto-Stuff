@@ -13,7 +13,7 @@ import type { CompanyFactsResponse } from '@/app/live-data/company-facts/route'
 // sections cost one fetch between them.
 
 export function FundamentalsTrend({ symbol }: { symbol: string }) {
-  const { data, isLoading } = useQuery<CompanyFactsResponse>({
+  const { data, isLoading, error } = useQuery<CompanyFactsResponse>({
     queryKey: ['company-facts', symbol],
     queryFn: async () => {
       const r = await fetch(`/live-data/company-facts?symbol=${encodeURIComponent(symbol)}`)
@@ -33,7 +33,21 @@ export function FundamentalsTrend({ symbol }: { symbol: string }) {
       netIncome: p.netIncome,
     }))
 
-  if (!isLoading && points.length < 2) return null // nothing meaningful to plot
+  // Why this renders an empty state instead of returning null: unmounting the
+  // whole section made an EDGAR outage, a foreign private issuer that files 20-F
+  // (so has no 10-K XBRL history), and a company with one fiscal year on record
+  // all look identical — and identical to "this page has no such section". The
+  // ratios block directly above says "Fundamentals unavailable" in the same
+  // circumstances, so the page contradicted itself. Name the reason instead.
+  const emptyReason = isLoading
+    ? null
+    : error
+      ? `Unavailable — ${error instanceof Error ? error.message : 'SEC EDGAR unreachable'}`
+      : points.length === 0
+        ? 'No annual XBRL history on record for this registrant. Companies filing as foreign private issuers (20-F) and those with no US-GAAP annual facts do not appear here.'
+        : points.length === 1
+          ? `Only one fiscal year on record (${points[0].fy}). A trend needs at least two.`
+          : null
 
   return (
     <div className="rounded-card border border-border bg-bg-card p-4">
@@ -47,6 +61,8 @@ export function FundamentalsTrend({ symbol }: { symbol: string }) {
 
       {isLoading ? (
         <LoadingSkeleton className="h-56 w-full" />
+      ) : emptyReason ? (
+        <p className="py-6 text-xs text-text-muted">{emptyReason}</p>
       ) : (
         <BarChart
           data={points}

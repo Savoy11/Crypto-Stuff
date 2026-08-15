@@ -1,5 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { EDGAR_HEADERS, resolveCik } from '@/lib/server/edgar'
+import {
+  computeRatios,
+  deriveFreeCashFlow,
+  deriveGrossProfit,
+  type CompanyFundamentals,
+  type CompanyRatios,
+  type EpsBasis,
+} from '@/lib/utils/companyRatios'
+
+// The fundamentals/ratio shapes and every derivation live in lib/utils/companyRatios.ts
+// (pure + vitest-covered). Re-exported here so existing importers of this route's
+// types keep working.
+export type { CompanyFundamentals, CompanyRatios, EpsBasis }
 
 export const dynamic = 'force-dynamic'
 
@@ -11,50 +24,11 @@ export const dynamic = 'force-dynamic'
 // recent quarter or annual report. Valuation multiples that need a live price
 // (P/E, P/S, P/B, market cap) are computed client-side from these figures.
 
-export interface CompanyFundamentals {
-  // Income statement — latest fiscal year
-  revenue: number | null
-  revenuePrior: number | null
-  grossProfit: number | null
-  operatingIncome: number | null
-  netIncome: number | null
-  netIncomePrior: number | null
-  epsDiluted: number | null
-  // Cash flow — latest fiscal year
-  operatingCashFlow: number | null
-  capex: number | null
-  freeCashFlow: number | null
-  // Balance sheet — most recent report
-  assets: number | null
-  liabilities: number | null
-  equity: number | null
-  assetsCurrent: number | null
-  liabilitiesCurrent: number | null
-  cash: number | null
-  longTermDebt: number | null
-  sharesOutstanding: number | null
-  balanceSheetAsOf: string | null
-}
-
-export interface CompanyRatios {
-  grossMargin: number | null        // fractions (0.46 = 46%)
-  operatingMargin: number | null
-  netMargin: number | null
-  roe: number | null
-  roa: number | null
-  currentRatio: number | null
-  liabilitiesToEquity: number | null
-  debtToEquity: number | null       // long-term debt / equity
-  revenueGrowthYoY: number | null
-  netIncomeGrowthYoY: number | null
-  fcfMargin: number | null
-}
-
 export interface AnnualDataPoint {
   fiscalYearEnd: string             // YYYY-MM-DD
   revenue: number | null
   netIncome: number | null
-  epsDiluted: number | null
+  eps: number | null
 }
 
 export interface CompanyFactsResponse {
@@ -100,8 +74,12 @@ function factsForConcept(taxonomy: ConceptMap, concept: string, unitPreference: 
  * between Revenues and RevenueFromContractWithCustomer…), so the series merges
  * every listed concept; earlier-listed concepts win when both cover a year.
  */
-function annual(taxonomy: ConceptMap, concepts: string[], units = ['USD']): { latest: Fact | null; prior: Fact | null; series: Fact[] } {
-  const byEnd = new Map<string, Fact>()
+function annual(
+  taxonomy: ConceptMap,
+  concepts: string[],
+  units = ['USD'],
+): { latest: Fact | null; prior: Fact | null; series: Fact[]; latestConcept: string | null } {
+  const byEnd = new Map<string, { fact: Fact; concept: string }>()
   for (const concept of concepts) {
     const local = new Map<string, Fact>()
     for (const f of factsForConcept(taxonomy, concept, units)) {
@@ -112,10 +90,19 @@ function annual(taxonomy: ConceptMap, concepts: string[], units = ['USD']): { la
       const existing = local.get(f.end)
       if (!existing || (f.fy ?? 0) >= (existing.fy ?? 0)) local.set(f.end, f)
     }
-    for (const [end, f] of local) if (!byEnd.has(end)) byEnd.set(end, f)
+    for (const [end, f] of local) if (!byEnd.has(end)) byEnd.set(end, { fact: f, concept })
   }
-  const series = [...byEnd.values()].sort((a, b) => b.end.localeCompare(a.end))
-  return { latest: series[0] ?? null, prior: series[1] ?? null, series }
+  const entries = [...byEnd.values()].sort((a, b) => b.fact.end.localeCompare(a.fact.end))
+  const series = entries.map((e) => e.fact)
+  // `latestConcept` is how the caller learns WHICH tag supplied the number — the
+  // fallback lists are ordered by preference, so a value can silently come from a
+  // materially different concept (diluted vs basic EPS being the one users see).
+  return {
+    latest: series[0] ?? null,
+    prior: series[1] ?? null,
+    series,
+    latestConcept: entries[0]?.concept ?? null,
+  }
 }
 
 /** Most recent value for an instant (balance-sheet) concept, from any 10-K/10-Q. */
@@ -130,12 +117,6 @@ function instant(taxonomy: ConceptMap, concepts: string[], units = ['USD']): Fac
   const sorted = [...byEnd.values()].sort((a, b) => b.end.localeCompare(a.end))
   return sorted[0] ?? null
 }
-
-const ratio = (num: number | null | undefined, den: number | null | undefined): number | null =>
-  num != null && den != null && den !== 0 ? num / den : null
-
-const growth = (latest: number | null, prior: number | null): number | null =>
-  latest != null && prior != null && prior !== 0 ? latest / prior - 1 : null
 
 export async function GET(req: NextRequest) {
   const symbol = (req.nextUrl.searchParams.get('symbol') ?? '').trim().toUpperCase()
@@ -189,9 +170,12 @@ export async function GET(req: NextRequest) {
       return fail(503, 'Company facts contained no usable fundamentals')
     }
 
-    const grossProfitVal = grossProfit.latest?.val
-      ?? (revenue.latest && costOfRevenue.latest ? revenue.latest.val - costOfRevenue.latest.val : null)
-    const fcf = ocf.latest ? ocf.latest.val - (capex.latest?.val ?? 0) : null
+    const grossProfitVal = deriveGrossProfit(
+      grossProfit.latest?.val ?? null,
+      revenue.latest?.val ?? null,
+      costOfRevenue.latest?.val ?? null,
+    )
+    const fcf = deriveFreeCashFlow(ocf.latest?.val ?? null, capex.latest?.val ?? null)
 
     const fundamentals: CompanyFundamentals = {
       revenue: revenue.latest?.val ?? null,
@@ -200,7 +184,10 @@ export async function GET(req: NextRequest) {
       operatingIncome: operatingIncome.latest?.val ?? null,
       netIncome: netIncome.latest?.val ?? null,
       netIncomePrior: netIncome.prior?.val ?? null,
-      epsDiluted: eps.latest?.val ?? null,
+      eps: eps.latest?.val ?? null,
+      epsBasis: eps.latestConcept === 'EarningsPerShareDiluted' ? 'diluted'
+        : eps.latestConcept === 'EarningsPerShareBasic' ? 'basic'
+        : null,
       operatingCashFlow: ocf.latest?.val ?? null,
       capex: capex.latest?.val ?? null,
       freeCashFlow: fcf,
@@ -215,30 +202,18 @@ export async function GET(req: NextRequest) {
       balanceSheetAsOf: equity?.end ?? assets?.end ?? null,
     }
 
-    const ratios: CompanyRatios = {
-      grossMargin: ratio(fundamentals.grossProfit, fundamentals.revenue),
-      operatingMargin: ratio(fundamentals.operatingIncome, fundamentals.revenue),
-      netMargin: ratio(fundamentals.netIncome, fundamentals.revenue),
-      roe: ratio(fundamentals.netIncome, fundamentals.equity),
-      roa: ratio(fundamentals.netIncome, fundamentals.assets),
-      currentRatio: ratio(fundamentals.assetsCurrent, fundamentals.liabilitiesCurrent),
-      liabilitiesToEquity: ratio(fundamentals.liabilities, fundamentals.equity),
-      debtToEquity: ratio(fundamentals.longTermDebt, fundamentals.equity),
-      revenueGrowthYoY: growth(fundamentals.revenue, fundamentals.revenuePrior),
-      netIncomeGrowthYoY: growth(fundamentals.netIncome, fundamentals.netIncomePrior),
-      fcfMargin: ratio(fundamentals.freeCashFlow, fundamentals.revenue),
-    }
+    const ratios: CompanyRatios = computeRatios(fundamentals)
 
     // Annual history: merge the per-concept series on fiscal-year-end date
     const byEnd = new Map<string, AnnualDataPoint>()
     const point = (end: string): AnnualDataPoint => {
       let p = byEnd.get(end)
-      if (!p) { p = { fiscalYearEnd: end, revenue: null, netIncome: null, epsDiluted: null }; byEnd.set(end, p) }
+      if (!p) { p = { fiscalYearEnd: end, revenue: null, netIncome: null, eps: null }; byEnd.set(end, p) }
       return p
     }
     for (const f of revenue.series) point(f.end).revenue = f.val
     for (const f of netIncome.series) point(f.end).netIncome = f.val
-    for (const f of eps.series) point(f.end).epsDiluted = f.val
+    for (const f of eps.series) point(f.end).eps = f.val
     const annualSeries = [...byEnd.values()]
       .filter(p => p.revenue != null || p.netIncome != null)
       .sort((a, b) => b.fiscalYearEnd.localeCompare(a.fiscalYearEnd))
