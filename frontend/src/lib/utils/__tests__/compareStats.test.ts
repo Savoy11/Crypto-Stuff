@@ -176,3 +176,68 @@ describe('periodsPerYear (spacing-aware annualization)', () => {
     expect(d.volPct / w.volPct).toBeCloseTo(Math.sqrt(252 / 52), 6)
   })
 })
+
+// ── CAGR and Sortino (P3-W2 item 2: more stats for the Compare table) ──
+
+describe('windowStats — CAGR', () => {
+  const DAY = 86_400_000
+  const at = (daysFromStart: number, close: number) => ({ t: Date.UTC(2024, 0, 1) + daysFromStart * DAY, close })
+
+  it('annualizes a multi-year window', () => {
+    // 100 → 121 over exactly two years is 10%/yr compounded.
+    const s = windowStats([at(0, 100), at(Math.round(2 * 365.25), 121)])
+    expect(s!.cagrPct).toBeCloseTo(10, 1)
+  })
+
+  it('equals total return over a single year — including the exact 365-day 1Y range', () => {
+    // Regression: a calendar year is 365 days against a 365.25-day year, so a
+    // strict `years >= 1` refused CAGR on precisely the 1Y view.
+    const s = windowStats([at(0, 100), at(365, 115)])
+    expect(s!.cagrPct).toBeCloseTo(15, 1)
+    expect(s!.totalReturnPct).toBeCloseTo(15, 1)
+  })
+
+  it('is null below a year — annualizing a one-month move overstates it', () => {
+    // +10% in a month would annualize to ~+214%, which reads as a fact.
+    const s = windowStats([at(0, 100), at(30, 110)])
+    expect(s!.cagrPct).toBeNull()
+    expect(s!.totalReturnPct).toBeCloseTo(10)
+  })
+
+  it('reports a negative CAGR for a multi-year decline', () => {
+    const s = windowStats([at(0, 100), at(Math.round(2 * 365.25), 81)])
+    expect(s!.cagrPct).toBeCloseTo(-10, 1)
+  })
+
+  it('is null when a close is non-positive (fractional-power domain)', () => {
+    const s = windowStats([at(0, 0), at(Math.round(2 * 365.25), 100)])
+    expect(s!.cagrPct).toBeNull()
+  })
+})
+
+describe('windowStats — Sortino', () => {
+  const DAY = 86_400_000
+  const series = (closes: number[]) => closes.map((close, i) => ({ t: Date.UTC(2024, 0, 1) + i * DAY, close }))
+
+  it('is null when nothing in the window lost — no downside to measure', () => {
+    const s = windowStats(series([100, 101, 102, 103, 104]))
+    expect(s!.sortino).toBeNull()
+    expect(s!.sharpe).not.toBeNull() // Sharpe still scores it; that is the difference
+  })
+
+  it('exceeds Sharpe when volatility is mostly upside', () => {
+    // Big up moves, small down moves: Sharpe charges for both, Sortino only the losses.
+    const s = windowStats(series([100, 130, 128, 170, 168, 220]))
+    expect(s!.sortino!).toBeGreaterThan(s!.sharpe!)
+  })
+
+  it('goes negative when the window trends down', () => {
+    const s = windowStats(series([100, 95, 97, 90, 88, 80]))
+    expect(s!.sortino!).toBeLessThan(0)
+  })
+
+  it('is finite for a mixed series', () => {
+    const s = windowStats(series([100, 104, 99, 103, 97, 105, 101]))
+    expect(Number.isFinite(s!.sortino!)).toBe(true)
+  })
+})

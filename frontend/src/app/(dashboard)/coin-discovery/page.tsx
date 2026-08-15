@@ -8,13 +8,14 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
    remotePatterns config and doesn't cleanly support the inline onError fallback,
    for no real benefit at this size. Plain <img> is intentional here. */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Search, Plus, Star, X, ChevronDown, ChevronUp, Coins, Trash2, TrendingUp, AlertTriangle, Eye, ExternalLink, Database, LayoutGrid, Rows3 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { DerivedNote } from '@/components/ui/DerivedNote'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
+import { CATEGORY_INFO } from '@/lib/data/coinCatalog'
 import type { CandidateCoin, CoinDiscoveryResponse } from '@/app/live-data/coin-discovery/route'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -392,6 +393,21 @@ const RECO_FILTER_OPTIONS = [
   { value: 'too-speculative', label: 'Speculative' },
 ]
 
+// Coin type is `category` on every candidate (CATEGORY_INFO in coinCatalog.ts),
+// already computed server-side and already rendered as the badge on each card —
+// it was simply never something you could organize the list by.
+const TYPE_OPTIONS = [
+  { value: 'all', label: 'All types' },
+  ...Object.entries(CATEGORY_INFO).map(([value, info]) => ({ value, label: info.label })),
+]
+
+const SORT_OPTIONS = [
+  { value: 'score', label: 'Score' },
+  { value: 'type', label: 'Coin type' },
+  { value: 'market-cap', label: 'Market cap' },
+] as const
+type SortKey = typeof SORT_OPTIONS[number]['value']
+
 const LIMIT_OPTIONS = [
   { value: 250,  label: 'Top 250' },
   { value: 500,  label: 'Top 500' },
@@ -401,6 +417,8 @@ const LIMIT_OPTIONS = [
 function CoinDiscoveryPageInner() {
   const [tab, setTab]             = useState<Tab>('recommendations')
   const [recoFilter, setRecoFilter] = useState('all')
+  const [typeFilter, setTypeFilter] = useState('all')
+  const [sortBy, setSortBy]       = useState<SortKey>('score')
   const [search, setSearch]       = useState('')
   const [limit, setLimit]         = useState(250)
   const [sourceOpen, setSourceOpen] = useState(false)
@@ -424,9 +442,28 @@ function CoinDiscoveryPageInner() {
 
   const filtered = candidates.filter(c => {
     if (recoFilter !== 'all' && c.recommendation !== recoFilter) return false
+    if (typeFilter !== 'all' && c.category !== typeFilter) return false
     if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.symbol.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
+
+  // Identity of the current result set, so the sort memo re-runs when the
+  // filters change without depending on a freshly-allocated array each render.
+  const filteredKey = filtered.map(c => c.cgId).join(',')
+
+  // The route already returns candidates ordered by composite score, so 'score'
+  // is a no-op pass-through rather than a re-sort — keeping the server's order
+  // authoritative. 'type' groups by category label and keeps the score order
+  // inside each group, so the list stays readable as a set of type sections.
+  const sorted = useMemo(() => {
+    if (sortBy === 'score') return filtered
+    const rows = [...filtered]
+    if (sortBy === 'market-cap') return rows.sort((a, b) => b.marketCap - a.marketCap)
+    return rows.sort((a, b) =>
+      a.categoryLabel.localeCompare(b.categoryLabel) || b.scores.overall - a.scores.overall,
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredKey, sortBy])
 
   const strongAddCount = candidates.filter(c => c.recommendation === 'strong-add').length
   const considerCount  = candidates.filter(c => c.recommendation === 'consider').length
@@ -572,6 +609,32 @@ function CoinDiscoveryPageInner() {
                 </button>
               ))}
             </div>
+            <label className="flex items-center gap-1.5 text-xs text-text-muted">
+              Type
+              <select
+                value={typeFilter}
+                onChange={e => setTypeFilter(e.target.value)}
+                className="bg-bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-blue"
+              >
+                {TYPE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-1.5 text-xs text-text-muted">
+              Sort
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as SortKey)}
+                className="bg-bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-blue"
+              >
+                {SORT_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-muted" />
               <input
@@ -624,28 +687,28 @@ function CoinDiscoveryPageInner() {
             </div>
           )}
 
-          {!isLoading && !error && filtered.length === 0 && (
+          {!isLoading && !error && sorted.length === 0 && (
             <div className="text-center py-16 text-text-muted">
               <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="text-sm">No candidates match your current filters.</p>
             </div>
           )}
 
-          {!isLoading && filtered.length > 0 && (
+          {!isLoading && sorted.length > 0 && (
             viewMode === 'compact' ? (
               <div className="flex flex-col gap-1.5">
-                {filtered.map(coin => <CandidateCard key={coin.cgId} coin={coin} compact />)}
+                {sorted.map(coin => <CandidateCard key={coin.cgId} coin={coin} compact />)}
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filtered.map(coin => <CandidateCard key={coin.cgId} coin={coin} />)}
+                {sorted.map(coin => <CandidateCard key={coin.cgId} coin={coin} />)}
               </div>
             )
           )}
 
           {data && (
             <p className="text-xs text-text-muted text-center">
-              Showing {filtered.length} of {candidates.length} candidates from CoinGecko {LIMIT_OPTIONS.find(o => o.value === limit)?.label.toLowerCase()} · Updated {new Date(data.updatedAt).toLocaleTimeString()}
+              Showing {sorted.length} of {candidates.length} candidates{typeFilter !== 'all' ? ` · ${TYPE_OPTIONS.find(o => o.value === typeFilter)?.label}` : ''} from CoinGecko {LIMIT_OPTIONS.find(o => o.value === limit)?.label.toLowerCase()} · Updated {new Date(data.updatedAt).toLocaleTimeString()}
             </p>
           )}
         </>
