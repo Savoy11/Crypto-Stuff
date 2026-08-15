@@ -243,6 +243,26 @@ export function FundsClient() {
   // disabled with an on-page explanation. Restoring them needs a provider that
   // batches trailing returns — then re-add the universe query and drop the
   // RETURNS_UNAVAILABLE guards below.
+  //
+  // ── Sourcing revisit, 2026-08-15 (P3-W2 item 12) ──
+  // A batching provider DOES exist, and it is one we already pay attention to.
+  // FMP's `/stable/stock-price-change?symbol=X` returns 1D/5D/1M/3M/6M/ytd/1Y/
+  // 3Y/5Y/10Y/max directly — the four windows this table wants, with no series
+  // download and no computeReturns step. Verified against a live FMP key:
+  //   • single symbol            → works on the current plan
+  //   • comma-separated symbols  → refused, "requires a higher plan"
+  //   • full-etf-quotes (whole   → Ultimate/Enterprise only
+  //     ETF market in one call)
+  // So whole-universe screening is now a PURCHASING decision, not an
+  // engineering one: the endpoint is right there behind a paid tier. Until
+  // that tier is bought, nothing changes here — 118+ single-symbol requests to
+  // populate one screen is the same trade this note already rejected.
+  //
+  // ⚠ If FMP is ever wired in as a returns source, it CANNOT be silently mixed
+  // with Tiingo: FMP reports a price change, while fetchTiingoSeries computes
+  // on adjusted closes (total return). For SPY that gap is the distribution
+  // yield — 1Y price +20.65% vs total return ~+22%. Two bases in one column,
+  // unlabelled, is the failure the two-tier FX converter exists to avoid.
 
   // ── Filter + sort the whole universe (facts-based; quotes are page-scoped) ──
   const filtered = useMemo(() => {

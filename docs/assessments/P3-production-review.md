@@ -365,6 +365,12 @@ rather than screening a page and pretending it screened the universe).
 1. **`computeReturns` (`lib/utils/returns.ts:23`) — the 1M/3M/YTD/1Y percentages users
    compare funds on — has zero tests.** YTD prior-year-close boundary and short-series
    null logic unverified. Clear house-rule violation; small fix.
+   > ✅ **RESOLVED 2026-08-15 (P3-W2):** 15 tests added covering both flagged
+   > cases. Behaviour was correct; one caveat is now pinned rather than
+   > implicit — between 200 and 251 closes the 1Y column reports the series
+   > start, so a young fund shows a sub-year period under a "1Y" heading. The
+   > fallback is deliberate (the alternative hides a young fund's only
+   > meaningful return) but it is not a full year.
 2. **Real bug: `fund-holdings/route.ts:31` and `fund-holdings-history/route.ts:18`
    read `process.env.FMP_API_KEY` at module scope instead of `getProviderKey('fmp')`.**
    Everywhere else in the app a key saved in the Integrations UI wins over env; on
@@ -382,6 +388,23 @@ rather than screening a page and pretending it screened the universe).
 
 **Summary:** 12 features — 8 READY, 4 NEEDS-FIX (one real bug — the env-only FMP key;
 two test gaps; both scoped). Nothing NOT-FOR-ROLLOUT.
+
+> **Sourcing revisit, 2026-08-15 (P3-W2 item 12) — return screening.** The F4
+> decision to keep return screening/sorting OFF was recorded as blocked on "a
+> provider that batches trailing returns". That provider was located and tested
+> against a live FMP key: `/stable/stock-price-change?symbol=X` returns
+> 1D/5D/1M/3M/6M/ytd/1Y/3Y/5Y/10Y/max directly — the exact four windows, with no
+> series download and no `computeReturns` step. **Single-symbol works on the
+> current plan; the comma-separated batch form is refused ("requires a higher
+> plan"), and the whole-market `full-etf-quotes` endpoint needs Ultimate or
+> Enterprise.** Whole-universe screening is therefore a purchasing decision, not
+> an engineering one, and F4's verdict stands unchanged until that tier is
+> bought. Recorded so the question is not re-opened from scratch a third time.
+>
+> One constraint attaches to any future wiring: FMP reports a **price** change
+> while the current Tiingo path computes on **adjusted** closes (total return).
+> For SPY that gap is the distribution yield — 1Y price +20.65% vs total return
+> ~+22%. The two bases must never share a column unlabelled.
 
 ---
 

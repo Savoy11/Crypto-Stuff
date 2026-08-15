@@ -151,6 +151,21 @@ export const MODULES: SuiteModule[] = [
     ],
   },
   {
+    // Premium module — sold under its own entitlement (separate fee).
+    //
+    // Ordered above ETFs & Funds by owner decision (2026-08-15, P3-W2 intake).
+    // It previously sat last on the reasoning that it is the upsell and builds
+    // on the catalogs below it; the ordering now leads with the tool rather
+    // than the reference data it consumes.
+    id: 'builder',
+    label: 'Portfolio Builder',
+    routePrefixes: ['/portfolio-builder'],
+    optional: true,
+    navItems: [
+      { href: '/portfolio-builder', label: 'Portfolio Builder', icon: Compass },
+    ],
+  },
+  {
     id: 'funds',
     label: 'ETFs & Funds',
     routePrefixes: ['/funds'],
@@ -171,17 +186,6 @@ export const MODULES: SuiteModule[] = [
     navItems: [
       { href: '/budget', label: 'Budget', icon: PiggyBank },
       { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
-    ],
-  },
-  {
-    // Premium module — sold under its own entitlement (separate fee).
-    // Sits last: it's the upsell, and it builds on the catalogs above it.
-    id: 'builder',
-    label: 'Portfolio Builder',
-    routePrefixes: ['/portfolio-builder'],
-    optional: true,
-    navItems: [
-      { href: '/portfolio-builder', label: 'Portfolio Builder', icon: Compass },
     ],
   },
 ]
