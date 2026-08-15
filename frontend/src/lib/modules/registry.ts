@@ -31,6 +31,7 @@ import {
   Activity,
   Sigma,
   PiggyBank,
+  Goal,
   ReceiptText,
 } from 'lucide-react'
 
@@ -50,7 +51,7 @@ import {
 //     the component boundary rather than inside the page's JSX, so a disabled
 //     module never mounts the page and its queries never fire.
 
-export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'budget' | 'builder'
+export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'budget' | 'retirement' | 'builder'
 
 export interface ModuleNavItem {
   href: string
@@ -186,6 +187,20 @@ export const MODULES: SuiteModule[] = [
     navItems: [
       { href: '/budget', label: 'Budget', icon: PiggyBank },
       { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
+    ],
+  },
+  {
+    // Personal-finance pillar: accumulation projection to a target retirement
+    // age, drawdown to a plan-to age, and the loan/credit-card calculators that
+    // sat alongside it in the owner's planning spreadsheet. Pure engine in
+    // lib/retirement/ — nothing is fetched, so no SourceLine; the IRS
+    // contribution limits carry provenance like any other curated table.
+    id: 'retirement',
+    label: 'Retirement',
+    routePrefixes: ['/retirement'],
+    optional: true,
+    navItems: [
+      { href: '/retirement', label: 'Retirement Planner', icon: Goal },
     ],
   },
 ]
