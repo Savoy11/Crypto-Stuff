@@ -1631,7 +1631,7 @@ subproject owns.
 **Why the existing tests didn't catch S1-1:** `equityBacktest.test.ts`'s 7 tests take
 `barsPerYear` as a **parameter**, so by construction they cannot detect that the caller's
 value no longer matches the data. Nothing regression-tests the page↔route contract. The
-guard this wants is exactly Appendix B's **B12 (boundary drift guard)** shape: pin declared
+guard this wants is exactly Appendix B's **NT12 (boundary drift guard)** shape: pin declared
 `barsPerYear` against actual bar spacing in the fetched series.
 
 **Product calls this subproject must make (not fixes — decisions):**
