@@ -40,6 +40,7 @@ interface WatchlistStore {
   /** Set when the server can't be reached — page shows an honest banner. */
   syncError:  string | null
   createList: (name: string) => string
+  renameList: (id: string, name: string) => void
   deleteList: (id: string) => void
   addKey:     (listId: string, key: string) => void
   removeKey:  (listId: string, key: string) => void
@@ -94,6 +95,23 @@ export const useWatchlistStore = create<WatchlistStore>((set, get) => ({
         set({ lists: get().lists.filter((l) => l.id !== id) })
       })
     return id
+  },
+
+  // C-note-4 fix: the PUT endpoint has always accepted a full-document replace
+  // (name included) — rename was API-possible with no UI or store affordance.
+  renameList: (id, name) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    const prev = get().lists
+    const lists = prev.map((l) => (l.id === id ? { ...l, name: trimmed } : l))
+    set({ lists })
+    const list = lists.find((l) => l.id === id)
+    if (!list) return
+    api(`/api/user/watchlists/${id}`, { method: 'PUT', body: JSON.stringify(list) })
+      .catch((e: Error) => {
+        toast.error(`Rename not saved: ${e.message}`)
+        set({ lists: prev })
+      })
   },
 
   deleteList: (id) => {

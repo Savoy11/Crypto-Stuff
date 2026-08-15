@@ -30,7 +30,17 @@ export async function POST(req: NextRequest) {
   const task = body.task?.trim()
   if (!task) return NextResponse.json({ error: 'task required' }, { status: 400 })
 
-  const agentId = body.agentId && RESEARCH_AGENTS.has(body.agentId) ? body.agentId : 'research-analyst'
+  // C-note-8 fix: an UNKNOWN agentId used to silently fall back to the crypto
+  // research-analyst — a deep link with a typo ran the wrong agent and returned
+  // a crypto-flavored answer with no hint anything was off. Absent still
+  // defaults (the Research page's plain POST carries no agentId); unknown errors.
+  if (body.agentId && !RESEARCH_AGENTS.has(body.agentId)) {
+    return NextResponse.json(
+      { error: `Unknown agentId "${body.agentId}". Valid: ${[...RESEARCH_AGENTS].join(', ')}` },
+      { status: 400 },
+    )
+  }
+  const agentId = body.agentId ?? 'research-analyst'
 
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: task }]
 

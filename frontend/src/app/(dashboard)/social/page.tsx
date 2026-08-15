@@ -206,7 +206,7 @@ async function fetchSocial(asset: string, extraSubs: string[]): Promise<{
   const params = new URLSearchParams({ asset, limit: '50' })
   if (extraSubs.length > 0) params.set('subreddits', extraSubs.join(','))
   const res = await fetch(`/live-data/social?${params}`)
-  if (!res.ok) return { signals: [], summaries: [], providers: [] }
+  if (!res.ok) throw new Error(`Social feed HTTP ${res.status}`)
   return res.json()
 }
 
@@ -217,7 +217,7 @@ function SocialPageInner() {
   const subreddits = useCustomSubreddits()
   const { assets: assetList } = useAssetList()
 
-  const { data, isLoading, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, isError, refetch } = useQuery({
     queryKey: ['live-social', assetFilter, subreddits],
     queryFn: () => fetchSocial(assetFilter, subreddits),
     enabled: LIVE_DATA,
@@ -341,8 +341,22 @@ function SocialPageInner() {
         </section>
       )}
 
+      {/* Error state — kept distinct from empty. This page used to render the
+          generic "no signals found" copy on a FAILED fetch too, so down and
+          quiet were indistinguishable (review CR-note-7). */}
+      {!isLoading && isError && (
+        <div className="flex flex-col items-center justify-center py-16 text-text-muted gap-3">
+          <MessageSquare size={36} className="opacity-30" />
+          <p className="text-sm">Social feed unreachable — the fetch failed, this is not an empty feed.</p>
+          <button onClick={() => refetch()}
+            className="px-3 py-1.5 rounded text-xs bg-bg-elevated border border-border text-text-secondary hover:text-text-primary transition-colors">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Empty state */}
-      {!isLoading && !noProviders && signals.length === 0 && (
+      {!isLoading && !isError && !noProviders && signals.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-text-muted">
           <MessageSquare size={36} className="mb-3 opacity-30" />
           <p className="text-sm">No social signals found for this asset</p>

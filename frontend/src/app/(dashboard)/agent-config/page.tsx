@@ -299,11 +299,20 @@ export default function AgentConfigPage() {
   const [providers, setProviders] = useState<ProviderOption[]>([])
   const [providerModels, setProviderModels] = useState<Record<ProviderId, ModelOption[]>>({} as Record<ProviderId, ModelOption[]>)
   const [loading, setLoading]     = useState(true)
+  const [accessError, setAccessError] = useState<string | null>(null)
 
   const fetchAgents = useCallback(async () => {
     try {
       const res  = await fetch('/api/agents/prompts')
       const data = await res.json()
+      // C-note-10 fix: on a non-localhost deploy without FN_ADMIN_TOKEN this
+      // route 401/403s, and the denial used to be swallowed — the page rendered
+      // "No agents configured" as though the feature were empty rather than
+      // locked. Surface the guard's own message instead.
+      if (res.status === 401 || res.status === 403) {
+        setAccessError(data.error ?? 'This page is restricted to localhost unless FN_ADMIN_TOKEN is configured.')
+        return
+      }
       setAgents(data.agents ?? [])
       setProviders(data.providers ?? [])
       setProviderModels(data.providerModels ?? {})
@@ -381,7 +390,7 @@ export default function AgentConfigPage() {
 
           {tabAgents.length === 0 ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900/30 px-5 py-8 text-center text-sm text-slate-500">
-              No agents configured for this tab.
+              {accessError ?? 'No agents configured for this tab.'}
             </div>
           ) : (
             tabAgents.map((a) => (

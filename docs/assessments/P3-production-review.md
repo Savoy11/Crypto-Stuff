@@ -110,6 +110,16 @@ the registry, and `/data-sources` is the model page.
 | C14 | Data Sources: verdict-sorted source-terms registry (seeded/"unread" badges + honesty notice), status tiles as filters, module-grouped provider rows | `/data-sources` | `source-terms` GET, static registry | ✅ | ✅ sourceTerms + dataSources tests | ✅ | READY |
 
 **Notes:**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Fixed: 1 (hint
+> copy), 3 (brief 503), 4 (rename UI + store action), 6 (header copy), 9
+> (placeholder copy), 10 (both pages now surface the admin-guard denial instead
+> of rendering empty; CLAUDE.md's reordering and entitlement claims corrected —
+> A3/A4), 11 (WebSocket option removed). Unknown `agentId` on the research route
+> now 400s instead of silently running the crypto analyst (note 8's second
+> half). Still open: 2 (video-analyze — owner decision NT4), 5 (portfolio math
+> tests — D-24), 7 (Compare universe — scope question), 8's panel half (NT6).
+
 1. Watchlist-bias "Strong" only widens the fetch on `/news` and `/equities/news` —
    Headlines and Videos reorder only, while the Settings hint says Strong "pulls extra
    watchlist articles" globally. Copy fix on the hint (or implement augmentation).
@@ -202,6 +212,17 @@ violation (CR9) and a real routing bug (module flag below).
 | CR19 | De-routed `/global-adoption` (redirects to `/headlines`; page + route retained per T5) | redirect | — | ⚠¹² | — | ✅ | NEEDS-FIX¹² |
 
 **Notes:**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Fixed: 1 (the
+> two Coins-page queries now share one in-flight `/markets` request, and a dead
+> upstream throws so the error card renders instead of a full table of N/A
+> prices), 3 (unused imports), 5 (dead branch deleted — D-21), 6 (tab hidden —
+> D-6), 7 (`/social` now has a distinct error state with retry; the fetcher
+> throws instead of swallowing), 8's status bar (D-22), 9's copy (D-10), 10's
+> note (D-11), 12 (D-8). Still open: 2 (sparkline column — owner decision), 4
+> (analyticsBundle — owner decision), 8's untested reduce + 10's scoring + 11's
+> price-target cluster (all D-24).
+
 1. KPI strip issues a second full `markets` fetch (`pageSize:100_000`) — duplicate
    query per visit; and `fetchLiveMarkets` swallows failures into empty quotes, so a
    dead upstream renders a full table of N/A prices rather than the error card.
@@ -301,6 +322,15 @@ found on any page. SourceLine present on all pages** (ids verified in
 | E19 | Trade Risk Scorer: 1–4 legs, presets, manual IV rank (pinned), 5-dimension composite score with evidence; quote prefill is the one live number | `/equities/options` | pure `optionsTrade.ts` + `security-quotes` prefill | ✅ | ✅ profiles + presets | ✅ | READY⁹ |
 
 **Notes:**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Fixed: 1
+> (price/mkt-cap sort headers now state they order on daily reference values —
+> a live-quote sort is structurally impossible while quotes are page-scoped),
+> 3 (extracted + 27 tests), 5 (D-15), 8 (D-16), 9 (an engine throw now renders
+> a named engine-error instead of the "fill in the trade" placeholder). Still
+> open: 2 (acceptable as noted), 4 + 6 (test gaps — D-24), 7 (bounded select —
+> S1 decision).
+
 1. One behavioral inconsistency for Wave 2: sorting the registry by price orders on the
    *reference* price while the cell displays the live quote
    (`EquitiesClient.tsx:106`) — ordering and display can disagree.
@@ -434,6 +464,13 @@ real range bug.
 | M12 | Macro TA scanner: 29 liquid instruments, RSI-14 / vs-SMA50 / composite (29-of-45 deliberate, stated on-page) | `/macro/technical-analysis` | 29× `security-ohlcv` | ✅ | ⚠ | ✅ | READY⁹ |
 
 **Notes:**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Fixed: 1
+> (D-12), 4 (the shared no-key copy now says only FMP helps for macro symbols),
+> 6's disclosure (D-14), 7's caption (D-13), 8 (D-2, client side). Still open:
+> 2 (acceptable), 3 + 6's converter math (D-24), 5 (term structure — NT8), 7's
+> ×10 question (owner machine — D3), 9 (operational, owner kept the scanner).
+
 1. The overview's "Live" chips are hardcoded strings, and with zero keys the quote
    route returns `ok:true` with empty quotes — so every strip dashes, **no error
    banner fires**, and the header still says "quotes below are live." The key-gated
@@ -686,12 +723,12 @@ code ships. Each is a doc edit, not a code change.
 |---|---|---|
 | A1 | CLAUDE.md (Videos row) | Advertises "Video search + AI analysis" — the analysis half (`video-analyze`) has no UI (C2). Either drop the claim or build the trigger (NT4) |
 | A2 | CLAUDE.md (equity TA row) + `/equities/technical-analysis` subtitle | "18 indicators" — the shared registry ships ~62; both copies predate the shared-engine migration |
-| A3 | CLAUDE.md (marketData section) | Claims built-in provider "reordering" — no such action exists in UI or `/live-data/config` |
-| A4 | CLAUDE.md (module registry / entitlements) | Implies entitlements persist like other user data — they are localStorage-only (`useEntitlementStore`); no `/api/user/entitlements` route exists. Load-bearing for the rollout-posture decision (D1) |
+| A3 | CLAUDE.md (marketData section) | Claims built-in provider "reordering" — no such action exists in UI or `/live-data/config` — ✅ **RESOLVED 2026-08-16:** corrected |
+| A4 | CLAUDE.md (module registry / entitlements) | Implies entitlements persist like other user data — they are localStorage-only (`useEntitlementStore`); no `/api/user/entitlements` route exists. Load-bearing for the rollout-posture decision (D1) — ✅ **RESOLVED 2026-08-16:** CLAUDE.md now states localStorage-only and flags the Phase 6 question |
 | A5 | CLAUDE.md (MCP table) | Lists 12 tools; the server ships 13 — `run_audit` is undocumented (and needs decision D5) |
 | A6 | CLAUDE.md + `docs/agents/*` charters | Reference `docs/audits/rejected-proposals.md`, which **does not exist**. Create the scaffold (it is Wave 2's rejection ledger) or fix the references — ✅ **RESOLVED 2026-08-15 (P3-W2):** scaffold created; every reference now resolves |
-| A7 | `mcp-server/` | No README, though `index.ts:11` points to one; server metadata still self-describes as pre-rebrand "Crypto Asset Evaluation Platform" ignoring the securities/macro/options tools |
-| A8 | CLAUDE.md (equities backtests row) | Fee tiers (0–25bps/side) and the tested fee math are undocumented |
+| A7 | `mcp-server/` | No README, though `index.ts:11` points to one; server metadata still self-describes as pre-rebrand "Crypto Asset Evaluation Platform" ignoring the securities/macro/options tools — ✅ **RESOLVED 2026-08-16:** README created (points at CLAUDE.md as canonical), self-description post-rebrand, `zod` declared |
+| A8 | CLAUDE.md (equities backtests row) | Fee tiers (0–25bps/side) and the tested fee math are undocumented — ✅ **RESOLVED 2026-08-16:** row updated |
 | A9 | DATA-AVAILABILITY.md | Standing: owner-machine re-run owed since the Yahoo removal (its own header says so); the macro-quote check (its action item 18) remains the highest-value gap |
 
 ## Appendix B — New-tool candidates
@@ -796,3 +833,7 @@ adjacent decided item: an options *chain browser* is closed by owner decision
 undeclared in `mcp-server/package.json` (transitive); stale "Yahoo FX series" comment
 in macro TA; `security-quotes?universe=` and `market-news?watchlistOnly=1` params with
 zero consumers.
+
+> ✅ **All five cleaned up, 2026-08-16 (P3-W2).** The two dead params were
+> removed, not documented — a param with zero consumers on a keyed quote ladder
+> is an invitation, not a feature.

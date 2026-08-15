@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { clsx } from 'clsx'
-import { Plus, Search, Star, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, Search, Star, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
@@ -30,7 +30,7 @@ function detailHref(key: string): string {
 }
 
 export default function WatchlistPage() {
-  const { lists, activeId, hydrated, syncError, createList, deleteList, addKey, removeKey, setActive } = useWatchlistStore()
+  const { lists, activeId, hydrated, syncError, createList, renameList, deleteList, addKey, removeKey, setActive } = useWatchlistStore()
   const [search, setSearch] = useState('')
   const [newListName, setNewListName] = useState('')
   const [creating, setCreating] = useState(false)
@@ -126,10 +126,21 @@ export default function WatchlistPage() {
             <Plus size={14} aria-hidden /> New list
           </button>
         )}
+        {active && (
+          <button
+            onClick={() => {
+              const name = window.prompt('Rename list', active.name)
+              if (name != null) renameList(active.id, name)
+            }}
+            className="ml-auto flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary transition-colors"
+          >
+            <Pencil size={12} aria-hidden /> Rename
+          </button>
+        )}
         {active && lists.length > 1 && (
           <button
             onClick={() => deleteList(active.id)}
-            className="ml-auto flex items-center gap-1 text-xs text-text-muted hover:text-red-400 transition-colors"
+            className={clsx('flex items-center gap-1 text-xs text-text-muted hover:text-red-400 transition-colors', !active && 'ml-auto')}
           >
             <Trash2 size={12} aria-hidden /> Delete “{active.name}”
           </button>

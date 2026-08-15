@@ -215,12 +215,16 @@ function OptionsScorerInner() {
     [underlying, daysToExpiry, legs, ivRank, earningsInDays, exDividendInDays, maxLossMode, maxLossUsd, maxProfitUsd],
   )
 
-  const risk: CompositeRisk | null = useMemo(() => {
-    if (!inputs) return null
+  // E-note-9 fix: the catch used to return null, so an engine THROW rendered
+  // the same "fill in the trade" copy as an incomplete form — masking a real
+  // bug class behind the placeholder. A throw on validated inputs is our
+  // defect, and the user should see that, not a prompt to keep typing.
+  const { risk, engineError } = useMemo((): { risk: CompositeRisk | null; engineError: string | null } => {
+    if (!inputs) return { risk: null, engineError: null }
     try {
-      return scoreOptionsTrade(inputs)
-    } catch {
-      return null
+      return { risk: scoreOptionsTrade(inputs), engineError: null }
+    } catch (e) {
+      return { risk: null, engineError: e instanceof Error ? e.message : 'unknown error' }
     }
   }, [inputs])
 
@@ -415,11 +419,18 @@ function OptionsScorerInner() {
           ) : (
             <div className="rounded-card border border-border bg-bg-card p-4">
               <h2 className="text-sm font-medium text-text-secondary">Score</h2>
-              <p className="mt-2 text-xs text-text-muted">
-                {problems.length > 0
-                  ? <>Still needed: {problems.join('; ')}.</>
-                  : 'Fill in the trade to see its risk breakdown.'}
-              </p>
+              {engineError ? (
+                <p className="mt-2 text-xs text-red-400">
+                  The scoring engine failed on this position ({engineError}). This is a bug in the
+                  scorer, not a problem with your inputs — please report it.
+                </p>
+              ) : (
+                <p className="mt-2 text-xs text-text-muted">
+                  {problems.length > 0
+                    ? <>Still needed: {problems.join('; ')}.</>
+                    : 'Fill in the trade to see its risk breakdown.'}
+                </p>
+              )}
             </div>
           )}
           <p className="text-[11px] text-text-muted leading-relaxed">

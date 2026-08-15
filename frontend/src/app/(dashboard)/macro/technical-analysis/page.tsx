@@ -106,9 +106,11 @@ const SCANNER_INSTRUMENTS = MACRO_INSTRUMENTS.filter((m) => m.liquid)
 // ─── Controls ─────────────────────────────────────────────────────────────────
 
 // No intraday, for the same reason as equities. Also no MAX: these are
-// continuous front-month futures and Yahoo FX series, so the far end of a "max"
-// window is stitched across rolled contracts and reads as one price history
-// when it is not. 5Y is the longest window the stitching stays honest over.
+// continuous front-month futures and provider FX series, so the far end of a
+// "max" window is stitched across rolled contracts and reads as one price
+// history when it is not. 5Y is the longest window the stitching stays honest
+// over. (The comment used to say "Yahoo FX series" — Yahoo was removed
+// 2026-08-06; the stitching problem is provider-independent.)
 // No 2Y: security-ohlcv's vocabulary is 1M/3M/6M/1Y/5Y/MAX, and this page used
 // to offer a 2Y button whose request the route 400'd on every instrument — with
 // the failure rendered as a provider-coverage notice, misdirecting the user

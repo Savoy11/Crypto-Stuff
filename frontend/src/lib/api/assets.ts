@@ -102,8 +102,13 @@ export const assetsApi = {
    * (R2 Phase 2 review finding H1).
    */
   getAssets: async (params: GetAssetsParams = {}, riskIndex?: RiskScoreIndex): Promise<PaginatedResponse<Asset>> => {
-    const { quotes } = await fetchLiveMarkets()
-    let assets = buildLiveAssets(quotes)
+    const result = await fetchLiveMarkets()
+    // CR-note-1 fix: fetchLiveMarkets swallows failures into {ok:false,
+    // quotes:{}}, and building the catalog from empty quotes rendered a full
+    // table of N/A prices — a dead upstream disguised as a quiet market.
+    // Throwing lets React Query's isError branch show the error card + retry.
+    if (!result.ok) throw new Error('Market data is unreachable — no live prices are available right now.')
+    let assets = buildLiveAssets(result.quotes)
     if (riskIndex && riskIndex.size > 0) {
       assets = assets.map((a) => applyRiskComposite(a, riskIndex))
     }
