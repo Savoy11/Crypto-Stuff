@@ -43,8 +43,6 @@ import { applyRiskComposite } from '@/lib/api/live/riskScores'
 import { PegDeviationChart } from '@/components/analytics/PegDeviationChart'
 import { ReserveComposition } from '@/components/analytics/ReserveComposition'
 import { ReserveProvenance, normalisePegMechanism } from '@/components/analytics/reserves'
-import { ScoreBreakdown } from '@/components/analytics/ScoreBreakdown'
-import { HistoricalScoreChart } from '@/components/analytics/HistoricalScoreChart'
 import { LiquidityDepthChart } from '@/components/analytics/LiquidityDepthChart'
 import { WalletConcentration } from '@/components/analytics/WalletConcentration'
 import { VelocityChart } from '@/components/analytics/VelocityChart'
@@ -67,14 +65,18 @@ import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import type { LiveReserveAsset } from '@/app/live-data/reserves/route'
 import { Loader2 } from 'lucide-react'
 
-type Tab = 'overview' | 'news' | 'technical-analysis' | 'reserves' | 'risk-history' | 'pump-report'
+type Tab = 'overview' | 'news' | 'technical-analysis' | 'reserves' | 'pump-report'
 
 const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'overview', label: 'Overview' },
   { id: 'news', label: 'News' },
   { id: 'technical-analysis', label: 'Technical Analysis' },
   { id: 'reserves', label: 'Reserves' },
-  { id: 'risk-history', label: 'Risk History' },
+  // No Risk History tab: its API is a hardcoded [] (lib/api/risk-scores.ts) and
+  // the chart rendered empty axes captioned "Avg: 0.0 / Latest: 0.0" —
+  // fabricated-looking zeros on a product that never fabricates values (review
+  // defect D-6, NOT-FOR-ROLLOUT). Making it real needs score-history
+  // persistence (Appendix B NT10); re-add the tab when that lands.
   { id: 'pump-report', label: 'Pump Report' },
 ]
 
@@ -552,7 +554,7 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
 }
 
 function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>['data']> }) {
-  const { latestMarketData: md, latestRiskScore: rs } = asset
+  const { latestMarketData: md } = asset
 
   return (
     <div className="space-y-6">
@@ -1335,11 +1337,6 @@ function AssetDetailPageInner() {
         {activeTab === 'reserves' && (
           <ErrorBoundary>
             <ReservesTab asset={asset} />
-          </ErrorBoundary>
-        )}
-        {activeTab === 'risk-history' && (
-          <ErrorBoundary>
-            <HistoricalScoreChart assetId={asset.id} assetSymbol={asset.symbol} />
           </ErrorBoundary>
         )}
         {activeTab === 'pump-report' && (

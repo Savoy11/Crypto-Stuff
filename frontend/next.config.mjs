@@ -43,7 +43,10 @@ const nextConfig = {
       // Global page de-routed pending a post-production rework (see T5 triage:
       // docs/assessments/T5-utility-triage.md). The page and its
       // /live-data/cbdc-data route are intentionally LEFT IN PLACE — this only
-      // removes user access. Delete this entry to re-enable the page.
+      // removes user access. The page is ModuleGate-wrapped (crypto), so
+      // deleting this entry re-enables it INSIDE the entitlement gate — but
+      // check the T5 triage first: it was de-routed for data-honesty reasons
+      // (stale static data under a fabricated live timestamp), not for scope.
       { source: '/global-adoption', destination: '/headlines', permanent: false },
       // Risk Case Studies removed (2026-07): static educational replay with no
       // clear user value — page deleted, deep links land on Headlines.

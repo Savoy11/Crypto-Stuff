@@ -730,6 +730,16 @@ adjacent decided item: an options *chain browser* is closed by owner decision
 
 **Real bugs (wrong behavior a user or consumer can hit):**
 
+> **Status, 2026-08-16 (P3-W2, branch `wave-2-changes`): D-1 through D-8 all
+> fixed.** D-2 was fixed client-side only (the 2Y button removed) — the range
+> vocabulary of `security-ohlcv` itself belongs to subproject P3-W2-S1, which
+> may reintroduce 2Y with real data. D-6 took the review's prescribed HIDE: the
+> Risk History tab is removed from the coin detail page until NT10
+> (score-history persistence) makes it real; the chart component is retained.
+> D-8 wrapped the retained page in `ModuleGate` AND added `/global-adoption` to
+> the crypto module's `routePrefixes`, so deleting the redirect now re-enables
+> the page inside the entitlement, not around it.
+
 | # | Where | Failure |
 |---|---|---|
 | D-1 | `fund-holdings/route.ts:31`, `fund-holdings-history/route.ts:18` | FMP key read from env at module scope, not `getProviderKey('fmp')` — an Integrations-UI key silently does nothing on exactly these two routes (F-note-2) |

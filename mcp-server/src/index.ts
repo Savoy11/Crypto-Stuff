@@ -130,9 +130,9 @@ server.tool(
       summary: { viableRoutes: number; blockedRoutes: number; cheapestFeeUsd: number | null; cheapestNetwork: string | null; cheapestFeePercent: number | null }
       routes: Array<{
         viable: boolean; recommended: boolean; network: string | null
-        totalFeeUsd: number; feePercent: number; estimatedTimeMin: number | null
-        hops: Array<{ type: string; from: string; to: string; network: string | null; feeUsd: number; networkName: string | null; confirmationMin: number | null }>
-        warnings: Array<{ level: string; message: string }>
+        totalFeeUsd: number; feePercent: number; estimatedTime: string | null
+        hops: Array<{ from: string; to: string; network: string | null; exchangeFee: number; networkFee: number; totalFeeUsd: number; networkName: string | null; note: string | null }>
+        warnings: Array<{ severity: string; title: string; message: string }>
       }>
     }>(`/transfer/routes?${params}`)
 
@@ -147,21 +147,26 @@ server.tool(
     }
 
     if (viable.length > 0) {
+      // Field names below are the v1 contract exactly (hop.totalFeeUsd,
+      // route.estimatedTime, warning.severity — the OpenAPI spec explicitly
+      // warns about severity-vs-level). This formatter used to read feeUsd /
+      // estimatedTimeMin / warning.level, none of which the API serves, and
+      // threw a TypeError on virtually any successful lookup (review D-3).
       text += '\n**Viable Routes:**\n'
       for (const route of viable) {
         text += `\n${route.recommended ? '⭐ ' : ''}**${route.network ?? 'multi-hop'}** — $${route.totalFeeUsd.toFixed(4)} (${route.feePercent.toFixed(3)}%)`
-        if (route.estimatedTimeMin) text += ` | ~${route.estimatedTimeMin} min`
+        if (route.estimatedTime) text += ` | ${route.estimatedTime}`
         text += '\n'
         for (const hop of route.hops) {
-          text += `  ${hop.type}: ${hop.from} → ${hop.to}`
+          text += `  ${hop.from} → ${hop.to}`
           if (hop.networkName) text += ` via ${hop.networkName}`
-          text += ` | fee $${hop.feeUsd.toFixed(4)}`
-          if (hop.confirmationMin) text += ` | ~${hop.confirmationMin} min`
+          text += ` | fee $${hop.totalFeeUsd.toFixed(4)}`
+          if (hop.note) text += ` | ${hop.note}`
           text += '\n'
         }
         if (route.warnings.length > 0) {
           for (const w of route.warnings) {
-            const icon = w.level === 'danger' ? '🚨' : w.level === 'warning' ? '⚠️' : 'ℹ️'
+            const icon = w.severity === 'danger' ? '🚨' : w.severity === 'warning' ? '⚠️' : 'ℹ️'
             text += `  ${icon} ${w.message}\n`
           }
         }

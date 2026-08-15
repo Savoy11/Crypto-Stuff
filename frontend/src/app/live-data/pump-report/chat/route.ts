@@ -10,11 +10,21 @@ export async function POST(req: NextRequest) {
   const denied = guardSensitiveRoute(req, 'pump-report-chat', 20)
   if (denied) return denied
 
+  // D-7 fix: these routes run their own loop rather than going through
+  // runAgent(), so they used to ignore the per-agent enabled toggle — a
+  // "disabled" pump-report-chat still ran, making the Integrations switch a lie for
+  // exactly these two agents. Same 503 contract as the run routes.
+  if (loadAgentConfig('pump-report-chat')?.enabled === false) {
+    return new Response(JSON.stringify({ error: 'The pump-report-chat agent is disabled. Enable it in Settings → Integrations → AI Agents.' }), {
+      status: 503, headers: { 'Content-Type': 'application/json' },
+    })
+  }
+
   // UI-saved key (Integrations → AI Providers) or ANTHROPIC_API_KEY env var
   const apiKey = getProviderKey('anthropic') ?? process.env.ANTHROPIC_API_KEY
   if (!apiKey) {
     return new Response(JSON.stringify({ error: 'No Anthropic API key. Set it in Settings → Integrations → AI Providers.' }), {
-      status: 500, headers: { 'Content-Type': 'application/json' },
+      status: 503, headers: { 'Content-Type': 'application/json' },
     })
   }
   const client = new Anthropic({ apiKey })

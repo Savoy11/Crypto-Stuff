@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getProviderKey } from '@/lib/api/live/providers'
 import { getFund } from '@/lib/data/fundCatalog'
 import { resolveFundSeries, listNportFilings, fetchNportReport } from '@/lib/server/nport'
 
@@ -28,8 +29,11 @@ import { resolveFundSeries, listNportFilings, fetchNportReport } from '@/lib/ser
 
 export const dynamic = 'force-dynamic'
 
-const FMP_KEY = process.env.FMP_API_KEY && process.env.FMP_API_KEY !== 'your-fmp-api-key'
-  ? process.env.FMP_API_KEY : undefined
+// D-1 fix: resolve the key per-request via getProviderKey, like every other FMP
+// consumer. This route used to read process.env at module scope, so a key saved
+// in the Integrations UI silently did nothing here — no FMP holdings fallback,
+// no sector weights — while quotes/universe/calendar accepted the same key.
+const fmpKey = () => getProviderKey('fmp')
 
 export type HoldingsSource = 'sec' | 'fmp' | 'catalog'
 
@@ -135,8 +139,8 @@ function parseFmpHoldings(rows: Array<Record<string, unknown>>): FmpHoldingsResu
 
 async function fetchFmpHoldings(symbol: string): Promise<FmpHoldingsResult> {
   const urls = [
-    `https://financialmodelingprep.com/stable/etf/holdings?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`,
-    `https://financialmodelingprep.com/api/v3/etf-holder/${encodeURIComponent(symbol)}?apikey=${FMP_KEY}`,
+    `https://financialmodelingprep.com/stable/etf/holdings?symbol=${encodeURIComponent(symbol)}&apikey=${fmpKey()}`,
+    `https://financialmodelingprep.com/api/v3/etf-holder/${encodeURIComponent(symbol)}?apikey=${fmpKey()}`,
   ]
   for (const url of urls) {
     try {
@@ -153,8 +157,8 @@ async function fetchFmpHoldings(symbol: string): Promise<FmpHoldingsResult> {
 
 async function fetchFmpSectorWeights(symbol: string): Promise<SectorWeight[]> {
   const urls = [
-    `https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`,
-    `https://financialmodelingprep.com/api/v3/etf-sector-weightings/${encodeURIComponent(symbol)}?apikey=${FMP_KEY}`,
+    `https://financialmodelingprep.com/stable/etf/sector-weightings?symbol=${encodeURIComponent(symbol)}&apikey=${fmpKey()}`,
+    `https://financialmodelingprep.com/api/v3/etf-sector-weightings/${encodeURIComponent(symbol)}?apikey=${fmpKey()}`,
   ]
   for (const url of urls) {
     try {
@@ -197,7 +201,7 @@ export async function GET(request: NextRequest) {
   // GICS classification, and the keyless fallback that used to supply them is
   // gone (see the header note).
   const wantSec = !forced || forced === 'sec'
-  const wantFmp = !!FMP_KEY && entry?.type !== 'mutual' && (!forced || forced === 'fmp')
+  const wantFmp = !!fmpKey() && entry?.type !== 'mutual' && (!forced || forced === 'fmp')
   const [secRes, fmpHoldingsRes, fmpSectorsRes] = await Promise.allSettled([
     wantSec ? fetchSecHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null, totalCount: 0 }),
     wantFmp ? fetchFmpHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null } as FmpHoldingsResult),
@@ -222,7 +226,7 @@ export async function GET(request: NextRequest) {
       assetAllocation,
       holdingsCount: picked.count,
       ...(picked.holdings.length === 0 ? {
-        error: forced === 'fmp' && !FMP_KEY
+        error: forced === 'fmp' && !fmpKey()
           ? 'FMP requires an API key (FMP_API_KEY) — not configured on this instance.'
           : `The selected source returned no holdings for ${symbol}. Switch back to Auto to use the best available source.`,
       } : {}),

@@ -109,8 +109,13 @@ const SCANNER_INSTRUMENTS = MACRO_INSTRUMENTS.filter((m) => m.liquid)
 // continuous front-month futures and Yahoo FX series, so the far end of a "max"
 // window is stitched across rolled contracts and reads as one price history
 // when it is not. 5Y is the longest window the stitching stays honest over.
-type Range = '3M' | '6M' | '1Y' | '2Y' | '5Y'
-const RANGES: Range[] = ['3M', '6M', '1Y', '2Y', '5Y']
+// No 2Y: security-ohlcv's vocabulary is 1M/3M/6M/1Y/5Y/MAX, and this page used
+// to offer a 2Y button whose request the route 400'd on every instrument — with
+// the failure rendered as a provider-coverage notice, misdirecting the user
+// from what was a client/server range mismatch (review defect D-2). If a 2Y
+// view is ever wanted, add the range to the route first.
+type Range = '3M' | '6M' | '1Y' | '5Y'
+const RANGES: Range[] = ['3M', '6M', '1Y', '5Y']
 
 const CHART_TYPES: Array<{ type: ChartType; label: string; Icon: LucideIcon }> = [
   { type: 'candlestick', label: 'Candlestick', Icon: CandlestickIcon },

@@ -92,9 +92,8 @@ export function FundHoldingsHistory({ symbol }: { symbol: string }) {
           <p className="text-xs text-text-muted leading-relaxed">
             Quarter-over-quarter changes are built from SEC N-PORT disclosures, fetched directly
             from EDGAR with no API key. EDGAR couldn&rsquo;t match this ticker to a disclosure
-            series — setting <code className="font-mono text-text-secondary">FMP_API_KEY</code> in{' '}
-            <code className="font-mono text-text-secondary">frontend/.env.local</code> enables an
-            aggregator fallback for it.
+            series — an FMP key (Integrations page, or <code className="font-mono text-text-secondary">FMP_API_KEY</code>)
+            enables an aggregator fallback for it.
           </p>
         </div>
       </div>
