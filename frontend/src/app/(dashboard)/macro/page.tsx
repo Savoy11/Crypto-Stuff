@@ -26,7 +26,6 @@ interface MacroArea {
   icon: typeof Gem
   accent: string
   blurb: string
-  status: string
   /** Set once the area's registry page exists — the card title links to it. */
   href?: string
   symbols: MacroSymbol[]
@@ -38,7 +37,6 @@ const AREAS: MacroArea[] = [
     icon: Gem,
     accent: '#f59e0b',
     blurb: 'Metals, energy, and agriculture futures with the same registry, detail, TA, and backtest tooling the Equities module has.',
-    status: 'Live',
     href: '/macro/commodities',
     symbols: [
       { symbol: 'GC=F', label: 'Gold', kind: 'usd' },
@@ -53,7 +51,6 @@ const AREAS: MacroArea[] = [
     icon: Banknote,
     accent: '#22c55e',
     blurb: 'Major and EM FX pairs, dollar index, and a converter — intraday via live quotes, daily ECB reference crosses.',
-    status: 'Live',
     href: '/macro/currencies',
     symbols: [
       { symbol: 'EURUSD=X', label: 'EUR/USD', kind: 'fx' },
@@ -67,7 +64,6 @@ const AREAS: MacroArea[] = [
     icon: Percent,
     accent: '#64748b',
     blurb: 'The official treasury yield curve, live yields and bond futures, and the bond ETF shelf. CUSIP-level bond quotes are licensed data — the page says so rather than pretending.',
-    status: 'Live',
     href: '/macro/rates',
     symbols: [
       { symbol: '^IRX', label: '3-Month', kind: 'pct-yield' },
@@ -117,7 +113,7 @@ function MacroContent() {
         <PageHeader
           title="Macro Markets"
           subtitle="Commodities, currencies, and rates — live now, toolsets building out"
-          description="One module, three areas, mirroring the Crypto and Equities toolsets: registries with live quotes, detail pages with charts and news, shared technical analysis and backtests, and macro-aware AI agents. The quotes below are live through the same data plumbing the rest of the suite uses."
+          description="One module, three areas, mirroring the Crypto and Equities toolsets: registries with live quotes, detail pages with charts and news, shared technical analysis and backtests, and macro-aware AI agents. Quotes ride the same keyed data plumbing as the rest of the suite — each card below reports how many of its instruments are actually priced right now."
           details={[
             { label: 'Build order', text: 'Commodities first, then Currencies, then Bonds & Rates — richest free data first.' },
             { label: 'Data honesty', text: 'Everything shown is live or explicitly unavailable. Individual bond quotes (CUSIP-level) have no free source and will never be fabricated.' },
@@ -143,10 +139,21 @@ function MacroContent() {
               ) : (
                 <h2 className="text-sm font-medium text-text-primary flex-1">{area.title}</h2>
               )}
-              <span className={clsx('px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider border',
-                area.href ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-bg-elevated border-border text-text-muted')}>
-                {area.status}
-              </span>
+              {/* D-12 fix: this chip was a hardcoded "Live" string, shown
+                  even when a no-key deploy dashed every quote (the route
+                  returns ok:true with empty quotes, so no error fires).
+                  Derived from the priced count instead — the commodities
+                  page's own "N priced live" pattern. */}
+              {(() => {
+                const priced = area.symbols.filter((s) => data?.[s.symbol]?.price != null).length
+                const live = priced > 0
+                return (
+                  <span className={clsx('px-2 py-0.5 rounded text-[10px] font-medium uppercase tracking-wider border',
+                    live ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-bg-elevated border-border text-text-muted')}>
+                    {isLoading ? '…' : live ? `${priced}/${area.symbols.length} live` : 'no live quotes'}
+                  </span>
+                )
+              })()}
             </div>
             <div className="divide-y divide-border/40">
               {area.symbols.map((s) => {

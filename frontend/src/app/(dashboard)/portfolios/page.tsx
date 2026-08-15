@@ -293,7 +293,7 @@ function PortfolioEditor({ existing, onSave, onCancel }: {
         {/* Column headers */}
         {holdings.length > 0 && (
           <div className="grid grid-cols-12 gap-2 text-[10px] text-text-muted uppercase tracking-wider px-0 pb-1">
-            <div className="col-span-4">Coin</div>
+            <div className="col-span-4">Asset</div>
             <div className="col-span-3">Allocation</div>
             <div className="col-span-4">Entry Price (optional)</div>
             <div className="col-span-1" />
@@ -500,10 +500,10 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
             ))}
           </div>
 
-          {/* Per-coin bar chart */}
+          {/* Per-holding bar chart */}
           {chartData.length > 0 && (
             <div className="bg-bg-card border border-border rounded-xl p-5">
-              <h4 className="text-sm font-semibold text-text-primary mb-4">Return by Coin</h4>
+              <h4 className="text-sm font-semibold text-text-primary mb-4">Return by Holding</h4>
               <ResponsiveContainer width="100%" height={Math.max(180, chartData.length * 36)}>
                 <BarChart data={chartData} layout="vertical" margin={{ left: 8, right: 24 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#334155" horizontal={false} />
@@ -525,10 +525,10 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
             </div>
           )}
 
-          {/* Per-coin table */}
+          {/* Per-holding table */}
           <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
             <div className="grid grid-cols-6 gap-2 px-4 py-2 text-[10px] text-text-muted uppercase tracking-wider border-b border-border bg-bg-elevated/50">
-              <div className="col-span-2">Coin</div>
+              <div className="col-span-2">Asset</div>
               <div className="text-right">Price Then</div>
               <div className="text-right">Price Now</div>
               <div className="text-right">Return</div>
@@ -624,6 +624,12 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
           className="px-3 py-1.5 border border-border rounded-lg text-sm text-text-muted hover:text-text-primary flex items-center gap-1.5 transition-colors">
           <Edit2 size={13} /> Edit
         </button>
+      </div>
+
+      {/* Provenance — the detail view is where P&L dollars render, so the
+          source disclosure belongs here too, not only on the list (D-9). */}
+      <div className="-mt-2">
+        <SourceLine id="portfolio-prices" />
       </div>
 
       {/* Metric strip */}
@@ -734,7 +740,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
           {/* Holdings table */}
           <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-[10px] text-text-muted uppercase tracking-wider border-b border-border bg-bg-elevated/50">
-              <div className="col-span-3">Coin</div>
+              <div className="col-span-3">Asset</div>
               <div className="col-span-2 text-right">Alloc</div>
               <div className="col-span-2 text-right">Target Value</div>
               <div className="col-span-2 text-right">Current Price</div>
@@ -924,9 +930,14 @@ export default function PortfoliosPage() {
                 subtitle="Hypothetical portfolios for investment research and backtesting"
                 description="The Portfolios tool builds and analyzes hypothetical CROSS-ASSET allocations — crypto, stocks, ETFs, and mutual funds in one portfolio. Add holdings with target weights, fetch live prices, and see P&L, category mix, weighted risk, and concentration warnings — without committing real funds."
                 details={[
-                  { label: 'Live pricing', text: 'Portfolio valuations use live CoinGecko prices when in live mode. Historical performance uses 30-day OHLC data.' },
-                  { label: 'Risk metrics', text: 'Sharpe ratio uses a 4% risk-free rate. Max drawdown is computed over the available price history window.' },
-                  { label: 'Persistence', text: 'Portfolios are saved to your browser\'s localStorage. They are not synced to the backend.' },
+                  // D-9 fix: this block used to claim Sharpe (4% rf) and max
+                  // drawdown — computed nowhere on this page — plus
+                  // localStorage-only persistence (the store has been DB-backed
+                  // since the /api/user/portfolios migration) and a stale "live
+                  // mode" (LIVE_DATA is hardcoded true; there is no other mode).
+                  { label: 'Live pricing', text: 'Valuations use live prices — CoinGecko for crypto, the keyed quote ladder for stocks and funds. Positions without a live price are excluded from totals, never valued at cost.' },
+                  { label: 'Risk metrics', text: 'Weighted risk averages each holding\'s canonical Safety Score by allocation; concentration warnings flag single-position weight. Sharpe and drawdown are not computed here — see Compare for window statistics.' },
+                  { label: 'Persistence', text: 'Portfolios are saved to your account database via /api/user/portfolios. A one-time import migrated any legacy localStorage portfolios.' },
                 ]}
               />
             </div>

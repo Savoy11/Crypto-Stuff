@@ -16,7 +16,7 @@ const LIVE_APR_SOURCES: Record<string, string> = {
   jito_sol:       'https://kobe.mainnet.jito.network/api/v1/apy',
 }
 
-async function fetchLiveRates(): Promise<Record<string, number>> {
+async function fetchLiveRates(): Promise<{ rates: Record<string, number>; derived: Set<string> }> {
   const rates: Record<string, number> = {}
   const results = await Promise.allSettled(
     Object.entries(LIVE_APR_SOURCES).map(async ([key, url]) => {
@@ -35,14 +35,20 @@ async function fetchLiveRates(): Promise<Record<string, number>> {
     })
   )
   void results
-  // Derive exchange rates from Lido if available
+  // Derive exchange rates from Lido if available. These are OUR estimates
+  // anchored to a live feed, not the providers' own numbers — they must never
+  // be labelled aprSource:'live' on the public contract (review defect D-19),
+  // so the derived keys are tracked separately.
+  const derived = new Set<string>()
   if (rates.lido_eth) {
-    rates.rocketpool_eth = rates.rocketpool_eth ?? Math.round((rates.lido_eth - 0.2) * 100) / 100
-    rates.coinbase_eth   = rates.coinbase_eth   ?? Math.round((rates.lido_eth - 0.5) * 100) / 100
-    rates.kraken_eth     = rates.kraken_eth     ?? Math.round((rates.lido_eth - 0.2) * 100) / 100
-    rates.binance_eth    = rates.binance_eth     ?? Math.round((rates.lido_eth - 0.6) * 100) / 100
+    for (const [key, spread] of [['rocketpool_eth', 0.2], ['coinbase_eth', 0.5], ['kraken_eth', 0.2], ['binance_eth', 0.6]] as const) {
+      if (rates[key] == null) {
+        rates[key] = Math.round((rates.lido_eth - spread) * 100) / 100
+        derived.add(key)
+      }
+    }
   }
-  return rates
+  return { rates, derived }
 }
 
 export async function GET(req: NextRequest) {
@@ -68,7 +74,7 @@ export async function GET(req: NextRequest) {
   const minSafety     = minSafetyRaw != null ? parseFloat(minSafetyRaw) : null
   const includeDefunct = searchParams.get('include_defunct') === 'true'
 
-  const liveRates = await fetchLiveRates()
+  const { rates: liveRates, derived: derivedKeys } = await fetchLiveRates()
 
   const opportunities: object[] = []
 
@@ -103,7 +109,10 @@ export async function GET(req: NextRequest) {
 
       const liveApr = asset.liveAprKey ? liveRates[asset.liveAprKey] : undefined
       const apr     = liveApr ?? asset.staticApr
-      const aprSource: 'live' | 'estimate' = liveApr != null ? 'live' : 'estimate'
+      // 'derived' = our Lido-anchored estimate for an exchange rate — a live
+      // NUMBER but not the provider's own feed. Labelling it 'live' was D-19.
+      const aprSource: 'live' | 'derived' | 'estimate' =
+        liveApr != null ? (asset.liveAprKey && derivedKeys.has(asset.liveAprKey) ? 'derived' : 'live') : 'estimate'
 
       opportunities.push({
         provider:        provider.id,
@@ -166,8 +175,8 @@ export async function GET(req: NextRequest) {
     total: opportunities.length,
     yieldTypeCounts,
     filters: { coin: coinParam ?? 'all', category: categoryParam ?? 'all', yieldType: yieldTypeParam ?? 'all', includeAdjacent, maxRisk, minSafety, includeDefunct },
-    note: 'Each opportunity carries a yieldType (native, liquid, cefi, restaking, governance, lending). By default only products that actually stake the queried coin are returned; governance-token staking and lending yield are excluded unless include_adjacent=true or yield_type is set explicitly. SCORING: prefer safetyScore (0–100, HIGHER = SAFER) with its 5-level band (low/moderate/elevated/high/critical); filter it with min_safety (a 0–100 floor). The legacy riskScore (1–10, HIGHER = RISKIER) with its riskLevel and the max_risk filter remain unchanged for existing consumers but are deprecated. Defunct providers (e.g. Celsius) are excluded by default — use include_defunct=true. FRESHNESS: updatedAt is when this response was generated, which describes the live APRs only (per-row aprSource="live"). Rows with aprSource="estimate", and every risk score, lock-up, and minimum on every row, come from the curated catalog described by referenceData — check referenceData.verifiedAt, not updatedAt, before treating those as current.',
-    source: 'Finance Now curated staking catalog + live protocol APR feeds (Lido, Rocket Pool, Marinade, Jito, Stride)',
+    note: 'Each opportunity carries a yieldType (native, liquid, cefi, restaking, governance, lending). By default only products that actually stake the queried coin are returned; governance-token staking and lending yield are excluded unless include_adjacent=true or yield_type is set explicitly. SCORING: prefer safetyScore (0–100, HIGHER = SAFER) with its 5-level band (low/moderate/elevated/high/critical); filter it with min_safety (a 0–100 floor). The legacy riskScore (1–10, HIGHER = RISKIER) with its riskLevel and the max_risk filter remain unchanged for existing consumers but are deprecated. Defunct providers (e.g. Celsius) are excluded by default — use include_defunct=true. FRESHNESS: updatedAt is when this response was generated, which describes the live APRs only (per-row aprSource="live"). Rows with aprSource="derived" are our estimates anchored to the Lido feed, not provider-published rates. Rows with aprSource="estimate", and every risk score, lock-up, and minimum on every row, come from the curated catalog described by referenceData — check referenceData.verifiedAt, not updatedAt, before treating those as current.',
+    source: 'Finance Now curated staking catalog + live protocol APR feeds (Lido, Marinade, Jito). Some exchange ETH rates are derived from the Lido feed (aprSource="derived").',
     updatedAt: new Date().toISOString(),
     // Provenance for the curated half of this payload. Without it the fresh
     // `updatedAt` above implied the risk profiles and estimated APRs had just

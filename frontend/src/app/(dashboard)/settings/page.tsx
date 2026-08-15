@@ -911,7 +911,11 @@ const FORMAT_OPTIONS: { value: FeedFormat; label: string; hint: string }[] = [
   { value: 'json-quote',  label: 'JSON — Stock quote',     hint: 'REST API returning a stock quote; use {symbol} (per-symbol) or {symbols} (batch) in the URL — price/change fields auto-detected' },
   { value: 'json-ohlcv',  label: 'JSON — OHLCV history',   hint: 'REST API returning an array of candles for TA/backtests; use {symbol} in the URL — time/open/high/low/close fields auto-detected' },
   { value: 'graphql',     label: 'GraphQL',                hint: 'GraphQL endpoint — e.g. Santiment, The Graph, Messari' },
-  { value: 'websocket',   label: 'WebSocket stream',       hint: 'Persistent WS connection — e.g. Binance, Kraken live feeds' },
+  // No 'websocket' option: the fetch path never implemented WS. A feed saved
+  // with it logged a server warning and contributed 0 items while the UI
+  // looked configured (review defect D-18). The FeedFormat type member stays
+  // so legacy saved configs still parse; re-add the option only with a real
+  // socket consumer behind it.
   { value: 'native',      label: 'Native / built-in',      hint: 'Handled directly by a built-in provider integration' },
 ]
 

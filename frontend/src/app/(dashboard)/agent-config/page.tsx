@@ -369,14 +369,14 @@ export default function AgentConfigPage() {
           <p className="text-xs text-slate-500">
             {activeTab === 'app-assistant'    && 'The App Assistant is available throughout the platform to help users navigate and interpret data across both crypto and equities.'}
             {activeTab === 'research-analyst' && 'The crypto Research Agent performs deep fundamental analysis — triggered from any coin page or the Research page.'}
-            {activeTab === 'data-scraper'     && 'The Data Scraper runs autonomously to find new staking opportunities and coin listings not yet in the platform.'}
+            {activeTab === 'data-scraper'     && 'The Data Scraper is designed to find new staking opportunities and coin listings — configurable here, but it has no invocation trigger yet and never runs. Wiring a trigger (or retiring it) is an open decision.'}
             {activeTab === 'pump-report'      && 'Two agents power the Pump Report tab: the Investigator runs the 8-angle autonomous sweep, the Chat Agent handles follow-up questions.'}
             {activeTab === 'equity-research'  && 'The Equity Research Agent analyzes stocks using live quotes, SEC-filed financials, filings, news, and social sentiment. Launch it from any stock page or the Research page.'}
             {activeTab === 'equity-screener'  && 'The Equity Screener scans the whole universe for sector-relative statistical outliers (cheap/expensive, high-yield, high/low-beta) and explains opportunities vs traps. Run it from the “AI Outlier Scan” panel on the Stock Registry.'}
-            {activeTab === 'equity-scraper'   && 'The Equity Data Scraper runs autonomously to find upcoming earnings, analyst rating changes, IPOs, and index changes.'}
-            {activeTab === 'equity-diligence' && 'The Equity Due Diligence agent investigates a stock for red flags — accounting quality, litigation, SEC actions, short-seller reports, and governance.'}
+            {activeTab === 'equity-scraper'   && 'The Equity Data Scraper is designed to find upcoming earnings, analyst rating changes, IPOs, and index changes — configurable here, but it has no invocation trigger yet and never runs.'}
+            {activeTab === 'equity-diligence' && 'The Equity Due Diligence agent is designed to investigate a stock for red flags — accounting quality, litigation, SEC actions, short-seller reports, governance. Configurable here, but it has no invocation trigger yet and never runs.'}
             {activeTab === 'macro-research'   && 'The Macro Research Agent analyzes commodities, currencies, and bonds/rates using live futures/FX quotes, the official treasury yield curve, and macro news. Launch it from the Research page.'}
-            {activeTab === 'macro-screener'   && 'The Macro Screener sweeps every macro instrument for the biggest moves and regime signals (dollar, curve shape, energy/gold tone) and explains the drivers.'}
+            {activeTab === 'macro-screener'   && 'The Macro Screener sweeps every macro instrument for the biggest moves and regime signals (dollar, curve shape, energy/gold tone) and explains the drivers. No panel yet — run it from the Research page via ?agent=macro-screener.'}
           </p>
 
           {tabAgents.length === 0 ? (

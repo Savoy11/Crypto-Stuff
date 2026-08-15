@@ -304,7 +304,7 @@ const TOOL_REGISTRY: RegisteredTool[] = [
           daysToExpiry: { type: 'number', description: 'Calendar days until expiry' },
           legs: {
             type: 'array',
-            description: 'The position, 1-4 legs. Every leg needs side, type, strike, bid and ask.',
+            description: 'The position, 1-8 legs. Every leg needs side, type, strike, bid and ask.',
             items: {
               type: 'object',
               properties: {

@@ -602,7 +602,7 @@ Risk/status color convention used across the app:
 | Budget | `/budget`, `/budget/transactions` | 🟢 User data | BUDGET module (ROADMAP Phase 2): accounts (balance = opening anchor + transactions), manual entry, idempotent CSV import (import-hash dedupe; saved per-bank column mappings auto-matched by header signature), rule-based auto-categorization (first-match-wins, server-side), monthly budgets vs actuals (unbudgeted ≠ $0), recurring detection (suggestions until confirmed). Pure logic in `lib/budget/` (vitest), persistence via `/api/user/budget/*`. No external providers — no SourceLine on these pages |
 | Retirement Planner | `/retirement` | 🟢 Derived | RETIREMENT module. Accumulation projection across six vehicles (pre-tax/Roth 401k, Roth/traditional IRA, brokerage, crypto), each with its own deferral %, balance and assumed return; employer match; emergency-fund runway; straight-line drawdown to a plan-to age; loan amortization and credit-card payoff. Ported from the owner's planning spreadsheet — see `lib/retirement/` for the two places the arithmetic deliberately differs from it (monthly not annual compounding; caps enforced not merely displayed). **§402(g) and IRA caps are applied to the SHARED group**, not per account. Pure engine, 53 vitest tests. No external providers — no SourceLine; IRS limits carry a `ProvenanceNotice` |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
-| Trade Risk Scorer | `/equities/options` | 🟢 Derived | EQUITIES module. Describe an options position (1–4 legs, structure presets) and see it scored across liquidity, IV environment, assignment, time decay and defined risk — canonical 0–100 higher-is-safer, per-dimension with evidence. Engine is `lib/risk/profiles/optionsTrade.ts` (pure, tested). **There is deliberately NO options chain browser**: the P2-O1 audit found no usable keyless source (Cboe prohibited by its terms, Yahoo options 401s and Yahoo is now blocked outright on terms grounds), and the owner closed P2-O3 on 2026-08-05. Option-level numbers are hand-entered from the user's broker chain — never infer them. Also exposed as the `score_options_trade` agent tool, `POST /api/v1/options/score`, and an MCP tool |
+| Trade Risk Scorer | `/equities/options` | 🟢 Derived | EQUITIES module. Describe an options position (1–4 legs in the UI; the API and agent tool accept up to 8, structure presets) and see it scored across liquidity, IV environment, assignment, time decay and defined risk — canonical 0–100 higher-is-safer, per-dimension with evidence. Engine is `lib/risk/profiles/optionsTrade.ts` (pure, tested). **There is deliberately NO options chain browser**: the P2-O1 audit found no usable keyless source (Cboe prohibited by its terms, Yahoo options 401s and Yahoo is now blocked outright on terms grounds), and the owner closed P2-O3 on 2026-08-05. Option-level numbers are hand-entered from the user's broker chain — never infer them. Also exposed as the `score_options_trade` agent tool, `POST /api/v1/options/score`, and an MCP tool |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
 
 ### Equities module (`/equities`)
@@ -622,7 +622,7 @@ Caveats, all deliberate:
 | Equity Detail | `/equities/[symbol]` | 🟢 Live | Live chart/news + reference stats, 52-wk range, key stats |
 | Market News | `/equities/news` | 🟢 Live | RSS multi-feed; category/sentiment/ticker filters |
 | Stock Social | `/equities/social` | 🟡 Partial | Reddit + StockTwits (keyless) sentiment |
-| Equity TA | `/equities/technical-analysis` | 🟢 Derived | Shared candlestick engine, 18 indicators, patterns, screener |
+| Equity TA | `/equities/technical-analysis` | 🟢 Derived | Shared candlestick engine, 62 indicators (shared registry), patterns, screener |
 | Strategy Backtests | `/equities/backtests` | 🟢 Derived | `security-ohlcv` real history; SMA/RSI/MACD vs buy-and-hold |
 | Market Calendar | `/equities/calendar` | 🟡 Partial | FMP calendars (free key); earnings + US economic events |
 
@@ -731,6 +731,7 @@ A standalone Node.js MCP server at `Crypto-Stuff/mcp-server/` that exposes Finan
 | `get_security_history` | Daily close history + 52-week range for any quotable symbol |
 | `get_yield_curve` | Official Treasury par curve with spreads and shape |
 | `get_fx_rates` | Daily ECB reference FX rates (official tier) |
+| `run_audit` | ⚠ Dev/maintenance tool, not market data: shells out (`npx tsc`), probes live-data routes, walks the frontend source tree. Whether it ships in any externally distributed build is an **open owner decision (P3 review D5)** — documented here so the tool count stops drifting, not as an endorsement |
 | `score_options_trade` | Risk-score a user-described options position (0–100, higher = safer, per-dimension) |
 
 ### Setup (build once)

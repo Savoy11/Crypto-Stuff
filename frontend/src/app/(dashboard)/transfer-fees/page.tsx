@@ -704,15 +704,25 @@ function TransferFeesPageInner() {
             </div>
           </div>
 
-          {/* Live fee status bar */}
-          {data && (
+          {/* Live fee status bar. Rendered on error even with no data — this
+              used to sit entirely inside {data && …}, so a FIRST-load fees
+              failure silently fell back to static estimates with no notice at
+              all; the disclosure only worked when a previous fetch had
+              succeeded (review defect D-22). */}
+          {(data || isError) && (
             <div className="flex items-center gap-3 text-[10px] text-slate-500 bg-slate-800/40 border border-slate-700/40 rounded-lg px-3 py-2">
-              <div className="flex items-center gap-1.5">
-                <span className={clsx('size-1.5 rounded-full', data.btcFeeSource === 'live' ? 'bg-emerald-400' : 'bg-amber-400')} />
-                <span>BTC: {data.btcFeeSource === 'live' ? 'live (mempool.space)' : 'estimated'}</span>
-              </div>
-              <span className="text-slate-600">·</span>
-              <span>Other networks: estimated (price-adjusted)</span>
+              {data ? (
+                <>
+                  <div className="flex items-center gap-1.5">
+                    <span className={clsx('size-1.5 rounded-full', data.btcFeeSource === 'live' ? 'bg-emerald-400' : 'bg-amber-400')} />
+                    <span>BTC: {data.btcFeeSource === 'live' ? 'live (mempool.space)' : 'estimated'}</span>
+                  </div>
+                  <span className="text-slate-600">·</span>
+                  <span>Other networks: estimated (price-adjusted)</span>
+                </>
+              ) : (
+                <span>Network fees: static estimates</span>
+              )}
               {isError && <span className="text-red-400 ml-auto">Fee data unavailable — using static estimates</span>}
             </div>
           )}

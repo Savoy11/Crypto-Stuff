@@ -10,7 +10,6 @@ import {
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
-import { DerivedNote } from '@/components/ui/DerivedNote'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { clsx } from 'clsx'
 import {
@@ -538,11 +537,17 @@ function StakingPageInner() {
           <PageHeader
             title="Staking Opportunities"
             subtitle="Compare APY, lock-up periods, and custody risk across exchanges, wallets, and liquid staking protocols"
-            description={`Staking Opportunities evaluates ${STAKING_PROVIDERS.length} providers across three categories: CeFi exchanges (highest counterparty risk), self-custody wallets, and liquid staking protocols (lowest custody risk). Each provider is scored on six risk dimensions.`}
+            description={`Staking Opportunities compares ${STAKING_PROVIDERS.filter(p => !p.defunct).length} active providers across three categories: CeFi exchanges (highest counterparty risk), self-custody wallets, and liquid staking protocols (lowest custody risk).`}
             details={[
-              { label: 'Risk dimensions', text: 'Custody · Counterparty · Smart contract · Slashing · Liquidity · Regulatory — each scored 1–10. Composite score is weighted with counterparty at 25%.' },
+              // D-10 fix: this header used to describe six-dimension risk
+              // scores and a 0–100 composite that never render on this page
+              // (they appear on Staking Discovery and /api/v1), and claimed
+              // Celsius "is included" while this page unconditionally filters
+              // defunct providers. Rendering the scores here is tool candidate
+              // NT7 — an open decision, so the copy now matches the page.
+              { label: 'Risk profiles', text: 'Each provider carries a curated six-dimension risk profile (custody, counterparty, contract, slashing, liquidity, regulatory). The composite Safety Score built from it renders on Staking Discovery and the public API — not on these cards.' },
               { label: 'Live APY', text: 'Liquid-staking & restaking protocols pull live APY from DeFiLlama plus each protocol’s own API (Lido, Rocket Pool, Marinade, Jito, Stride). Self-custody wallets show the live on-chain network rate for native delegation. CeFi exchange rates are static estimates and may differ from current offerings.' },
-              { label: 'Celsius warning', text: 'Celsius is included as an educational cautionary example — it is marked defunct and should not be used.' },
+              { label: 'Defunct providers', text: 'Failed providers are excluded here. Celsius — the educational cautionary example — is on Staking Discovery behind its "show defunct" toggle.' },
             ]}
           />
         </div>
@@ -558,11 +563,6 @@ function StakingPageInner() {
 
       {/* Data provenance — reads the same registry that powers /data-sources */}
       <SourceLine id="staking-rates" asOf={updatedAt} />
-      <DerivedNote what="Risk scores" scale="0–100, higher = safer">
-        Composed by weighting six risk dimensions from the curated profiles below — no provider
-        publishes this number.
-      </DerivedNote>
-
       {/* Provenance / freshness notice for the curated provider catalog. The
           SourceLine above covers the live APR feeds; this covers the risk
           profiles, terms, and reference APRs underneath them, which are

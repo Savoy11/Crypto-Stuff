@@ -753,6 +753,20 @@ adjacent decided item: an options *chain browser* is closed by owner decision
 
 **Wrong or misleading copy/states (the app claiming what the code doesn't do):**
 
+> **Status, 2026-08-16 (P3-W2, branch `wave-2-changes`): D-9 through D-22 fixed,
+> except D-23** (needs an owner-machine repro — IP-dependence rule). Notes on the
+> non-obvious ones: D-19 added a third `aprSource` value `'derived'` for the
+> Lido-anchored exchange estimates (additive; OpenAPI updated). D-20's discovery
+> counts are now **derived from the catalogs** rather than re-typed — the
+> mini-NT12 fix — and the app-assistant system prompt was refreshed to the
+> suite-era app (X1). The MCP staking tools now surface the canonical
+> `safetyScore`/`band` (P2), the server self-description is post-rebrand (P4),
+> and `run_audit` is documented in CLAUDE.md's MCP table with its D5 decision
+> flagged (A5). D-10 removed /staking's DerivedNote for scores the page never
+> renders — rendering them is NT7, still open. D-17's brief banner now shows the
+> server's own 503 message, which already distinguishes missing-key from
+> agent-disabled.
+
 | # | Where | Claim vs reality |
 |---|---|---|
 | D-9 | `portfolios/page.tsx:927-929` | Claims Sharpe (4% rf) + max drawdown (computed nowhere on the page); claims localStorage-only persistence (store is DB-backed); stale "live mode"; residual "Coin" labels; SourceLine absent from detail view where P&L renders (C-note-6) |

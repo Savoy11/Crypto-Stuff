@@ -1127,101 +1127,23 @@ function ReservesTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
     )
   }
 
-  if (latestReserve === null) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
-        <div className="size-14 rounded-full bg-bg-elevated border border-border flex items-center justify-center">
-          <Shield size={24} className="text-text-muted" aria-hidden />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-text-secondary">Reserve data not available</p>
-          <p className="text-xs text-text-muted mt-1 max-w-sm">
-            Reserve attestations and collateralization ratios are not available in this mode.
-          </p>
-        </div>
-      </div>
-    )
-  }
-
+  // Fallback for a non-live build. The old code continued past this guard into
+  // a full legacy render of latestReserve — permanently dead since LIVE_DATA
+  // was hardcoded true (overlay.ts sets latestReserve to null on every asset),
+  // and it still carried the "Verified by {attestor}" copy the M5 audit
+  // scrubbed from every reachable surface. Deleted rather than kept (review
+  // defect D-21): a dead branch with banned copy is a regression waiting for
+  // whoever revives it.
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard
-          title="Total Reserves"
-          value={formatCompact(latestReserve.totalReserves)}
-          accentColor="#10b981"
-        />
-        <MetricCard
-          title="Total Liabilities"
-          value={formatCompact(latestReserve.totalLiabilities)}
-          accentColor="#3b82f6"
-        />
-        <MetricCard
-          title="Collateralization"
-          value={`${(latestReserve.reserveRatio * 100).toFixed(2)}%`}
-          accentColor={latestReserve.reserveRatio >= 1 ? '#10b981' : '#ef4444'}
-        />
-        <MetricCard
-          title="Attestation Date"
-          value={formatDate(latestReserve.attestationDate, 'MMM dd, yyyy')}
-          accentColor="#f59e0b"
-          footer={
-            <div className="flex items-center gap-1.5 text-[10px] text-text-muted">
-              <span className="size-1.5 rounded-full bg-emerald-400" />
-              <span>Verified by {latestReserve.attestor}</span>
-            </div>
-          }
-        />
+    <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+      <div className="size-14 rounded-full bg-bg-elevated border border-border flex items-center justify-center">
+        <Shield size={24} className="text-text-muted" aria-hidden />
       </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ErrorBoundary>
-          <ReserveComposition
-            composition={latestReserve.composition}
-            collateralizationRatio={latestReserve.reserveRatio}
-            totalReserves={latestReserve.totalReserves}
-          />
-        </ErrorBoundary>
-
-        <div className="rounded-card border border-border bg-bg-card p-5">
-          <h3 className="text-sm font-semibold text-text-primary mb-4">Attestation Detail</h3>
-          <div className="space-y-3">
-            {latestReserve.composition.map((item) => (
-              <div key={item.category} className="flex flex-col gap-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-text-secondary">{item.category}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-text-muted">{formatCompact(item.amount)}</span>
-                    <span className="font-mono text-text-primary w-12 text-right">{item.percentage.toFixed(1)}%</span>
-                  </div>
-                </div>
-                <div className="h-1.5 bg-bg-elevated rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${item.percentage}%`, backgroundColor: '#3b82f6' }}
-                    role="progressbar"
-                    aria-valuenow={Math.round(item.percentage)}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                  />
-                </div>
-                <div className="text-[10px] text-text-muted">{item.description}</div>
-              </div>
-            ))}
-          </div>
-
-          {latestReserve.reportUrl && (
-            <a
-              href={latestReserve.reportUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-4 flex items-center gap-1.5 text-xs text-accent-blue hover:text-blue-300 transition-colors"
-            >
-              <ExternalLink size={12} aria-hidden />
-              View Full Attestation Report
-            </a>
-          )}
-        </div>
+      <div>
+        <p className="text-sm font-medium text-text-secondary">Reserve data not available</p>
+        <p className="text-xs text-text-muted mt-1 max-w-sm">
+          Reserve attestations and collateralization ratios are not available in this mode.
+        </p>
       </div>
     </div>
   )

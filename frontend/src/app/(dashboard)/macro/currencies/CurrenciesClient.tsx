@@ -125,8 +125,9 @@ function Converter() {
           <>
             This conversion uses at least one <span className="text-amber-400">extended-tier</span> currency — sourced
             from a community-maintained daily feed{extended?.ok && extended.date ? ` (${extended.date})` : ''}, not the
-            European Central Bank. Cross-checked against ECB where both cover the same currency; still indicative, not
-            a dealable price.
+            European Central Bank. These rates carry no official validation — the feed was hand-verified once when the
+            tier was added (2026-07-21), and ECB covers none of these currencies, so no ongoing cross-check is possible.
+            Indicative only, not a dealable price.
           </>
         ) : (
           <>
