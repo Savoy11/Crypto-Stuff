@@ -84,9 +84,48 @@ function sampleStd(xs: number[]): number {
 
 export interface WindowStats {
   totalReturnPct: number // first→last close
+  /**
+   * Compound annual growth rate. NULL for windows shorter than a year, on
+   * purpose: annualizing a one-month move states a +10% month as +214%/yr,
+   * which reads as a fact rather than an extrapolation. Total return already
+   * covers the short windows honestly.
+   */
+  cagrPct: number | null
   volPct: number // annualized stdev of daily returns
   maxDrawdownPct: number // worst peak-to-trough over the window (>= 0)
   sharpe: number | null // annualized, rf=0; null if returns have no variance
+  /**
+   * Sortino ratio (annualized, MAR=0) — like Sharpe, but penalizing only
+   * downside deviation. Sharpe charges an asset for upside volatility too, so a
+   * fund that jumps sharply upward scores worse; Sortino separates the two,
+   * which is the distinction that matters when comparing a steady fund against
+   * a volatile one. Null when the window has no losing period to measure.
+   */
+  sortino: number | null
+}
+
+const MS_PER_YEAR = 365.25 * 86_400_000
+
+/**
+ * Shortest window CAGR is reported for. Not exactly 1.0: a calendar year is 365
+ * days but MS_PER_YEAR uses 365.25, so the 1Y range button — the view where an
+ * annualized figure is most expected — measures 0.9993 years and would be
+ * refused by a strict `>= 1`. The tolerance covers the leap-year convention
+ * without admitting genuinely short windows.
+ */
+const MIN_CAGR_YEARS = 0.99
+
+/**
+ * Downside deviation about a 0% minimum acceptable return: the root-mean-square
+ * of the negative periods, divided by the count of ALL periods (the standard
+ * definition — dividing by only the negative count would flatter any series
+ * that rarely loses).
+ */
+function downsideDeviation(rets: number[]): number {
+  if (rets.length === 0) return 0
+  let sumSq = 0
+  for (const r of rets) if (r < 0) sumSq += r * r
+  return Math.sqrt(sumSq / rets.length)
 }
 
 /**
@@ -106,6 +145,14 @@ export function windowStats(points: ChartPoint[]): WindowStats | null {
   const volPct = sd * Math.sqrt(ppy) * 100
   const sharpe = sd > 0 ? (mean(rets) / sd) * Math.sqrt(ppy) : null
 
+  const dd = downsideDeviation(rets)
+  const sortino = dd > 0 ? (mean(rets) / dd) * Math.sqrt(ppy) : null
+
+  const years = (points[points.length - 1].t - points[0].t) / MS_PER_YEAR
+  const cagrPct = years >= MIN_CAGR_YEARS && first > 0 && last > 0
+    ? (Math.pow(last / first, 1 / years) - 1) * 100
+    : null
+
   let peak = points[0].close
   let maxDd = 0
   for (const p of points) {
@@ -113,7 +160,7 @@ export function windowStats(points: ChartPoint[]): WindowStats | null {
     if (peak > 0) maxDd = Math.max(maxDd, (peak - p.close) / peak)
   }
 
-  return { totalReturnPct, volPct, maxDrawdownPct: maxDd * 100, sharpe }
+  return { totalReturnPct, cagrPct, volPct, maxDrawdownPct: maxDd * 100, sharpe, sortino }
 }
 
 export interface NormalizedChart {

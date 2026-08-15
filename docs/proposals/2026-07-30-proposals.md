@@ -3,6 +3,7 @@
 **Commit:** `14d6d76f5208c12a990d55dd439fb3301d861092` (branch `chore/improvement-agents`) · **Reviewed:** `README.md`, `docs/TASK-QUEUE.md` (incl. Phase 2 + Wave-0 follow-ups), `docs/ROADMAP.md` (Macro Markets spec + owner backlog), `docs/FEATURE-ADDITIONS.md` ("deliberately NOT added yet"), `docs/MARKET-ASSESSMENT.md` headings, `docs/PRELIMINARY-FINDINGS-2026-07-30.md`, `frontend/src/lib/modules/registry.ts`, `frontend/src/app/live-data/fund-holdings/route.ts`, `frontend/src/app/(dashboard)/funds/[symbol]/*`, `frontend/src/app/(dashboard)/equities/technical-analysis/page.tsx`, `frontend/src/app/(dashboard)/macro/` · **Proposals:** 2
 
 > Smoke-test run — scope was deliberately capped at 2 proposals, not a full survey.
+> _(Superseded 2026-08-15: the ledger was created during P3-W2.)_
 > `docs/audits/rejected-proposals.md` does not exist yet (only `docs/audits/.gitkeep`), and
 > `docs/proposals/` did not exist before this file. Nothing was previously rejected, so the
 > rejection filter passed vacuously; both items were still checked against `TASK-QUEUE.md`,

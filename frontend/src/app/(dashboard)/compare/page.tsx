@@ -13,7 +13,7 @@ import { EQUITY_CATALOG, SECTOR_INFO, getEquity } from '@/lib/data/equityCatalog
 import { FUND_CATALOG, getFund } from '@/lib/data/fundCatalog'
 import { ASSET_CATALOG } from '@/lib/data/assetCatalog'
 import { CHART_COLORS, STALE_TIME_LONG } from '@/lib/constants'
-import { formatCompact } from '@/lib/utils/format'
+import { formatCompact, formatRatio } from '@/lib/utils/format'
 import {
   normalizeToCommonStart,
   windowStats,
@@ -24,6 +24,7 @@ import {
   type NamedSeries,
 } from '@/lib/utils/compareStats'
 import type { SecurityChartResponse } from '@/app/live-data/security-chart/route'
+import type { CompanyFactsResponse } from '@/app/live-data/company-facts/route'
 import { FundOverlapSection } from '@/components/markets/FundOverlapSection'
 
 // Cross-module comparison of 2–6 stocks, ETFs, funds AND crypto: a normalized
@@ -84,6 +85,28 @@ async function fetchPoints(opt: Option, range: (typeof RANGES)[number]): Promise
   const j = (await r.json()) as SecurityChartResponse
   return toDailyCloses(j.chart?.points ?? [])
 }
+
+// Filed-fundamentals rows. Every figure comes from the keyless SEC EDGAR XBRL
+// route already powering /equities/[symbol] — Compare simply never asked for it,
+// so a stock comparison showed only the 79-name catalog's static snapshot.
+//
+// EPS is deliberately absent: the route reports whether a value is diluted or
+// basic per registrant, and a column comparing one company's diluted EPS with
+// another's basic EPS under a single heading would be exactly the kind of
+// unlabelled mixed basis this codebase avoids elsewhere.
+const FUNDAMENTAL_ROWS: Array<{ label: string; render: (d: CompanyFactsResponse) => string }> = [
+  { label: 'Revenue (FY)', render: (d) => (d.fundamentals?.revenue != null ? formatCompact(d.fundamentals.revenue) : '—') },
+  { label: 'Net income (FY)', render: (d) => (d.fundamentals?.netIncome != null ? formatCompact(d.fundamentals.netIncome) : '—') },
+  { label: 'Revenue growth YoY', render: (d) => (d.ratios?.revenueGrowthYoY != null ? formatRatio(d.ratios.revenueGrowthYoY, 1) : '—') },
+  { label: 'Gross margin', render: (d) => (d.ratios?.grossMargin != null ? formatRatio(d.ratios.grossMargin, 1) : '—') },
+  { label: 'Operating margin', render: (d) => (d.ratios?.operatingMargin != null ? formatRatio(d.ratios.operatingMargin, 1) : '—') },
+  { label: 'Net margin', render: (d) => (d.ratios?.netMargin != null ? formatRatio(d.ratios.netMargin, 1) : '—') },
+  { label: 'Return on equity', render: (d) => (d.ratios?.roe != null ? formatRatio(d.ratios.roe, 1) : '—') },
+  { label: 'Return on assets', render: (d) => (d.ratios?.roa != null ? formatRatio(d.ratios.roa, 1) : '—') },
+  { label: 'Current ratio', render: (d) => (d.ratios?.currentRatio != null ? `${d.ratios.currentRatio.toFixed(2)}×` : '—') },
+  { label: 'LT debt / equity', render: (d) => (d.ratios?.debtToEquity != null ? `${d.ratios.debtToEquity.toFixed(2)}×` : '—') },
+  { label: 'Free cash flow (FY)', render: (d) => (d.fundamentals?.freeCashFlow != null ? formatCompact(d.fundamentals.freeCashFlow) : '—') },
+]
 
 const STAT_LABELS = ['Type', 'Sector', 'Market cap', 'P/E (TTM)', 'Dividend yield', 'Beta (5Y)', 'Expense ratio']
 
@@ -192,7 +215,49 @@ function CompareInner() {
     [symbols.join(','), dataKey],
   )
 
+  // Filed fundamentals for the stock legs only. Keyless (SEC EDGAR), one request
+  // per symbol, capped by MAX_SYMBOLS at 6 — and cached under the same
+  // ['company-facts', symbol] key the equity detail page uses, so navigating
+  // between the two costs nothing.
+  const stockSymbols = useMemo(
+    () => symbols.filter((s) => OPTION_BY_SYMBOL.get(s)?.kind === 'stock'),
+    [symbols],
+  )
+  const factsQueries = useQueries({
+    queries: stockSymbols.map((symbol) => ({
+      queryKey: ['company-facts', symbol],
+      queryFn: async (): Promise<CompanyFactsResponse> => {
+        const r = await fetch(`/live-data/company-facts?symbol=${encodeURIComponent(symbol)}`)
+        const j: CompanyFactsResponse = await r.json()
+        if (!r.ok || !j.ok) throw new Error(j.error ?? `HTTP ${r.status}`)
+        return j
+      },
+      staleTime: STALE_TIME_LONG * 6, // fundamentals move on filing cadence
+    })),
+  })
+  const factsKey = factsQueries.map((q) => q.dataUpdatedAt).join(',')
+  const { factsBySymbol, factsMissing } = useMemo(() => {
+    const bySymbol: Record<string, CompanyFactsResponse | undefined> = {}
+    const missing: string[] = []
+    stockSymbols.forEach((s, i) => {
+      const q = factsQueries[i]
+      if (q?.data) bySymbol[s] = q.data
+      else if (!q?.isLoading) missing.push(s)
+    })
+    return { factsBySymbol: bySymbol, factsMissing: missing }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockSymbols, factsKey])
+
   const chartData = useMemo(() => normalizeToCommonStart(series), [series])
+  // Symbols the user asked for that returned no usable history. The chart's
+  // LiveUnavailable only fires when EVERY series is empty, and crypto is keyless
+  // so it practically always resolves — meaning a stock in a mixed comparison
+  // used to vanish from the legend with no banner and a bare '—' in the table.
+  // Partial coverage has to be named, not inferred from an absence (D-12 class).
+  const missing = useMemo(
+    () => symbols.filter((s) => !chartData.present.includes(s)),
+    [symbols, chartData.present],
+  )
   // Stats over the SAME common-start window the chart is rebased to — otherwise
   // series with different history depths report non-comparable "window" figures
   // side by side (review finding).
@@ -289,6 +354,18 @@ function CompareInner() {
         ) : (
           <LiveUnavailable message="No live history source is reachable for the selected symbols. Crypto history is keyless (CoinGecko); stock, fund and macro history now needs a Tiingo or FMP key, since the keyless source was withdrawn on terms grounds." />
         )}
+        {!loading && chartData.rows.length > 1 && missing.length > 0 && (
+          <p className="mt-3 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-300">
+            <span className="font-medium">Charted {chartData.present.length} of {symbols.length}.</span>{' '}
+            No history returned for{' '}
+            <span className="font-mono">{missing.join(', ')}</span>
+            {missing.every((s) => OPTION_BY_SYMBOL.get(s)?.kind !== 'crypto')
+              ? ' — stock and fund history needs a Tiingo or FMP key on the Integrations page.'
+              : ' — the series is missing or too short to align over this window.'}{' '}
+            Everything below is computed over the remaining {chartData.present.length}, so the
+            correlation matrix and window statistics do not describe the full selection.
+          </p>
+        )}
       </div>
 
       {/* Computed performance over the window */}
@@ -313,6 +390,14 @@ function CompareInner() {
                 ))}
               </tr>
               <tr>
+                <td className="px-4 py-2.5 text-text-muted font-sans">CAGR (ann.)</td>
+                {perf.map((p) => (
+                  <td key={p.symbol} className={clsx('px-4 py-2.5 text-right', p.stats?.cagrPct != null ? signClass(p.stats.cagrPct) : 'text-text-muted')}>
+                    {p.stats?.cagrPct != null ? pct(p.stats.cagrPct) : '—'}
+                  </td>
+                ))}
+              </tr>
+              <tr>
                 <td className="px-4 py-2.5 text-text-muted font-sans">Volatility (ann.)</td>
                 {perf.map((p) => (
                   <td key={p.symbol} className="px-4 py-2.5 text-right text-text-secondary">{p.stats ? `${p.stats.volPct.toFixed(1)}%` : '—'}</td>
@@ -330,10 +415,16 @@ function CompareInner() {
                   <td key={p.symbol} className="px-4 py-2.5 text-right text-text-secondary">{p.stats?.sharpe != null ? p.stats.sharpe.toFixed(2) : '—'}</td>
                 ))}
               </tr>
+              <tr>
+                <td className="px-4 py-2.5 text-text-muted font-sans">Sortino (ann.)</td>
+                {perf.map((p) => (
+                  <td key={p.symbol} className="px-4 py-2.5 text-right text-text-secondary">{p.stats?.sortino != null ? p.stats.sortino.toFixed(2) : '—'}</td>
+                ))}
+              </tr>
             </tbody>
           </table>
           <p className="px-4 py-2 text-[11px] text-text-muted border-t border-border/60">
-            Derived from date-aligned daily closes over the common window; annualization matches per-series bar spacing (daily/weekly/monthly). Sharpe uses a 0% risk-free rate.
+            Derived from date-aligned daily closes over the common window; annualization matches per-series bar spacing (daily/weekly/monthly). Sharpe and Sortino use a 0% risk-free rate; Sortino penalizes downside deviation only, so it exceeds Sharpe when volatility is mostly upside. CAGR is blank on windows under a year — annualizing a one-month move overstates it.
           </p>
         </div>
       )}
@@ -369,6 +460,48 @@ function CompareInner() {
 
       {/* Holdings overlap — funds only; a stock has no portfolio to compare. */}
       <FundOverlapSection symbols={symbols.filter((s) => OPTION_BY_SYMBOL.get(s)?.kind === 'fund')} />
+
+      {/* Filed fundamentals — stocks only, keyless SEC EDGAR XBRL. Kept in its
+          own table rather than merged into the reference stats below, because
+          one is audited filing data and the other is a hand-maintained catalog
+          snapshot; a single table would present both as equally current. */}
+      {stockSymbols.length > 0 && (
+        <div className="rounded-card border border-border bg-bg-card overflow-x-auto">
+          <h2 className="px-4 pt-4 pb-2 text-sm font-medium text-text-secondary">
+            Fundamentals <span className="text-text-muted font-normal">— latest full fiscal year, as filed</span>
+          </h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border">
+                <th className="px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wider text-text-muted">Metric</th>
+                {stockSymbols.map((s) => (
+                  <th key={s} className="px-4 py-2.5 text-right text-xs font-mono font-semibold" style={{ color: color(symbols.indexOf(s)) }}>{s}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/60 font-mono tabular-nums">
+              {FUNDAMENTAL_ROWS.map((row) => (
+                <tr key={row.label}>
+                  <td className="px-4 py-2.5 text-text-muted font-sans">{row.label}</td>
+                  {stockSymbols.map((s) => (
+                    <td key={s} className="px-4 py-2.5 text-right text-text-secondary">
+                      {factsBySymbol[s] ? row.render(factsBySymbol[s]!) : '—'}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="px-4 py-2 border-t border-border/60">
+            {factsMissing.length > 0 && (
+              <p className="text-[11px] text-amber-300 mb-1">
+                No filed fundamentals for <span className="font-mono">{factsMissing.join(', ')}</span> — foreign private issuers (20-F) and registrants with no US-GAAP annual facts do not appear in this dataset.
+              </p>
+            )}
+            <SourceLine id="company-facts" />
+          </div>
+        </div>
+      )}
 
       {/* Reference fundamentals */}
       <div className="rounded-card border border-border bg-bg-card overflow-x-auto">

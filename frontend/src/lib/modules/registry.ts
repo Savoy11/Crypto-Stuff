@@ -31,6 +31,7 @@ import {
   Activity,
   Sigma,
   PiggyBank,
+  Goal,
   ReceiptText,
 } from 'lucide-react'
 
@@ -50,7 +51,7 @@ import {
 //     the component boundary rather than inside the page's JSX, so a disabled
 //     module never mounts the page and its queries never fire.
 
-export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'budget' | 'builder'
+export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'budget' | 'retirement' | 'builder'
 
 export interface ModuleNavItem {
   href: string
@@ -151,6 +152,21 @@ export const MODULES: SuiteModule[] = [
     ],
   },
   {
+    // Premium module — sold under its own entitlement (separate fee).
+    //
+    // Ordered above ETFs & Funds by owner decision (2026-08-15, P3-W2 intake).
+    // It previously sat last on the reasoning that it is the upsell and builds
+    // on the catalogs below it; the ordering now leads with the tool rather
+    // than the reference data it consumes.
+    id: 'builder',
+    label: 'Portfolio Builder',
+    routePrefixes: ['/portfolio-builder'],
+    optional: true,
+    navItems: [
+      { href: '/portfolio-builder', label: 'Portfolio Builder', icon: Compass },
+    ],
+  },
+  {
     id: 'funds',
     label: 'ETFs & Funds',
     routePrefixes: ['/funds'],
@@ -174,14 +190,17 @@ export const MODULES: SuiteModule[] = [
     ],
   },
   {
-    // Premium module — sold under its own entitlement (separate fee).
-    // Sits last: it's the upsell, and it builds on the catalogs above it.
-    id: 'builder',
-    label: 'Portfolio Builder',
-    routePrefixes: ['/portfolio-builder'],
+    // Personal-finance pillar: accumulation projection to a target retirement
+    // age, drawdown to a plan-to age, and the loan/credit-card calculators that
+    // sat alongside it in the owner's planning spreadsheet. Pure engine in
+    // lib/retirement/ — nothing is fetched, so no SourceLine; the IRS
+    // contribution limits carry provenance like any other curated table.
+    id: 'retirement',
+    label: 'Retirement',
+    routePrefixes: ['/retirement'],
     optional: true,
     navItems: [
-      { href: '/portfolio-builder', label: 'Portfolio Builder', icon: Compass },
+      { href: '/retirement', label: 'Retirement Planner', icon: Goal },
     ],
   },
 ]

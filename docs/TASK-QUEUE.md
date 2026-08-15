@@ -1594,6 +1594,108 @@ conditions are checkable at a glance.
 ```
 </details>
 
+### P3-W2-S1 — Backtest build-out (subproject of W2, owner-directed 2026-08-15)
+
+> **Owner directive:** raised during the W2 short-list intake. Item 10 of the owner's
+> list was "backtests"; on review it is not a fix ticket but a build-out spanning
+> **three surfaces and two engines**, so it is scoped as a subproject rather than a
+> queued defect. Runs alongside the module walkthrough; does not gate it.
+
+**Why a subproject.** "Backtests" is the most overloaded word on the short list. Four
+things answer to it, three of them live:
+
+| Surface | Engine | Standing verdict |
+|---|---|---|
+| `/equities/backtests` | `lib/utils/equityBacktest.ts` (117 lines, 7 tests) | W1 row E17 **READY** — but carries the live Sharpe defect below |
+| Crypto TA → Backtest tab | `lib/utils/backtest.ts` (584 lines, tested) | W1 row CR17 **NEEDS-FIX¹¹** — untested price-target cluster around it |
+| Portfolios → Backtest tab | none — computed in-component | W1 row C8 **NEEDS-FIX⁵**, untested; crypto-only history, stated on-page |
+| `/backtests` (Risk Case Studies) | — | Deleted 2026-07, redirects to `/headlines`. **Out of scope** unless the owner says otherwise |
+
+**Two engines doing overlapping work is itself the finding.** T12 discovered the equity
+page had defined its own inline `runBacktest` instead of using the shared engine; it was
+extracted and tested but never unified. Whether they converge is a design decision this
+subproject owns.
+
+**Inherited defects (none currently filed in Appendix C — file them or fix them here):**
+
+| # | Where | Failure |
+|---|---|---|
+| S1-1 | `equities/backtests/page.tsx:26-28` vs `live-data/security-ohlcv/route.ts` | Page declares `barsPerYear` 252/52/12 for 1Y/5Y/MAX; the route stopped resampling at the 2026-08-06 Yahoo removal and now returns **daily bars on all three ranges**. Sharpe is annualized wrong on 2 of 3 ranges *with valid keys*. `git show 0a5b37f~1` confirms the pre-removal route set `interval: '1wk'` / `'1mo'` |
+| S1-2 | same file, same lines | Range labels "5 Years (weekly)" / "Max (monthly)" are now false copy — same class as D-12/D-13/D-15 |
+| S1-3 | same | Strategies silently changed meaning: SMA 10/40 on the 5Y view was 10 and 40 **weeks**, is now 10 and 40 **days** over five years of dailies. MAX now pulls up to 10,000 daily bars where it once pulled ~40 monthly |
+| S1-4 | `equities/backtests/page.tsx:317-321` | Empty state blames a missing Tiingo/FMP key for what may be a valid-key short-history case. The route already distinguishes them (`source:'none'` + `no_provider_configured` vs `fetch_failed`); the page doesn't read the distinction. Same misdirection pattern as M-note-8 |
+| S1-5 | `equities/technical-analysis/page.tsx:504` | Spillover from the same commit — still describes "daily/weekly stock candles" |
+| S1-6 | Portfolios Backtest tab | Growth summary + return-by-holding math computed in-component, untested (part of D-24) |
+| S1-7 | Crypto TA | `patternProjection`, `detectSetups`, `computeRiskReward` untested while emitting dollar levels users trade against (CR-note-11, part of D-24) |
+
+**Why the existing tests didn't catch S1-1:** `equityBacktest.test.ts`'s 7 tests take
+`barsPerYear` as a **parameter**, so by construction they cannot detect that the caller's
+value no longer matches the data. Nothing regression-tests the page↔route contract. The
+guard this wants is exactly Appendix B's **NT12 (boundary drift guard)** shape: pin declared
+`barsPerYear` against actual bar spacing in the fetched series.
+
+**Product calls this subproject must make (not fixes — decisions):**
+1. **Resample or relabel?** Restore true weekly/monthly resampling server-side in
+   `security-ohlcv`, or set every range to daily and relabel. This changes what the 5Y and
+   MAX strategies *mean*; it is a product call, not a bug fix.
+2. **Do the two engines converge?** One shared engine across crypto/equities/portfolios, or
+   deliberately separate with the reason written down.
+3. **Symbol universe.** Backtests are bounded to the 79-name curated catalog while TA charts
+   any ticker (W1 E-note-7 flags the inconsistency and allows that the bounded select may be
+   deliberate).
+
+**The outstanding validation, carried from T12 — this is the piece that has never been done.**
+`docs/assessments/T12-equity-backtests-audit.md` closes with: *"A live cross-check needs OHLCV
+egress (IP-dependent). Correctness is verified by static analysis + unit tests; the live value
+comparison is deferred."* That deferral still stands. **It can only be discharged on the
+owner's machine** (the IP-dependence rule). A build-out that adds metrics without ever
+comparing computed output against a known-good source repeats the gap rather than closing it.
+
+**Do not re-audit what T12 already proved** (tested, on `main`): no lookahead — the position
+held during bar `i` is `desired[i-1]`; benchmark parity — buy-and-hold compounds over the
+identical window from identical starting capital; trade accounting reconciles with the equity
+curve to 6dp. Re-deriving these burns the subproject's budget on settled ground.
+
+**Owns:** `lib/utils/equityBacktest.ts`, `lib/utils/backtest.ts`, the three backtest surfaces,
+and `live-data/security-ohlcv/route.ts` *if* decision 1 goes the resampling way. **Conflicts
+with any task touching `security-ohlcv`** — notably D-2 (macro TA's 2Y range bug), which hits
+the same route's range vocabulary. Sequence them or merge them.
+
+**Exit criteria:** every declared bar frequency matches the data it describes, guarded by a
+test · the three surfaces' copy states what they actually compute · the engine-convergence
+decision is recorded either way · portfolios + crypto price-target math is pure and tested ·
+the T12 live cross-check is discharged on the owner's machine and dated.
+
+### P3-W2 item 14 — Budget removal: NOT actioned, awaiting an explicit call
+
+> **Status, 2026-08-15.** Item 14 of the owner's short list reads "remove the
+> budget tracker and use old retirement planner excel sheet to build retirement
+> planner tab". **The build half shipped** (Retirement module, `lib/retirement/`,
+> 53 tests). **The removal half has deliberately not been actioned** and needs a
+> direct decision, for three reasons recorded here so the question is not lost:
+
+1. **The W1 review recommends the opposite.** Appendix B candidate NT1 is
+   "Budget management UI", which closes all six Budget NEEDS-FIX rows against
+   APIs that already exist. Cutting the module means rejecting NT1, which per
+   the Phase 3 ground rules must be recorded in
+   `docs/audits/rejected-proposals.md` with a reason.
+2. **The data is the user's own and the deletion is irreversible.** Removal
+   means a destructive migration dropping 7 tables / 15 FKs / 10 indexes,
+   including `finance_transactions` — imported bank history behind an
+   import-hash unique index. **HIDE is available and cheaper**: de-route the
+   module (the `/global-adoption` T5 precedent), keep the tables, decide later.
+   A CUT cannot be undone from git; a HIDE can.
+3. **The retirement planner wants the budget data.** In the source spreadsheet,
+   `Hypotheticals` pulls its bill totals from `Detailed Expense Breakdown` by
+   cell reference — the tracker is the planner's expense input, not a rival to
+   it. Today `/retirement` takes `monthlyExpenses` as a single hand-entered
+   number; wiring it to the Budget module's actuals is the obvious next step,
+   and impossible if Budget is gone.
+
+**What is needed:** SHIP (keep Budget as-is), FIX-FIRST (build NT1's management
+UI), HIDE (de-route, keep the data), or CUT (delete, with the data loss
+accepted in writing). Nothing else in Phase 3 is blocked on this.
+
 ### P3-W3 — Final rollout gate
 
 > Depends on P3-W2 complete: every feature row carries a decision, every OPEN marker

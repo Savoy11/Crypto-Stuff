@@ -80,7 +80,7 @@ outside its entitlement.
 **The one systemic pattern:** behavior is broadly honest (no fabricated values found
 on any live surface except D-6), but **the boundaries drift** — copy vs code, docs vs
 code, MCP/agent metadata vs API shape, and the house testing rule vs ~14 clusters of
-untested user-actionable math (D-24). The cheap structural fix is B12 (boundary drift
+untested user-actionable math (D-24). The cheap structural fix is NT12 (boundary drift
 guard); the rest is scoped, enumerated work.
 
 ---
@@ -365,6 +365,12 @@ rather than screening a page and pretending it screened the universe).
 1. **`computeReturns` (`lib/utils/returns.ts:23`) — the 1M/3M/YTD/1Y percentages users
    compare funds on — has zero tests.** YTD prior-year-close boundary and short-series
    null logic unverified. Clear house-rule violation; small fix.
+   > ✅ **RESOLVED 2026-08-15 (P3-W2):** 15 tests added covering both flagged
+   > cases. Behaviour was correct; one caveat is now pinned rather than
+   > implicit — between 200 and 251 closes the 1Y column reports the series
+   > start, so a young fund shows a sub-year period under a "1Y" heading. The
+   > fallback is deliberate (the alternative hides a young fund's only
+   > meaningful return) but it is not a full year.
 2. **Real bug: `fund-holdings/route.ts:31` and `fund-holdings-history/route.ts:18`
    read `process.env.FMP_API_KEY` at module scope instead of `getProviderKey('fmp')`.**
    Everywhere else in the app a key saved in the Integrations UI wins over env; on
@@ -382,6 +388,23 @@ rather than screening a page and pretending it screened the universe).
 
 **Summary:** 12 features — 8 READY, 4 NEEDS-FIX (one real bug — the env-only FMP key;
 two test gaps; both scoped). Nothing NOT-FOR-ROLLOUT.
+
+> **Sourcing revisit, 2026-08-15 (P3-W2 item 12) — return screening.** The F4
+> decision to keep return screening/sorting OFF was recorded as blocked on "a
+> provider that batches trailing returns". That provider was located and tested
+> against a live FMP key: `/stable/stock-price-change?symbol=X` returns
+> 1D/5D/1M/3M/6M/ytd/1Y/3Y/5Y/10Y/max directly — the exact four windows, with no
+> series download and no `computeReturns` step. **Single-symbol works on the
+> current plan; the comma-separated batch form is refused ("requires a higher
+> plan"), and the whole-market `full-etf-quotes` endpoint needs Ultimate or
+> Enterprise.** Whole-universe screening is therefore a purchasing decision, not
+> an engineering one, and F4's verdict stands unchanged until that tier is
+> bought. Recorded so the question is not re-opened from scratch a third time.
+>
+> One constraint attaches to any future wiring: FMP reports a **price** change
+> while the current Tiingo path computes on **adjusted** closes (total return).
+> For SPY that gap is the distribution yield — 1Y price +20.65% vs total return
+> ~+22%. The two bases must never share a column unlabelled.
 
 ---
 
@@ -518,12 +541,6 @@ catalogs' actual exports, so counts can't drift silently again.
 
 ---
 
-## Module: ETFs & Funds
-
-_(section filled from the request-path sweep — see tables below)_
-
----
-
 ## Module: Budget
 
 Two pages (`/budget`, `/budget/transactions`), 12 API routes under
@@ -618,11 +635,47 @@ limits), not code.
 
 ---
 
-## Cross-cutting: AI agents, /api/v1, MCP server
+## Appendix D — Owner short-list intake (P3-W2, 2026-08-15) — open items
 
-_(section filled from the request-path sweep — see tables below)_
+The owner brought an 18-item short list into the Wave 2 sitting before the module
+walkthrough began. Each item was cross-checked against this document, the task queue,
+ROADMAP and the code. **Only one (item 9, the options scorer) was already covered
+here** — the review's blind spots were nav/IA, which it never discusses, and three
+surfaces it marked READY that carry defects it did not find.
 
----
+**Landed during the intake** (commits on `claude/finance-wave-two-62esqa`): Compare
+partial-coverage disclosure + MAX-range fix (item 3) · fundamentals empty state, EPS
+basis labelling, ratio-math extraction with 27 tests (item 8) · CAGR, Sortino and a
+keyless SEC fundamentals table on Compare (item 2) · coin-type sort and filter on Coin
+Discovery (item 5, sort half) · Portfolio Builder promoted above Fund Registry (item 15)
+· `computeReturns` tests closing F-note-1 (item 12) · the Retirement module (item 14,
+build half) · the rejections ledger and this document's repairs (item 18, scaffolding).
+
+**Three defects the intake found that this review did not.** All were on rows marked
+READY, which is the pattern worth noting for W3: `/equities/backtests` annualizes Sharpe
+at 52/12 bars-per-year against data that is daily on every range since the Yahoo removal
+(E17 READY → see P3-W2-S1); Compare's unavailable notice fires only when *every* series
+is empty, so a stock silently vanished from a mixed comparison (C9 READY); and 47 of 108
+catalog coins can never receive a Safety Score, recorded nowhere (CR2 and CR5 both READY).
+
+### Open — revisit these during the module walkthrough
+
+| Item | What | Why it is still open | Where it lands |
+|---|---|---|---|
+| 1 | Consolidate AI Agents / Integrations / Data Sources under a Settings group | Needs a nested-nav primitive `ModuleNavItem` does not have; the same primitive items 6/7 need. Build once, after the scanner architecture settles. Any route move needs redirects — `SourceLine.tsx:68` links `/data-sources` from every provenance badge in the app | Core module walkthrough (C11, C12, C14) |
+| 4 | Remove Safety Score placeholders — *"risk scores may be too close to a regulated recommendation"* | **Parked pending regulatory review.** Reaches 17 modules and 13 components. In tension with items 9 and 16, which keep the options scorer and the risk-based builder — both risk scoring on the same canonical scale. The defensible line, if one is wanted: scoring what the user brought you is explanation; ranking a universe to surface winners is closer to a recommendation. `BUSINESS-CHECKLIST.md:40-43` already carries this as open regulatory research | Crypto walkthrough (CR2, CR3, CR5, CR8, CR16, CR18) + D2 |
+| 5b | Retire the "Strong Add / Consider / Monitor / Too Speculative" vocabulary (~15 strings) | Held with item 4 — same advice-framing question. The sort half shipped | Crypto walkthrough (CR16, D-11) |
+| 6, 7 | Promote every scanner out of its TA page into a per-section nav entry | **Owner still deciding** whether equities gets one combined scanner or several, and whether a "scanner" merges technical setups, the registry's fundamental screener and the AI Outlier Scan. That answer generalizes to the other sections. Note the maturity gap: crypto has 7 setup detectors, 3 timeframes and auto-refresh; equities has 24 hardcoded large-caps | Crypto (CR17), Equities (E14-E16), Macro (M11, M12) |
+| 11, 13 | Corporate, high-yield, international and municipal bond coverage | Confirmed gap, not yet built. Today the catalog carries LQD and HYG only — no international (BNDX/IAGG/BWX/EMB/VWOB), no muni (MUB/VTEB/TFI), no muni row in `BOND_ETF_SHELF`, no muni tier in `RateCreditQuality`, and no tax-equivalent-yield concept, which is the whole point of holding munis | Funds (F1, F7) + Macro (M9) |
+| 12b | Restore return screening on the fund registry | **Settled as a purchasing decision, not an engineering one** — see the sourcing revisit in the Funds section. FMP's `/stable/stock-price-change` is the right endpoint; batching is paid-gated | Funds (F4) |
+| 14b | Remove the Budget module | **Awaiting an explicit call** — contradicts NT1, destroys imported bank history irreversibly where HIDE would not, and the new planner wants Budget's actuals as its expense input. Full reasoning in the TASK-QUEUE entry | Budget walkthrough (B1-B11) + NT1 |
+| 16 | Portfolio Builder: user-set percentages per industry / sector / market cap, with sub-division inside each asset class | Owner confirmed **setting**, not reporting, and additive — the risk-based builder stays. This is a second engine, not an edit: `BuilderInputs` has no target-weight field and every weight is derived. Owner also flagged a legality question of his own | Portfolio Builder walkthrough (PB1-PB6) |
+| 18b | Make this document a maintained, protected reference | Scaffolding done. Still needs: a narrow carve-out in `checklist-steward.md:27` (which currently forbids maintaining assessments), and a decision on what "protected" means — CODEOWNERS, branch protection, or a doc-vs-code CI guard | Process, W3 entry conditions |
+| 2b | Beta vs a benchmark on Compare | Asked for in T3, never delivered; still absent. Needs a benchmark-series fetch and a choice of benchmark | Core walkthrough (C9) |
+
+> **Note for W3.** Items 4, 6/7 and 14b are decisions, not builds — none can be closed by
+> an agent. Item 1 is blocked on 6/7 by shared plumbing. Everything else in this table is
+> scoped and buildable once the decision above it is made.
 
 ## Appendix A — Documentation corrections (features undocumented or misdocumented)
 
@@ -631,37 +684,47 @@ code ships. Each is a doc edit, not a code change.
 
 | # | Document | Correction |
 |---|---|---|
-| A1 | CLAUDE.md (Videos row) | Advertises "Video search + AI analysis" — the analysis half (`video-analyze`) has no UI (C2). Either drop the claim or build the trigger (B4) |
+| A1 | CLAUDE.md (Videos row) | Advertises "Video search + AI analysis" — the analysis half (`video-analyze`) has no UI (C2). Either drop the claim or build the trigger (NT4) |
 | A2 | CLAUDE.md (equity TA row) + `/equities/technical-analysis` subtitle | "18 indicators" — the shared registry ships ~62; both copies predate the shared-engine migration |
 | A3 | CLAUDE.md (marketData section) | Claims built-in provider "reordering" — no such action exists in UI or `/live-data/config` |
 | A4 | CLAUDE.md (module registry / entitlements) | Implies entitlements persist like other user data — they are localStorage-only (`useEntitlementStore`); no `/api/user/entitlements` route exists. Load-bearing for the rollout-posture decision (D1) |
 | A5 | CLAUDE.md (MCP table) | Lists 12 tools; the server ships 13 — `run_audit` is undocumented (and needs decision D5) |
-| A6 | CLAUDE.md + `docs/agents/*` charters | Reference `docs/audits/rejected-proposals.md`, which **does not exist**. Create the scaffold (it is Wave 2's rejection ledger) or fix the references |
+| A6 | CLAUDE.md + `docs/agents/*` charters | Reference `docs/audits/rejected-proposals.md`, which **does not exist**. Create the scaffold (it is Wave 2's rejection ledger) or fix the references — ✅ **RESOLVED 2026-08-15 (P3-W2):** scaffold created; every reference now resolves |
 | A7 | `mcp-server/` | No README, though `index.ts:11` points to one; server metadata still self-describes as pre-rebrand "Crypto Asset Evaluation Platform" ignoring the securities/macro/options tools |
 | A8 | CLAUDE.md (equities backtests row) | Fee tiers (0–25bps/side) and the tested fee math are undocumented |
 | A9 | DATA-AVAILABILITY.md | Standing: owner-machine re-run owed since the Yahoo removal (its own header says so); the macro-quote check (its action item 18) remains the highest-value gap |
 
 ## Appendix B — New-tool candidates
 
+> **Ids are `NT*` (new tool), not `B*`.** Renumbered 2026-08-15: the Budget
+> module's feature rows are also B1–B11, so "B1" resolved to two different
+> things — a READY/NEEDS-FIX feature row and a proposed tool. Cross-references
+> elsewhere in this document have been updated.
+
 Checked against the rejected-proposals ledger **by intent only — the file does not
-exist** (A6); no candidate below is knowingly re-proposing a rejected idea. The one
+exist** (A6); no candidate below is knowingly re-proposing a rejected idea.
+
+> **Annotation, 2026-08-15 (P3-W2).** The ledger now exists and carries the one
+> adjacent decided item (RP-1, the options chain browser). The W1 statement above
+> stands as written — it records what was true at review time — but a candidate
+> below can now be checked properly rather than by intent. The one
 adjacent decided item: an options *chain browser* is closed by owner decision
 (2026-08-05) with named reopen triggers — nothing here touches it.
 
 | # | Candidate | Rationale | Effort shape |
 |---|---|---|---|
-| B1 | **Budget management UI** — rules manager, category editor, account rename/archive, recurring edit/deactivate + suggestion dismiss, import-profile delete | Closes all 6 Budget NEEDS-FIX; every API already exists (one new route: `import-profiles/[id]`, plus a dismiss persistence choice) | UI-only, medium |
-| B2 | **Trade ledger** — `/api/user/trades` CRUD + pure tested cost-basis engine (FIFO vs avg decision) + entry UI | ROADMAP Phase 1's unmet "Done when"; `trade_transactions` table + index already built | Medium; enables realized P&L |
-| B3 | Wallets → DB (`/api/user/wallets`) | Last localStorage holdout of Phase 1; portfolios/watchlists are the template | Small, mechanical |
-| B4 | video-analyze trigger UI (ask-about-this-video on `/videos` cards) | The orphaned feature (C2) — route is complete, incl. quota guards | Small UI |
-| B5 | Invocation UI for `data-scraper` / `equity-data-scraper` / `equity-diligence` — **or retire them** | Standing owner-backlog item, confirmed still unreachable (X4) | Decision first |
-| B6 | macro-screener panel on `/macro` (mirror of the equity OutlierScanPanel) | Whitelisted agent, deep-link-only today (X5) | Small UI |
-| B7 | Render canonical Safety scores on `/staking` provider cards | The page's own copy already describes them; engine + API + discovery page already serve them (CR14) | Small UI |
-| B8 | Futures term-structure provider (keyed) | Reopens M5 from P2-O1's GO design; engine tested and kept alive; sourcing decision, not build work | Provider eval first |
-| B9 | Fund asset-mix derived from N-PORT position categories | Would revive the dead allocation donut (F-note-4) from data already fetched | Medium server |
-| B10 | Score-history persistence (risk-spec P6) | The only honest path to making the Risk History tab real (CR8) | Medium; needs storage + scheduled capture |
-| B11 | Wire orphaned crypto routes (`fear-greed`, `btc-stats`, `defi-tvl`) into the TA market-structure panel (or delete them) | Four maintained, terms-registered routes with zero consumers | Small either way |
-| B12 | **Boundary drift guard** — vitest diffing v1 discovery counts, MCP tool descriptions/counts, and agent-prompt catalog claims against the catalogs' actual exports | The cross-cutting section shows every unguarded boundary drifted (16 vs 18 networks, 12 vs 13 tools, pre-suite prompts, broken MCP formatter). Cheap standing prevention | Small test |
+| NT1 | **Budget management UI** — rules manager, category editor, account rename/archive, recurring edit/deactivate + suggestion dismiss, import-profile delete | Closes all 6 Budget NEEDS-FIX; every API already exists (one new route: `import-profiles/[id]`, plus a dismiss persistence choice) | UI-only, medium |
+| NT2 | **Trade ledger** — `/api/user/trades` CRUD + pure tested cost-basis engine (FIFO vs avg decision) + entry UI | ROADMAP Phase 1's unmet "Done when"; `trade_transactions` table + index already built | Medium; enables realized P&L |
+| NT3 | Wallets → DB (`/api/user/wallets`) | Last localStorage holdout of Phase 1; portfolios/watchlists are the template | Small, mechanical |
+| NT4 | video-analyze trigger UI (ask-about-this-video on `/videos` cards) | The orphaned feature (C2) — route is complete, incl. quota guards | Small UI |
+| NT5 | Invocation UI for `data-scraper` / `equity-data-scraper` / `equity-diligence` — **or retire them** | Standing owner-backlog item, confirmed still unreachable (X4) | Decision first |
+| NT6 | macro-screener panel on `/macro` (mirror of the equity OutlierScanPanel) | Whitelisted agent, deep-link-only today (X5) | Small UI |
+| NT7 | Render canonical Safety scores on `/staking` provider cards | The page's own copy already describes them; engine + API + discovery page already serve them (CR14) | Small UI |
+| NT8 | Futures term-structure provider (keyed) | Reopens M5 from P2-O1's GO design; engine tested and kept alive; sourcing decision, not build work | Provider eval first |
+| NT9 | Fund asset-mix derived from N-PORT position categories | Would revive the dead allocation donut (F-note-4) from data already fetched | Medium server |
+| NT10 | Score-history persistence (risk-spec P6) | The only honest path to making the Risk History tab real (CR8) | Medium; needs storage + scheduled capture |
+| NT11 | Wire orphaned crypto routes (`fear-greed`, `btc-stats`, `defi-tvl`) into the TA market-structure panel (or delete them) | Four maintained, terms-registered routes with zero consumers | Small either way |
+| NT12 | **Boundary drift guard** — vitest diffing v1 discovery counts, MCP tool descriptions/counts, and agent-prompt catalog claims against the catalogs' actual exports | The cross-cutting section shows every unguarded boundary drifted (16 vs 18 networks, 12 vs 13 tools, pre-suite prompts, broken MCP formatter). Cheap standing prevention | Small test |
 
 ## Appendix C — Defects found (for normal filing, NOT fixed in this review)
 

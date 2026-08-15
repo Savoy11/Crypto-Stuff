@@ -7,7 +7,7 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 ## What This Is
 
-An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus six optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), **Budget** (`/budget`, the first personal-finance pillar — accounts, CSV import, monthly budgets), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
+An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus seven optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), **Budget** (`/budget`, the first personal-finance pillar — accounts, CSV import, monthly budgets), **Retirement** (`/retirement`, the second — accumulation projection, drawdown, debt calculators), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, entitlements) persists to Postgres through `/api/user/*`; an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
 **Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
 
@@ -83,6 +83,7 @@ frontend/src/
 │   │   ├── macro/                  # MACRO MODULE — overview, news, commodities, currencies, rates (+ [slug] detail)
 │   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
 │   │   ├── budget/                 # BUDGET MODULE — monthly budgets vs actuals; transactions/ = accounts + CSV import
+│   │   ├── retirement/             # RETIREMENT MODULE — accumulation projection, drawdown, loan/card calculators
 │   │   ├── portfolio-builder/      # PREMIUM module — own entitlement
 │   │   └── global-adoption/        # De-routed (T5) — redirects to /headlines; page retained
 │   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 56 routes
@@ -167,6 +168,9 @@ frontend/src/
 │   │   ├── portfolioBuilder.ts     # Portfolio Builder engine (pure TS, vitest-tested)
 │   │   ├── lookThrough.ts          # Fund look-through + pairwise overlap (pure TS, vitest-tested)
 │   │   └── assetCatalog.ts         # Coin reference metadata
+│   ├── retirement/                 # Retirement module pure logic (vitest-tested, 53 tests):
+│   │                               #   engine.ts (projection + caps), debt.ts (amortization,
+│   │                               #   card payoff), limits.ts (IRS caps + provenance)
 │   ├── budget/                     # Budget module pure logic (vitest-tested): csv.ts (parse+mapping),
 │   │                               #   categorize.ts (first-match rules), recurring.ts (cadence detection)
 │   ├── agents/                     # Agent runner, prompts, tools
@@ -596,6 +600,7 @@ Risk/status color convention used across the app:
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
 | Compare | `/compare` | 🟡 Key-gated | 2–6 stocks/funds/coins, date-aligned growth-of-100 + window stats + correlation (`security-chart`, `chart`). Fund selections also get a **holdings-overlap** section (`lib/data/lookThrough.ts`) — the question correlation can't answer: whether two funds move together because they hold the same companies or because they track the same economy. Partial holdings lists are labelled as floors, never rescaled |
 | Budget | `/budget`, `/budget/transactions` | 🟢 User data | BUDGET module (ROADMAP Phase 2): accounts (balance = opening anchor + transactions), manual entry, idempotent CSV import (import-hash dedupe; saved per-bank column mappings auto-matched by header signature), rule-based auto-categorization (first-match-wins, server-side), monthly budgets vs actuals (unbudgeted ≠ $0), recurring detection (suggestions until confirmed). Pure logic in `lib/budget/` (vitest), persistence via `/api/user/budget/*`. No external providers — no SourceLine on these pages |
+| Retirement Planner | `/retirement` | 🟢 Derived | RETIREMENT module. Accumulation projection across six vehicles (pre-tax/Roth 401k, Roth/traditional IRA, brokerage, crypto), each with its own deferral %, balance and assumed return; employer match; emergency-fund runway; straight-line drawdown to a plan-to age; loan amortization and credit-card payoff. Ported from the owner's planning spreadsheet — see `lib/retirement/` for the two places the arithmetic deliberately differs from it (monthly not annual compounding; caps enforced not merely displayed). **§402(g) and IRA caps are applied to the SHARED group**, not per account. Pure engine, 53 vitest tests. No external providers — no SourceLine; IRS limits carry a `ProvenanceNotice` |
 | Portfolio Builder | `/portfolio-builder` | 🟢 Derived | PREMIUM module (own entitlement): questionnaire → diversified allocation with bond ladder, sector tilts/exclusions, fee summary, drift-vs-actual rebalancing and suitability monitoring. Engine is pure TS in `lib/data/portfolioBuilder.ts` (vitest-tested); see below |
 | Trade Risk Scorer | `/equities/options` | 🟢 Derived | EQUITIES module. Describe an options position (1–4 legs, structure presets) and see it scored across liquidity, IV environment, assignment, time decay and defined risk — canonical 0–100 higher-is-safer, per-dimension with evidence. Engine is `lib/risk/profiles/optionsTrade.ts` (pure, tested). **There is deliberately NO options chain browser**: the P2-O1 audit found no usable keyless source (Cboe prohibited by its terms, Yahoo options 401s and Yahoo is now blocked outright on terms grounds), and the owner closed P2-O3 on 2026-08-05. Option-level numbers are hand-entered from the user's broker chain — never infer them. Also exposed as the `score_options_trade` agent tool, `POST /api/v1/options/score`, and an MCP tool |
 | Settings | `/settings` (→ Integrations) | — | API keys, data tier, integrations + Suite Modules toggles |
@@ -774,6 +779,7 @@ carries a terms verdict, so a new undocumented source fails the suite rather tha
 
 Anything producing a **dollar figure or a percentage a user acts on** should be pure and tested:
 `computeNetworkFees()`, `computeFeeDrag()`, `portfolioBuilder.ts`, `lookThrough.ts`, `lib/budget/`,
+`lib/retirement/`,
 `lib/risk/`. Where a function needs the clock, take an injectable `now` — every provenance helper
 and `reviewPlan()`/`buildCurveData()` do, and it is the only reason their edge cases are testable.
 

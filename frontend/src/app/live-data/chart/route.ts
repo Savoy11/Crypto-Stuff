@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { coingeckoIdFor } from '@/lib/api/live/coingeckoIds'
+import { normalizeDaysParam } from '@/lib/utils/chartParams'
 
 // Server-side proxy for CoinGecko market_chart history. Maps the platform's
 // internal asset id to a CoinGecko coin id, fetches daily price/volume series,
@@ -7,7 +8,7 @@ import { coingeckoIdFor } from '@/lib/api/live/coingeckoIds'
 //
 // Query params:
 //   id   = internal asset id (e.g. "btc")
-//   days = lookback window in days (default 365)
+//   days = lookback window in days, or "max" for full history (default 365)
 //
 // Response shape:
 //   { ok: boolean, candles: PriceCandle[], synthetic: true }
@@ -42,10 +43,10 @@ function toDateString(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10)
 }
 
+
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get('id') ?? ''
-  const daysParam = request.nextUrl.searchParams.get('days') ?? '365'
-  const days = Number.isFinite(Number(daysParam)) && Number(daysParam) > 0 ? daysParam : '365'
+  const days = normalizeDaysParam(request.nextUrl.searchParams.get('days'))
 
   const cgId = coingeckoIdFor(id)
   if (!cgId) {
