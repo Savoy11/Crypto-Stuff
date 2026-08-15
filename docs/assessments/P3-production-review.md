@@ -635,6 +635,48 @@ limits), not code.
 
 ---
 
+## Appendix D — Owner short-list intake (P3-W2, 2026-08-15) — open items
+
+The owner brought an 18-item short list into the Wave 2 sitting before the module
+walkthrough began. Each item was cross-checked against this document, the task queue,
+ROADMAP and the code. **Only one (item 9, the options scorer) was already covered
+here** — the review's blind spots were nav/IA, which it never discusses, and three
+surfaces it marked READY that carry defects it did not find.
+
+**Landed during the intake** (commits on `claude/finance-wave-two-62esqa`): Compare
+partial-coverage disclosure + MAX-range fix (item 3) · fundamentals empty state, EPS
+basis labelling, ratio-math extraction with 27 tests (item 8) · CAGR, Sortino and a
+keyless SEC fundamentals table on Compare (item 2) · coin-type sort and filter on Coin
+Discovery (item 5, sort half) · Portfolio Builder promoted above Fund Registry (item 15)
+· `computeReturns` tests closing F-note-1 (item 12) · the Retirement module (item 14,
+build half) · the rejections ledger and this document's repairs (item 18, scaffolding).
+
+**Three defects the intake found that this review did not.** All were on rows marked
+READY, which is the pattern worth noting for W3: `/equities/backtests` annualizes Sharpe
+at 52/12 bars-per-year against data that is daily on every range since the Yahoo removal
+(E17 READY → see P3-W2-S1); Compare's unavailable notice fires only when *every* series
+is empty, so a stock silently vanished from a mixed comparison (C9 READY); and 47 of 108
+catalog coins can never receive a Safety Score, recorded nowhere (CR2 and CR5 both READY).
+
+### Open — revisit these during the module walkthrough
+
+| Item | What | Why it is still open | Where it lands |
+|---|---|---|---|
+| 1 | Consolidate AI Agents / Integrations / Data Sources under a Settings group | Needs a nested-nav primitive `ModuleNavItem` does not have; the same primitive items 6/7 need. Build once, after the scanner architecture settles. Any route move needs redirects — `SourceLine.tsx:68` links `/data-sources` from every provenance badge in the app | Core module walkthrough (C11, C12, C14) |
+| 4 | Remove Safety Score placeholders — *"risk scores may be too close to a regulated recommendation"* | **Parked pending regulatory review.** Reaches 17 modules and 13 components. In tension with items 9 and 16, which keep the options scorer and the risk-based builder — both risk scoring on the same canonical scale. The defensible line, if one is wanted: scoring what the user brought you is explanation; ranking a universe to surface winners is closer to a recommendation. `BUSINESS-CHECKLIST.md:40-43` already carries this as open regulatory research | Crypto walkthrough (CR2, CR3, CR5, CR8, CR16, CR18) + D2 |
+| 5b | Retire the "Strong Add / Consider / Monitor / Too Speculative" vocabulary (~15 strings) | Held with item 4 — same advice-framing question. The sort half shipped | Crypto walkthrough (CR16, D-11) |
+| 6, 7 | Promote every scanner out of its TA page into a per-section nav entry | **Owner still deciding** whether equities gets one combined scanner or several, and whether a "scanner" merges technical setups, the registry's fundamental screener and the AI Outlier Scan. That answer generalizes to the other sections. Note the maturity gap: crypto has 7 setup detectors, 3 timeframes and auto-refresh; equities has 24 hardcoded large-caps | Crypto (CR17), Equities (E14-E16), Macro (M11, M12) |
+| 11, 13 | Corporate, high-yield, international and municipal bond coverage | Confirmed gap, not yet built. Today the catalog carries LQD and HYG only — no international (BNDX/IAGG/BWX/EMB/VWOB), no muni (MUB/VTEB/TFI), no muni row in `BOND_ETF_SHELF`, no muni tier in `RateCreditQuality`, and no tax-equivalent-yield concept, which is the whole point of holding munis | Funds (F1, F7) + Macro (M9) |
+| 12b | Restore return screening on the fund registry | **Settled as a purchasing decision, not an engineering one** — see the sourcing revisit in the Funds section. FMP's `/stable/stock-price-change` is the right endpoint; batching is paid-gated | Funds (F4) |
+| 14b | Remove the Budget module | **Awaiting an explicit call** — contradicts NT1, destroys imported bank history irreversibly where HIDE would not, and the new planner wants Budget's actuals as its expense input. Full reasoning in the TASK-QUEUE entry | Budget walkthrough (B1-B11) + NT1 |
+| 16 | Portfolio Builder: user-set percentages per industry / sector / market cap, with sub-division inside each asset class | Owner confirmed **setting**, not reporting, and additive — the risk-based builder stays. This is a second engine, not an edit: `BuilderInputs` has no target-weight field and every weight is derived. Owner also flagged a legality question of his own | Portfolio Builder walkthrough (PB1-PB6) |
+| 18b | Make this document a maintained, protected reference | Scaffolding done. Still needs: a narrow carve-out in `checklist-steward.md:27` (which currently forbids maintaining assessments), and a decision on what "protected" means — CODEOWNERS, branch protection, or a doc-vs-code CI guard | Process, W3 entry conditions |
+| 2b | Beta vs a benchmark on Compare | Asked for in T3, never delivered; still absent. Needs a benchmark-series fetch and a choice of benchmark | Core walkthrough (C9) |
+
+> **Note for W3.** Items 4, 6/7 and 14b are decisions, not builds — none can be closed by
+> an agent. Item 1 is blocked on 6/7 by shared plumbing. Everything else in this table is
+> scoped and buildable once the decision above it is made.
+
 ## Appendix A — Documentation corrections (features undocumented or misdocumented)
 
 Project documents claiming something the code contradicts, or missing something the
