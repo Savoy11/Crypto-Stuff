@@ -12,8 +12,9 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { clsx } from 'clsx'
+import { aprDisplay, resolveLiveAprKey } from '@/lib/utils/aprDisplay'
 import {
-  STAKING_PROVIDERS, STAKING_COIN_INFO, DEFAULT_LIVE_APR_KEY,
+  STAKING_PROVIDERS, STAKING_COIN_INFO,
   resolveYieldType, YIELD_TYPE_META,
   getStakingDataProvenance, STAKING_DATA_LAST_VERIFIED, STAKING_DATA_STALE_AFTER_DAYS,
   type StakingProvider, type StakingCoinId, type ProviderCategory,
@@ -38,37 +39,6 @@ function categoryBadgeClass(cat: ProviderCategory) {
   if (cat === 'cefi')   return 'bg-blue-500/15 text-blue-300 border-blue-500/30'
   if (cat === 'wallet') return 'bg-violet-500/15 text-violet-300 border-violet-500/30'
   return 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30'
-}
-
-function aprDisplay(
-  staticApr: number,
-  liveKey: string | undefined,
-  rates: Partial<Record<string, number>>,
-  sources: Partial<Record<string, 'live' | 'estimate'>>,
-) {
-  // Only providers with their OWN live-rate key show a live number/badge.
-  // The old coin-level default-key fallback displayed a different provider's
-  // rate (e.g. Lido's stETH APR on a CeFi card) as if it were this provider's.
-  if (!liveKey) return { apr: staticApr, live: false }
-  const live = rates[liveKey]
-  if (live != null) return { apr: live, live: sources[liveKey] === 'live' }
-  return { apr: staticApr, live: false }
-}
-
-/**
- * Resolve which live-rate key an asset row should read.
- *   1. An explicit asset.liveAprKey always wins.
- *   2. Self-custody wallets do NATIVE delegation, so the live network base rate
- *      (DEFAULT_LIVE_APR_KEY) is an honest reading of what the position earns
- *      (minus a small validator commission). Scoped to non-ETH coins: wallet ETH
- *      staking routes through assorted providers, so we don't show one LST's rate
- *      for it. CeFi/liquid are deliberately excluded — their rates aren't the raw
- *      network rate, so they must opt in with an explicit key.
- */
-function resolveLiveAprKey(provider: StakingProvider, coinId: StakingCoinId, asset: StakingProvider['assets'][StakingCoinId]): string | undefined {
-  if (asset?.liveAprKey) return asset.liveAprKey
-  if (provider.category === 'wallet' && coinId !== 'eth') return DEFAULT_LIVE_APR_KEY[coinId]
-  return undefined
 }
 
 // ─── Provider Card ────────────────────────────────────────────────────────────

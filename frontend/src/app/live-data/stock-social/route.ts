@@ -3,6 +3,7 @@ import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import { getEquityProviders, recordProviderFetch } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickDate, pickNumber, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
 import { blendByProvider } from '@/lib/server/socialBlend'
+import { computeSentimentSummaries, type SentimentSummary } from '@/lib/server/socialSentiment'
 
 // Social signals for the equities module. REGISTRY-DRIVEN: Reddit Finance and
 // StockTwits are toggleable built-ins on the Integrations page, and user-added
@@ -34,16 +35,7 @@ export interface StockSocialSignal {
   publishedAt: string
 }
 
-export interface StockSentimentSummary {
-  symbol: string
-  label: string
-  positive: number
-  negative: number
-  neutral: number
-  total: number
-  /** −1 … +1 */
-  sentimentScore: number
-}
+export type StockSentimentSummary = SentimentSummary
 
 export interface StockSocialResponse {
   ok: boolean
@@ -201,34 +193,8 @@ async function fetchStocktwits(symbol?: string): Promise<StockSocialSignal[]> {
 
 // ─── Summaries ────────────────────────────────────────────────────────────────
 
-function computeSummaries(signals: StockSocialSignal[], focus?: string): StockSentimentSummary[] {
-  const bySymbol = new Map<string, StockSocialSignal[]>()
-  for (const signal of signals) {
-    for (const sym of signal.symbols) {
-      const arr = bySymbol.get(sym) ?? []
-      arr.push(signal)
-      bySymbol.set(sym, arr)
-    }
-  }
-  const entries = Array.from(bySymbol.entries())
-    .filter(([sym, list]) => (focus ? sym === focus : list.length >= 2))
-    .sort((a, b) => b[1].length - a[1].length)
-    .slice(0, 6)
-  return entries.map(([sym, list]) => {
-    const positive = list.filter((s) => s.sentiment === 'positive').length
-    const negative = list.filter((s) => s.sentiment === 'negative').length
-    const neutral = list.length - positive - negative
-    return {
-      symbol: sym,
-      label: NAME_BY_SYMBOL[sym] ? `${NAME_BY_SYMBOL[sym]} (${sym})` : sym,
-      positive, negative, neutral,
-      total: list.length,
-      sentimentScore: list.length ? (positive - negative) / list.length : 0,
-    }
-  })
-}
-
-// ─── Route ────────────────────────────────────────────────────────────────────
+const labelForSymbol = (sym: string) =>
+  NAME_BY_SYMBOL[sym] ? `${NAME_BY_SYMBOL[sym]} (${sym})` : sym
 
 // ─── Custom social feeds ──────────────────────────────────────────────────────
 
@@ -330,7 +296,7 @@ export async function GET(request: NextRequest) {
     ok: deduped.length > 0,
     updatedAt: new Date().toISOString(),
     signals: deduped,
-    summaries: computeSummaries(deduped, symbol),
+    summaries: computeSentimentSummaries(deduped, labelForSymbol, symbol),
     providers,
   } satisfies StockSocialResponse)
 }

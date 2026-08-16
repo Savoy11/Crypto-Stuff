@@ -12,6 +12,7 @@ import {
   CONVERTER_CURRENCIES, CURRENCY_CATALOG, CURRENCY_CATEGORY_INFO, formatFxRate,
   type CurrencyCategoryId,
 } from '@/lib/data/currencyCatalog'
+import { convertFx } from '@/lib/utils/fxConvert'
 import { STALE_TIME_SHORT, STALE_TIME_LONG } from '@/lib/constants'
 import type { FxRatesResponse } from '@/app/live-data/fx-rates/route'
 import type { FxRatesExtendedResponse } from '@/app/live-data/fx-rates-extended/route'
@@ -58,9 +59,7 @@ function Converter() {
   const extendedCodes = useMemo(() => new Set(Object.keys(extended?.ok ? extended.rates ?? {} : {})), [extended])
 
   const parsed = parseFloat(amount)
-  const valid = isFinite(parsed) && parsed >= 0 && !!rates[from] && !!rates[to]
-  const rate = valid ? rates[to] / rates[from] : null
-  const result = valid && rate != null ? parsed * rate : null
+  const conversion = convertFx(parsed, from, to, rates)
   // Only the ECB tier gets to say "official" — a conversion touching either
   // extended-tier leg must disclose the community source, not just the date.
   const usesExtended = extendedCodes.has(from) || extendedCodes.has(to)
@@ -105,14 +104,14 @@ function Converter() {
           {options}
         </select>
         <div className="ml-auto text-right">
-          {result != null ? (
+          {conversion != null ? (
             <>
               <p className="text-lg font-mono tabular-nums font-semibold text-text-primary">
-                {result.toLocaleString(undefined, { maximumFractionDigits: 2 })} {to}
+                {conversion.result.toLocaleString(undefined, { maximumFractionDigits: 2 })} {to}
               </p>
               <p className="text-[11px] text-text-muted font-mono tabular-nums">
-                1 {from} = {rate!.toLocaleString(undefined, { maximumFractionDigits: 4 })} {to}
-                {' · '}1 {to} = {(1 / rate!).toLocaleString(undefined, { maximumFractionDigits: 4 })} {from}
+                1 {from} = {conversion.rate.toLocaleString(undefined, { maximumFractionDigits: 4 })} {to}
+                {' · '}1 {to} = {conversion.inverse.toLocaleString(undefined, { maximumFractionDigits: 4 })} {from}
               </p>
             </>
           ) : (

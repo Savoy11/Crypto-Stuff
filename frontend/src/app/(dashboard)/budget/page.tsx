@@ -9,6 +9,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, PiggyBank, Plus, Repeat } from
 import { PageHeader } from '@/components/ui/PageHeader'
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { formatCurrency } from '@/lib/utils/format'
+import { monthTotals } from '@/lib/budget/aggregate'
 import type { BudgetsResponse } from '@/app/api/user/budget/budgets/route'
 import type { CategoriesResponse, WireCategory } from '@/app/api/user/budget/categories/route'
 import type { RecurringResponse } from '@/app/api/user/budget/recurring/route'
@@ -65,19 +66,10 @@ function BudgetInner() {
 
   const dbDown = budData && !budData.ok
 
-  // Income counts positive amounts in income categories; spend is the negated
-  // sum over expense categories (kind rules live on the category, per schema).
-  const totals = useMemo(() => {
-    let income = 0, spend = 0, uncategorized = 0
-    for (const a of budData?.actuals ?? []) {
-      const kind = a.categoryId ? byId.get(a.categoryId)?.kind : undefined
-      if (a.categoryId == null) uncategorized += a.total
-      else if (kind === 'income') income += a.total
-      else if (kind === 'expense') spend += a.total
-      // transfers are deliberately excluded from both sides
-    }
-    return { income, spend: -spend, uncategorized }
-  }, [budData, byId])
+  const totals = useMemo(
+    () => monthTotals(budData?.actuals ?? [], (id) => byId.get(id)?.kind),
+    [budData, byId],
+  )
 
   const saveBudget = useMutation({
     mutationFn: async ({ categoryId, amount }: { categoryId: string; amount: number | null }) => {

@@ -629,6 +629,15 @@ exist; no schema change, no migration.
 | B11 | Recurring rules: confirm a suggestion → stored rule | `/budget` | `recurring` POST | ⚠⁷ | ➖ | ⚠⁷ | NEEDS-FIX⁷ |
 
 **Notes (all verified in source 2026-08-12):**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Notes 2 and 6
+> ✅ closed by the D-24 pass: the balance and month-actuals arithmetic now lives
+> in pure `lib/budget/aggregate.ts` with 11 tests. Notes 1, 3, 4, 5 and 7 are
+> all UI gaps over APIs that already exist — they are exactly what tool
+> candidate NT1 (budget management UI) closes, and NT1 is itself downstream of
+> the open 14b keep-or-remove decision. Deliberately not built ahead of that
+> call.
+
 1. **Accounts can be renamed/archived only via curl.** `accounts/[id]` PATCH accepts
    `name`, `institution`, `openingBalance`, `archived` — the UI offers create and
    delete only. The schema's `archived` flag is honored on read (the panel filters
@@ -683,6 +692,12 @@ One page (`/portfolio-builder`), engine in `lib/data/portfolioBuilder.ts` (pure,
 | PB6 | Suitability review: ageing glide path, risk drift, fee creep (vs actual holdings), concentration (vs plan target), overdue review | PlanMonitor | engine `reviewPlan(saved, actual, now)` — injectable clock | ✅ | ✅ | ✅ | READY |
 
 **Notes:**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Note 1 is
+> operational (free-tier rate limits), not code; the stated fix is a
+> `COINGECKO_API_KEY`. Nothing to build; recorded so this section reads like
+> the others.
+
 1. Drift pricing rides the CoinGecko free tier; positions with no live price are
    excluded (never valued at cost) and `pricedPct` disclosure renders. The 2026-07-29
    audit showed CoinGecko burst rate-limiting on the free tier — with no key, drift
@@ -847,6 +862,35 @@ adjacent decided item: an options *chain browser* is closed by owner decision
 | D-23 | `equities/social` page | Carried from DATA-AVAILABILITY item 10: page reported stuck on "Fetching social signals…" while route + direct fetch work — pre-existing, needs owner-machine repro |
 
 **Untested user-actionable numbers (one grouped item — the recurring house-rule gap):**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`): D-24 closed — 137 tests added
+> across every cluster** (suite 802 → 939). Already done earlier: XBRL ratios
+> (27), `computeReturns` (15). This pass: `portfolioUtils` P&L/weighted risk +
+> extracted Est. Annual Income and backtest-tab math (38) · TA price-target
+> cluster incl. extracted `scanSetups`/`riskReward` (37, also closes S1-7) ·
+> holdings-diff + nport parser + aprDisplay + sentiment (33) · macro formatters
+> + extracted `fxConvert` (29). All extractions verbatim; the rates-page client
+> merge was assessed as trivial glue and deliberately left untested.
+>
+> **Behaviour discrepancies PINNED by the new tests, not fixed — each needs a
+> call in the walkthrough:**
+> 1. **`computeMetrics` violates the stated "never valued at cost" invariant**
+>    under mixed price coverage: with ≥1 priced holding, unpriced holdings are
+>    counted at target (cost) value in `totalCurrentValue`, and `totalPnlPct`
+>    divides priced-legs P&L by full starting capital. The Portfolios page's own
+>    copy states the opposite. Fixing changes displayed totals — decide, then fix.
+> 2. **Cross-module FX quotes carry a `$`**: `formatInstrumentQuote` gives every
+>    non-index currency pair `quoteKind: 'usd'`, so USD/JPY renders "$147.26" —
+>    a yen amount wearing a dollar sign — on watchlist/portfolio surfaces. The
+>    macro pages' own `formatFxRate` is unaffected (prints no symbol).
+> 3. `computeAnnualIncome` yields income from unpriced securities at target
+>    value (defensible for an explicitly-reference estimate; pinned).
+> 4. Minor, pinned or noted: `fibRetracement([])` returns non-finite values
+>    (all callers guard length first); `buildTechnicalRead([])` throws
+>    (unreachable from the page); a perfectly flat series triggers the
+>    volatility-compression setup; the stock-social sentiment score is −1..+1,
+>    not the −100..+100 this review's E13 row described — the review was wrong,
+>    not the code.
 
 | # | Cluster |
 |---|---|
