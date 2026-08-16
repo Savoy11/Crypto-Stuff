@@ -76,8 +76,12 @@ export async function listNportFilings(seriesId: string, limit = 12): Promise<Np
     next: { revalidate: 21_600 },
   })
   if (!res.ok) throw new Error(`EDGAR browse: HTTP ${res.status}`)
-  const xml = await res.text()
+  return parseNportFilingsAtom(await res.text(), limit)
+}
 
+/** Parse a browse-edgar Atom listing into filing refs. Pure — regex-based, so
+ *  malformed input yields fewer rows rather than a throw. */
+export function parseNportFilingsAtom(xml: string, limit = 12): NportFilingRef[] {
   const filings: NportFilingRef[] = []
   const entries = xml.split(/<entry>/).slice(1)
   for (const entry of entries) {
@@ -116,8 +120,12 @@ export async function fetchNportReport(ref: NportFilingRef): Promise<NportReport
     next: { revalidate: 86_400 }, // filings are immutable
   })
   if (!res.ok) throw new Error(`EDGAR filing: HTTP ${res.status}`)
-  const xml = await res.text()
+  return parseNportReport(await res.text())
+}
 
+/** Parse an NPORT-P primary document into holdings. Pure — regex-based, so
+ *  malformed input yields empty/partial results rather than a throw. */
+export function parseNportReport(xml: string): NportReport {
   const asOf = xml.match(/<repPdDate>\s*([\d-]+)\s*<\/repPdDate>/)?.[1] ?? null
 
   const holdings: NportHolding[] = []

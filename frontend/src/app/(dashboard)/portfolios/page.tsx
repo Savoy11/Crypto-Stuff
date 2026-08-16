@@ -20,12 +20,11 @@ import {
 } from '@/lib/data/portfolioCoins'
 import {
   computeHoldings, computeMetrics, validateHoldings, getDiversificationWarnings,
+  computeAnnualIncome, computeBacktestResults, summarizeBacktest,
   type Portfolio, type PortfolioHolding,
 } from '@/lib/data/portfolioUtils'
 import type { PortfolioPricesResponse } from '@/app/live-data/portfolio-prices/route'
-import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, isSecurityKey, securitySymbol, formatInstrumentQuote, type Instrument } from '@/lib/data/instruments'
-import { getEquity } from '@/lib/data/equityCatalog'
-import { getFund } from '@/lib/data/fundCatalog'
+import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, formatInstrumentQuote, type Instrument } from '@/lib/data/instruments'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
 import type { PortfolioHistoryResponse } from '@/app/live-data/portfolio-history/route'
 import { PortfolioLookThrough } from '@/components/portfolio/PortfolioLookThrough'
@@ -384,33 +383,10 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
 
   const results = useMemo(() => {
     if (!histData || !currentData) return null
-    return portfolio.holdings.map(h => {
-      const priceThen = histData.prices[h.cgId] ?? null
-      const priceNow  = currentData.prices[h.cgId] ?? null
-      const allocVal  = portfolio.startingCapital * (h.targetAlloc / 100)
-      const meta      = INSTRUMENT_BY_KEY[h.cgId]
-
-      let returnPct: number | null = null
-      let valueThen: number | null = null
-      let valueNow: number | null = null
-
-      if (priceThen != null && priceNow != null && priceThen > 0) {
-        returnPct = ((priceNow - priceThen) / priceThen) * 100
-        valueThen = allocVal
-        valueNow  = allocVal * (priceNow / priceThen)
-      }
-      return { ...h, priceThen, priceNow, returnPct, valueThen, valueNow, allocVal, color: meta?.color ?? '#64748b' }
-    })
+    return computeBacktestResults(portfolio, histData.prices, currentData.prices)
   }, [histData, currentData, portfolio])
 
-  const summary = useMemo(() => {
-    if (!results) return null
-    const withData = results.filter(r => r.valueNow != null)
-    if (!withData.length) return null
-    const totalThen = withData.reduce((s, r) => s + (r.valueThen ?? 0), 0)
-    const totalNow  = withData.reduce((s, r) => s + (r.valueNow  ?? 0), 0)
-    return { totalThen, totalNow, pnlUsd: totalNow - totalThen, pnlPct: ((totalNow - totalThen) / totalThen) * 100 }
-  }, [results])
+  const summary = useMemo(() => results ? summarizeBacktest(results) : null, [results])
 
   // Chart data
   const chartData = results?.filter(r => r.returnPct != null).map(r => ({
@@ -592,20 +568,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
   const metrics  = useMemo(() => computeMetrics(portfolio, holdings), [portfolio, holdings])
   const warnings = useMemo(() => getDiversificationWarnings(holdings, metrics), [holdings, metrics])
 
-  // Projected annual dividend/distribution income from security holdings'
-  // reference yields (crypto staking yield is tracked on the Staking page).
-  const annualIncome = useMemo(() => {
-    let income = 0
-    let covered = 0
-    for (const h of holdings) {
-      if (!isSecurityKey(h.cgId)) continue
-      const sym = securitySymbol(h.cgId)
-      const yieldPct = getEquity(sym)?.dividendYieldPct ?? getFund(sym)?.yieldPct ?? null
-      const value = h.currentValue ?? h.targetValue
-      if (yieldPct != null && value > 0) { income += value * yieldPct / 100; covered++ }
-    }
-    return { income, covered }
-  }, [holdings])
+  const annualIncome = useMemo(() => computeAnnualIncome(holdings), [holdings])
 
   const TAB_LABELS: Record<DetailTab, string> = { overview: 'Overview', analysis: 'Analysis', 'look-through': 'Look-through', backtest: 'Backtest' }
 

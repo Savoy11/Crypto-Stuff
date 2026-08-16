@@ -848,6 +848,35 @@ adjacent decided item: an options *chain browser* is closed by owner decision
 
 **Untested user-actionable numbers (one grouped item — the recurring house-rule gap):**
 
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`): D-24 closed — 137 tests added
+> across every cluster** (suite 802 → 939). Already done earlier: XBRL ratios
+> (27), `computeReturns` (15). This pass: `portfolioUtils` P&L/weighted risk +
+> extracted Est. Annual Income and backtest-tab math (38) · TA price-target
+> cluster incl. extracted `scanSetups`/`riskReward` (37, also closes S1-7) ·
+> holdings-diff + nport parser + aprDisplay + sentiment (33) · macro formatters
+> + extracted `fxConvert` (29). All extractions verbatim; the rates-page client
+> merge was assessed as trivial glue and deliberately left untested.
+>
+> **Behaviour discrepancies PINNED by the new tests, not fixed — each needs a
+> call in the walkthrough:**
+> 1. **`computeMetrics` violates the stated "never valued at cost" invariant**
+>    under mixed price coverage: with ≥1 priced holding, unpriced holdings are
+>    counted at target (cost) value in `totalCurrentValue`, and `totalPnlPct`
+>    divides priced-legs P&L by full starting capital. The Portfolios page's own
+>    copy states the opposite. Fixing changes displayed totals — decide, then fix.
+> 2. **Cross-module FX quotes carry a `$`**: `formatInstrumentQuote` gives every
+>    non-index currency pair `quoteKind: 'usd'`, so USD/JPY renders "$147.26" —
+>    a yen amount wearing a dollar sign — on watchlist/portfolio surfaces. The
+>    macro pages' own `formatFxRate` is unaffected (prints no symbol).
+> 3. `computeAnnualIncome` yields income from unpriced securities at target
+>    value (defensible for an explicitly-reference estimate; pinned).
+> 4. Minor, pinned or noted: `fibRetracement([])` returns non-finite values
+>    (all callers guard length first); `buildTechnicalRead([])` throws
+>    (unreachable from the page); a perfectly flat series triggers the
+>    volatility-compression setup; the stock-social sentiment score is −1..+1,
+>    not the −100..+100 this review's E13 row described — the review was wrong,
+>    not the code.
+
 | # | Cluster |
 |---|---|
 | D-24 | `portfolioUtils.ts` P&L/weighted risk; Est. Annual Income + backtest-tab math (in-component); XBRL ratios (`company-facts` route) + client multiples; `computeReturns` (fund Returns columns); `fund-holdings-history` diff/turnover + `nport.ts`; FX converter cross-rate/inverse; all four macro quote formatters; rates-page curve merge; TA price-target cluster (`patternProjection`, `detectPatterns`, `detectSupportResistance`, `fibRetracement`, `buildTechnicalRead`, `detectSetups`, `computeRiskReward`); coin-discovery scoring/thresholds; `aprDisplay`/`resolveLiveAprKey`; stock-social `sentimentScore`; budget balance/actuals aggregation |

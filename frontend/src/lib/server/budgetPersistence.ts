@@ -7,6 +7,7 @@ import {
   type AccountType, type TransactionSource,
 } from '@/lib/db/schema'
 import { DEFAULT_CATEGORIES, type RuleLike } from '@/lib/budget/categorize'
+import { accountBalance } from '@/lib/budget/aggregate'
 
 // Data access for the /api/user/budget/* routes. Lives here, not in the route
 // files — route files may only export handlers and types (the C1 lesson), and
@@ -55,7 +56,7 @@ export async function loadAccounts(userId: string): Promise<WireAccount[]> {
     openingBalance: parseFloat(r.openingBalance),
     openingBalanceDate: r.openingBalanceDate,
     archived: r.archived,
-    balance: Math.round((parseFloat(r.openingBalance) + parseFloat(r.txSum)) * 100) / 100,
+    balance: accountBalance(parseFloat(r.openingBalance), parseFloat(r.txSum)),
     transactionCount: r.txCount,
   }))
 }

@@ -1,5 +1,7 @@
 import { CATEGORY_META, type CoinCategory } from './portfolioCoins'
-import { INSTRUMENT_BY_KEY } from './instruments'
+import { INSTRUMENT_BY_KEY, isSecurityKey, securitySymbol } from './instruments'
+import { getEquity } from './equityCatalog'
+import { getFund } from './fundCatalog'
 
 // ─── Core types ───────────────────────────────────────────────────────────────
 
@@ -177,6 +179,81 @@ export function computeMetrics(
     pricesAvailable,
     hasEntryPrices,
   }
+}
+
+// ─── Estimated annual income ──────────────────────────────────────────────────
+
+export interface AnnualIncomeEstimate {
+  income:  number   // projected USD per year from reference yields
+  covered: number   // holdings that contributed (had a yield and a value)
+}
+
+// Projected annual dividend/distribution income from security holdings'
+// reference yields (crypto staking yield is tracked on the Staking page).
+export function computeAnnualIncome(holdings: ComputedHolding[]): AnnualIncomeEstimate {
+  let income = 0
+  let covered = 0
+  for (const h of holdings) {
+    if (!isSecurityKey(h.cgId)) continue
+    const sym = securitySymbol(h.cgId)
+    const yieldPct = getEquity(sym)?.dividendYieldPct ?? getFund(sym)?.yieldPct ?? null
+    const value = h.currentValue ?? h.targetValue
+    if (yieldPct != null && value > 0) { income += value * yieldPct / 100; covered++ }
+  }
+  return { income, covered }
+}
+
+// ─── Backtest arithmetic ──────────────────────────────────────────────────────
+
+export interface BacktestHoldingResult extends PortfolioHolding {
+  priceThen: number | null
+  priceNow:  number | null
+  returnPct: number | null
+  valueThen: number | null
+  valueNow:  number | null
+  allocVal:  number
+  color:     string
+}
+
+export interface BacktestSummary {
+  totalThen: number
+  totalNow:  number
+  pnlUsd:    number
+  pnlPct:    number
+}
+
+export function computeBacktestResults(
+  portfolio: Portfolio,
+  pricesThen: Record<string, number | null>,
+  pricesNow: Record<string, number | null>
+): BacktestHoldingResult[] {
+  return portfolio.holdings.map(h => {
+    const priceThen = pricesThen[h.cgId] ?? null
+    const priceNow  = pricesNow[h.cgId] ?? null
+    const allocVal  = portfolio.startingCapital * (h.targetAlloc / 100)
+    const meta      = INSTRUMENT_BY_KEY[h.cgId]
+
+    let returnPct: number | null = null
+    let valueThen: number | null = null
+    let valueNow: number | null = null
+
+    if (priceThen != null && priceNow != null && priceThen > 0) {
+      returnPct = ((priceNow - priceThen) / priceThen) * 100
+      valueThen = allocVal
+      valueNow  = allocVal * (priceNow / priceThen)
+    }
+    return { ...h, priceThen, priceNow, returnPct, valueThen, valueNow, allocVal, color: meta?.color ?? '#64748b' }
+  })
+}
+
+// Growth summary over the holdings that have both prices — partial coverage is
+// reported via the results, never scaled up here.
+export function summarizeBacktest(results: BacktestHoldingResult[]): BacktestSummary | null {
+  const withData = results.filter(r => r.valueNow != null)
+  if (!withData.length) return null
+  const totalThen = withData.reduce((s, r) => s + (r.valueThen ?? 0), 0)
+  const totalNow  = withData.reduce((s, r) => s + (r.valueNow  ?? 0), 0)
+  return { totalThen, totalNow, pnlUsd: totalNow - totalThen, pnlPct: ((totalNow - totalThen) / totalThen) * 100 }
 }
 
 // Validate holdings — returns error strings (empty = valid)
