@@ -97,6 +97,10 @@ export const MODULES: SuiteModule[] = [
       '/assets', '/news', '/social', '/wallets',
       '/transfer-fees', '/staking', '/staking-discovery', '/coin-discovery',
       '/technical-analysis', '/risk-scores',
+      // De-routed but retained page (T5): unreachable via the next.config
+      // redirect, gated here so removing that redirect can't re-expose it
+      // outside the entitlement (review defect D-8).
+      '/global-adoption',
       // '/reserves' is gone: the page was folded into the Coins tab and the
       // route now redirects to /assets?tab=reserves (next.config.mjs). Leaving
       // the prefix here would be harmless but misleading — nothing owns it.

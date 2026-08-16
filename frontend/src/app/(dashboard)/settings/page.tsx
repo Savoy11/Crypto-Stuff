@@ -144,7 +144,8 @@ function WatchlistBiasPanel() {
 
       <p className="text-[11px] text-slate-500 mt-3 leading-relaxed">
         <span className="text-slate-400">Light</span> sorts watchlist matches to the top.{' '}
-        <span className="text-slate-400">Strong</span> also asks providers for extra articles about those assets.{' '}
+        <span className="text-slate-400">Strong</span> also asks providers for extra articles about those
+        assets on the News pages (Crypto News and Market News); Headlines and Videos reorder only.{' '}
         <span className="text-slate-400">Only</span> hides everything else — market-wide news included.
         An empty watchlist is always treated as no bias, so no setting can leave a feed blank.
       </p>
@@ -911,7 +912,11 @@ const FORMAT_OPTIONS: { value: FeedFormat; label: string; hint: string }[] = [
   { value: 'json-quote',  label: 'JSON — Stock quote',     hint: 'REST API returning a stock quote; use {symbol} (per-symbol) or {symbols} (batch) in the URL — price/change fields auto-detected' },
   { value: 'json-ohlcv',  label: 'JSON — OHLCV history',   hint: 'REST API returning an array of candles for TA/backtests; use {symbol} in the URL — time/open/high/low/close fields auto-detected' },
   { value: 'graphql',     label: 'GraphQL',                hint: 'GraphQL endpoint — e.g. Santiment, The Graph, Messari' },
-  { value: 'websocket',   label: 'WebSocket stream',       hint: 'Persistent WS connection — e.g. Binance, Kraken live feeds' },
+  // No 'websocket' option: the fetch path never implemented WS. A feed saved
+  // with it logged a server warning and contributed 0 items while the UI
+  // looked configured (review defect D-18). The FeedFormat type member stays
+  // so legacy saved configs still parse; re-add the option only with a real
+  // socket consumer behind it.
   { value: 'native',      label: 'Native / built-in',      hint: 'Handled directly by a built-in provider integration' },
 ]
 
@@ -1235,11 +1240,20 @@ function AddCustomSourceForm({ category, market = 'crypto', onAdd }: { category:
 export default function SettingsPage() {
   const [providers, setProviders] = useState<ProviderView[]>([])
   const [loading, setLoading] = useState(true)
+  const [accessError, setAccessError] = useState<string | null>(null)
 
   const fetchProviders = useCallback(async () => {
     try {
       const res = await fetch('/live-data/config')
       const data = await res.json()
+      // C-note-10 fix: on a non-localhost deploy without FN_ADMIN_TOKEN the
+      // config route 401/403s, and this page used to swallow the denial and
+      // render every provider section empty — a locked page disguised as a
+      // broken one. Surface the guard's message.
+      if (res.status === 401 || res.status === 403) {
+        setAccessError(data.error ?? 'Integrations are restricted to localhost unless FN_ADMIN_TOKEN is configured.')
+        return
+      }
       setProviders(data.providers ?? [])
     } catch {
       // ignore
@@ -1306,6 +1320,12 @@ export default function SettingsPage() {
         </div>
       ) : (
         <>
+          {accessError && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs text-amber-300 leading-relaxed">
+              {accessError} Module toggles and watchlist bias below still work — they are stored in your
+              browser — but the provider sections need admin access to load.
+            </div>
+          )}
           {/* Suite modules */}
           <ModulesPanel />
           <WatchlistBiasPanel />

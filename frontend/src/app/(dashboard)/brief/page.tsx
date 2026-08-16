@@ -49,7 +49,7 @@ export default function DailyBriefPage() {
   const [brief, setBrief] = useState<StoredBrief | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [needsKey, setNeedsKey] = useState(false)
+  const [needsKey, setNeedsKey] = useState<string | null>(null)
 
   useEffect(() => {
     try {
@@ -61,7 +61,7 @@ export default function DailyBriefPage() {
   const symbols = useMemo(() => collectContext(portfolios, watchlists), [portfolios, watchlists])
 
   const generate = async () => {
-    setLoading(true); setError(null); setNeedsKey(false)
+    setLoading(true); setError(null); setNeedsKey(null)
     const universe = symbols.length > 0 ? symbols.join(', ') : 'BTC (crypto), ETH (crypto), SPY (etf), QQQ (etf)'
     const task = [
       `Produce today's investor morning brief for a user tracking these instruments: ${universe}.`,
@@ -77,7 +77,12 @@ export default function DailyBriefPage() {
         body: JSON.stringify({ task }),
       })
       const data = await res.json()
-      if (res.status === 503) { setNeedsKey(true); return }
+      // D-17 fix: 503 covers BOTH missing-key and agent-disabled, and this page
+      // used to swallow the server's message and always blame .env.local —
+      // wrong advice for a user who disabled the agent in Settings, and it
+      // omitted the Integrations-UI key path getProviderKey() prefers. Show
+      // the server's own message, which distinguishes the two.
+      if (res.status === 503) { setNeedsKey(data.error ?? 'The research agent is unavailable — check Settings → Integrations.'); return }
       if (!res.ok || !data.ok) throw new Error(data.error ?? 'Agent error')
       const next: StoredBrief = { text: data.report, generatedAt: new Date().toISOString() }
       setBrief(next)
@@ -97,7 +102,7 @@ export default function DailyBriefPage() {
           <PageHeader
             title="Daily Brief"
             subtitle="Your holdings, what moved, why, and what's ahead — AI-generated from live data"
-            description="The brief is grounded in your actual portfolios and watchlists: the research agent pulls live prices and news through the app's own data routes and synthesizes a short morning read. Requires an Anthropic API key in .env.local."
+            description="The brief is grounded in your actual portfolios and watchlists: the research agent pulls live prices and news through the app's own data routes and synthesizes a short morning read. Requires an Anthropic API key (Settings → Integrations → AI Providers, or ANTHROPIC_API_KEY)."
             details={[
               { label: 'Context', text: symbols.length > 0 ? `Covering ${symbols.length} instruments from your portfolios and watchlists.` : 'No portfolio/watchlist holdings found — a default market brief will be generated.' },
               { label: 'Not advice', text: 'Informational synthesis of live data — not investment advice.' },
@@ -119,12 +124,8 @@ export default function DailyBriefPage() {
       {needsKey && (
         <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-8 text-center">
           <KeyRound className="mx-auto h-7 w-7 text-amber-400/70" aria-hidden />
-          <p className="mt-2 text-sm font-medium text-slate-200">The brief needs an Anthropic API key</p>
-          <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-            Set <code className="font-mono text-slate-300">ANTHROPIC_API_KEY</code> in{' '}
-            <code className="font-mono text-slate-300">frontend/.env.local</code> and restart the dev server —
-            the same key powers the Research and AI Agents sections.
-          </p>
+          <p className="mt-2 text-sm font-medium text-slate-200">The brief can&rsquo;t run yet</p>
+          <p className="mt-1 text-xs text-slate-400 max-w-md mx-auto leading-relaxed">{needsKey}</p>
         </div>
       )}
 

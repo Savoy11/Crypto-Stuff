@@ -188,9 +188,8 @@ export async function GET(request: NextRequest) {
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean)
     .slice(0, MAX_WATCHLIST_FEEDS)
-  // Filter to watchlist matches only. Separate from fetching, so a caller can
-  // widen coverage without narrowing results.
-  const watchlistOnly = request.nextUrl.searchParams.get('watchlistOnly') === '1'
+  // (?watchlistOnly= was removed 2026-08-16 — zero consumers; the watchlist
+  // param widens coverage, and clients narrow via bias, not here.)
 
   const active = getEquityProviders('news')
   const builtins = active.filter((p): p is AnyActiveProvider & { isCustom?: false } => !p.isCustom && p.id in BUILTIN_FEEDS)
@@ -258,22 +257,7 @@ export async function GET(request: NextRequest) {
 
   articles.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
 
-  // Word-boundary matching, same rule as the crypto route: a substring test
-  // matches "ETH" inside "Tether" and "F" inside almost anything, which matters
-  // more here since tickers are short.
-  const matchesWatchlist = (a: MarketArticle) => {
-    if (a.relatedSymbols.some((s) => watchlist.includes(s.toUpperCase()))) return true
-    const text = `${a.title} ${a.summary}`
-    return watchlist.some((w) => new RegExp(`\\b${w}\\b`, 'i').test(text))
-  }
-
-  // Never let filtering empty the feed — mirrors applyBias, where an empty
-  // watchlist is always a no-op.
-  const shown = symbol
-    ? articles.filter(symbolMatches)
-    : watchlistOnly && watchlist.length > 0
-      ? articles.filter(matchesWatchlist)
-      : articles
+  const shown = symbol ? articles.filter(symbolMatches) : articles
 
   return NextResponse.json({
     ok: shown.length > 0,

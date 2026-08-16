@@ -29,20 +29,41 @@ function origin(): string {
   return process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'http://localhost:3000'
 }
 
+// In-flight + short-lived result sharing. The Coins page issues two queries on
+// every visit — the filtered table and the unfiltered market-breadth KPIs — and
+// each used to trigger its own full /markets round-trip (CR-note-1). React
+// Query dedupes per queryKey, not per upstream call, so the sharing has to live
+// here. 10s is well under every consumer's staleTime.
+let marketsInFlight: Promise<LiveMarketsResult> | null = null
+let marketsCache: { at: number; result: LiveMarketsResult } | null = null
+const MARKETS_SHARE_MS = 10_000
+
 export async function fetchLiveMarkets(): Promise<LiveMarketsResult> {
-  try {
-    // Route prices through the source selected by the data tier (free / paid /
-    // custom). This is what makes the TierSwitch actually change providers.
-    const { mode, customSources } = useTierStore.getState()
-    const src = resolveSource('prices', mode, customSources)
-    const res = await fetch(`${origin()}${LIVE_DATA_BASE}/markets?source=${encodeURIComponent(src)}`, {
-      headers: { Accept: 'application/json' },
-    })
-    if (!res.ok) return { ok: false, updatedAt: null, quotes: {} }
-    return (await res.json()) as LiveMarketsResult
-  } catch {
-    return { ok: false, updatedAt: null, quotes: {} }
+  if (marketsCache && Date.now() - marketsCache.at < MARKETS_SHARE_MS && marketsCache.result.ok) {
+    return marketsCache.result
   }
+  if (marketsInFlight) return marketsInFlight
+  marketsInFlight = (async (): Promise<LiveMarketsResult> => {
+    try {
+      // Route prices through the source selected by the data tier (free / paid /
+      // custom). This is what makes the TierSwitch actually change providers.
+      const { mode, customSources } = useTierStore.getState()
+      const src = resolveSource('prices', mode, customSources)
+      const res = await fetch(`${origin()}${LIVE_DATA_BASE}/markets?source=${encodeURIComponent(src)}`, {
+        headers: { Accept: 'application/json' },
+      })
+      if (!res.ok) return { ok: false, updatedAt: null, quotes: {} }
+      return (await res.json()) as LiveMarketsResult
+    } catch {
+      return { ok: false, updatedAt: null, quotes: {} }
+    } finally {
+      marketsInFlight = null
+    }
+  })()
+  const result = await marketsInFlight
+  // Failures are not cached — the next call should retry, not replay the outage.
+  marketsCache = result.ok ? { at: Date.now(), result } : null
+  return result
 }
 
 export async function fetchLiveChart(assetId: string, days: number): Promise<PriceCandle[] | null> {

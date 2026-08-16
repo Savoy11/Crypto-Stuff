@@ -7,6 +7,7 @@ import { clsx } from 'clsx'
 import type { CbdcEntry, CbdcDataResponse } from '@/app/live-data/cbdc-data/route'
 import type { LiveNewsArticle } from '@/app/live-data/news/route'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { ModuleGate } from '@/components/layout/ModuleGate'
 import { LIVE_DATA } from '@/lib/constants'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -497,7 +498,20 @@ function CbdcNewsPanel() {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+// Gated at the component boundary even though the page is de-routed (next.config
+// redirects /global-adoption → /headlines): the redirect was the ONLY thing
+// standing between this page and users outside the crypto entitlement, and the
+// config comment invited deleting it (review defect D-8). Now removal of the
+// redirect re-enables the page inside the gate, not around it.
 export default function GlobalAdoptionPage() {
+  return (
+    <ModuleGate module="crypto">
+      <GlobalAdoptionInner />
+    </ModuleGate>
+  )
+}
+
+function GlobalAdoptionInner() {
   const [regionFilter, setRegionFilter] = useState<Region | 'all'>('all')
   const [statusFilter, setStatusFilter] = useState<CbdcStatus | 'all'>('all')
 

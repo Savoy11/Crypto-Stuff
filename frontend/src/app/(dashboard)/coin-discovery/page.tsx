@@ -510,8 +510,9 @@ function CoinDiscoveryPageInner() {
 
       {/* Data provenance */}
       <SourceLine id="coin-discovery" />
-      <DerivedNote what="Discovery scores" scale="0–100, higher = safer">
+      <DerivedNote what="Discovery scores" scale="1–10, higher = stronger candidate">
         The market data underneath is the provider&rsquo;s; the ranking built from it is ours.
+        These are candidate-quality scores, not the app-wide 0&ndash;100 Safety Scores.
       </DerivedNote>
 
       {/* Source selector */}

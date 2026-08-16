@@ -2,92 +2,23 @@ import { NextRequest, NextResponse } from 'next/server'
 import { CORS, options } from '@/app/api/_cors'
 import {
   EXCHANGES, COIN_INFO, NETWORKS, findTransferPaths, PERSONAL_WALLET_ID,
-  type CoinId, type NetworkFeeMap, type CoinPriceMap,
+  type CoinId,
 } from '@/lib/data/transferFees'
+import { computeNetworkFees, FALLBACK_PRICES_AS_OF } from '@/lib/data/networkFees'
 
 export const dynamic = 'force-dynamic'
 export { options as OPTIONS }
 
-// Last-resort prices used only to keep the fee MODEL computable when CoinGecko
-// is unreachable. These are stale constants, not quotes — every response that
-// touches them must say so via `priceSource`, because the whole payload
-// (amountUsd, feeUsd, feePercent) is derived from them. Reporting these as
-// live prices is the one thing this route must never do.
-const FALLBACK_PRICES: CoinPriceMap = {
-  btc: 95000, eth: 3200, usdt: 1.0, usdc: 1.0, bnb: 600, sol: 160,
-  dai: 1.0, xrp: 2.20, ltc: 90, trx: 0.14, doge: 0.18, matic: 0.60,
-  avax: 28, ada: 0.45, dot: 7.0, atom: 5.50,
-}
+// D-4 fix: this route used to carry its OWN gas table and price map, and both
+// had drifted from the shared fee module — the local STATIC_GAS lacked
+// ton_network/near_network (those routes silently vanished from responses), and
+// the price map covered 16 of the 22 accepted coins, so LINK/TON/SHIB/UNI/NEAR/
+// ARB fell through `?? 1` and were priced at $1 with no warning. It now reads
+// lib/data/networkFees.ts — the same 18-network / 22-coin source the UI's
+// /live-data/network-fees serves — so v1 and the Transfer Fee Calculator can't
+// disagree again.
 
 export type PriceSource = 'live' | 'fallback'
-
-const STATIC_GAS: Record<string, { native: number; token: keyof CoinPriceMap }> = {
-  erc20:     { native: 0.002,    token: 'eth'  },
-  arbitrum:  { native: 0.00005,  token: 'eth'  },
-  base:      { native: 0.00003,  token: 'eth'  },
-  optimism:  { native: 0.00005,  token: 'eth'  },
-  bep20:     { native: 0.0005,   token: 'bnb'  },
-  solana:    { native: 0.000025, token: 'sol'  },
-  trc20:     { native: 1.0,      token: 'trx'  },
-  polygon:   { native: 0.1,      token: 'matic'},
-  avalanche: { native: 0.01,     token: 'avax' },
-  bitcoin:   { native: 0.00015,  token: 'btc'  },
-  xrpl:      { native: 0.000012, token: 'xrp'  },
-  litecoin:  { native: 0.001,    token: 'ltc'  },
-  dogecoin:  { native: 1.0,      token: 'doge' },
-  cardano:   { native: 0.17,     token: 'ada'  },
-  polkadot:  { native: 0.014,    token: 'dot'  },
-  cosmos:    { native: 0.01,     token: 'atom' },
-}
-
-async function getLivePrices(): Promise<{ prices: CoinPriceMap; source: PriceSource }> {
-  try {
-    const res = await fetch(
-      'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin,binancecoin,solana,dai,tron,matic-network,avalanche-2,ripple,litecoin,dogecoin,cardano,polkadot,cosmos&vs_currencies=usd',
-      { next: { revalidate: 120 } }
-    )
-    if (!res.ok) return { prices: FALLBACK_PRICES, source: 'fallback' }
-    const data = await res.json() as Record<string, { usd: number }>
-    const prices: CoinPriceMap = {
-      btc:   data['bitcoin']?.usd        ?? FALLBACK_PRICES.btc,
-      eth:   data['ethereum']?.usd       ?? FALLBACK_PRICES.eth,
-      usdt:  data['tether']?.usd         ?? 1.0,
-      usdc:  data['usd-coin']?.usd       ?? 1.0,
-      bnb:   data['binancecoin']?.usd    ?? FALLBACK_PRICES.bnb,
-      sol:   data['solana']?.usd         ?? FALLBACK_PRICES.sol,
-      dai:   data['dai']?.usd            ?? 1.0,
-      xrp:   data['ripple']?.usd         ?? FALLBACK_PRICES.xrp,
-      ltc:   data['litecoin']?.usd       ?? FALLBACK_PRICES.ltc,
-      trx:   data['tron']?.usd           ?? FALLBACK_PRICES.trx,
-      doge:  data['dogecoin']?.usd       ?? FALLBACK_PRICES.doge,
-      matic: data['matic-network']?.usd  ?? FALLBACK_PRICES.matic,
-      avax:  data['avalanche-2']?.usd    ?? FALLBACK_PRICES.avax,
-      ada:   data['cardano']?.usd        ?? FALLBACK_PRICES.ada,
-      dot:   data['polkadot']?.usd       ?? FALLBACK_PRICES.dot,
-      atom:  data['cosmos']?.usd         ?? FALLBACK_PRICES.atom,
-    }
-    // A 200 that carried no usable price for the coins driving gas costs is a
-    // failure wearing a success status — treat it as fallback, not live.
-    const live = data['bitcoin']?.usd != null && data['ethereum']?.usd != null
-    return { prices, source: live ? 'live' : 'fallback' }
-  } catch {
-    return { prices: FALLBACK_PRICES, source: 'fallback' }
-  }
-}
-
-function buildNetworkFees(coinPrices: CoinPriceMap): NetworkFeeMap {
-  const fees: NetworkFeeMap = {}
-  for (const [networkId, { native, token }] of Object.entries(STATIC_GAS)) {
-    const price = coinPrices[token] ?? 1
-    fees[networkId as keyof typeof fees] = {
-      feeNative: native,
-      feeUsd: parseFloat((native * price).toFixed(4)),
-      nativeToken: token.toUpperCase(),
-      source: 'estimate',
-    }
-  }
-  return fees
-}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
@@ -106,10 +37,17 @@ export async function GET(req: NextRequest) {
   if (!Object.keys(COIN_INFO).includes(coin)) return NextResponse.json({ error: `Unknown coin: "${coin}". Supported: ${Object.keys(COIN_INFO).join(', ')}` }, { status: 400, headers: CORS })
   if (from === to) return NextResponse.json({ error: 'from and to must be different.' }, { status: 400, headers: CORS })
 
-  const { prices: coinPrices, source: priceSource } = await getLivePrices()
-  const networkFees = buildNetworkFees(coinPrices)
+  const { fees: networkFees, prices: coinPrices, priceSource } = await computeNetworkFees()
   const coinInfo    = COIN_INFO[coin]
   const transferAmount = amount > 0 ? amount : coinInfo.defaultAmount
+
+  const coinPrice = coinPrices[coin]
+  if (coinPrice == null) {
+    // Unreachable while FALLBACK_PRICES covers every CoinId — this exists so a
+    // future coin added to COIN_INFO without a price entry fails loudly instead
+    // of silently valuing the transfer at $1/coin (the D-4 failure mode).
+    return NextResponse.json({ error: `No price available for ${coin}.` }, { status: 500, headers: CORS })
+  }
 
   const paths = findTransferPaths(from, to, coin, transferAmount, networkFees, coinPrices)
 
@@ -118,7 +56,7 @@ export async function GET(req: NextRequest) {
     recommended:     p.isRecommended ?? false,
     network:         p.networkId ?? null,
     totalFeeUsd:     p.totalFeeUsd,
-    feePercent:      parseFloat(((p.totalFeeUsd / (transferAmount * (coinPrices[coin] ?? 1))) * 100).toFixed(3)),
+    feePercent:      parseFloat(((p.totalFeeUsd / (transferAmount * coinPrice)) * 100).toFixed(3)),
     estimatedTime:   p.estimatedTime,
     hops: p.hops.map(h => ({
       from:          h.from,
@@ -149,7 +87,7 @@ export async function GET(req: NextRequest) {
     to,
     coin: coin.toUpperCase(),
     amount: transferAmount,
-    amountUsd: parseFloat((transferAmount * (coinPrices[coin] ?? 1)).toFixed(2)),
+    amountUsd: parseFloat((transferAmount * coinPrice).toFixed(2)),
     summary: {
       viableRoutes: viable.length,
       blockedRoutes: blocked.length,
@@ -164,7 +102,7 @@ export async function GET(req: NextRequest) {
     // order-of-magnitude guidance only — say so rather than letting a consumer
     // (or an agent) present them as quotes.
     ...(priceSource === 'fallback'
-      ? { warning: 'CoinGecko unavailable — USD amounts are derived from stale fallback prices, not live quotes. Native-token fee amounts are unaffected.' }
+      ? { fallbackPricesAsOf: FALLBACK_PRICES_AS_OF, warning: `CoinGecko unavailable — USD amounts are derived from static fallback prices compiled ${FALLBACK_PRICES_AS_OF}, not live quotes. Native-token fee amounts are unaffected.` }
       : {}),
     updatedAt: new Date().toISOString(),
   }, { headers: CORS })

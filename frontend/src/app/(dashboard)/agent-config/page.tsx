@@ -299,11 +299,20 @@ export default function AgentConfigPage() {
   const [providers, setProviders] = useState<ProviderOption[]>([])
   const [providerModels, setProviderModels] = useState<Record<ProviderId, ModelOption[]>>({} as Record<ProviderId, ModelOption[]>)
   const [loading, setLoading]     = useState(true)
+  const [accessError, setAccessError] = useState<string | null>(null)
 
   const fetchAgents = useCallback(async () => {
     try {
       const res  = await fetch('/api/agents/prompts')
       const data = await res.json()
+      // C-note-10 fix: on a non-localhost deploy without FN_ADMIN_TOKEN this
+      // route 401/403s, and the denial used to be swallowed — the page rendered
+      // "No agents configured" as though the feature were empty rather than
+      // locked. Surface the guard's own message instead.
+      if (res.status === 401 || res.status === 403) {
+        setAccessError(data.error ?? 'This page is restricted to localhost unless FN_ADMIN_TOKEN is configured.')
+        return
+      }
       setAgents(data.agents ?? [])
       setProviders(data.providers ?? [])
       setProviderModels(data.providerModels ?? {})
@@ -369,19 +378,19 @@ export default function AgentConfigPage() {
           <p className="text-xs text-slate-500">
             {activeTab === 'app-assistant'    && 'The App Assistant is available throughout the platform to help users navigate and interpret data across both crypto and equities.'}
             {activeTab === 'research-analyst' && 'The crypto Research Agent performs deep fundamental analysis — triggered from any coin page or the Research page.'}
-            {activeTab === 'data-scraper'     && 'The Data Scraper runs autonomously to find new staking opportunities and coin listings not yet in the platform.'}
+            {activeTab === 'data-scraper'     && 'The Data Scraper is designed to find new staking opportunities and coin listings — configurable here, but it has no invocation trigger yet and never runs. Wiring a trigger (or retiring it) is an open decision.'}
             {activeTab === 'pump-report'      && 'Two agents power the Pump Report tab: the Investigator runs the 8-angle autonomous sweep, the Chat Agent handles follow-up questions.'}
             {activeTab === 'equity-research'  && 'The Equity Research Agent analyzes stocks using live quotes, SEC-filed financials, filings, news, and social sentiment. Launch it from any stock page or the Research page.'}
             {activeTab === 'equity-screener'  && 'The Equity Screener scans the whole universe for sector-relative statistical outliers (cheap/expensive, high-yield, high/low-beta) and explains opportunities vs traps. Run it from the “AI Outlier Scan” panel on the Stock Registry.'}
-            {activeTab === 'equity-scraper'   && 'The Equity Data Scraper runs autonomously to find upcoming earnings, analyst rating changes, IPOs, and index changes.'}
-            {activeTab === 'equity-diligence' && 'The Equity Due Diligence agent investigates a stock for red flags — accounting quality, litigation, SEC actions, short-seller reports, and governance.'}
+            {activeTab === 'equity-scraper'   && 'The Equity Data Scraper is designed to find upcoming earnings, analyst rating changes, IPOs, and index changes — configurable here, but it has no invocation trigger yet and never runs.'}
+            {activeTab === 'equity-diligence' && 'The Equity Due Diligence agent is designed to investigate a stock for red flags — accounting quality, litigation, SEC actions, short-seller reports, governance. Configurable here, but it has no invocation trigger yet and never runs.'}
             {activeTab === 'macro-research'   && 'The Macro Research Agent analyzes commodities, currencies, and bonds/rates using live futures/FX quotes, the official treasury yield curve, and macro news. Launch it from the Research page.'}
-            {activeTab === 'macro-screener'   && 'The Macro Screener sweeps every macro instrument for the biggest moves and regime signals (dollar, curve shape, energy/gold tone) and explains the drivers.'}
+            {activeTab === 'macro-screener'   && 'The Macro Screener sweeps every macro instrument for the biggest moves and regime signals (dollar, curve shape, energy/gold tone) and explains the drivers. No panel yet — run it from the Research page via ?agent=macro-screener.'}
           </p>
 
           {tabAgents.length === 0 ? (
             <div className="rounded-xl border border-slate-800 bg-slate-900/30 px-5 py-8 text-center text-sm text-slate-500">
-              No agents configured for this tab.
+              {accessError ?? 'No agents configured for this tab.'}
             </div>
           ) : (
             tabAgents.map((a) => (

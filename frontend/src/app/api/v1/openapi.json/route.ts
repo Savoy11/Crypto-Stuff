@@ -32,7 +32,7 @@ const SPEC = {
         summary: 'Get live coin prices',
         description: 'Returns USD prices for one or more coins. Fetched from CoinGecko with static fallbacks.',
         parameters: [
-          { name: 'coins', in: 'query', description: 'Comma-separated coin ids (e.g. btc,eth,usdt). Omit for all 16 coins.', schema: { type: 'string', example: 'btc,eth,usdt' } },
+          { name: 'coins', in: 'query', description: 'Comma-separated coin ids (e.g. btc,eth,usdt). Omit for all supported coins — the list is in GET /api/v1/ (supported_coins).', schema: { type: 'string', example: 'btc,eth,usdt' } },
         ],
         responses: {
           '200': {
@@ -62,7 +62,7 @@ const SPEC = {
       get: {
         tags: ['network'],
         summary: 'Get current blockchain network fees',
-        description: 'Returns gas/network fees for all 16 supported blockchains. BTC fees are fetched live from mempool.space. All fees are price-adjusted using live CoinGecko prices.',
+        description: 'Returns gas/network fees for every supported blockchain — the list is in GET /api/v1/ (supported_networks). BTC fees are fetched live from mempool.space. All fees are price-adjusted using live CoinGecko prices.',
         responses: {
           '200': {
             description: 'Network fees',
@@ -403,7 +403,7 @@ const SPEC = {
                 coin:           { type: 'string', example: 'ETH' },
                 coinId:         { type: 'string', example: 'eth' },
                 apr:            { type: 'number', example: 3.8, description: 'Annual percentage rate (%)' },
-                aprSource:      { type: 'string', enum: ['live', 'estimate'] },
+                aprSource:      { type: 'string', enum: ['live', 'derived', 'estimate'], description: 'live = provider-published feed; derived = our estimate anchored to the Lido feed; estimate = curated catalog' },
                 lockupDays:     { type: 'integer', example: 0, description: '0 means no forced lock-up' },
                 lockupNote:     { type: 'string', nullable: true },
                 liquid:         { type: 'boolean', description: 'True if the staked position is itself liquid/tradeable' },

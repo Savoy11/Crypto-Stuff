@@ -11,6 +11,10 @@ const CG_IDS: Record<string, string> = {
   ltc: 'litecoin', trx: 'tron', doge: 'dogecoin', matic: 'matic-network',
   avax: 'avalanche-2', ada: 'cardano', dot: 'polkadot', atom: 'cosmos',
 }
+// V6 fix: like every hand-maintained table, the fallback constants carry a
+// compiled-as-of date — a stale constant disclosed as "fallback" but undated
+// still reads as roughly current. Update the date when refreshing the numbers.
+const FALLBACK_AS_OF = '2026-07-22' // per git history of these constants
 const FALLBACK: Record<string, number> = {
   btc: 95000, eth: 3200, usdt: 1.0, usdc: 1.0, bnb: 600, sol: 160,
   dai: 1.0, xrp: 2.20, ltc: 90, trx: 0.14, doge: 0.18, matic: 0.60,
@@ -53,6 +57,9 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     prices,
     source,
+    // On fallback, updatedAt describes the RESPONSE, not the prices — the
+    // constants' own compile date is what a consumer needs to judge them.
+    ...(source === 'fallback' ? { fallbackPricesAsOf: FALLBACK_AS_OF, warning: `CoinGecko unreachable — prices are static fallback constants compiled ${FALLBACK_AS_OF}, not quotes.` } : {}),
     updatedAt: new Date().toISOString(),
   }, { headers: CORS })
 }

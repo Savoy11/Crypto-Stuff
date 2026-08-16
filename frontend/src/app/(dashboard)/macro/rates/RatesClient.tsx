@@ -90,7 +90,11 @@ export function RatesClient() {
         <MetricCard
           title="10-Year Yield"
           value={tnx?.price != null ? `${tnx.price.toFixed(2)}%` : '—'}
-          subtitle={tnx?.changePercent != null ? `${tnx.changePercent >= 0 ? '+' : ''}${tnx.changePercent.toFixed(2)}% today` : 'live intraday'}
+          subtitle={tnx?.changePercent != null
+            ? `${tnx.changePercent >= 0 ? '+' : ''}${tnx.changePercent.toFixed(2)}% today`
+            : tnx?.price != null
+              ? 'live intraday'
+              : 'no live quote — needs a configured provider key'}
           accentColor="#3b82f6"
         />
         <MetricCard

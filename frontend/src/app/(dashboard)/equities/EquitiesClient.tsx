@@ -162,9 +162,20 @@ export function EquitiesClient() {
     else { setSortKey(key); setSortAsc(key === 'symbol' || key === 'sector') }
   }
 
+  // Price/mkt-cap sorting orders on the universe's DAILY reference values, not
+  // the live quotes — quotes are fetched for the visible page only, after
+  // sort + pagination, so a live-quote sort over thousands of rows is not
+  // possible. Cells still show the live quote, so order and display can differ
+  // slightly intraday; the tooltip states it (review E-note-1).
+  const SORT_BASIS_HINT: Partial<Record<SortKey, string>> = {
+    price: 'Sorted by daily reference price — live quotes load per page, so intraday moves may not change the order',
+    marketCap: 'Sorted by daily reference market cap — live quotes load per page',
+  }
+
   const SortHeader = ({ label, colKey, align = 'end' }: { label: string; colKey: SortKey; align?: 'start' | 'end' }) => (
     <button
       onClick={() => toggleSort(colKey)}
+      title={SORT_BASIS_HINT[colKey]}
       className={clsx('flex items-center gap-1 text-xs font-medium uppercase tracking-wider transition-colors',
         align === 'end' ? 'justify-end' : 'justify-start',
         sortKey === colKey ? 'text-accent-blue' : 'text-text-muted hover:text-text-secondary')}

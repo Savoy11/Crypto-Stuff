@@ -44,7 +44,7 @@ function CalendarContent() {
           title="Market Calendar"
           subtitle="Earnings dates and high-impact US economic events — next 14 days"
           description="Earnings for tracked catalog stocks are listed first, then notable others. Economic events are filtered to medium/high-impact US releases (Fed decisions, CPI, jobs reports)."
-          details={[{ label: 'Data source', text: 'Financial Modeling Prep earnings + economic calendars (free API key required).' }]}
+          details={[{ label: 'Data source', text: 'Financial Modeling Prep. Earnings works on a free key; the economic-events calendar is a paid FMP endpoint and stays empty on the free tier.' }]}
         />
       </div>
 
@@ -106,7 +106,10 @@ function CalendarContent() {
             </div>
             <div className="max-h-[62vh] overflow-y-auto divide-y divide-border/60">
               {(data?.economic ?? []).length === 0 && (
-                <p className="px-4 py-8 text-center text-sm text-text-muted">No notable events returned.</p>
+                <p className="px-4 py-8 text-center text-sm text-text-muted">
+                  No events returned. FMP&rsquo;s economic calendar is a <span className="text-text-secondary">paid-tier endpoint</span> —
+                  on a free key this panel is always empty (the earnings panel is unaffected).
+                </p>
               )}
               {groupByDate(data?.economic ?? []).map(([day, rows]) => (
                 <div key={day}>

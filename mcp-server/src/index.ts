@@ -8,7 +8,7 @@
  * Usage:
  *   1. Start Finance Now: cd ../frontend && npm run dev
  *   2. Build this server: npm run build
- *   3. Add to Claude Desktop config (see README or CLAUDE.md)
+ *   3. Add to Claude Desktop config (see the repo root CLAUDE.md, "MCP Server")
  *
  * Environment:
  *   FN_BASE_URL — base URL of the running Finance Now instance (legacy CAEP_BASE_URL honored) (default: http://localhost:3000)
@@ -62,7 +62,7 @@ async function post<T>(path: string, body: unknown): Promise<T> {
 const server = new McpServer({
   name: 'finance-now',
   version: '1.0.0',
-  description: 'Crypto Asset Evaluation Platform — transfer fees, staking analysis, network fees, prices, and news',
+  description: 'Finance Now — crypto transfer fees, staking analysis, network fees, prices and news, plus stock/ETF/fund/macro quotes and history, the US Treasury yield curve, ECB FX rates, and an options-trade risk scorer',
 })
 
 // ─── Tool: get_coin_prices ────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ server.tool(
   'get_coin_prices',
   'Get live USD prices for one or more cryptocurrencies. Supported coins: btc, eth, usdt, usdc, bnb, sol, dai, xrp, ltc, trx, doge, matic, avax, ada, dot, atom.',
   {
-    coins: z.string().optional().describe('Comma-separated coin ids, e.g. "btc,eth,usdt". Omit for all 16 coins.'),
+    coins: z.string().optional().describe('Comma-separated coin ids, e.g. "btc,eth,usdt". Omit for every supported coin (the API discovery endpoint lists them).'),
   },
   async ({ coins }) => {
     const qs  = coins ? `?coins=${encodeURIComponent(coins)}` : ''
@@ -130,9 +130,9 @@ server.tool(
       summary: { viableRoutes: number; blockedRoutes: number; cheapestFeeUsd: number | null; cheapestNetwork: string | null; cheapestFeePercent: number | null }
       routes: Array<{
         viable: boolean; recommended: boolean; network: string | null
-        totalFeeUsd: number; feePercent: number; estimatedTimeMin: number | null
-        hops: Array<{ type: string; from: string; to: string; network: string | null; feeUsd: number; networkName: string | null; confirmationMin: number | null }>
-        warnings: Array<{ level: string; message: string }>
+        totalFeeUsd: number; feePercent: number; estimatedTime: string | null
+        hops: Array<{ from: string; to: string; network: string | null; exchangeFee: number; networkFee: number; totalFeeUsd: number; networkName: string | null; note: string | null }>
+        warnings: Array<{ severity: string; title: string; message: string }>
       }>
     }>(`/transfer/routes?${params}`)
 
@@ -147,21 +147,26 @@ server.tool(
     }
 
     if (viable.length > 0) {
+      // Field names below are the v1 contract exactly (hop.totalFeeUsd,
+      // route.estimatedTime, warning.severity — the OpenAPI spec explicitly
+      // warns about severity-vs-level). This formatter used to read feeUsd /
+      // estimatedTimeMin / warning.level, none of which the API serves, and
+      // threw a TypeError on virtually any successful lookup (review D-3).
       text += '\n**Viable Routes:**\n'
       for (const route of viable) {
         text += `\n${route.recommended ? '⭐ ' : ''}**${route.network ?? 'multi-hop'}** — $${route.totalFeeUsd.toFixed(4)} (${route.feePercent.toFixed(3)}%)`
-        if (route.estimatedTimeMin) text += ` | ~${route.estimatedTimeMin} min`
+        if (route.estimatedTime) text += ` | ${route.estimatedTime}`
         text += '\n'
         for (const hop of route.hops) {
-          text += `  ${hop.type}: ${hop.from} → ${hop.to}`
+          text += `  ${hop.from} → ${hop.to}`
           if (hop.networkName) text += ` via ${hop.networkName}`
-          text += ` | fee $${hop.feeUsd.toFixed(4)}`
-          if (hop.confirmationMin) text += ` | ~${hop.confirmationMin} min`
+          text += ` | fee $${hop.totalFeeUsd.toFixed(4)}`
+          if (hop.note) text += ` | ${hop.note}`
           text += '\n'
         }
         if (route.warnings.length > 0) {
           for (const w of route.warnings) {
-            const icon = w.level === 'danger' ? '🚨' : w.level === 'warning' ? '⚠️' : 'ℹ️'
+            const icon = w.severity === 'danger' ? '🚨' : w.severity === 'warning' ? '⚠️' : 'ℹ️'
             text += `  ${icon} ${w.message}\n`
           }
         }
@@ -183,7 +188,7 @@ server.tool(
 
 server.tool(
   'get_network_fees',
-  'Get current blockchain network gas fees for all 16 supported networks (Ethereum, Solana, Bitcoin, BNB Chain, Polygon, Arbitrum, Base, Optimism, Avalanche, XRPL, Litecoin, Dogecoin, Cardano, Polkadot, Cosmos, TRON). BTC fees are fetched live from mempool.space.',
+  'Get current blockchain network gas fees for every supported network — Ethereum L1/L2s, Solana, Bitcoin, BNB Chain, Polygon, Avalanche, XRPL, Litecoin, Dogecoin, Cardano, Polkadot, Cosmos, TRON, TON, and NEAR. BTC fees are fetched live from mempool.space.',
   {},
   async () => {
     const data = await get<{
@@ -208,16 +213,18 @@ server.tool(
 
 server.tool(
   'get_staking_opportunities',
-  'Find staking opportunities for a cryptocurrency across CeFi exchanges (Coinbase, Kraken, Binance…), self-custody wallets (Ledger, MetaMask, Phantom…), and liquid staking protocols (Lido, Rocket Pool, Marinade, Jito…). Each result includes APR/APY (live where available, otherwise estimates), lock-up period, custody model, and a risk score (1–10 composite across custody, counterparty, smart contract, slashing, liquidity, and regulatory dimensions).',
+  'Find staking opportunities for a cryptocurrency across CeFi exchanges (Coinbase, Kraken, Binance…), self-custody wallets (Ledger, MetaMask, Phantom…), and liquid staking protocols (Lido, Rocket Pool, Marinade, Jito…). Each result includes APR/APY (live where available, otherwise estimates), lock-up period, custody model, and the canonical Safety Score (0–100, HIGHER = SAFER, with a low/moderate/elevated/high/critical band) composed from custody, counterparty, smart contract, slashing, liquidity, and regulatory dimensions. The legacy riskScore (1–10, higher = riskier) is also returned but deprecated.',
   {
     coin:     z.string().optional().describe('Coin id to filter by. E.g. "eth", "sol", "ada", "dot", "atom". Omit for all stakeable coins.'),
     category: z.enum(['cefi', 'wallet', 'liquid']).optional().describe('cefi = exchange staking (custodial), wallet = self-custody wallet delegation, liquid = liquid staking protocols (stETH, mSOL, etc.)'),
-    max_risk: z.number().min(1).max(10).optional().describe('Maximum acceptable risk score (1–10). E.g. 4 = only low-risk options. Default: 10 (all).'),
+    min_safety: z.number().min(0).max(100).optional().describe('Minimum canonical Safety Score (0–100, higher = safer). E.g. 70 = only safer options. Preferred filter.'),
+    max_risk: z.number().min(1).max(10).optional().describe('DEPRECATED — use min_safety. Maximum legacy risk score (1–10, higher = riskier). Default: 10 (all).'),
   },
-  async ({ coin, category, max_risk }) => {
+  async ({ coin, category, min_safety, max_risk }) => {
     const params = new URLSearchParams()
     if (coin)     params.set('coin', coin)
     if (category) params.set('category', category)
+    if (min_safety != null) params.set('min_safety', String(min_safety))
     if (max_risk) params.set('max_risk', String(max_risk))
 
     const data = await get<{
@@ -226,7 +233,8 @@ server.tool(
         coin: string; coinId: string; apr: number; aprSource: string
         lockupDays: number; lockupNote: string | null; liquid: boolean
         receiptToken: string | null; minStakeNative: number
-        custodyModel: string; riskScore: number; riskLevel: string
+        custodyModel: string; safetyScore: number; band: string
+        riskScore: number; riskLevel: string
         riskBreakdown: Record<string, number>; features: string[]
         tvlBillions: number | null; auditCount: number | null
       }>
@@ -258,7 +266,7 @@ server.tool(
         text += `  Lock-up: ${opp.lockupDays === 0 ? 'None' : `${opp.lockupDays} days`}`
         if (opp.minStakeNative > 0) text += ` | Min: ${opp.minStakeNative} ${opp.coinId.toUpperCase()}`
         text += '\n'
-        text += `  Risk: ${opp.riskScore.toFixed(1)}/10 (${opp.riskLevel})`
+        text += `  Safety: ${opp.safetyScore.toFixed(0)}/100 (${opp.band}, higher = safer) | legacy risk ${opp.riskScore.toFixed(1)}/10`
         if (opp.tvlBillions) text += ` | TVL: $${opp.tvlBillions}B`
         if (opp.auditCount)  text += ` | Audits: ${opp.auditCount}`
         text += '\n'
@@ -337,7 +345,8 @@ server.tool(
       opportunities: Array<{
         provider: string; providerName: string; category: string; defunct: boolean
         coin: string; apr: number; aprSource: string; lockupDays: number
-        custodyModel: string; riskScore: number; riskLevel: string
+        custodyModel: string; safetyScore: number; band: string
+        riskScore: number; riskLevel: string
         riskBreakdown: Record<string, number>; liquid: boolean
         receiptToken: string | null
       }>
@@ -347,7 +356,7 @@ server.tool(
     const found: typeof data.opportunities = []
     for (const id of ids) {
       const matches = data.opportunities.filter(o => o.provider === id)
-      if (matches.length === 0) { found.push({ provider: id, providerName: id, category: '?', defunct: false, coin: '?', apr: 0, aprSource: 'estimate', lockupDays: 0, custodyModel: '?', riskScore: 0, riskLevel: 'unknown', riskBreakdown: {}, liquid: false, receiptToken: null }); continue }
+      if (matches.length === 0) { found.push({ provider: id, providerName: id, category: '?', defunct: false, coin: '?', apr: 0, aprSource: 'estimate', lockupDays: 0, custodyModel: '?', safetyScore: 0, band: 'unknown', riskScore: 0, riskLevel: 'unknown', riskBreakdown: {}, liquid: false, receiptToken: null }); continue }
       const coinMatch = coin ? matches.find(m => m.coin.toLowerCase() === coin.toLowerCase()) : null
       found.push(coinMatch ?? matches[0])
     }
@@ -386,8 +395,12 @@ server.tool(
 
     text += '─'.repeat(nameWidth + found.length * 14) + '\n'
 
-    // Risk score
-    text += padR('RISK SCORE', nameWidth)
+    // Canonical Safety Score first — the additive R2 fields this consumer
+    // never surfaced (review P2); legacy 1–10 kept, labelled.
+    text += padR('SAFETY SCORE', nameWidth)
+    for (const p of found) text += padL(`${p.safetyScore.toFixed(0)}/100 ${p.band}`, 14)
+    text += '\n'
+    text += padR('Legacy risk', nameWidth)
     for (const p of found) text += padL(`${p.riskScore.toFixed(1)}/10`, 14)
     text += '\n'
 
@@ -398,7 +411,7 @@ server.tool(
       text += '\n'
     }
 
-    text += '\n*Risk scores: 1 = lowest risk, 10 = highest risk*\n'
+    text += '\n*Safety Score: 0–100, HIGHER = SAFER (canonical). Legacy risk + dimensions: 1–10, higher = riskier (deprecated).*\n'
 
     if (found.some(p => p.defunct)) {
       text += '\n⚠️ **Note:** Defunct providers (e.g. Celsius) are shown for educational comparison only. Do not use them — customer funds remain frozen or partially recovered through bankruptcy.'

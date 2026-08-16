@@ -21,6 +21,8 @@ export interface V1SecurityHistoryResponse {
   previousClose: number | null
   fiftyTwoWeekHigh: number | null
   fiftyTwoWeekLow: number | null
+  /** Provider that served this series (e.g. 'tiingo', 'fmp') — V4 fix. */
+  source: string
   updatedAt: string
 }
 
@@ -48,6 +50,7 @@ export async function GET(req: NextRequest) {
       previousClose: chart.previousClose,
       fiftyTwoWeekHigh: chart.fiftyTwoWeekHigh,
       fiftyTwoWeekLow: chart.fiftyTwoWeekLow,
+      source: chart.source,
       updatedAt: new Date().toISOString(),
     } satisfies V1SecurityHistoryResponse, { headers: CORS })
   } catch (err) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getProviderKey } from '@/lib/api/live/providers'
 import { resolveFundSeries, listNportFilings, fetchNportReport, type NportFilingRef } from '@/lib/server/nport'
 
 // History of changes in a fund's underlying investments from SEC N-PORT
@@ -14,8 +15,11 @@ import { resolveFundSeries, listNportFilings, fetchNportReport, type NportFiling
 
 export const dynamic = 'force-dynamic'
 
-const FMP_KEY = process.env.FMP_API_KEY && process.env.FMP_API_KEY !== 'your-fmp-api-key'
-  ? process.env.FMP_API_KEY : undefined
+// D-1 fix: resolve the key per-request via getProviderKey, like every other FMP
+// consumer. This route used to read process.env at module scope, so a key saved
+// in the Integrations UI silently did nothing here — no FMP holdings fallback,
+// no sector weights — while quotes/universe/calendar accepted the same key.
+const fmpKey = () => getProviderKey('fmp')
 
 const MAX_PERIODS = 12
 const MAX_CHANGES = 80
@@ -75,7 +79,7 @@ export interface FundHoldingsHistoryResponse {
 
 async function fetchDisclosureDates(symbol: string): Promise<DisclosurePeriod[]> {
   const res = await fetch(
-    `https://financialmodelingprep.com/stable/funds/disclosure-dates?symbol=${encodeURIComponent(symbol)}&apikey=${FMP_KEY}`,
+    `https://financialmodelingprep.com/stable/funds/disclosure-dates?symbol=${encodeURIComponent(symbol)}&apikey=${fmpKey()}`,
     { next: { revalidate: 21_600 } }
   )
   if (!res.ok) return []
@@ -120,7 +124,7 @@ function normalizeName(name: string): string {
 
 async function fetchDisclosure(symbol: string, period: DisclosurePeriod): Promise<Map<string, DisclosedHolding>> {
   const res = await fetch(
-    `https://financialmodelingprep.com/stable/funds/disclosure?symbol=${encodeURIComponent(symbol)}&year=${period.year}&quarter=${period.quarter}&apikey=${FMP_KEY}`,
+    `https://financialmodelingprep.com/stable/funds/disclosure?symbol=${encodeURIComponent(symbol)}&year=${period.year}&quarter=${period.quarter}&apikey=${fmpKey()}`,
     { next: { revalidate: 21_600 } }
   )
   const holdings = new Map<string, DisclosedHolding>()
@@ -337,11 +341,11 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  if (!FMP_KEY) {
+  if (!fmpKey()) {
     return NextResponse.json({
       ok: false, configured: false, ...base,
       periods: [], current: null, previous: null, summary: null, changes: [],
-      error: 'No SEC N-PORT disclosure series found for this ticker, and no FMP_API_KEY is configured as a fallback.',
+      error: 'No SEC N-PORT disclosure series found for this ticker, and no FMP key is configured as a fallback. Add one on the Integrations page (or set FMP_API_KEY).',
     } satisfies FundHoldingsHistoryResponse)
   }
 

@@ -68,7 +68,12 @@ export function buildLiveMarketData(assetId: string, quote: LiveQuote | undefine
 }
 
 export function buildLiveAssetDetail(assetId: string, quote: LiveQuote | undefined): AssetDetail {
-  const meta = ASSET_CATALOG.find((a) => a.id === assetId) ?? ASSET_CATALOG[0]
+  const meta = ASSET_CATALOG.find((a) => a.id === assetId)
+  // D-5 fix: an unknown id used to fall back to ASSET_CATALOG[0], so
+  // /assets/<any-garbage> rendered the USDC detail page with a 200 — wrong data
+  // with a confident face, and the page's real not-found state was unreachable.
+  // Throwing here is what lets that state render.
+  if (!meta) throw new Error(`Unknown asset id: ${assetId}`)
   const asset = overlayQuote(meta, quote)
   return {
     ...asset,
