@@ -629,6 +629,15 @@ exist; no schema change, no migration.
 | B11 | Recurring rules: confirm a suggestion → stored rule | `/budget` | `recurring` POST | ⚠⁷ | ➖ | ⚠⁷ | NEEDS-FIX⁷ |
 
 **Notes (all verified in source 2026-08-12):**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Notes 2 and 6
+> ✅ closed by the D-24 pass: the balance and month-actuals arithmetic now lives
+> in pure `lib/budget/aggregate.ts` with 11 tests. Notes 1, 3, 4, 5 and 7 are
+> all UI gaps over APIs that already exist — they are exactly what tool
+> candidate NT1 (budget management UI) closes, and NT1 is itself downstream of
+> the open 14b keep-or-remove decision. Deliberately not built ahead of that
+> call.
+
 1. **Accounts can be renamed/archived only via curl.** `accounts/[id]` PATCH accepts
    `name`, `institution`, `openingBalance`, `archived` — the UI offers create and
    delete only. The schema's `archived` flag is honored on read (the panel filters
@@ -683,6 +692,12 @@ One page (`/portfolio-builder`), engine in `lib/data/portfolioBuilder.ts` (pure,
 | PB6 | Suitability review: ageing glide path, risk drift, fee creep (vs actual holdings), concentration (vs plan target), overdue review | PlanMonitor | engine `reviewPlan(saved, actual, now)` — injectable clock | ✅ | ✅ | ✅ | READY |
 
 **Notes:**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** Note 1 is
+> operational (free-tier rate limits), not code; the stated fix is a
+> `COINGECKO_API_KEY`. Nothing to build; recorded so this section reads like
+> the others.
+
 1. Drift pricing rides the CoinGecko free tier; positions with no live price are
    excluded (never valued at cost) and `pricedPct` disclosure renders. The 2026-07-29
    audit showed CoinGecko burst rate-limiting on the free tier — with no key, drift
