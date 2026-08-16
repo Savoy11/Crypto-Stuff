@@ -539,7 +539,7 @@ export async function fetchFmpChart(symbol: string, range: ChartRange): Promise<
  * /live-data/security-chart returns ok:false so the UI shows LiveUnavailable
  * instead of an empty chart that reads as "flat".
  */
-export async function fetchSecurityChart(symbol: string, range: ChartRange): Promise<SecurityChart> {
+export async function fetchSecurityChart(symbol: string, range: ChartRange): Promise<SecurityChart & { source: string }> {
   let lastError: Error = new Error(
     'No price-history provider is configured. Add a Tiingo or FMP key on the Integrations page.'
   )
@@ -549,7 +549,9 @@ export async function fetchSecurityChart(symbol: string, range: ChartRange): Pro
   ]) {
     if (!getProviderKey(attempt.key)) continue
     try {
-      return await attempt.run()
+      // `source` names the rung that actually served — v1's history endpoint
+      // was the one public route with an undisclosed provider (review V4).
+      return { ...(await attempt.run()), source: attempt.key }
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
     }

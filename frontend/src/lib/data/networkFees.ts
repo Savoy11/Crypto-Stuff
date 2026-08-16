@@ -62,7 +62,10 @@ export const AUX_PRICE_COINS: Record<string, string> = {
 }
 
 // Last-resort prices used only when the live price fetch fails, so a fee is
-// never blank. Keyed by the lowercase priceKey.
+// never blank. Keyed by the lowercase priceKey. Dated (V6): a stale constant
+// disclosed as fallback but undated still reads as roughly current — update
+// FALLBACK_PRICES_AS_OF when refreshing these.
+export const FALLBACK_PRICES_AS_OF = '2026-07-22' // per git history of these constants
 export const FALLBACK_PRICES: Record<string, number> = {
   eth: 3200, bnb: 600, sol: 160, trx: 0.14, matic: 0.60, avax: 28,
   btc: 95000, xrp: 2.20, ltc: 90, doge: 0.18, ada: 0.45, dot: 7.0,

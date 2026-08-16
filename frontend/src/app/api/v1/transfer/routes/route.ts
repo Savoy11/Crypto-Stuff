@@ -4,7 +4,7 @@ import {
   EXCHANGES, COIN_INFO, NETWORKS, findTransferPaths, PERSONAL_WALLET_ID,
   type CoinId,
 } from '@/lib/data/transferFees'
-import { computeNetworkFees } from '@/lib/data/networkFees'
+import { computeNetworkFees, FALLBACK_PRICES_AS_OF } from '@/lib/data/networkFees'
 
 export const dynamic = 'force-dynamic'
 export { options as OPTIONS }
@@ -102,7 +102,7 @@ export async function GET(req: NextRequest) {
     // order-of-magnitude guidance only — say so rather than letting a consumer
     // (or an agent) present them as quotes.
     ...(priceSource === 'fallback'
-      ? { warning: 'CoinGecko unavailable — USD amounts are derived from stale fallback prices, not live quotes. Native-token fee amounts are unaffected.' }
+      ? { fallbackPricesAsOf: FALLBACK_PRICES_AS_OF, warning: `CoinGecko unavailable — USD amounts are derived from static fallback prices compiled ${FALLBACK_PRICES_AS_OF}, not live quotes. Native-token fee amounts are unaffected.` }
       : {}),
     updatedAt: new Date().toISOString(),
   }, { headers: CORS })

@@ -392,6 +392,13 @@ rather than screening a page and pretending it screened the universe).
 | F12 | Fund news (symbol mode for ETFs, general for mutual funds — commented rationale) | `/funds/[symbol]` | `market-news` | ✅ | ➖ | ✅ | READY |
 
 **Notes:**
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`) — notes sweep.** All four notes
+> were already resolved or classified by earlier passes; recorded here so this
+> section reads like the others: 1 ✅ (15 tests, 2026-08-15), 2 ✅ (D-1), 3 open
+> (D-24 — holdings-history diff + nport parser tests), 4 deliberate (NT9 is the
+> possible future source).
+
 1. **`computeReturns` (`lib/utils/returns.ts:23`) — the 1M/3M/YTD/1Y percentages users
    compare funds on — has zero tests.** YTD prior-year-close boundary and short-series
    null logic unverified. Clear house-rule violation; small fix.
@@ -532,6 +539,11 @@ equity-screener, macro-research, pump-report ×2 via their own routes); key reso
 (UI key wins over env) and disabled-agent 503s verified end-to-end on the runner
 routes. All agent-run routes are `guardSensitiveRoute`-protected.
 
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`).** X1 ✅ (system prompt
+> refreshed to the suite-era app), X3 ✅ (D-7). X4 and X5's panel remain open
+> decisions (NT5, NT6); X5's deep link is now stated in the agent-config copy,
+> and an unknown `agentId` 400s instead of silently running the crypto analyst.
+
 | # | Feature | Verdict | Finding |
 |---|---------|---------|---------|
 | X1 | app-assistant (AssistantWidget, all 26 tools, web_search) | **NEEDS-FIX** | Its system prompt describes the **pre-suite app**: 25 exchanges / 16 coins / 16 networks (actual 30/22/18), ~70 stocks (79), ~55 funds (118), Compare 2–4 (2–6), and names Dashboard/Reserves/Global Adoption as live pages (de-routed/folded). The flagship assistant misinforms users about the product it fronts. Fix: refresh `prompts.ts` defaults (T6 extended, not overwritten). |
@@ -550,6 +562,12 @@ flag), so the risk-spec's E2 precondition for any future deprecation decision is
 satisfied. No v1 route touches user data (grep-clean of `db`/`getCurrentUserId`) —
 today's surface is market-data-only, as Phase 6 assumes.
 
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`).** V1 ✅ (D-4), V2 ✅ (D-19),
+> V3 ✅ (D-20, counts now derived), V4 ✅ (`/securities/history` reports
+> `source`), V6 ✅ (fallback constants dated `2026-07-22` per git history, and
+> both fallback responses carry `fallbackPricesAsOf`). V5 remains the open
+> rollout-gating owner decision.
+
 | # | Finding | Verdict |
 |---|---------|---------|
 | V1 | **`/transfer/routes` drifted from the shared fee module**: its local `STATIC_GAS` lacks `ton_network`/`near_network` (those routes silently vanish), and its price map covers 16 of the 22 accepted coins — LINK/TON/SHIB/UNI/NEAR/ARB fall through to `?? 1`, so `amountUsd`/`feePercent` are computed at **$1/coin with no fallback warning**. The UI path passes the full maps; v1 ≠ UI here despite the shared engine. | **NEEDS-FIX (correctness bug in a public API)** |
@@ -560,6 +578,12 @@ today's surface is market-data-only, as Phase 6 assumes.
 | V6 | Fallback price constants in `/prices` and `/transfer/routes` (BTC 95000…) are always disclosed via `source: 'fallback'` but undated — unlike every provenance-stamped catalog. | NEEDS-FIX (small) |
 
 ### MCP server (13 tools)
+
+> **Status, 2026-08-16 (P3-W2, `wave-2-changes`).** P1 ✅ (D-3), P2 ✅
+> (safetyScore/band surfaced, min_safety filter added, legacy labelled
+> deprecated), P3 ✅ (counts no longer hand-typed), P4 ✅ (post-rebrand
+> self-description, README created, `zod` declared). P5 remains the open D5
+> decision — the README warns against external distribution until it is made.
 
 | # | Finding | Verdict |
 |---|---------|---------|
