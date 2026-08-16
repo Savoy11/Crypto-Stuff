@@ -6,9 +6,11 @@ working resource for the Phase 3 production-readiness review
 Wave 2, one module per sitting: every feature of every built module, what backs it,
 whether it is reachable, tested, and documented, and a readiness verdict._
 
-**Method.** Every feature was verified by following the path a request takes — page →
+**Method.** Every feature was walked by following the path a request takes — page →
 query → route handler → upstream → render — never by parts inventory (the
-production-readiness scorecard's JWT-revocation lesson). Data-availability statuses are
+production-readiness scorecard's JWT-revocation lesson). **Who did that walking varies
+by section — see the provenance note below, which is the honest reading of how far to
+trust any given row.** Data-availability statuses are
 **copied from `DATA-AVAILABILITY.md`** (last owner-machine measurement 2026-07-29, tree
 `54fbf0c`, with the 2026-08-06 Yahoo-removal prediction block layered on top) — a
 container cannot measure availability (IP-dependence rule), so rows that need a fresh
@@ -20,6 +22,38 @@ measurement say so and defer to Wave 2, where the owner is present.
 the vitest inventory (44 test files), and the page/route/store source for each feature
 below. `docs/audits/rejected-proposals.md` — required reading per the ground rules —
 **does not exist** (see Appendix C).
+
+> **Provenance of the findings (added 2026-08-16, at the owner's request).** This
+> document was assembled by one lead plus five parallel read-only sweep agents, and
+> the rows do not all carry the same weight of evidence. Recording which is which,
+> because "consolidated from a sweep" is not the same as "verified in source," and a
+> reader cannot tell them apart from the tables alone.
+>
+> - **First-hand (lead read the files directly):** the **Budget** and **Portfolio
+>   Builder** sections, and Appendix A6 (the absent `rejected-proposals.md`, confirmed
+>   by listing `docs/audits/`).
+> - **Consolidated from sweep agents:** **Core, Crypto, Equities, ETFs & Funds, Macro
+>   Markets,** and the **cross-cutting** agent/v1/MCP section. Each agent was
+>   instructed to verify request-path style and to honor the do-not-fix registry, and
+>   each returned file:line evidence — but the lead folded those findings in without
+>   independently re-walking every claim.
+> - **Independently re-verified in source by the lead, 2026-08-12, before any fix work
+>   began:** all eight real bugs, **D-1 through D-8**. Every one confirmed exactly as
+>   written. D-6 came out *stronger* than reported: the source comment in
+>   `lib/api/risk-scores.ts` asserts the chart "shows an explicit 'not available'
+>   notice," and the component contains no empty-state branch at all — the claim and
+>   the code had drifted apart, which is this review's own thesis in miniature. So the
+>   fixes in P3-W2 rested on confirmed findings, not on relayed ones.
+> - **Still relayed, never re-walked by the lead:** the copy/state defects
+>   **D-9 – D-23**, the **D-24** test-gap clusters, and the per-feature READY verdicts
+>   in the five swept sections.
+>
+> **What this means for P3-W3.** The gate's job is request-path verification anyway,
+> and it should not trust this document's own completion claims (its instructions say
+> exactly that). Treat relayed rows as *claims to re-walk*, not as facts — with the
+> sharpest attention on rows a SHIP decision rests on where nothing here was checked
+> twice. `docs/agents/code-checker.md` puts it plainly: a parts inventory is not
+> verification, and the same applies to a findings inventory.
 
 ## Verdict legend
 
