@@ -711,6 +711,55 @@ limits), not code.
 
 ---
 
+## Appendix E — Owner decisions (P3-W2 decision session, 2026-08-17)
+
+The wave's decision half. Each row is ONE owner decision, dated. Undecided rows
+carry an explicit OPEN marker naming what unblocks them — nothing is silently
+skipped. W3's entry conditions are the FIX-FIRST and approved-tool lists at the
+end of this appendix.
+
+### Decided
+
+| # | Item | Decision | Consequence |
+|---|---|---|---|
+| **D5** | MCP `run_audit` — a tool that shells out (`npx tsc`), probes routes, walks the source tree | **KEEP, dev-machine only** | Stays because it is useful. Standing constraint, recorded so it cannot be forgotten: **never install the MCP server on the production host, and never distribute it externally** until the tool is removed or hard-guarded. Rationale in the risk note below |
+| **14b** | Budget module: keep, hide, or cut | **KEEP + build NT1** | Removal rejected. The retirement planner wants Budget's actuals as its expense feed — which is exactly how the source spreadsheet was wired (`Hypotheticals` pulls bill totals from `Detailed Expense Breakdown` by cell reference). NT1 approved (below); Budget's five open notes close with it |
+| **PB-1** | `computeMetrics` counts unpriced holdings at cost under mixed coverage, contradicting the page's own "never valued at cost" copy | **FIX — enforce the stated invariant** | Unpriced holdings leave the totals; P&L% divides by priced capital only; `pricedPct` discloses coverage. Displayed totals change, toward what the page already claims. FIX-FIRST |
+| **PB-2** | `formatInstrumentQuote` stamps `$` on every FX pair — USD/JPY renders "$147.26" | **FIX — render the real quote currency** | Not just dropping the `$`: show ¥147.26 / €0.9234 etc. Needs a per-pair quote-currency symbol on the currency catalog. FIX-FIRST |
+| **NT12** | Boundary drift guard — vitest diffing v1 discovery counts, MCP tool count, and agent-prompt catalog claims against the catalogs' real exports | **APPROVED** | The cross-cutting review found every unguarded boundary had drifted. D-20 already derived the v1 counts; this extends the same protection to MCP metadata and the assistant prompt |
+| **NT3** | Wallets → DB (`/api/user/wallets`) | **APPROVED** | Last localStorage-only user data (`fn:wallets`). Portfolios/watchlists are the template: route + optimistic store + one-time import |
+
+### D5 — why "dev-machine only" is the operative constraint
+
+Three exposures, all security-posture rather than compliance:
+
+1. **Arbitrary execution.** The tool spawns with `shell: true` and runs `npx tsc`.
+   Anything that can invoke MCP tools — including an agent steered by prompt
+   injection from data it read — triggers a build toolchain on the host. `npx`
+   will *fetch and execute* a package that is not installed locally, which turns
+   a tampered or typo'd environment into a supply-chain path.
+2. **Guard bypass on a production host.** `apiGuard` trusts localhost. If the MCP
+   server ever runs on the same box as the deployed app, its route probes reach
+   the sensitive endpoints — provider keys, agent prompts, exchange credentials —
+   as localhost, past `FN_ADMIN_TOKEN`. It also walks the frontend source tree,
+   which is where the gitignored secret stores live (`.provider-config.json`,
+   `.exchange-credentials.json`).
+3. **Distribution.** Packaging the server for anyone else hands them exposure 1.
+
+The hard guard, if the constraint ever needs enforcing in code rather than
+discipline: refuse to run unless `FN_BASE_URL` is localhost **and** an explicit
+opt-in env var is set. Not built — the owner's decision is the constraint itself.
+
+### OPEN — deferred, with the unblocker named
+
+| # | Item | Why it is open | Unblocked by |
+|---|---|---|---|
+| **D1** | Rollout posture on entitlements (all-free vs DB-backed first) | Launch is not being considered yet; paid-vs-free is a separate conversation. A parallel session is building the free web version | The owner's planning session settling paid vs free |
+| **D2** | Public `/api/v1` exposure — no rate limit, no auth, CORS `*` | May ship against an enterprise provider key, which changes the quota calculus entirely | The same planning session; revisit when the key and hosting are settled |
+
+> Both were **considered and deferred**, not skipped. Neither blocks any other
+> item in this appendix.
+
 ## Appendix D — Owner short-list intake (P3-W2, 2026-08-15) — open items
 
 The owner brought an 18-item short list into the Wave 2 sitting before the module
