@@ -1638,6 +1638,10 @@ guard this wants is exactly Appendix B's **NT12 (boundary drift guard)** shape: 
 1. **Resample or relabel?** Restore true weekly/monthly resampling server-side in
    `security-ohlcv`, or set every range to daily and relabel. This changes what the 5Y and
    MAX strategies *mean*; it is a product call, not a bug fix.
+   → **Owner decision 2026-08-17 (P3-W2 decision session): delegated to this subproject.**
+   It was put to the owner directly and deliberately handed back — *"let the subproject
+   decide"* — so it is made with the rest of the backtest rework in view rather than in
+   isolation. Treat it as **S1's first decision**, not an open question inherited from W2.
 2. **Do the two engines converge?** One shared engine across crypto/equities/portfolios, or
    deliberately separate with the reason written down.
 3. **Symbol universe.** Backtests are bounded to the 79-name curated catalog while TA charts
