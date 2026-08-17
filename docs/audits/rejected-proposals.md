@@ -78,7 +78,10 @@ mistaken for one:
   considered and declined."
 - **Fund return screening** (`FundsClient.tsx:230-245`) is *disabled pending a provider*,
   with the restore condition written into the code. That is a blocked feature, not a
-  rejected one.
+  rejected one. Reaffirmed 2026-08-17 (short-list item 12b): FMP's
+  `/stable/stock-price-change` is the right endpoint, batching is paid-gated, so the
+  unblocker is a purchasing decision — folded into the same enterprise-key conversation
+  as review item D2.
 - **De-routed surfaces** (`/global-adoption`, the deleted `/backtests` risk case studies)
   were scoped decisions on existing pages, recorded in
   `docs/assessments/T5-utility-triage.md` and the CLAUDE.md feature table. A cut page is
