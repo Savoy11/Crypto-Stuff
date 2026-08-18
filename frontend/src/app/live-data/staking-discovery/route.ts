@@ -40,6 +40,19 @@ export interface DiscoveredPool {
   /** @deprecated Legacy band for `riskScore`; migrate to `band`. */
   riskLevel:       ReturnType<typeof getRiskLevel>
   /** Canonical 0–100 safety score (higher = safer). R2 migration; prefer this. */
+  /**
+   * Canonical safety score for the pool's provider.
+   *
+   * 2026-08-18 (item 4): the Staking Discovery page no longer renders this —
+   * the owner asked to keep the page's discovery function and drop its
+   * suggestion component, and a per-pool safety badge beside an APY column
+   * reads as a verdict on which pool to pick. The field is retained on the
+   * response because scoring a provider the caller named is the explanatory
+   * side of the line the decision drew (same reasoning that keeps the field on
+   * /api/v1/staking/opportunities), and `lib/risk` is the shared engine either
+   * way. Nothing in the UI reads it today — if no consumer adopts it, drop the
+   * field rather than leaving it to drift.
+   */
   riskCanonical:   number
   /** Canonical band for `riskCanonical` (low/moderate/elevated/high/critical). */
   band:            RiskBand

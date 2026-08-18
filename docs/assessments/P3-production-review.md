@@ -819,7 +819,11 @@ the MCP `get_coin_prices` description enumerating 16 of 22 catalog coins).
 (redirects to `/headlines`), Safety Score + Risk Band columns and the score screener
 removed from the Coin Registry, `RiskHeatmap` and its popout deleted, coin-discovery's
 verdict vocabulary replaced by score bands. **Kept as decided:** the per-coin risk panel,
-the options Trade Risk Scorer, the Portfolio Builder. **API/MCP fields kept, decided
+the options Trade Risk Scorer, the Portfolio Builder. **Staking Discovery** was raised
+as the one borderline surface not named in the decision and ruled on separately the same
+day — owner: *keep the function, remove the suggestion component* — so the per-pool
+Safety badge and its derived-note came out while live pool discovery, the platform
+directory and TVL ordering stayed. **API/MCP fields kept, decided
 field-by-field:** `/api/v1/staking/opportunities` sorts by APR and Staking Discovery
 sorts by TVL — in both, a score is a per-row attribute of something the caller asked
 about, not the ranking key, which is the explanation side of the line. ·
