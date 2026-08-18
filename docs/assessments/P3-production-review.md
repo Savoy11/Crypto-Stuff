@@ -810,8 +810,10 @@ checks on entry.
 **Tools/capabilities:** NT1 (Budget management UI, scope extended to feed Budget actuals
 into the Retirement Planner) · NT3 (wallets → DB) · NT4 (video-analyze trigger UI) ·
 NT5 (invocation UI for the three placeholder agents) · NT9 (fund asset-mix from N-PORT) ·
-NT11 (wire `fear-greed`/`btc-stats`/`defi-tvl` into TA market structure) · NT12
-(boundary drift guard).
+NT11 (wire `fear-greed`/`btc-stats`/`defi-tvl` into TA market structure) · ~~NT12~~
+(boundary drift guard — ✅ **DONE 2026-08-18**, 16 assertions in
+`lib/server/__tests__/boundaryDrift.test.ts`; caught one live drift on its first run,
+the MCP `get_coin_prices` description enumerating 16 of 22 catalog coins).
 
 **Short-list items:** 4/5b (cut the ranking surfaces, keep the explanatory ones) ·
 6/7 (one scanner per section, promoted to nav — carries the nested-nav primitive) ·
