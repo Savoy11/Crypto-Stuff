@@ -1,0 +1,46 @@
+# Code owners — Finance Now
+#
+# Added 2026-08-18 (P3-W2 short-list item 18b). "Protected" for the wave program's
+# reference documents resolves to two concrete things: this file, and the narrow
+# maintenance carve-out in docs/agents/checklist-steward.md. A doc-vs-code CI guard
+# was considered and deliberately dropped — it would flag prose drift constantly and
+# train everyone to ignore it, which is worse than no guard at all.
+#
+# NOTE: CODEOWNERS only requests review; it does not block a merge on its own. To make
+# it binding, enable "Require review from Code Owners" in the branch protection rule
+# for the default branch. Until then this file is a routing declaration, not a gate —
+# recorded here so nobody mistakes its presence for enforcement.
+
+# Default owner for everything not matched below.
+*                                   @Savoy11
+
+# ── The decision record ──────────────────────────────────────────────────────
+# These carry owner decisions and the reasoning behind them. An edit here can
+# silently rewrite what was decided, which is the failure this exists to catch.
+/docs/assessments/                  @Savoy11
+/docs/audits/rejected-proposals.md  @Savoy11
+/docs/TASK-QUEUE.md                 @Savoy11
+/docs/ROADMAP.md                    @Savoy11
+/docs/BUSINESS-CHECKLIST.md         @Savoy11
+
+# ── Agent charters ───────────────────────────────────────────────────────────
+# An agent's charter is what bounds what that agent may do to the repo. Changing
+# a charter changes those bounds for every future run.
+/docs/agents/                       @Savoy11
+/.claude/agents/                    @Savoy11
+/docs/IMPROVEMENT-AGENT-SETUP.md    @Savoy11
+
+# ── Project instructions ─────────────────────────────────────────────────────
+# CLAUDE.md is auto-loaded into every session; it is the highest-leverage file
+# in the repo for steering work that has not started yet.
+/CLAUDE.md                          @Savoy11
+
+# ── Security-sensitive surfaces ──────────────────────────────────────────────
+# Terms verdicts decide which hosts may be fetched at all; the guards decide who
+# may reach sensitive routes and what a fetch is allowed to resolve to.
+/frontend/src/lib/server/sourceTerms.ts  @Savoy11
+/frontend/src/lib/server/termsProbe.ts   @Savoy11
+/frontend/src/lib/server/apiGuard.ts     @Savoy11
+/frontend/src/lib/server/urlSafety.ts    @Savoy11
+/frontend/src/lib/server/pinnedFetch.ts  @Savoy11
+/frontend/src/lib/auth/                  @Savoy11

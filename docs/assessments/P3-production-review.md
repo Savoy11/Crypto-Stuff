@@ -838,7 +838,10 @@ about, not the ranking key, which is the explanation side of the line. ·
 6/7 (one scanner per section, promoted to nav — carries the nested-nav primitive) ·
 1 (Settings nav group, blocked on that primitive, routes unchanged) · 11/13 (bond
 coverage + tax-equivalent yield) · 16 (Portfolio Builder second mode, build-by-allocation) ·
-18b (CODEOWNERS + steward carve-out) · 2b (beta on Compare).
+~~18b~~ ✅ **DONE 2026-08-18** (`.github/CODEOWNERS` +
+the steward carve-out; CODEOWNERS requests review but does not gate a merge until
+"Require review from Code Owners" is enabled on the default branch — stated in the file
+so its presence is not mistaken for enforcement) · 2b (beta on Compare).
 
 **Subprojects:** P3-W2-S1 (backtest build-out) · NT2 (trade ledger, FIFO-vs-average as
 its first decision).

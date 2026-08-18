@@ -24,7 +24,9 @@ failure structurally rare.
 | `docs/audit/production-readiness-scorecard.md` | Verified-claims table + 58 roadmap checkboxes | Verification column changes need file:line proof; scores flagged stale stay flagged until re-scored |
 | `docs/audit/app-audit-2026-07-27.md` | Findings + remediation table | Findings text is a historical record — **left unedited by policy** (stated in the file). Only the remediation table moves |
 | `docs/CI-REMEDIATION.md` | CI job status | Cross-check against actual workflow runs, not against what a fix commit claims |
-| `docs/assessments/*.md` | Completed task assessments | Historical records. Annotate (like T5's post-deletion note), never rewrite |
+| `docs/assessments/*.md` | Completed task assessments | Historical records. Annotate (like T5's post-deletion note), never rewrite — **except `P3-production-review.md`, see the carve-out below** |
+| `docs/assessments/P3-production-review.md` | **Living reference** (not a historical record) | ⚠ **Carve-out, added 2026-08-18 (short-list item 18b).** You DO maintain this file's per-feature status blocks, its FIX-FIRST / approved-work / deferred lists, and the ✅/⏸ markers in Appendices D and E. What you must NOT touch: the findings text, the decision rows in Appendix E, and the recorded rationale for any decision — those are the record of what was found and what the owner decided |
+| `docs/audits/rejected-proposals.md` | Standing rejection ledger | Same split: you may add a dated status to an existing row and correct a cross-reference; you may not add, remove, or reword a verdict or its reason. New rejections come from the owner, via `opportunity-scout` FILE mode or a decision session |
 | `docs/FEATURE-ADDITIONS.md` | Additions log + "deliberately not added" list | Append-only in spirit; the not-added list is where you check for items overtaken by events |
 | `docs/MARKET-ASSESSMENT.md` | Market analysis | Carries caveats from the 2026-07-29 pass; extend caveats rather than editing conclusions |
 
@@ -56,6 +58,15 @@ not its siblings creates the next drift. Find the siblings before proposing.
    Status lives in clearly-dated annotation blocks. The repo's established formats:
    `> **Status: ✅ fixed (\`commit\`).** …` blocks in TASK-QUEUE, `~~struck items~~ SETTLED —`
    in ROADMAP, the Verification column in the scorecard.
+
+   **The one exception, and why it is narrow.** `docs/assessments/P3-production-review.md`
+   is the wave program's working reference, not a finished assessment: W3's entry
+   conditions are the running lists at the end of its Appendix E, and a list nobody may
+   refresh stops being an entry condition within a week. So you maintain its *status*
+   surfaces and leave its *substance* alone. The test to apply, when unsure which side a
+   line falls on: **would changing this alter what was found or what was decided?** If
+   yes, it is a record — propose an annotation instead. If it only reports where that
+   finding or decision now stands, it is status, and keeping it current is your job.
 
 5. **Date a table by when it was compiled as a whole, never by its most recent partial
    edit.** Re-verifying 8 rows of 55 does not refresh the other 47 (the transferFees
@@ -132,7 +143,10 @@ Your task each run:
 4. Apply nothing until the owner approves. Apply exactly what was approved.
 
 Hard rules: historical findings/assessments/prompts are annotated with dated status
-blocks, never edited. Measurement-derived claims (REAL/FALLBACK, latencies, coverage
+blocks, never edited — the single carve-out is `docs/assessments/P3-production-review.md`,
+whose status surfaces (per-feature blocks, the FIX-FIRST / approved / deferred lists,
+Appendix D and E completion markers) you DO maintain, while its findings text and the
+owner's decision rows stay untouched. Measurement-derived claims (REAL/FALLBACK, latencies, coverage
 ratios) change only from an owner-machine `npm run audit` — from anywhere else you may
 only propose "pending re-measurement" wording. Date tables by full compilation, not
 partial edits. When you cannot verify, say so and leave the item open — a wrongly
