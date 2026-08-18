@@ -18,6 +18,7 @@ const APPLE = sec(`
   <balance>1200.5</balance>
   <valUSD>250000.75</valUSD>
   <pctVal>6.53</pctVal>
+  <assetCat>EC</assetCat>
 `)
 
 describe('parseNportReport', () => {
@@ -38,7 +39,21 @@ describe('parseNportReport', () => {
       balance: 1200.5,
       valueUsd: 250000.75,
       pctVal: 6.53,
+      assetCat: 'EC',
     })
+  })
+
+  // NT9: assetCat is what the fund's stock/bond/cash mix is derived from.
+  it('nulls assetCat when the filer omits it, and normalizes case', () => {
+    const report = parseNportReport(`
+      <edgarSubmission>
+        <genInfo><repPdDate>2026-03-31</repPdDate></genInfo>
+        ${sec('<name>No Category</name><pctVal>1</pctVal>')}
+        ${sec('<name>Lowercase</name><pctVal>1</pctVal><assetCat> dbt </assetCat>')}
+      </edgarSubmission>
+    `)
+    expect(report.holdings[0].assetCat).toBeNull()
+    expect(report.holdings[1].assetCat).toBe('DBT')
   })
 
   it('nulls out EDGAR sentinel and invalid identifiers', () => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getProviderKey } from '@/lib/api/live/providers'
 import { getFund } from '@/lib/data/fundCatalog'
 import { resolveFundSeries, listNportFilings, fetchNportReport } from '@/lib/server/nport'
+import { computeAssetMix } from '@/lib/utils/assetMix'
 
 // Full underlying-investment breakdown for ETFs and mutual funds.
 //   GET /live-data/fund-holdings?symbol=SPY
@@ -51,8 +52,16 @@ export interface SectorWeight {
 }
 
 export interface AssetAllocationSlice {
-  class: 'Stocks' | 'Bonds' | 'Cash' | 'Preferred' | 'Convertible' | 'Other'
+  class: 'Stocks' | 'Bonds' | 'Cash' | 'Preferred' | 'Derivatives' | 'Other'
   weightPct: number
+}
+
+/** How much of the filing the mix above actually accounts for (NT9). */
+export interface AssetAllocationCoverage {
+  /** Percent of net assets the classified positions sum to — NOT rescaled to 100. */
+  coveredPct: number
+  /** Positions the filer left without an `assetCat`. */
+  unclassifiedCount: number
 }
 
 export interface FundHoldingsResponse {
@@ -67,11 +76,16 @@ export interface FundHoldingsResponse {
   holdings: HoldingRow[]
   sectorWeights: SectorWeight[]
   /**
-   * Stock/bond/cash mix. Always empty since the Yahoo removal — no remaining
-   * source publishes it. Kept in the response shape so consumers don't need a
-   * conditional, and so restoring a source is a one-line change here.
+   * Stock/bond/cash mix. Empty between 2026-08-06 and 2026-08-18, when no
+   * source published it; **restored by NT9** and now derived from the fund's
+   * own N-PORT `assetCat` codes — the same filing the holdings table already
+   * fetches, so it costs no extra request and needs no key. Populated only on
+   * the `sec` path: FMP's holdings feed carries no category, and the catalog
+   * fallback is indicative data that must not be dressed up as a disclosure.
    */
   assetAllocation: AssetAllocationSlice[]
+  /** Coverage for `assetAllocation`; null when there is no mix to describe. */
+  assetAllocationCoverage: AssetAllocationCoverage | null
   /** Total number of positions in the fund, when known. */
   holdingsCount: number | null
   error?: string
@@ -85,8 +99,16 @@ interface FmpHoldingsResult { holdings: HoldingRow[]; asOf: string | null }
  *  the true position count in holdingsCount. */
 const MAX_ROWS = 1500
 
-async function fetchSecHoldings(symbol: string): Promise<FmpHoldingsResult & { totalCount: number }> {
-  const empty = { holdings: [], asOf: null, totalCount: 0 }
+type SecHoldingsResult = FmpHoldingsResult & {
+  totalCount: number
+  assetAllocation: AssetAllocationSlice[]
+  assetAllocationCoverage: AssetAllocationCoverage | null
+}
+
+async function fetchSecHoldings(symbol: string): Promise<SecHoldingsResult> {
+  const empty: SecHoldingsResult = {
+    holdings: [], asOf: null, totalCount: 0, assetAllocation: [], assetAllocationCoverage: null,
+  }
   const series = await resolveFundSeries(symbol)
   if (!series) return empty
   const filings = await listNportFilings(series.seriesId, 1)
@@ -106,7 +128,25 @@ async function fetchSecHoldings(symbol: string): Promise<FmpHoldingsResult & { t
       marketValue: h.valueUsd,
     }))
     .sort((a, b) => b.weightPct - a.weightPct)
-  return { holdings: holdings.slice(0, MAX_ROWS), asOf: report.asOf, totalCount: holdings.length }
+
+  // NT9: the mix is computed from the WHOLE report, before the pctVal > 0 filter
+  // and the MAX_ROWS truncation above. Deriving it from `rows` instead would
+  // drop short positions and everything past row 500 — the mix would look
+  // complete while describing a subset, which is worse than not rendering it.
+  const mix = computeAssetMix(report.holdings.map((h) => ({
+    pctVal: h.pctVal == null ? null : h.pctVal * scale,
+    assetCat: h.assetCat,
+  })))
+
+  return {
+    holdings: holdings.slice(0, MAX_ROWS),
+    asOf: report.asOf,
+    totalCount: holdings.length,
+    assetAllocation: mix.slices.map((s) => ({ class: s.label, weightPct: s.pct })),
+    assetAllocationCoverage: mix.slices.length > 0
+      ? { coveredPct: mix.coveredPct, unclassifiedCount: mix.unclassifiedCount }
+      : null,
+  }
 }
 
 // ─── FMP (aggregator fallback, ETFs) ─────────────────────────────────────────
@@ -203,16 +243,16 @@ export async function GET(request: NextRequest) {
   const wantSec = !forced || forced === 'sec'
   const wantFmp = !!fmpKey() && entry?.type !== 'mutual' && (!forced || forced === 'fmp')
   const [secRes, fmpHoldingsRes, fmpSectorsRes] = await Promise.allSettled([
-    wantSec ? fetchSecHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null, totalCount: 0 }),
+    wantSec ? fetchSecHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null, totalCount: 0, assetAllocation: [], assetAllocationCoverage: null } as SecHoldingsResult),
     wantFmp ? fetchFmpHoldings(symbol) : Promise.resolve({ holdings: [], asOf: null } as FmpHoldingsResult),
     wantFmp ? fetchFmpSectorWeights(symbol) : Promise.resolve([] as SectorWeight[]),
   ])
 
-  const sec = secRes.status === 'fulfilled' ? secRes.value : { holdings: [], asOf: null, totalCount: 0 }
+  const sec: SecHoldingsResult = secRes.status === 'fulfilled'
+    ? secRes.value
+    : { holdings: [], asOf: null, totalCount: 0, assetAllocation: [], assetAllocationCoverage: null }
   const fmp = fmpHoldingsRes.status === 'fulfilled' ? fmpHoldingsRes.value : { holdings: [], asOf: null }
   const fmpSectors = fmpSectorsRes.status === 'fulfilled' ? fmpSectorsRes.value : []
-  // No remaining source publishes the stock/bond/cash mix. Empty, always.
-  const assetAllocation: AssetAllocationSlice[] = []
 
   // An explicit choice is respected: no silent fallback to other providers.
   if (forced) {
@@ -223,7 +263,8 @@ export async function GET(request: NextRequest) {
       ok: true, ...base, source: picked.source, full: picked.full && picked.holdings.length > 0, asOf: picked.asOf,
       holdings: picked.holdings,
       sectorWeights: forced === 'fmp' ? fmpSectors : [],
-      assetAllocation,
+      assetAllocation: forced === 'sec' ? sec.assetAllocation : [],
+      assetAllocationCoverage: forced === 'sec' ? sec.assetAllocationCoverage : null,
       holdingsCount: picked.count,
       ...(picked.holdings.length === 0 ? {
         error: forced === 'fmp' && !fmpKey()
@@ -238,7 +279,8 @@ export async function GET(request: NextRequest) {
       ok: true, ...base, source: 'sec', full: true, asOf: sec.asOf,
       holdings: sec.holdings,
       sectorWeights: fmpSectors,
-      assetAllocation,
+      assetAllocation: sec.assetAllocation,
+      assetAllocationCoverage: sec.assetAllocationCoverage,
       holdingsCount: sec.totalCount,
     } satisfies FundHoldingsResponse)
   }
@@ -248,7 +290,10 @@ export async function GET(request: NextRequest) {
       ok: true, ...base, source: 'fmp', full: true, asOf: fmp.asOf,
       holdings: fmp.holdings,
       sectorWeights: fmpSectors,
-      assetAllocation,
+      // FMP's holdings feed carries no asset category — no mix, rather than a
+      // guessed one from ticker shapes.
+      assetAllocation: [],
+      assetAllocationCoverage: null,
       holdingsCount: fmp.holdings.length,
     } satisfies FundHoldingsResponse)
   }
@@ -260,7 +305,8 @@ export async function GET(request: NextRequest) {
       symbol: h.symbol, name: h.name, weightPct: h.weightPct, shares: null, marketValue: null,
     })),
     sectorWeights: fmpSectors,
-    assetAllocation,
+    assetAllocation: [],
+    assetAllocationCoverage: null,
     holdingsCount: null,
   } satisfies FundHoldingsResponse)
 }

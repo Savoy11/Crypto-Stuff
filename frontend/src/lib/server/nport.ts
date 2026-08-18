@@ -33,6 +33,17 @@ export interface NportHolding {
   valueUsd: number | null
   /** Percent of net assets (0–100). */
   pctVal: number | null
+  /**
+   * N-PORT `assetCat` code for the position — 'EC' (equity-common), 'EP'
+   * (equity-preferred), 'DBT' (debt), 'STIV' (short-term investment vehicle),
+   * 'RA' (repurchase agreement), 'DE' (derivative), and so on. Null when the
+   * filer omits it, which happens on derivative blocks that carry the category
+   * on a nested element instead.
+   *
+   * Added 2026-08-18 for NT9: this is the field the stock/bond/cash mix is
+   * derived from, keylessly, from a filing the app already fetches.
+   */
+  assetCat: string | null
 }
 
 export interface NportReport {
@@ -144,6 +155,7 @@ export function parseNportReport(xml: string): NportReport {
       balance: num(tag(block, 'balance')),
       valueUsd: num(tag(block, 'valUSD')),
       pctVal: num(tag(block, 'pctVal')),
+      assetCat: tag(block, 'assetCat')?.trim().toUpperCase() || null,
     })
   }
   return { asOf, holdings }

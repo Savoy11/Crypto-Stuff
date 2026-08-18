@@ -809,7 +809,9 @@ checks on entry.
 
 **Tools/capabilities:** NT1 (Budget management UI, scope extended to feed Budget actuals
 into the Retirement Planner) · NT3 (wallets → DB) · NT4 (video-analyze trigger UI) ·
-NT5 (invocation UI for the three placeholder agents) · NT9 (fund asset-mix from N-PORT) ·
+NT5 (invocation UI for the three placeholder agents) · ~~NT9~~ ✅ **DONE 2026-08-18**
+(fund asset-mix from N-PORT — `lib/utils/assetMix.ts`, 10 tests; revives the F-note-4 donut
+keylessly and reports coverage instead of rescaling to 100%) ·
 NT11 (wire `fear-greed`/`btc-stats`/`defi-tvl` into TA market structure) · ~~NT12~~
 (boundary drift guard — ✅ **DONE 2026-08-18**, 16 assertions in
 `lib/server/__tests__/boundaryDrift.test.ts`; caught one live drift on its first run,
