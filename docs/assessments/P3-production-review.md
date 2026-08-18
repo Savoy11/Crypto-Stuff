@@ -741,6 +741,11 @@ end of this appendix.
 | **12b** | Restore return screening on the fund registry | **DEFER — purchasing, not engineering** | FMP's `/stable/stock-price-change` is the right endpoint and batching is paid-gated. Stays disabled with the restore condition already written into `FundsClient.tsx:230-245`; folded into the same enterprise-key conversation as D2. **Not a rejection** — a blocked feature with a named unblocker |
 | **18b** | Make this document a maintained, protected reference | **APPROVED — CODEOWNERS + steward carve-out** | "Protected" resolves to two concrete things: CODEOWNERS on `docs/assessments/`, and a narrow carve-out in `checklist-steward.md:27` (which today forbids maintaining assessments outright) permitting it to maintain *this* document's status blocks. A CI doc-vs-code guard was considered and dropped — it would flag prose drift constantly and train everyone to ignore it, which is worse than no guard |
 | **2b** | Beta vs a benchmark on Compare | **APPROVED** | Asked for in T3, never delivered. Default benchmark SPY with a selector; the `security-chart` path Compare already uses supplies the benchmark series, so this is a stats addition rather than new plumbing. Beta joins CAGR/Sortino in the tested `compareStats.ts`. Closes the last C9 remnant |
+| **NT2** | Trade ledger — `/api/user/trades` CRUD + cost-basis engine + entry UI | **APPROVED — as a subproject, not a ticket** | ROADMAP Phase 1's one unmet "Done when"; the `trade_transactions` table and index already exist. Scoped like P3-W2-S1 because it carries an embedded product decision: **FIFO vs average cost**, which changes realized P&L figures users file taxes against. That is the subproject's first decision. Engine pure + vitest-tested per house rule |
+| **NT6** | `macro-screener` panel on `/macro` | **FOLDED into the 6/7 scanner work — not approved separately** | Superseded the same day it was answered: Macro now gets a top-level Scanner nav entry (item 6/7), so building a `/macro` mirror of `OutlierScanPanel` would build the thing that decision replaces. The agent stays whitelisted and deep-linkable until the scanner ships. **Not a rejection** — the capability is approved, under a different roof |
+| **NT8** | Futures term-structure provider (keyed) | **DEFER — sourcing, with 12b and D2** | Engine is tested and kept alive; only the source is missing, and P2-O1 already left this as a sourcing call. Goes into the enterprise-key conversation. Meanwhile `TermStructureCard` prints the route's honest `ok:false` reason, which is the correct failure state — no substitute scraper, per the standing terms rule |
+| **NT9** | Fund asset-mix derived from N-PORT position categories | **APPROVED** | Best value-per-effort item left on the list: revives the dead allocation donut (F-note-4) from data the app **already fetches**, keylessly. No new host, so no new terms verdict, no key, no provider eval. Restores the stock/bond/cash mix that lost its source in the Yahoo removal |
+| **NT10** | Score-history persistence (risk-spec P6) — the only honest path to a real Risk History tab (CR8) | **REJECTED for now — tab stays removed** | Interacts with the item 4 cut. On principle it would survive: a score history for a coin the user opened is explanation, not ranking. But it is medium-cost infrastructure (storage + scheduled capture) in service of a surface whose case was just narrowed, and deciding it mid-cut is the worst moment to judge it. Recorded as RP-4. **Reopen trigger: the item 4 removals have landed and the explanatory/ranking line is settled in practice** |
 
 ### D5 — why "dev-machine only" is the operative constraint
 
@@ -772,6 +777,59 @@ opt-in env var is set. Not built — the owner's decision is the constraint itse
 
 > Both were **considered and deferred**, not skipped. Neither blocks any other
 > item in this appendix.
+
+### Owner-machine checklist — work only the owner can discharge
+
+Not decisions. Three items that cannot be settled from a container under the
+**IP-dependence rule** (data-availability verdicts come from the owner's machine, never
+a CI or cloud probe). Carried standing until ticked.
+
+| # | What | Why it needs your machine | Value |
+|---|---|---|---|
+| **D3** | The **×10 question** on `^TNX`/`^IRX`/`^FVX`/`^TYX` | Needs a configured provider key against a live quote | **Highest.** The UI renders the raw quote as the yield (`price.toFixed(2) + '%'`) while the agent prompts and tools document the same ladder as yield×10 ("^TNX 42.5 = 4.25%"), and no ÷10 normalization exists in `marketData.ts`. One of the two is wrong — either every rates KPI is off by a factor of ten, or the agent instructions are |
+| **A9** | Re-run `DATA-AVAILABILITY.md` | Availability is IP-dependent; Binance 451s and Reddit/LunarCrush block datacenter IPs from here | Owed since the Yahoo removal — the file's own header says so. Its action item 18, the **macro-quote coverage check**, is the highest-value gap |
+| **D-23** | `/equities/social` reported stuck on "Fetching social signals…" while the route and a direct fetch both work | Pre-existing; needs a repro on your IP to separate a real client bug from the Reddit datacenter-IP 403 | Medium — the symptom is indistinguishable from expected degradation without the repro |
+
+---
+
+## W3 entry conditions — running lists
+
+Refreshed at the close of the decision session, **2026-08-18**. These are what W3
+checks on entry.
+
+### FIX-FIRST — must land before rollout
+
+| # | Fix |
+|---|---|
+| PB-1 | `computeMetrics` must stop valuing unpriced holdings at cost; P&L% divides by priced capital; `pricedPct` discloses coverage |
+| PB-2 | `formatInstrumentQuote` must render the real quote currency (¥147.26, not "$147.26") — needs a per-pair quote-currency symbol on the currency catalog |
+| S1-1 | Equity backtest Sharpe annualized at 52/12 bars-per-year against data that is daily on every range (owned by P3-W2-S1) |
+
+### Approved build work — queued, not built
+
+**Tools/capabilities:** NT1 (Budget management UI, scope extended to feed Budget actuals
+into the Retirement Planner) · NT3 (wallets → DB) · NT4 (video-analyze trigger UI) ·
+NT5 (invocation UI for the three placeholder agents) · NT9 (fund asset-mix from N-PORT) ·
+NT11 (wire `fear-greed`/`btc-stats`/`defi-tvl` into TA market structure) · NT12
+(boundary drift guard).
+
+**Short-list items:** 4/5b (cut the ranking surfaces, keep the explanatory ones) ·
+6/7 (one scanner per section, promoted to nav — carries the nested-nav primitive) ·
+1 (Settings nav group, blocked on that primitive, routes unchanged) · 11/13 (bond
+coverage + tax-equivalent yield) · 16 (Portfolio Builder second mode, build-by-allocation) ·
+18b (CODEOWNERS + steward carve-out) · 2b (beta on Compare).
+
+**Subprojects:** P3-W2-S1 (backtest build-out) · NT2 (trade ledger, FIFO-vs-average as
+its first decision).
+
+### Deferred, with the unblocker named
+
+D1 and D2 (owner's planning session: paid-vs-free, then hosting and the enterprise key) ·
+12b (fund return screening — same key conversation) · NT8 (futures term structure — same) ·
+NT10 (score history — reopens once the item 4 removals land).
+
+**Nothing in this appendix is undecided.** Every row is decided, deferred with a named
+unblocker, or on the owner-machine checklist above.
 
 ## Appendix D — Owner short-list intake (P3-W2, 2026-08-15) — open items
 
