@@ -12,6 +12,7 @@ import { useFeedBiasStore } from '@/store/useFeedBiasStore'
 import { useWatchlistBias } from '@/lib/watchlist/useWatchlistBias'
 import { applyBias } from '@/lib/watchlist/bias'
 import type { VideoItem, VideosResponse } from '@/app/live-data/videos/route'
+import { VideoAskDialog, useVideoAnalyzers, hasUsableAnalyzer } from '@/components/videos/VideoAskDialog'
 import type { VideoSearchResponse, SearchScope, SearchOrder, SearchDuration } from '@/app/live-data/video-search/route'
 import type { ProviderMarket } from '@/lib/api/live/providers'
 import { timeAgoCompact } from '@/lib/utils/format'
@@ -81,19 +82,21 @@ function matchesTerms(video: VideoItem, terms: string[]): boolean {
   return terms.every((t) => haystack.includes(t))
 }
 
-function VideoCard({ video, eager = false }: { video: VideoItem; eager?: boolean }) {
+function VideoCard({ video, eager = false, canAnalyze = false }: { video: VideoItem; eager?: boolean; canAnalyze?: boolean }) {
   const meta = MARKET_META[video.market]
+  const [asking, setAsking] = useState(false)
 
+  // NT4: the card used to be one big <a>. It is now a container with the link
+  // wrapping the thumbnail and title, because a button nested inside an anchor
+  // is invalid markup and behaves badly for keyboard and middle-click users.
   return (
-    <a
-      href={video.url}
-      target="_blank"
-      rel="noopener noreferrer"
+    <div
       className={clsx(
         'group bg-bg-card border rounded-lg overflow-hidden flex flex-col transition-all hover:border-accent-blue/40 hover:bg-bg-elevated',
         video.isNew ? 'border-amber-500/40' : 'border-border'
       )}
     >
+      <a href={video.url} target="_blank" rel="noopener noreferrer" className="flex flex-col flex-1">
       {/* Thumbnail — 16:9. Plain <img> since these are remote YouTube CDN URLs. */}
       <div className="relative aspect-video bg-bg-elevated overflow-hidden">
         {video.thumbnail ? (
@@ -145,7 +148,23 @@ function VideoCard({ video, eager = false }: { video: VideoItem; eager?: boolean
           </div>
         </div>
       </div>
-    </a>
+      </a>
+
+      {/* NT4 — the trigger for /live-data/video-analyze. Rendered only when an
+          analyzer is actually configured: a button that can only ever return
+          "no provider" is worse than no button. */}
+      {canAnalyze && (
+        <button
+          onClick={() => setAsking(true)}
+          className="flex items-center justify-center gap-1.5 border-t border-border/60 px-3 py-1.5 text-[11px] font-medium text-text-muted transition-colors hover:bg-bg-elevated hover:text-accent-blue"
+        >
+          <Sparkles size={11} aria-hidden /> Ask about this video
+        </button>
+      )}
+      {asking && (
+        <VideoAskDialog videoUrl={video.url} videoTitle={video.title} onClose={() => setAsking(false)} />
+      )}
+    </div>
   )
 }
 
@@ -156,6 +175,12 @@ export default function VideosPage() {
   const equitiesOn = useEntitlementStore((s) => s.isEnabled('equities'))
   const fundsOn = useEntitlementStore((s) => s.isEnabled('funds'))
   const marketsOn = equitiesOn || fundsOn
+
+  // NT4: one probe for the whole grid, not one per card. The route's GET is a
+  // cheap capability check (which analyzers exist and are configured); the
+  // expensive POST only fires when a user actually asks something.
+  const { data: analyzers } = useVideoAnalyzers()
+  const canAnalyze = hasUsableAnalyzer(analyzers?.providers)
 
   const watchlist = useWatchlistBias()
   const biasStrength = useFeedBiasStore((s) => s.getStrength('videos'))
@@ -592,7 +617,7 @@ export default function VideosPage() {
       {!isLoading && videos.length > 0 && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {videos.map((video, i) => (
-            <VideoCard key={video.id} video={video} eager={i < EAGER_THUMBNAILS} />
+            <VideoCard key={video.id} video={video} eager={i < EAGER_THUMBNAILS} canAnalyze={canAnalyze} />
           ))}
         </div>
       )}

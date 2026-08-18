@@ -808,7 +808,9 @@ checks on entry.
 ### Approved build work — queued, not built
 
 **Tools/capabilities:** NT1 (Budget management UI, scope extended to feed Budget actuals
-into the Retirement Planner) · NT3 (wallets → DB) · NT4 (video-analyze trigger UI) ·
+into the Retirement Planner) · NT3 (wallets → DB) · ~~NT4~~ ✅ **DONE 2026-08-18** (video-analyze trigger UI —
+"Ask about this video" on each card, rendered only when an analyzer is configured;
+closes A1) ·
 NT5 (invocation UI for the three placeholder agents) · ~~NT9~~ ✅ **DONE 2026-08-18**
 (fund asset-mix from N-PORT — `lib/utils/assetMix.ts`, 10 tests; revives the F-note-4 donut
 keylessly and reports coverage instead of rescaling to 100%) ·
@@ -903,7 +905,7 @@ code ships. Each is a doc edit, not a code change.
 
 | # | Document | Correction |
 |---|---|---|
-| A1 | CLAUDE.md (Videos row) | Advertises "Video search + AI analysis" — the analysis half (`video-analyze`) has no UI (C2). Either drop the claim or build the trigger (NT4) |
+| A1 | CLAUDE.md (Videos row) | Advertised "Video search + AI analysis" with no UI for the analysis half — ✅ **RESOLVED 2026-08-18:** NT4 shipped the trigger, so the claim is now true rather than retracted |
 | A2 | CLAUDE.md (equity TA row) + `/equities/technical-analysis` subtitle | "18 indicators" — the shared registry ships ~62; both copies predate the shared-engine migration |
 | A3 | CLAUDE.md (marketData section) | Claims built-in provider "reordering" — no such action exists in UI or `/live-data/config` — ✅ **RESOLVED 2026-08-16:** corrected |
 | A4 | CLAUDE.md (module registry / entitlements) | Implies entitlements persist like other user data — they are localStorage-only (`useEntitlementStore`); no `/api/user/entitlements` route exists. Load-bearing for the rollout-posture decision (D1) — ✅ **RESOLVED 2026-08-16:** CLAUDE.md now states localStorage-only and flags the Phase 6 question |
