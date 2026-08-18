@@ -503,15 +503,24 @@ COINGECKO_API_KEY=…                         # Paid tier; COINGECKO_BASE_URL ov
 # Full env-var mapping lives in getProviderKey() (src/lib/api/live/providers.ts).
 
 # ── Admin ──
-FN_ADMIN_TOKEN=...                          # (legacy CAEP_ADMIN_TOKEN still honored) Optional — sensitive endpoints (AI agents, provider config, exchange creds) require this token when the app is served from a non-localhost host; without it they are localhost-only (see src/lib/server/apiGuard.ts)
+FN_ADMIN_TOKEN=...                          # (legacy CAEP_ADMIN_TOKEN still honored) Optional — sensitive endpoints (AI agents, provider config) require this token when the app is served from a non-localhost host; without it they are localhost-only (see src/lib/server/apiGuard.ts)
 FN_BASE_URL=http://localhost:3000           # (legacy CAEP_BASE_URL still honored) Base URL the MCP
                                             # server and scripts call back into
 ```
 
 **Server-side secret stores** (gitignored, written at repo `frontend/` root):
-`.provider-config.json` (provider API keys), `.agent-prompts.json` (agent overrides),
-`.exchange-credentials.json` (exchange API keys — never sent to the browser; the client
-references connections by id via `/live-data/wallet/exchange-connections`).
+`.provider-config.json` (provider API keys) and `.agent-prompts.json` (agent overrides).
+
+> **`.exchange-credentials.json` is gone (2026-08-18).** Exchange API linking was removed
+> on security grounds: it stored an `apiKey` + `apiSecret` in plaintext at rest — the
+> highest-value secret the app held — to power a read-only balance view that watched
+> addresses already approximate from public chain data. The store, both
+> `/live-data/wallet/exchange*` routes and `lib/server/exchangeCredentials.ts` were
+> deleted, and the wallet store's v2 migration drops any persisted connection metadata.
+> **If the file exists on a host from before this date, delete it by hand** — code does not
+> remove files outside its own data, so nothing cleaned it up for you. See
+> `docs/audits/rejected-proposals.md` RP-5. Do not reintroduce exchange key custody
+> without an explicit decision reversing this.
 
 Finance Now runs **live-only**. `LIVE_DATA` is hardcoded `true` in `lib/constants.ts` — there is **no** `NEXT_PUBLIC_USE_MOCK` / `NEXT_PUBLIC_LIVE_DATA` toggle and **no mock data path**. All market data comes from the `/live-data/*` route handlers; surfaces with no free real-time source show an explicit "not available" notice rather than fabricated values. See `DATA-AVAILABILITY.md`.
 
@@ -594,7 +603,7 @@ Risk/status color convention used across the app:
 | Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data. **Verdict vocabulary retired 2026-08-18** (item 5b): "Strong Add / Consider / Monitor / Too Speculative" told the reader what to *do* with a coin; the same four bands are now named after the composite score they report (`profileBand`: high / moderate / low / very-low). Thresholds unchanged. The store's saved-coin field was renamed with a defensive read so pre-rename localStorage entries survive |
 | Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
 | Portfolios | `/portfolios` | 🟢 Live | Live prices + history (`/live-data/portfolio-*`). **DB-backed** via `/api/user/portfolios` (+`/[id]` PUT/DELETE): store keeps its sync Zustand interface via optimistic mutations + client-UUID ids; consumers call `hydratePortfolios()` on mount; one-time localStorage import. Holdings resolve through the instrument layer (`lib/server/instrumentResolve.ts` — global rows, cgId round-trips via `instrument_crypto.coingecko_id`). **Look-through tab** (`lib/data/lookThrough.ts`): true underlying-issuer exposure across held funds + direct positions, a "held twice over" callout, and per-fund coverage. Weights are target allocations (stated on the panel). A partial holdings list is **never scaled to 100%** — the unexplained tail is reported, not redistributed |
-| Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |
+| Wallets | `/wallets` | 🟢 Live | On-chain balances for watched addresses + connected browser wallets (`/live-data/wallet/*`), plus the Pump Report tab. **Exchange API linking removed 2026-08-18** on security grounds — see the secret-stores note above |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
 | Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
 | Videos | `/videos` | 🟢 Live | Video search + AI analysis (`/live-data/videos`, `video-search`, `video-analyze`) |

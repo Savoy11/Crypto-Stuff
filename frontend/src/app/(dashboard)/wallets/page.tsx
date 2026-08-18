@@ -3,7 +3,7 @@
 import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useEffect, useCallback } from 'react'
 import {
-  Eye, Wallet, Building2, Plus, Trash2, RefreshCw,
+  Eye, Wallet, Plus, Trash2, RefreshCw,
   AlertTriangle, CheckCircle2, XCircle, Loader2, Copy, TrendingDown,
 } from 'lucide-react'
 import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
@@ -12,9 +12,9 @@ import { clsx } from 'clsx'
 import { SourceLine } from '@/components/ui/SourceLine'
 import {
   useWalletStore,
-  CHAIN_META, ALL_CHAINS, EXCHANGE_META,
-  type ChainId, type ExchangeId,
-  type WatchedWallet, type ConnectedWallet, type ExchangeConnection,
+  CHAIN_META, ALL_CHAINS,
+  type ChainId,
+  type WatchedWallet, type ConnectedWallet,
 } from '@/store/useWalletStore'
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -45,7 +45,6 @@ function ChainBadge({ chain }: { chain: ChainId }) {
 const TABS = [
   { id: 'watch',       label: 'Watch Addresses', icon: Eye         },
   { id: 'connect',     label: 'Browser Wallets',  icon: Wallet      },
-  { id: 'exchange',    label: 'Exchange APIs',    icon: Building2   },
   { id: 'pump-report', label: 'Pump Report',      icon: TrendingDown },
 ] as const
 type TabId = typeof TABS[number]['id']
@@ -308,180 +307,22 @@ function ConnectTab() {
   )
 }
 
-// ─── Tier 3: Exchange APIs ─────────────────────────────────────────────────────
-
-interface ExchangeBalance { asset: string; total: number }
-
-function ExchangeCard({ conn }: { conn: ExchangeConnection }) {
-  const { removeExchange } = useWalletStore()
-  const [balances, setBalances] = useState<ExchangeBalance[] | null>(null)
-  const [err, setErr]           = useState<string | undefined>()
-  const [busy, setBusy]         = useState(true)
-  const meta = EXCHANGE_META[conn.exchange]
-
-  const load = useCallback(async () => {
-    setBusy(true); setErr(undefined)
-    try {
-      const res  = await fetch('/live-data/wallet/exchange', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:   JSON.stringify({ connectionId: conn.id }),
-      })
-      const d = await res.json()
-      if (!d.ok) throw new Error(d.error)
-      setBalances(d.balances)
-    } catch (e) { setErr(e instanceof Error ? e.message : 'Error') }
-    finally { setBusy(false) }
-  }, [conn])
-
-  useEffect(() => { load() }, [load])
-
-  return (
-    <div className="bg-bg-card border border-border rounded-xl overflow-hidden">
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/40">
-        <div className="size-8 rounded-full flex items-center justify-center text-xs font-bold"
-          style={{ background: meta.color + '22', color: meta.color }}>
-          {meta.label[0]}
-        </div>
-        <div className="flex-1">
-          <span className="text-sm font-medium text-text-primary">{conn.label || meta.label}</span>
-          <span className="ml-2 text-[10px] font-mono text-text-muted bg-bg-elevated px-1.5 py-0.5 rounded">{conn.keyPreview}…</span>
-        </div>
-        <button onClick={load} title="Refresh"
-          className="p-1 rounded hover:bg-bg-elevated text-text-muted hover:text-text-primary">
-          <RefreshCw size={13} className={busy ? 'animate-spin' : ''} />
-        </button>
-        <button onClick={() => removeExchange(conn.id)} title="Remove"
-          className="p-1 rounded hover:bg-red-500/10 text-text-muted hover:text-red-400">
-          <Trash2 size={13} />
-        </button>
-      </div>
-      <div className="p-2 max-h-64 overflow-y-auto">
-        {busy && <div className="flex items-center gap-2 px-2 py-3 text-sm text-text-muted"><Loader2 size={14} className="animate-spin" /> Loading…</div>}
-        {err  && <div className="flex items-center gap-2 px-2 py-2 text-sm text-red-400"><XCircle size={14} /> {err}</div>}
-        {balances?.map(b => (
-          <div key={b.asset} className="flex items-center justify-between px-2 py-1.5 rounded hover:bg-bg-elevated/50 transition-colors">
-            <span className="text-sm font-mono text-text-primary">{b.asset}</span>
-            <span className="text-sm font-mono text-text-secondary">{fmtBal(b.total)}</span>
-          </div>
-        ))}
-        {balances?.length === 0 && <div className="px-2 py-4 text-sm text-text-muted text-center">No balances found</div>}
-      </div>
-    </div>
-  )
-}
-
-// OKX/Bybit remain in ExchangeId for stored connections but have no server-side
-// balance implementation yet — offering them would always error.
-const EXCHANGE_IDS: ExchangeId[] = ['binance', 'coinbase', 'kraken']
-
-function AddExchangeForm() {
-  const { addExchange } = useWalletStore()
-  const [open,      setOpen]      = useState(false)
-  const [exchange,  setExchange]  = useState<ExchangeId>('binance')
-  const [apiKey,    setApiKey]    = useState('')
-  const [apiSecret, setApiSecret] = useState('')
-  const [label,     setLabel]     = useState('')
-  const [saving,    setSaving]    = useState(false)
-  const [saveError, setSaveError] = useState<string | undefined>()
-
-  async function submit() {
-    if (!apiKey.trim() || !apiSecret.trim() || saving) return
-    setSaving(true); setSaveError(undefined)
-    try {
-      await addExchange({ exchange, apiKey: apiKey.trim(), apiSecret: apiSecret.trim(), label: label.trim() || EXCHANGE_META[exchange].label })
-      setApiKey(''); setApiSecret(''); setLabel(''); setOpen(false)
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'Failed to save connection')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  if (!open) return (
-    <button onClick={() => setOpen(true)}
-      className="flex items-center gap-2 px-4 py-2 text-sm bg-accent-blue text-white rounded-lg hover:bg-accent-blue/90 transition-colors">
-      <Plus size={14} /> Add Exchange
-    </button>
-  )
-
-  return (
-    <div className="bg-bg-card border border-border rounded-xl p-4 space-y-3">
-      <h3 className="text-sm font-semibold text-text-primary">Add Exchange API</h3>
-      <p className="text-xs text-text-muted bg-amber-500/5 border border-amber-500/20 rounded-lg px-3 py-2 flex gap-2">
-        <AlertTriangle size={13} className="text-amber-400 shrink-0 mt-0.5" />
-        Use read-only API keys with no withdrawal permissions. Keys are stored server-side by this app — they never persist in your browser or reach third parties.
-      </p>
-      <div className="grid grid-cols-2 gap-2">
-        <div className="col-span-2">
-          <label className="text-xs text-text-muted mb-1 block">Exchange</label>
-          <select className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-accent-blue/60"
-            value={exchange} onChange={e => setExchange(e.target.value as ExchangeId)}>
-            {EXCHANGE_IDS.map(id => <option key={id} value={id}>{EXCHANGE_META[id].label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="text-xs text-text-muted mb-1 block">Label (optional)</label>
-          <input className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60"
-            placeholder="Main account" value={label} onChange={e => setLabel(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs text-text-muted mb-1 block">API Key</label>
-          <input className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60"
-            placeholder="API key" value={apiKey} onChange={e => setApiKey(e.target.value)} />
-        </div>
-        <div className="col-span-2">
-          <label className="text-xs text-text-muted mb-1 block">API Secret</label>
-          <input type="password"
-            className="w-full bg-bg-primary border border-border rounded-lg px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue/60"
-            placeholder="API secret" value={apiSecret} onChange={e => setApiSecret(e.target.value)} />
-        </div>
-      </div>
-      {saveError && (
-        <p className="text-xs text-red-400 flex items-center gap-1.5"><XCircle size={13} /> {saveError}</p>
-      )}
-      <div className="flex gap-2 justify-end pt-1">
-        <button onClick={() => setOpen(false)} className="px-3 py-1.5 text-sm text-text-muted hover:text-text-primary transition-colors">Cancel</button>
-        <button onClick={submit} disabled={!apiKey.trim() || !apiSecret.trim() || saving}
-          className="px-4 py-1.5 text-sm bg-accent-blue text-white rounded-lg hover:bg-accent-blue/90 transition-colors disabled:opacity-40">
-          {saving ? 'Connecting…' : 'Connect Exchange'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function ExchangeTab() {
-  const { exchanges } = useWalletStore()
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-text-muted">
-        Link exchange accounts via read-only API keys. Balances are fetched through this app&apos;s signing proxy — keys are never exposed to third parties.
-      </p>
-      {exchanges.map(e => <ExchangeCard key={e.id} conn={e} />)}
-      <AddExchangeForm />
-      <div className="text-xs text-text-muted border-t border-border/40 pt-3 space-y-0.5">
-        <p className="font-medium text-text-secondary">Read-only key setup tips:</p>
-        <ul className="list-disc list-inside space-y-0.5">
-          <li>Binance: enable &quot;Read Info&quot; only, no withdrawals or trading</li>
-          <li>Coinbase: Advanced Trade key with &quot;View&quot; scope only</li>
-          <li>Kraken: &quot;Query Funds&quot; permission only</li>
-        </ul>
-      </div>
-    </div>
-  )
-}
+// Exchange API linking was REMOVED on 2026-08-18 (owner decision, security).
+// It stored an exchange apiKey + apiSecret in plaintext at rest — the
+// highest-value secret the app held — for a read-only balance view that the
+// watched-address tabs already approximate from public chain data. The
+// credential store, its two routes and lib/server/exchangeCredentials.ts went
+// with it. See docs/audits/rejected-proposals.md RP-5.
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
 function WalletsPageInner() {
   const [tab, setTab] = useState<TabId>('watch')
-  const { watched, connected, exchanges } = useWalletStore()
+  const { watched, connected } = useWalletStore()
 
   const counts: Record<TabId, number> = {
     watch:        watched.length,
     connect:      connected.length,
-    exchange:     exchanges.length,
     'pump-report': 0,
   }
 
@@ -489,7 +330,6 @@ function WalletsPageInner() {
   const walletTargets: ScanTarget[] = [
     ...watched.map(w => ({ type: 'wallet' as const, id: w.address, label: w.label || w.address })),
     ...connected.map(w => ({ type: 'wallet' as const, id: w.address, label: `${w.provider} ${w.address.slice(0, 8)}…` })),
-    ...exchanges.map(e => ({ type: 'site' as const, id: e.exchange, label: e.exchange.charAt(0).toUpperCase() + e.exchange.slice(1) })),
   ]
 
   return (
@@ -497,7 +337,7 @@ function WalletsPageInner() {
       <div>
         <h1 className="text-2xl font-bold text-text-primary">Wallets</h1>
         <p className="text-sm text-text-muted mt-1">
-          Track balances across addresses, browser wallets, and exchanges.
+          Track balances across watched addresses and connected browser wallets.
         </p>
         <SourceLine id="wallet" className="mt-2" />
       </div>
@@ -526,11 +366,10 @@ function WalletsPageInner() {
 
       {tab === 'watch'       && <WatchTab />}
       {tab === 'connect'     && <ConnectTab />}
-      {tab === 'exchange'    && <ExchangeTab />}
       {tab === 'pump-report' && (
         <PumpReportTab
           targets={walletTargets.length > 0 ? walletTargets : [{ type: 'wallet', id: 'example', label: 'Add a wallet above to scan' }]}
-          agentIntro="I'm your Pump Report AI Agent. I can search the web for fraud intelligence on your linked wallets and exchanges — rug pulls, flagged addresses, scam sites. Add wallets in the other tabs then scan them here."
+          agentIntro="I'm your Pump Report AI Agent. I can search the web for fraud intelligence on your linked wallets — rug pulls, flagged addresses, scam sites. Add wallets in the other tabs then scan them here."
         />
       )}
     </div>
