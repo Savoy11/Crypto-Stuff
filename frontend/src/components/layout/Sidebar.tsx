@@ -13,7 +13,6 @@ import {
   DollarSign,
   BarChart2,
   Rss,
-  PieChart,
   TrendingUp,
   ChevronDown,
   ChevronRight,
@@ -78,7 +77,6 @@ const POPOUT_ICONS: Record<PopoutKey, React.ElementType> = {
   'market-overview': BarChart2,
   'news-feed':       Rss,
   'staking-rates':   TrendingUp,
-  'risk-heatmap':    PieChart,
 }
 
 function PopoutLauncher() {

@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { clsx } from 'clsx'
 import type { Asset } from '@/types/asset'
-import { RiskScoreBadge } from './RiskScoreBadge'
 import { formatCompact, formatBps, formatPercent, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS } from '@/lib/constants'
@@ -47,7 +46,6 @@ export function AssetCard({ asset, selected, onSelect, className }: AssetCardPro
           </div>
           <div className="text-xs text-text-muted mt-0.5 truncate max-w-40">{asset.name}</div>
         </div>
-        <RiskScoreBadge score={asset.riskScore} band={asset.riskBand} showLabel />
       </div>
 
       {/* Metrics */}

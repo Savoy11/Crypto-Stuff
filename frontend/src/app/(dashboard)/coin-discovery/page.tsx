@@ -28,15 +28,20 @@ function fmtMcap(n: number) {
   return `$${n.toLocaleString()}`
 }
 
-const RECO_STYLES: Record<string, { label: string; badge: string; dot: string }> = {
-  'strong-add':     { label: 'Strong Add',      badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
-  'consider':       { label: 'Consider',         badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30',         dot: 'bg-blue-400' },
-  'monitor':        { label: 'Monitor',           badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',     dot: 'bg-amber-400' },
-  'too-speculative':{ label: 'Too Speculative',   badge: 'bg-red-500/20 text-red-400 border-red-500/30',           dot: 'bg-red-400' },
+// Item 5b (2026-08-18): "Strong Add / Consider / Monitor / Too Speculative"
+// was retired. Those four strings told the reader what to DO with a coin —
+// the advice-shaped side of the line item 4 drew — while the thing behind them
+// is just a band of the composite score. Same bands, same thresholds, named
+// after what they measure.
+const BAND_STYLES: Record<string, { label: string; badge: string; dot: string }> = {
+  'high':     { label: 'High score',     badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
+  'moderate': { label: 'Moderate score', badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30',         dot: 'bg-blue-400' },
+  'low':      { label: 'Low score',      badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',      dot: 'bg-amber-400' },
+  'very-low': { label: 'Very low score', badge: 'bg-red-500/20 text-red-400 border-red-500/30',            dot: 'bg-red-400' },
 }
 
-function RecommendationBadge({ level }: { level: string }) {
-  const s = RECO_STYLES[level] ?? RECO_STYLES['monitor']
+function ProfileBandBadge({ level }: { level: string }) {
+  const s = BAND_STYLES[level] ?? BAND_STYLES['low']
   return (
     <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${s.badge}`}>
       <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
@@ -61,7 +66,7 @@ function ScoreBar({ score, max = 10, color = 'bg-accent-blue' }: { score: number
 function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact?: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const [notes, setNotes] = useState('')
-  const { addCoin, dismissRecommendation, isAdded, isDismissed } = useCoinDiscoveryStore()
+  const { addCoin, dismissCandidate, isAdded, isDismissed } = useCoinDiscoveryStore()
   const added     = isAdded(coin.cgId)
   const dismissed = isDismissed(coin.cgId)
 
@@ -75,8 +80,8 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
       cgId: coin.cgId, symbol: coin.symbol, name: coin.name, image: coin.image,
       category: coin.category, price: coin.price, marketCap: coin.marketCap,
       marketCapRank: coin.marketCapRank, addedAt: new Date().toISOString(),
-      addedBy: 'recommended', score: coin.scores.overall,
-      recommendation: coin.recommendation, notes,
+      addedBy: 'candidate', score: coin.scores.overall,
+      profileBand: coin.profileBand, notes,
     })
   }
 
@@ -97,7 +102,7 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
         {coin.marketCapRank && <span className="text-xs text-text-muted flex-shrink-0 hidden sm:inline">#{coin.marketCapRank}</span>}
         <span className="text-xs text-text-muted flex-shrink-0 hidden md:inline">{fmtMcap(coin.marketCap)}</span>
         <span className={`text-xs flex-shrink-0 hidden lg:inline ${changeColor}`}>{change >= 0 ? '+' : ''}{fmt(change)}%</span>
-        <div className="flex-shrink-0 ml-auto"><RecommendationBadge level={coin.recommendation} /></div>
+        <div className="flex-shrink-0 ml-auto"><ProfileBandBadge level={coin.profileBand} /></div>
         <span className="text-sm font-bold text-text-primary flex-shrink-0 w-10 text-right">{coin.scores.overall}<span className="text-text-muted text-xs font-normal">/10</span></span>
         {added ? (
           <span className="text-xs text-emerald-400 flex items-center gap-1 flex-shrink-0"><Star className="w-3 h-3" /></span>
@@ -111,7 +116,7 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
               <Plus className="w-3 h-3" />
             </button>
             <button
-              onClick={() => dismissRecommendation(coin.cgId)}
+              onClick={() => dismissCandidate(coin.cgId)}
               className="p-1 text-text-muted hover:text-text-secondary rounded transition-colors"
               title="Dismiss"
             >
@@ -142,7 +147,7 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
             </a>
             <span className="text-xs text-text-muted">{coin.symbol}</span>
             {coin.marketCapRank && <span className="text-xs text-text-muted">#{coin.marketCapRank}</span>}
-            <RecommendationBadge level={coin.recommendation} />
+            <ProfileBandBadge level={coin.profileBand} />
           </div>
           <div className="flex items-center gap-3 mt-1 text-sm">
             <span className="text-text-secondary">${coin.price < 0.01 ? coin.price.toFixed(6) : coin.price < 1 ? coin.price.toFixed(4) : coin.price.toLocaleString()}</span>
@@ -227,7 +232,7 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
               <Plus className="w-3 h-3" /> Add
             </button>
             <button
-              onClick={() => dismissRecommendation(coin.cgId)}
+              onClick={() => dismissCandidate(coin.cgId)}
               className="p-1.5 text-text-muted hover:text-text-secondary rounded transition-colors"
               title="Dismiss"
             >
@@ -331,7 +336,7 @@ function AddedCoinsTab() {
       <div className="text-center py-16 text-text-muted">
         <Coins className="w-12 h-12 mx-auto mb-3 opacity-30" />
         <p className="text-sm">No coins added yet.</p>
-        <p className="text-xs mt-1">Add coins from Recommendations or Search.</p>
+        <p className="text-xs mt-1">Add coins from Candidates or Search.</p>
       </div>
     )
   }
@@ -354,13 +359,13 @@ function AddedCoinsTab() {
               </a>
               <span className="text-xs text-text-muted">{coin.symbol}</span>
               <span className="text-xs px-1.5 py-0.5 rounded bg-bg-elevated text-text-muted">
-                {coin.addedBy === 'recommended' ? 'Recommended' : 'Manual'}
+                {coin.addedBy === 'manual' ? 'Manual' : 'From candidates'}
               </span>
             </div>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-text-muted">
               {coin.marketCapRank ? <span>#{coin.marketCapRank}</span> : null}
               {coin.score ? <span>Score: {coin.score}/10</span> : null}
-              {coin.recommendation ? <RecommendationBadge level={coin.recommendation} /> : null}
+              {coin.profileBand ? <ProfileBandBadge level={coin.profileBand} /> : null}
               <span>Added {new Date(coin.addedAt).toLocaleDateString()}</span>
             </div>
             {coin.notes && <p className="text-xs text-text-secondary mt-1 italic">&quot;{coin.notes}&quot;</p>}
@@ -376,21 +381,21 @@ function AddedCoinsTab() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-const TABS = ['recommendations', 'search', 'added'] as const
+const TABS = ['candidates', 'search', 'added'] as const
 type Tab = typeof TABS[number]
 
 const TAB_LABELS: Record<Tab, string> = {
-  recommendations: 'Recommendations',
+  candidates: 'Candidates',
   search:          'Search & Add',
   added:           'Added Coins',
 }
 
-const RECO_FILTER_OPTIONS = [
-  { value: 'all',             label: 'All' },
-  { value: 'strong-add',      label: 'Strong Add' },
-  { value: 'consider',        label: 'Consider' },
-  { value: 'monitor',         label: 'Monitor' },
-  { value: 'too-speculative', label: 'Speculative' },
+const BAND_FILTER_OPTIONS = [
+  { value: 'all',      label: 'All' },
+  { value: 'high',     label: 'High score' },
+  { value: 'moderate', label: 'Moderate' },
+  { value: 'low',      label: 'Low' },
+  { value: 'very-low', label: 'Very low' },
 ]
 
 // Coin type is `category` on every candidate (CATEGORY_INFO in coinCatalog.ts),
@@ -415,7 +420,7 @@ const LIMIT_OPTIONS = [
 ]
 
 function CoinDiscoveryPageInner() {
-  const [tab, setTab]             = useState<Tab>('recommendations')
+  const [tab, setTab]             = useState<Tab>('candidates')
   const [recoFilter, setRecoFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
   const [sortBy, setSortBy]       = useState<SortKey>('score')
@@ -441,7 +446,7 @@ function CoinDiscoveryPageInner() {
   const candidates = data?.candidates ?? []
 
   const filtered = candidates.filter(c => {
-    if (recoFilter !== 'all' && c.recommendation !== recoFilter) return false
+    if (recoFilter !== 'all' && c.profileBand !== recoFilter) return false
     if (typeFilter !== 'all' && c.category !== typeFilter) return false
     if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.symbol.toLowerCase().includes(search.toLowerCase())) return false
     return true
@@ -465,8 +470,8 @@ function CoinDiscoveryPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredKey, sortBy])
 
-  const strongAddCount = candidates.filter(c => c.recommendation === 'strong-add').length
-  const considerCount  = candidates.filter(c => c.recommendation === 'consider').length
+  const highBandCount     = candidates.filter(c => c.profileBand === 'high').length
+  const moderateBandCount = candidates.filter(c => c.profileBand === 'moderate').length
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -475,11 +480,11 @@ function CoinDiscoveryPageInner() {
         <div>
           <PageHeader
             title="Coin Discovery"
-            subtitle="Find new assets to track — ranked by market cap and utility"
-            description="Coin Discovery surfaces assets not yet in your registry that may be worth monitoring. Each candidate is scored on market cap and on-chain utility, then given a recommendation: Strong Add, Consider, Monitor, or Too Speculative."
+            subtitle="Assets not yet in your registry, profiled on market cap and utility"
+            description="Coin Discovery surfaces assets not yet in your registry. Each candidate is scored on market cap, on-chain utility, and liquidity/volatility, and the composite is reported as a score band. The band describes the score — it is not a recommendation to buy, hold or avoid anything."
             details={[
               { label: 'Data source', text: 'Candidates are fetched from CoinGecko and filtered to assets above the minimum market cap threshold.' },
-              { label: 'Recommendations', text: 'Strong Add — meets all quality criteria. Consider — good fundamentals, minor concerns. Monitor — borderline. Too Speculative — high risk or insufficient history.' },
+              { label: 'Score bands', text: 'High (7.0+), Moderate (5.5–7.0), Low (4.0–5.5) and Very low (under 4.0) are bands of the same composite score, shown so a long list is scannable. They describe what was measured — market cap, utility, liquidity and volatility — and carry no view on whether an asset is worth owning.' },
               { label: 'Adding assets', text: 'Clicking "Add" saves the asset to your local discovery store for review — it does not modify the main Asset Registry without backend integration.' },
             ]}
           />
@@ -487,12 +492,12 @@ function CoinDiscoveryPageInner() {
         {data && (
           <div className="flex gap-3 text-sm">
             <div className="bg-bg-card border border-border rounded-lg px-3 py-2 text-center">
-              <div className="text-lg font-bold text-emerald-400">{strongAddCount}</div>
-              <div className="text-xs text-text-muted">Strong Add</div>
+              <div className="text-lg font-bold text-emerald-400">{highBandCount}</div>
+              <div className="text-xs text-text-muted">High score</div>
             </div>
             <div className="bg-bg-card border border-border rounded-lg px-3 py-2 text-center">
-              <div className="text-lg font-bold text-blue-400">{considerCount}</div>
-              <div className="text-xs text-text-muted">Consider</div>
+              <div className="text-lg font-bold text-blue-400">{moderateBandCount}</div>
+              <div className="text-xs text-text-muted">Moderate</div>
             </div>
             <div className="bg-bg-card border border-border rounded-lg px-3 py-2 text-center">
               <div className="text-lg font-bold text-text-primary">{addedCoins.length}</div>
@@ -590,13 +595,13 @@ function CoinDiscoveryPageInner() {
         ))}
       </div>
 
-      {/* Recommendations tab */}
-      {tab === 'recommendations' && (
+      {/* Candidates tab */}
+      {tab === 'candidates' && (
         <>
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex gap-1">
-              {RECO_FILTER_OPTIONS.map(opt => (
+              {BAND_FILTER_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setRecoFilter(opt.value)}
@@ -684,7 +689,7 @@ function CoinDiscoveryPageInner() {
           {error && (
             <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-red-400 text-sm">
               <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              Failed to load recommendations. CoinGecko may be rate-limiting — try again in a minute.
+              Failed to load candidates. CoinGecko may be rate-limiting — try again in a minute.
             </div>
           )}
 

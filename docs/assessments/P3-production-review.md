@@ -815,7 +815,14 @@ NT11 (wire `fear-greed`/`btc-stats`/`defi-tvl` into TA market structure) · ~~NT
 `lib/server/__tests__/boundaryDrift.test.ts`; caught one live drift on its first run,
 the MCP `get_coin_prices` description enumerating 16 of 22 catalog coins).
 
-**Short-list items:** 4/5b (cut the ranking surfaces, keep the explanatory ones) ·
+**Short-list items:** ~~4/5b~~ ✅ **DONE 2026-08-18** — `/risk-scores` page deleted
+(redirects to `/headlines`), Safety Score + Risk Band columns and the score screener
+removed from the Coin Registry, `RiskHeatmap` and its popout deleted, coin-discovery's
+verdict vocabulary replaced by score bands. **Kept as decided:** the per-coin risk panel,
+the options Trade Risk Scorer, the Portfolio Builder. **API/MCP fields kept, decided
+field-by-field:** `/api/v1/staking/opportunities` sorts by APR and Staking Discovery
+sorts by TVL — in both, a score is a per-row attribute of something the caller asked
+about, not the ranking key, which is the explanation side of the line. ·
 6/7 (one scanner per section, promoted to nav — carries the nested-nav primitive) ·
 1 (Settings nav group, blocked on that primitive, routes unchanged) · 11/13 (bond
 coverage + tax-equivalent yield) · 16 (Portfolio Builder second mode, build-by-allocation) ·

@@ -21,10 +21,9 @@ import { assetsApi } from '@/lib/api/assets'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
-import { DerivedNote } from '@/components/ui/DerivedNote'
 import { formatCompact } from '@/lib/utils/format'
 import { LIVE_DATA, STALE_TIME_SHORT, BLOCKCHAIN_LABELS } from '@/lib/constants'
-import type { AssetType, Blockchain, RiskBand } from '@/types/asset'
+import type { AssetType, Blockchain } from '@/types/asset'
 
 type ViewMode = 'table' | 'grid'
 type Tab = 'coins' | 'reserves'
@@ -41,14 +40,11 @@ const TYPE_CHIPS: Array<{ value: AssetType | 'all'; label: string; color: string
   { value: 'cbdc',       label: 'CBDC',       color: '#ec4899' },
 ]
 
-const RISK_BAND_OPTIONS: Array<{ value: RiskBand | 'all'; label: string }> = [
-  { value: 'all',      label: 'All bands' },
-  { value: 'low',      label: 'Low risk' },
-  { value: 'moderate', label: 'Moderate' },
-  { value: 'elevated', label: 'Elevated' },
-  { value: 'high',     label: 'High' },
-  { value: 'critical', label: 'Critical' },
-]
+// Item 4 (2026-08-18): the risk-band filter, the safety-score range screener
+// and the Safety Score / Risk Band columns were removed from this registry.
+// They ranked and filtered a universe by score, which is the side of the line
+// the owner drew as advice-shaped. Per-coin risk explanation on /assets/[id]
+// is unaffected — that scores a coin the reader chose to open.
 
 function NumInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
@@ -101,9 +97,6 @@ export function AssetRegistryClient() {
   const anyFilter =
     filters.assetType !== 'all' ||
     filters.blockchain !== 'all' ||
-    filters.riskBand !== 'all' ||
-    filters.minRiskScore > 0 ||
-    filters.maxRiskScore < 100 ||
     filters.minMarketCap > 0 ||
     !!filters.search
 
@@ -115,7 +108,7 @@ export function AssetRegistryClient() {
           title="Coins"
           subtitle={isLoading ? 'Loading…' : `${data?.total ?? 0} coins monitored · live prices via CoinGecko`}
           icon={<CoinsIcon size={20} aria-hidden />}
-          description="The Coin Registry tracks every monitored crypto asset with live prices, market data, and a canonical Safety Score (0–100, higher = safer). The Reserve Monitor tab shows collateralization ratios, attestation records, and composition breakdowns for stablecoins."
+          description="The Coin Registry tracks every monitored crypto asset with live prices and market data. The Reserve Monitor tab shows collateralization ratios, attestation records, and composition breakdowns for stablecoins."
           details={[
             { label: 'Data source', text: 'Prices refresh via CoinGecko every 30 seconds; reserve data pulls from DefiLlama.' },
             { label: 'Coin types', text: 'Fiat-backed & algorithmic stablecoins, Layer-1 networks, DeFi and tokenized assets, and CBDCs.' },
@@ -257,21 +250,6 @@ export function AssetRegistryClient() {
             </label>
 
             <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Safety score
-              <NumInput
-                value={filters.minRiskScore > 0 ? String(filters.minRiskScore) : ''}
-                onChange={(v) => setFilters({ minRiskScore: v === '' ? 0 : Number(v) })}
-                placeholder="min"
-              />
-              <span className="text-text-muted/50">–</span>
-              <NumInput
-                value={filters.maxRiskScore < 100 ? String(filters.maxRiskScore) : ''}
-                onChange={(v) => setFilters({ maxRiskScore: v === '' ? 100 : Number(v) })}
-                placeholder="max"
-              />
-            </label>
-
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
               Chain
               <select
                 value={filters.blockchain}
@@ -280,19 +258,6 @@ export function AssetRegistryClient() {
               >
                 <option value="all">All chains</option>
                 {Object.entries(BLOCKCHAIN_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Band
-              <select
-                value={filters.riskBand}
-                onChange={(e) => setFilters({ riskBand: e.target.value as RiskBand | 'all' })}
-                className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
-              >
-                {RISK_BAND_OPTIONS.map(({ value, label }) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
               </select>
@@ -340,9 +305,6 @@ export function AssetRegistryClient() {
             </div>
           )}
 
-          <DerivedNote what="Safety Scores" scale="0–100, higher = safer" className="justify-center">
-            Prices in this table come from the provider named above; the score beside them does not.
-          </DerivedNote>
         </div>
       )}
 

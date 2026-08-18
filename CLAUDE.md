@@ -75,7 +75,6 @@ frontend/src/
 │   │   ├── staking-discovery/page.tsx
 │   │   ├── coin-discovery/page.tsx
 │   │   ├── technical-analysis/page.tsx
-│   │   ├── risk-scores/page.tsx
 │   │   │  # (no reserves/ — folded into assets/ as ?tab=reserves, 2026-07-29)
 │   │   │
 │   │   │  # ── Optional modules (each gated by its own <ModuleGate>) ──
@@ -139,7 +138,8 @@ frontend/src/
 │   ├── pump-report/                # PumpReportTab (used by /wallets)
 │   ├── assets/
 │   ├── analytics/
-│   ├── dashboard/                  # RiskHeatmap only — the other 6 widgets were deleted in the M8 sweep
+│   ├── dashboard/                  # EMPTY — the 6 M8-sweep widgets went first, RiskHeatmap
+│                                   #   followed on 2026-08-18 with the item 4 ranking cut
 │   └── alerts/                     # LiveAlertRow only (TopBar bell)
 │
 ├── lib/
@@ -576,10 +576,10 @@ Risk/status color convention used across the app:
 
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
-| Headlines | `/headlines` | 🟢 Live | **Landing page** (`/` and post-login redirect here). Client-side merge of `/live-data/news` (crypto) + `/live-data/market-news` (equities) into a cross-module "Top Stories" strip plus a section per enabled module. Sections follow the entitlement store, so the feed reflects the user's bundle. Funds has no general feed of its own and shares the Markets section. Replaced the old `/dashboard` page; its `components/dashboard/*` widgets are retained but no longer routed (except `RiskHeatmap`, still used by `PopoutContent`). |
-| Coins (Coin Registry) | `/assets` | 🟢 Live | Nav label "Coins"; route path kept as `/assets` to preserve deep links. Market-breadth KPIs, asset-type chips + inline screener, sortable/paginated table (Stock-Registry-standard layout), canonical Safety Score column, Reserve Monitor tab. Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
+| Headlines | `/headlines` | 🟢 Live | **Landing page** (`/` and post-login redirect here). Client-side merge of `/live-data/news` (crypto) + `/live-data/market-news` (equities) into a cross-module "Top Stories" strip plus a section per enabled module. Sections follow the entitlement store, so the feed reflects the user's bundle. Funds has no general feed of its own and shares the Markets section. Replaced the old `/dashboard` page; its `components/dashboard/*` widgets are retained but no longer routed. `RiskHeatmap` — the last one still reachable, via `PopoutContent` — was deleted on 2026-08-18 (item 4: a grid ranking every coin by risk band is a leaderboard in another shape). |
+| Coins (Coin Registry) | `/assets` | 🟢 Live | Nav label "Coins"; route path kept as `/assets` to preserve deep links. Market-breadth KPIs, asset-type chips + inline screener, sortable/paginated table (Stock-Registry-standard layout), Reserve Monitor tab. **No Safety Score / Risk Band columns and no score screener** — removed 2026-08-18 (item 4); a sortable score column over the universe is a leaderboard. Per-coin risk explanation lives on the detail page. Live prices; metadata from static `assetCatalog.ts` (reference data, not mock) |
 | Coin Detail | `/assets/[id]` | 🟢 Live | Price, OHLCV chart, per-coin news |
-| Risk Scores | `/risk-scores` | 🟢 Derived | Live composites from `/live-data/risk-scores`: stablecoin 5-pillar (fatal-flaw override) + major-asset market profiles via `src/lib/risk`. **No sidebar entry** — in the crypto module's `routePrefixes` but not its `navItems`; reached from the coin detail page's "full leaderboard & methodology" link |
+| Risk Scores | ~~`/risk-scores`~~ | ⚪ Removed | **Page deleted 2026-08-18** (P3-W2 short-list item 4); `/risk-scores` redirects to `/headlines`. Owner: *"these scores may represent a recommendation, which is a regulated activity."* The line drawn was **ranking vs explanation** — a leaderboard over a universe goes, scoring a coin the reader opened stays. `/live-data/risk-scores` is **deliberately retained**: the kept per-coin risk panel on `/assets/[id]` is its consumer. See `docs/audits/rejected-proposals.md` RP-3 and the review's Appendix E |
 | Reserves | `/assets?tab=reserves` | 🟢 Live | Reserve Transparency Monitor — DefiLlama stablecoin supply + collateralization (`/live-data/reserves`). **A tab inside Coins, not a page.** The standalone `/reserves` page was folded in on 2026-07-29 (`/reserves` → `/assets?tab=reserves`, `next.config.mjs`); no separate nav entry. ⚠ **All reserve UI lives in `components/analytics/reserves.tsx` — do not re-inline it.** Three hand-maintained copies existed and only the orphaned page ever got the fixes, so the two surfaces users actually reach carried the bugs: peg-mechanism badges keyed on `_` while the feed sends `-` (8 of 9 coins unstyled), a KPI reading "Verified Attestations … by third-party auditor" for something nobody verifies, a header claiming the whole table was live when only supply is, and no provenance at all. `ReserveProvenance` is mandatory on any surface showing attester/date/collateralization — those come from the `stablecoinMeta` snapshot, not the live feed |
 | Alerts | TopBar bell | 🟢 Live | `/live-data/alerts` — stablecoin depegs + major-asset 24h moves; surfaced in the TopBar bell (no standalone page) |
 | Watchlist | `/watchlist` | 🟢 Live | Cross-module: coins, stocks, ETFs & funds, and macro instruments in named lists with live prices. **DB-backed** via `/api/user/watchlists` (+`/[id]` PUT/DELETE) through `useWatchlistStore` (optimistic, client-UUID ids, one-time localStorage import that MERGES even into a non-empty account — see store comment). Feed bias (`lib/watchlist/bias.ts`) and the Daily Brief read the store, not localStorage |
@@ -589,7 +589,7 @@ Risk/status color convention used across the app:
 | Transfer Fee Calc | `/transfer-fees` | 🟡 Partial | Static fee table (`transferFees.ts`) + live token prices; staleness-labeled |
 | Staking | `/staking` | 🟡 Partial | Live stETH/mSOL/jitoSOL APR; other providers reference/estimated. Curated catalog is staleness-labeled (`getStakingDataProvenance()`) |
 | Staking Discovery | `/staking-discovery` | 🟢 Live | `/live-data/staking-discovery` |
-| Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data |
+| Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data. **Verdict vocabulary retired 2026-08-18** (item 5b): "Strong Add / Consider / Monitor / Too Speculative" told the reader what to *do* with a coin; the same four bands are now named after the composite score they report (`profileBand`: high / moderate / low / very-low). Thresholds unchanged. The store's saved-coin field was renamed with a defensive read so pre-rename localStorage entries survive |
 | Technical Analysis | `/technical-analysis` | 🟢 Derived | Trend/S-R/patterns/backtest computed client-side from live OHLCV |
 | Portfolios | `/portfolios` | 🟢 Live | Live prices + history (`/live-data/portfolio-*`). **DB-backed** via `/api/user/portfolios` (+`/[id]` PUT/DELETE): store keeps its sync Zustand interface via optimistic mutations + client-UUID ids; consumers call `hydratePortfolios()` on mount; one-time localStorage import. Holdings resolve through the instrument layer (`lib/server/instrumentResolve.ts` — global rows, cgId round-trips via `instrument_crypto.coingecko_id`). **Look-through tab** (`lib/data/lookThrough.ts`): true underlying-issuer exposure across held funds + direct positions, a "held twice over" callout, and per-fund coverage. Weights are target allocations (stated on the panel). A partial holdings list is **never scaled to 100%** — the unexplained tail is reported, not redistributed |
 | Wallets | `/wallets` | 🟢 Live | On-chain balances (`/live-data/wallet/*`) |

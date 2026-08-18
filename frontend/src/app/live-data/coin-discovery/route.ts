@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import {
   FN_TRACKED_IDS, UTILITY_MAP, CATEGORY_INFO, SCORING_CONFIG,
-  getRecommendationLevel, type RecommendationLevel,
+  getProfileBand, type ProfileBand,
 } from '@/lib/data/coinCatalog'
 import { fetchCoinGeckoPages } from '@/lib/server/coingeckoPages'
 import { tenPointSafetyToCanonical } from '@/lib/risk/normalize'
@@ -41,7 +41,13 @@ export interface CandidateCoin {
     utility: string
     risk: string
   }
-  recommendation: RecommendationLevel
+  /**
+   * Band of the composite profile score. Renamed from `recommendation`
+   * ('strong-add' | 'consider' | 'monitor' | 'too-speculative') on 2026-08-18,
+   * item 5b: the old values told a reader what to do with a coin. Same
+   * thresholds, same ordering — the field describes the score, not an action.
+   */
+  profileBand: ProfileBand
   reasons: string[]           // human-readable bullet points
 }
 
@@ -120,7 +126,7 @@ function scoreRisk(coin: {
 
 function buildReasons(
   coin: { name: string; marketCap: number; priceChange24h: number },
-  recommendation: RecommendationLevel,
+  profileBand: ProfileBand,
   mcScore: number,
   utilScore: number,
   riskScore: number,
@@ -131,9 +137,9 @@ function buildReasons(
     ? `$${(coin.marketCap / 1e9).toFixed(1)}B`
     : `$${(coin.marketCap / 1e6).toFixed(0)}M`
 
-  if (recommendation === 'strong-add') {
+  if (profileBand === 'high') {
     reasons.push(`Established market cap of ${mcap} signals broad adoption`)
-  } else if (recommendation === 'consider') {
+  } else if (profileBand === 'moderate') {
     reasons.push(`Market cap of ${mcap} — notable but not top-tier`)
   } else {
     reasons.push(`Smaller market cap of ${mcap} — higher risk`)
@@ -210,7 +216,7 @@ export async function GET(req: Request) {
         (mc.score * weights.marketCap + util.score * weights.utility + risk.score * weights.risk).toFixed(2)
       )
 
-      const recommendation = getRecommendationLevel(overall)
+      const profileBand = getProfileBand(overall)
       const catInfo = CATEGORY_INFO[util.category] ?? CATEGORY_INFO.unknown
 
       return {
@@ -246,10 +252,10 @@ export async function GET(req: Request) {
           utility:   util.reason,
           risk:      risk.reason,
         },
-        recommendation,
+        profileBand,
         reasons: buildReasons(
           { name: c.name, marketCap: c.market_cap, priceChange24h: c.price_change_percentage_24h ?? 0 },
-          recommendation, mc.score, util.score, risk.score, util.note
+          profileBand, mc.score, util.score, risk.score, util.note
         ),
       }
     })

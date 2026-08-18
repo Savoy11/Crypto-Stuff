@@ -61,6 +61,18 @@ const nextConfig = {
       // ?tab=reserves opens the same monitor the old URL showed, so bookmarks
       // still work rather than dumping the reader on an unrelated page.
       { source: '/reserves', destination: '/assets?tab=reserves', permanent: false },
+      // Risk Scores leaderboard removed (2026-08-18, P3-W2 short-list item 4).
+      // Owner decision: "these scores may represent a recommendation, which is
+      // a regulated activity." The line drawn was RANKING vs EXPLANATION —
+      // scoring a coin the user opened explains; ranking a universe to surface
+      // winners is closer to a recommendation. So the leaderboard goes and the
+      // per-coin risk panel on /assets/[id] STAYS, along with the options Trade
+      // Risk Scorer and the Portfolio Builder.
+      //
+      // /live-data/risk-scores is intentionally LEFT IN PLACE — the kept
+      // per-coin panel is its consumer. Deleting the route would remove an
+      // explanatory surface the decision preserves.
+      { source: '/risk-scores', destination: '/headlines', permanent: false },
     ]
   },
   async headers() {

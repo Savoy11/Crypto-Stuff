@@ -96,7 +96,7 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: [
       '/assets', '/news', '/social', '/wallets',
       '/transfer-fees', '/staking', '/staking-discovery', '/coin-discovery',
-      '/technical-analysis', '/risk-scores',
+      '/technical-analysis',
       // De-routed but retained page (T5): unreachable via the next.config
       // redirect, gated here so removing that redirect can't re-expose it
       // outside the entitlement (review defect D-8).
