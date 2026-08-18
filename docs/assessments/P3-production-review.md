@@ -812,7 +812,9 @@ into the Retirement Planner) · NT3 (wallets → DB) · NT4 (video-analyze trigg
 NT5 (invocation UI for the three placeholder agents) · ~~NT9~~ ✅ **DONE 2026-08-18**
 (fund asset-mix from N-PORT — `lib/utils/assetMix.ts`, 10 tests; revives the F-note-4 donut
 keylessly and reports coverage instead of rescaling to 100%) ·
-NT11 (wire `fear-greed`/`btc-stats`/`defi-tvl` into TA market structure) · ~~NT12~~
+~~NT11~~ ✅ **DONE 2026-08-18** (all three wired into the crypto TA Market Structure
+panel: Fear & Greed and DeFi TVL market-wide, Bitcoin chain health on BTC only — hashrate
+beside a Solana chart would imply a relationship that does not exist) · ~~NT12~~
 (boundary drift guard — ✅ **DONE 2026-08-18**, 16 assertions in
 `lib/server/__tests__/boundaryDrift.test.ts`; caught one live drift on its first run,
 the MCP `get_coin_prices` description enumerating 16 of 22 catalog coins).

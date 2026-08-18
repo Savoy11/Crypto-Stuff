@@ -122,6 +122,7 @@ frontend/src/
 │       ├── videos/, video-search/, video-analyze/
 │       ├── market-calendar/route.ts, fund-universe/route.ts, coin-list/, coin-search/
 │       ├── btc-stats/, defi-tvl/, fear-greed/, funding-rates/, ohlcv/, assets/
+│                                   #   (first three now feed the crypto TA Market Structure panel — NT11)
 │       └── cbdc-data/route.ts      # Retained for the de-routed /global-adoption page
 │
 ├── components/
