@@ -48,7 +48,15 @@ export interface Instrument {
    * shows a price for an arbitrary instrument must go through
    * formatInstrumentQuote() rather than assuming dollars.
    */
-  quoteKind?: 'usd' | 'cents' | 'percent' | 'index' | 'points'
+  quoteKind?: 'usd' | 'cents' | 'percent' | 'index' | 'points' | 'fx'
+  /**
+   * For `quoteKind: 'fx'` — the ISO code the rate is expressed in (the pair's
+   * QUOTE currency). USD/JPY at 147.26 means 147.26 yen per dollar, so this is
+   * 'JPY' and the figure renders ¥147.26. Before PB-2 (2026-08-18) every FX
+   * pair fell through to the USD branch and rendered "$147.26", which is not a
+   * near-miss — it is a different number in a different currency.
+   */
+  quoteCurrency?: string
   /** Unit the quote is per ('oz t', 'bu'), for tooltips/detail copy. */
   unit?: string
   /** Decimal places this market conventionally quotes at. */
@@ -128,7 +136,8 @@ export const INSTRUMENTS: Instrument[] = [
     detailPath: `/macro/currencies/${c.slug}`,
     // The dollar index is a level, not a price in any currency; every other
     // row is an exchange rate quoted in its own `quote` currency.
-    quoteKind: c.category === 'index' ? ('index' as const) : ('usd' as const),
+    quoteKind: c.category === 'index' ? ('index' as const) : ('fx' as const),
+    quoteCurrency: c.category === 'index' ? undefined : c.quote,
     precision: c.precision,
   })),
   ...RATES_CATALOG.map((r) => ({
@@ -149,6 +158,28 @@ export const INSTRUMENTS: Instrument[] = [
  * instruments and cannot assume a USD price — see `quoteKind`. Returns null
  * for a missing price so callers render their own placeholder.
  */
+/**
+ * Symbols for the quote currencies this catalog actually uses. Deliberately a
+ * short explicit map rather than `Intl.NumberFormat` currency mode: that would
+ * render USD/JPY as "¥147" (JPY has zero fraction digits by ISO convention),
+ * throwing away the precision an FX pair is quoted at. Codes with no
+ * unambiguous symbol are rendered ISO-suffixed ("18.2345 MXN"), which is how
+ * FX venues show them.
+ */
+const QUOTE_CURRENCY_SYMBOL: Record<string, string> = {
+  USD: '$', EUR: '€', GBP: '£', JPY: '¥', CHF: 'CHF ', CAD: 'C$',
+  AUD: 'A$', NZD: 'NZ$', CNY: '¥', HKD: 'HK$', SGD: 'S$', INR: '₹',
+  KRW: '₩', MXN: 'Mex$', BRL: 'R$', ZAR: 'R', TRY: '₺', SEK: 'kr ',
+  NOK: 'kr ', PLN: 'zł ',
+}
+
+export function formatFxQuote(value: number, quoteCurrency: string | undefined, dp: number): string {
+  const n = value.toLocaleString('en-US', { minimumFractionDigits: dp, maximumFractionDigits: dp })
+  if (!quoteCurrency) return n
+  const sym = QUOTE_CURRENCY_SYMBOL[quoteCurrency]
+  return sym ? `${sym}${n}` : `${n} ${quoteCurrency}`
+}
+
 export function formatInstrumentQuote(inst: Instrument | undefined, price: number | null | undefined): string | null {
   if (price == null || !Number.isFinite(price)) return null
   const dp = inst?.precision ?? (Math.abs(price) < 1 ? 4 : 2)
@@ -158,6 +189,7 @@ export function formatInstrumentQuote(inst: Instrument | undefined, price: numbe
     case 'percent': return `${n(2)}%`
     case 'index':   return n(2)
     case 'points':  return n(2)
+    case 'fx':      return formatFxQuote(price, inst.quoteCurrency, dp)
     default:        return `$${n(dp)}`
   }
 }

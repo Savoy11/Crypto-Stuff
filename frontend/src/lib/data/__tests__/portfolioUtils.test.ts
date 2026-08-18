@@ -147,21 +147,45 @@ describe('computeMetrics', () => {
     expect(m.pricesAvailable).toBe(false)
   })
 
-  // Pins current behavior: once any holding has P&L, a holding with NO live
-  // price enters totalCurrentValue at its target (cost) value via the
-  // `currentValue ?? targetValue` fallback. That sits uneasily with the page's
-  // stated invariant that unpriced positions are excluded from totals — if the
-  // invariant is enforced later, this test is the one to change.
-  it('pins: with mixed coverage, the unpriced holding is counted at target value', () => {
+  // PB-1 (fixed 2026-08-18). This used to pin the opposite behaviour: an
+  // unpriced holding entered the total at cost via `currentValue ?? targetValue`,
+  // and P&L% divided by the full capital. Both contradicted the page's stated
+  // invariant. These tests now enforce it.
+  it('with mixed coverage the unpriced holding leaves the totals entirely', () => {
     const p = portfolio([
       holding({ cgId: 'bitcoin', targetAlloc: 50, entryPrice: 100 }),
       holding({ cgId: 'ethereum', symbol: 'ETH', targetAlloc: 50, entryPrice: 10 }),
     ])
     const h = computeHoldings(p, { bitcoin: 200 }) // no ETH price
     const m = computeMetrics(p, h)
-    expect(m.totalCurrentValue).toBe(10_000 + 5_000) // BTC doubled + ETH at target
-    expect(m.totalPnlUsd).toBe(5_000)                // only the priced leg
-    expect(m.totalPnlPct).toBe(50)                   // but against FULL capital
+    expect(m.totalCurrentValue).toBe(10_000)  // the BTC leg only — ETH is not valued at cost
+    expect(m.totalPnlUsd).toBe(5_000)
+    expect(m.totalPnlPct).toBe(100)           // +100% of the 5,000 actually priced
+  })
+
+  it('pricedPct discloses how much of capital the totals cover', () => {
+    const p = portfolio([
+      holding({ cgId: 'bitcoin', targetAlloc: 70, entryPrice: 100 }),
+      holding({ cgId: 'ethereum', symbol: 'ETH', targetAlloc: 30, entryPrice: 10 }),
+    ])
+    const full    = computeMetrics(p, computeHoldings(p, { bitcoin: 100, ethereum: 10 }))
+    const partial = computeMetrics(p, computeHoldings(p, { bitcoin: 100 }))
+    expect(full.pricedPct).toBe(100)
+    expect(full.pricedCapital).toBe(10_000)
+    expect(partial.pricedPct).toBe(70)
+    expect(partial.pricedCapital).toBe(7_000)
+  })
+
+  it('a loss on the priced slice is not damped by unpriced capital', () => {
+    // The old denominator (full capital) halved this figure, which is the
+    // specific way the bug misled: real moves read as smaller than they were.
+    const p = portfolio([
+      holding({ cgId: 'bitcoin', targetAlloc: 50, entryPrice: 100 }),
+      holding({ cgId: 'ethereum', symbol: 'ETH', targetAlloc: 50, entryPrice: 10 }),
+    ])
+    const m = computeMetrics(p, computeHoldings(p, { bitcoin: 50 }))
+    expect(m.totalPnlUsd).toBe(-2_500)
+    expect(m.totalPnlPct).toBe(-50)
   })
 
   it('category breakdown sums allocations and sorts largest first', () => {

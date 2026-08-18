@@ -801,9 +801,9 @@ checks on entry.
 
 | # | Fix |
 |---|---|
-| PB-1 | `computeMetrics` must stop valuing unpriced holdings at cost; P&L% divides by priced capital; `pricedPct` discloses coverage |
-| PB-2 | `formatInstrumentQuote` must render the real quote currency (¥147.26, not "$147.26") — needs a per-pair quote-currency symbol on the currency catalog |
-| S1-1 | Equity backtest Sharpe annualized at 52/12 bars-per-year against data that is daily on every range (owned by P3-W2-S1) |
+| ~~PB-1~~ | ✅ **DONE 2026-08-18.** Unpriced holdings leave the totals; P&L% divides by the priced-with-entry capital; `pricedPct`/`pricedCapital` added to `PortfolioMetrics` and disclosed on the P&L card below 99.5%. The test that pinned the old behaviour was rewritten to enforce the invariant |
+| ~~PB-2~~ | ✅ **DONE 2026-08-18.** New `quoteKind: 'fx'` + `quoteCurrency` on currency instruments, sourced from the catalog's existing `quote` ISO code; `formatFxQuote()` renders ¥147.26 / CHF 0.8923 / C$1.3651, ISO-suffixed for codes with no unambiguous symbol. Uses an explicit symbol map, **not** `Intl` currency mode, which would round JPY to zero decimals and destroy FX precision |
+| S1-1 | Equity backtest Sharpe annualized at 52/12 bars-per-year against data that is daily on every range. **Owned by P3-W2-S1** and deliberately not fixed here: the fix depends on S1's first decision (resample server-side vs relabel to daily), which the owner delegated to the subproject on 2026-08-17 |
 
 ### Approved build work — queued, not built
 
