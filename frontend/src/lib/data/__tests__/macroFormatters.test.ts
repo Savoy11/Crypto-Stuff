@@ -42,12 +42,29 @@ describe('formatInstrumentQuote', () => {
     expect(formatInstrumentQuote(inst('EURUSD=X'), 1.08423)).toBe('$1.0842')
   })
 
-  it('honours per-pair precision: USD/JPY at 2dp', () => {
-    // Pinned discrepancy: the instrument row for a non-USD-quoted pair carries
-    // quoteKind 'usd', so USD/JPY renders with a '$' prefix even though 147.26
-    // is a yen amount. The precision (2dp) is correct; the currency symbol
-    // overstates nothing numerically but mislabels the quote currency.
-    expect(formatInstrumentQuote(inst('JPY=X'), 147.256)).toBe('$147.26')
+  it('renders a non-USD-quoted pair in its real quote currency (PB-2)', () => {
+    // Fixed 2026-08-18. This used to assert '$147.26': the instrument row
+    // carried quoteKind 'usd' for every pair, so a yen amount wore a dollar
+    // sign. USD/JPY at 147.26 means 147.26 YEN per dollar — a dollar sign here
+    // is not a mislabel of a correct number, it names the wrong currency.
+    expect(formatInstrumentQuote(inst('JPY=X'), 147.256)).toBe('¥147.26')
+  })
+
+  it('renders USD-quoted pairs with a dollar sign, still at pair precision', () => {
+    expect(formatInstrumentQuote(inst('EURUSD=X'), 1.08423)).toBe('$1.0842')
+    expect(formatInstrumentQuote(inst('GBPUSD=X'), 1.27314)).toBe('$1.2731')
+  })
+
+  it('renders other quote currencies from the pair, not from USD', () => {
+    expect(formatInstrumentQuote(inst('CHF=X'), 0.89234)).toBe('CHF 0.8923')
+    expect(formatInstrumentQuote(inst('CAD=X'), 1.36512)).toBe('C$1.3651')
+  })
+
+  it('keeps FX precision that ISO currency conventions would destroy', () => {
+    // Intl currency mode formats JPY at 0 decimal places by ISO convention,
+    // which would round an FX quote to '¥147'. The explicit symbol map exists
+    // to keep the pair's own precision.
+    expect(formatInstrumentQuote(inst('JPY=X'), 147.256)).not.toBe('¥147')
   })
 
   it('defaults to a USD price for instruments without quoteKind (crypto/equity)', () => {

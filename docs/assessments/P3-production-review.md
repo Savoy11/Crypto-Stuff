@@ -711,6 +711,162 @@ limits), not code.
 
 ---
 
+## Appendix E — Owner decisions (P3-W2 decision session, 2026-08-17)
+
+The wave's decision half. Each row is ONE owner decision, dated. Undecided rows
+carry an explicit OPEN marker naming what unblocks them — nothing is silently
+skipped. W3's entry conditions are the FIX-FIRST and approved-tool lists at the
+end of this appendix.
+
+### Decided
+
+| # | Item | Decision | Consequence |
+|---|---|---|---|
+| **D5** | MCP `run_audit` — a tool that shells out (`npx tsc`), probes routes, walks the source tree | **KEEP, dev-machine only** | Stays because it is useful. Standing constraint, recorded so it cannot be forgotten: **never install the MCP server on the production host, and never distribute it externally** until the tool is removed or hard-guarded. Rationale in the risk note below |
+| **14b** | Budget module: keep, hide, or cut | **KEEP + build NT1** | Removal rejected. The retirement planner wants Budget's actuals as its expense feed — which is exactly how the source spreadsheet was wired (`Hypotheticals` pulls bill totals from `Detailed Expense Breakdown` by cell reference). NT1 approved (below); Budget's five open notes close with it |
+| **PB-1** | `computeMetrics` counts unpriced holdings at cost under mixed coverage, contradicting the page's own "never valued at cost" copy | **FIX — enforce the stated invariant** | Unpriced holdings leave the totals; P&L% divides by priced capital only; `pricedPct` discloses coverage. Displayed totals change, toward what the page already claims. FIX-FIRST |
+| **PB-2** | `formatInstrumentQuote` stamps `$` on every FX pair — USD/JPY renders "$147.26" | **FIX — render the real quote currency** | Not just dropping the `$`: show ¥147.26 / €0.9234 etc. Needs a per-pair quote-currency symbol on the currency catalog. FIX-FIRST |
+| **NT12** | Boundary drift guard — vitest diffing v1 discovery counts, MCP tool count, and agent-prompt catalog claims against the catalogs' real exports | **APPROVED** | The cross-cutting review found every unguarded boundary had drifted. D-20 already derived the v1 counts; this extends the same protection to MCP metadata and the assistant prompt |
+| **NT3** | Wallets → DB (`/api/user/wallets`) | **APPROVED** | Last localStorage-only user data (`fn:wallets`). Portfolios/watchlists are the template: route + optimistic store + one-time import |
+| **NT5 / D4** | Three agents (`data-scraper`, `equity-data-scraper`, `equity-diligence`) configurable but with no invocation path — can never run | **APPROVED — build them out as intended** | Retirement rejected for now. Each gets a real invocation trigger and is finished to the behaviour its prompt already describes. Removal is revisited *after* they work, when there is something real to judge |
+| **NT4 / A1** | `video-analyze` is a complete, quota-guarded route no page calls; CLAUDE.md advertises "search + AI analysis" | **APPROVED — build the trigger UI** | Makes the existing claim true rather than retracting it. Ask-about-this-video control on `/videos` cards; A1 closes when it ships |
+| **NT11** | Four maintained, terms-registered crypto routes with zero UI consumers | **APPROVED — wire three into TA market structure** | `fear-greed`, `btc-stats`, `defi-tvl` join the crypto TA market-structure panel, which already carries funding/OI and stablecoin supply. `pump-report/scan` is an agent path and is not covered by this decision |
+| **NT7** | Render canonical Safety Scores on `/staking` provider cards | **REJECTED** | *"These scores may represent a recommendation, which is a regulated activity."* The D-10 copy fix was the right answer: the page describes the risk profiles without publishing a composite score. Recorded in the rejections ledger as RP-3. **Scope note:** this decision covers *not adding* scores to `/staking`. Whether existing score surfaces (Staking Discovery, `/risk-scores`, the Coins column) are also removed is item 4, still OPEN |
+| **4 / 5b** | Safety Score placeholders — *"risk scores may be too close to a regulated recommendation"* | **CUT the ranking surfaces, KEEP the explanatory ones** | The line the owner drew: *scoring what the user brought you is explanation; ranking a universe to surface winners is closer to a recommendation.* **Removed:** the `/risk-scores` leaderboard, the sortable Safety Score column on `/assets`, coin-discovery's "Strong Add / Consider / Monitor / Too Speculative" verdict vocabulary (item 5b, ~15 strings), and `RiskHeatmap`. **Kept:** the per-coin risk gauge / `LiveRiskPanel` on a coin the user opened, the options Trade Risk Scorer, and the Portfolio Builder's risk-based allocation — each scores a thing the user brought, and each explains rather than ranks. Also closes the tension the intake flagged with items 9 and 16. **Blast radius to handle in the build:** `/api/v1` and the MCP tools return risk fields (`compare_staking_risk`, staking `riskScore`) — removing a UI surface does not remove an API field, and the boundary-drift guard (NT12) will fail if the catalogs and the docs disagree; decide field-by-field there rather than assuming symmetry. Related: RP-3 stands, and 47-of-108 uncoverable coins (CR2/CR5) stops mattering for the removed surfaces |
+| **6 / 7** | Where scanners live: one per section, or one per asset page | **ONE scanner per section, promoted to a top-level nav entry** | Crypto, Equities and Macro each get a Scanner nav item; the scanner leaves the TA page. Equities gets **one** scanner that merges technical setups with the AI Outlier Scan (and the registry's fundamental screener), not several. Requires the nested-nav primitive `ModuleNavItem` lacks — **the same primitive item 1 needs, so this unblocks item 1**. The maturity gap is now explicit build scope: crypto's 7 detectors / 3 timeframes / auto-refresh is the target shape, equities' 24 hardcoded large-caps is not |
+| **16** | Portfolio Builder: user-set percentages per industry / sector / market cap | **QUEUE — a second mode, additive** | Owner's wording, carried into the task spec: *"the user is going to have the ability to set these percentages, ultimately it is going to be a tool enhancement."* A build-by-allocation mode **alongside** the questionnaire, not replacing it — the risk-based builder stays. Both modes share saved-plan storage (`builder_plans`) and the drift monitor, so a hand-built plan gets the same suitability review. `BuilderInputs` has no target-weight field today; this is a second engine path, not an edit |
+| **S1** | Equity backtest Sharpe annualization: resample to the declared frequency, or relabel to daily | **DEFER — let the subproject decide** | Not settled here. It becomes **P3-W2-S1's first decision**, made with the rest of the backtest rework in view rather than in isolation. The defect itself (52/12 bars-per-year declared against daily data on every range) stays recorded as S1-1 |
+| **1** | Consolidate AI Agents / Integrations / Data Sources under a Settings group | **APPROVED — regroup the nav, do not move the routes** | Unblocked by the 6/7 nav-primitive decision; build after that primitive lands. The route paths stay exactly as they are: `SourceLine.tsx:68` links `/data-sources` from every provenance badge in the app, and grouping is where the whole IA win is — moving the URLs adds redirect risk for nothing. C11/C12/C14 close with it |
+| **11 / 13** | Corporate, high-yield, international and municipal bond coverage | **APPROVED — one ticket** | Catalog additions (BNDX/IAGG/BWX/EMB/VWOB international, MUB/VTEB/TFI muni), a muni row in `BOND_ETF_SHELF`, a muni tier in `RateCreditQuality`. The catalog rows are cheap; **the real work is tax-equivalent yield**, which is the entire reason anyone holds munis and needs a marginal-rate input from the user. TEY produces a percentage a user acts on, so it is pure + vitest-tested per house rule. Closes F1, F7, M9 |
+| **12b** | Restore return screening on the fund registry | **DEFER — purchasing, not engineering** | FMP's `/stable/stock-price-change` is the right endpoint and batching is paid-gated. Stays disabled with the restore condition already written into `FundsClient.tsx:230-245`; folded into the same enterprise-key conversation as D2. **Not a rejection** — a blocked feature with a named unblocker |
+| **18b** | Make this document a maintained, protected reference | **APPROVED — CODEOWNERS + steward carve-out** | "Protected" resolves to two concrete things: CODEOWNERS on `docs/assessments/`, and a narrow carve-out in `checklist-steward.md:27` (which today forbids maintaining assessments outright) permitting it to maintain *this* document's status blocks. A CI doc-vs-code guard was considered and dropped — it would flag prose drift constantly and train everyone to ignore it, which is worse than no guard |
+| **2b** | Beta vs a benchmark on Compare | **APPROVED** | Asked for in T3, never delivered. Default benchmark SPY with a selector; the `security-chart` path Compare already uses supplies the benchmark series, so this is a stats addition rather than new plumbing. Beta joins CAGR/Sortino in the tested `compareStats.ts`. Closes the last C9 remnant |
+| **NT2** | Trade ledger — `/api/user/trades` CRUD + cost-basis engine + entry UI | **APPROVED — as a subproject, not a ticket** | ROADMAP Phase 1's one unmet "Done when"; the `trade_transactions` table and index already exist. Scoped like P3-W2-S1 because it carries an embedded product decision: **FIFO vs average cost**, which changes realized P&L figures users file taxes against. That is the subproject's first decision. Engine pure + vitest-tested per house rule |
+| **NT6** | `macro-screener` panel on `/macro` | **FOLDED into the 6/7 scanner work — not approved separately** | Superseded the same day it was answered: Macro now gets a top-level Scanner nav entry (item 6/7), so building a `/macro` mirror of `OutlierScanPanel` would build the thing that decision replaces. The agent stays whitelisted and deep-linkable until the scanner ships. **Not a rejection** — the capability is approved, under a different roof |
+| **NT8** | Futures term-structure provider (keyed) | **DEFER — sourcing, with 12b and D2** | Engine is tested and kept alive; only the source is missing, and P2-O1 already left this as a sourcing call. Goes into the enterprise-key conversation. Meanwhile `TermStructureCard` prints the route's honest `ok:false` reason, which is the correct failure state — no substitute scraper, per the standing terms rule |
+| **NT9** | Fund asset-mix derived from N-PORT position categories | **APPROVED** | Best value-per-effort item left on the list: revives the dead allocation donut (F-note-4) from data the app **already fetches**, keylessly. No new host, so no new terms verdict, no key, no provider eval. Restores the stock/bond/cash mix that lost its source in the Yahoo removal |
+| **NT10** | Score-history persistence (risk-spec P6) — the only honest path to a real Risk History tab (CR8) | **REJECTED for now — tab stays removed** | Interacts with the item 4 cut. On principle it would survive: a score history for a coin the user opened is explanation, not ranking. But it is medium-cost infrastructure (storage + scheduled capture) in service of a surface whose case was just narrowed, and deciding it mid-cut is the worst moment to judge it. Recorded as RP-4. **Reopen trigger: the item 4 removals have landed and the explanatory/ranking line is settled in practice** |
+
+### D5 — why "dev-machine only" is the operative constraint
+
+Three exposures, all security-posture rather than compliance:
+
+1. **Arbitrary execution.** The tool spawns with `shell: true` and runs `npx tsc`.
+   Anything that can invoke MCP tools — including an agent steered by prompt
+   injection from data it read — triggers a build toolchain on the host. `npx`
+   will *fetch and execute* a package that is not installed locally, which turns
+   a tampered or typo'd environment into a supply-chain path.
+2. **Guard bypass on a production host.** `apiGuard` trusts localhost. If the MCP
+   server ever runs on the same box as the deployed app, its route probes reach
+   the sensitive endpoints — provider keys, agent prompts, exchange credentials —
+   as localhost, past `FN_ADMIN_TOKEN`. It also walks the frontend source tree,
+   which is where the gitignored secret stores live (`.provider-config.json`,
+   `.exchange-credentials.json`).
+3. **Distribution.** Packaging the server for anyone else hands them exposure 1.
+
+The hard guard, if the constraint ever needs enforcing in code rather than
+discipline: refuse to run unless `FN_BASE_URL` is localhost **and** an explicit
+opt-in env var is set. Not built — the owner's decision is the constraint itself.
+
+### OPEN — deferred, with the unblocker named
+
+| # | Item | Why it is open | Unblocked by |
+|---|---|---|---|
+| **D1** | Rollout posture on entitlements (all-free vs DB-backed first) | Launch is not being considered yet; paid-vs-free is a separate conversation. A parallel session is building the free web version | The owner's planning session settling paid vs free |
+| **D2** | Public `/api/v1` exposure — no rate limit, no auth, CORS `*` | May ship against an enterprise provider key, which changes the quota calculus entirely | The same planning session; revisit when the key and hosting are settled |
+
+> Both were **considered and deferred**, not skipped. Neither blocks any other
+> item in this appendix.
+
+### Owner-machine checklist — work only the owner can discharge
+
+Not decisions. Three items that cannot be settled from a container under the
+**IP-dependence rule** (data-availability verdicts come from the owner's machine, never
+a CI or cloud probe). Carried standing until ticked.
+
+| # | What | Why it needs your machine | Value |
+|---|---|---|---|
+| **D3** | The **×10 question** on `^TNX`/`^IRX`/`^FVX`/`^TYX` | Needs a configured provider key against a live quote | **Highest.** The UI renders the raw quote as the yield (`price.toFixed(2) + '%'`) while the agent prompts and tools document the same ladder as yield×10 ("^TNX 42.5 = 4.25%"), and no ÷10 normalization exists in `marketData.ts`. One of the two is wrong — either every rates KPI is off by a factor of ten, or the agent instructions are |
+| **A9** | Re-run `DATA-AVAILABILITY.md` | Availability is IP-dependent; Binance 451s and Reddit/LunarCrush block datacenter IPs from here | Owed since the Yahoo removal — the file's own header says so. Its action item 18, the **macro-quote coverage check**, is the highest-value gap |
+| **D-23** | `/equities/social` reported stuck on "Fetching social signals…" while the route and a direct fetch both work | Pre-existing; needs a repro on your IP to separate a real client bug from the Reddit datacenter-IP 403 | Medium — the symptom is indistinguishable from expected degradation without the repro |
+
+---
+
+## W3 entry conditions — running lists
+
+Refreshed at the close of the decision session, **2026-08-18**. These are what W3
+checks on entry.
+
+### FIX-FIRST — must land before rollout
+
+| # | Fix |
+|---|---|
+| ~~PB-1~~ | ✅ **DONE 2026-08-18.** Unpriced holdings leave the totals; P&L% divides by the priced-with-entry capital; `pricedPct`/`pricedCapital` added to `PortfolioMetrics` and disclosed on the P&L card below 99.5%. The test that pinned the old behaviour was rewritten to enforce the invariant |
+| ~~PB-2~~ | ✅ **DONE 2026-08-18.** New `quoteKind: 'fx'` + `quoteCurrency` on currency instruments, sourced from the catalog's existing `quote` ISO code; `formatFxQuote()` renders ¥147.26 / CHF 0.8923 / C$1.3651, ISO-suffixed for codes with no unambiguous symbol. Uses an explicit symbol map, **not** `Intl` currency mode, which would round JPY to zero decimals and destroy FX precision |
+| S1-1 | Equity backtest Sharpe annualized at 52/12 bars-per-year against data that is daily on every range. **Owned by P3-W2-S1** and deliberately not fixed here: the fix depends on S1's first decision (resample server-side vs relabel to daily), which the owner delegated to the subproject on 2026-08-17 |
+
+### Approved build work — queued, not built
+
+**Tools/capabilities:** ~~NT1~~ ✅ **DONE 2026-08-19** (`/budget/manage` closes Budget notes
+1, 3, 4, 5 and 7 — every remaining NEEDS-FIX row in the module; plus the approved extension,
+`UseBudgetSpend`, feeding Budget actuals into the Retirement Planner) · ~~NT3~~ ✅ **DONE 2026-08-18** (wallets → DB: `user_wallets` table + migration 0002,
+`/api/user/wallets` (+`/[id]`), optimistic store with a one-time localStorage import, 14
+validation tests. Scope had been reduced the same day — exchange API linking was removed
+on security grounds, RP-5 — so this covers watched addresses and browser connections) · ~~NT4~~ ✅ **DONE 2026-08-18** (video-analyze trigger UI —
+"Ask about this video" on each card, rendered only when an analyzer is configured;
+closes A1) ·
+~~NT5~~ ✅ **DONE 2026-08-18** (per-market agent picker on
+/research; the two screeners surface there too rather than staying deep-link-only; a
+symmetry guard keeps picker ↔ route ↔ catalog aligned) · ~~NT9~~ ✅ **DONE 2026-08-18**
+(fund asset-mix from N-PORT — `lib/utils/assetMix.ts`, 10 tests; revives the F-note-4 donut
+keylessly and reports coverage instead of rescaling to 100%) ·
+~~NT11~~ ✅ **DONE 2026-08-18** (all three wired into the crypto TA Market Structure
+panel: Fear & Greed and DeFi TVL market-wide, Bitcoin chain health on BTC only — hashrate
+beside a Solana chart would imply a relationship that does not exist) · ~~NT12~~
+(boundary drift guard — ✅ **DONE 2026-08-18**, 16 assertions in
+`lib/server/__tests__/boundaryDrift.test.ts`; caught one live drift on its first run,
+the MCP `get_coin_prices` description enumerating 16 of 22 catalog coins).
+
+**Short-list items:** ~~4/5b~~ ✅ **DONE 2026-08-18** — `/risk-scores` page deleted
+(redirects to `/headlines`), Safety Score + Risk Band columns and the score screener
+removed from the Coin Registry, `RiskHeatmap` and its popout deleted, coin-discovery's
+verdict vocabulary replaced by score bands. **Kept as decided:** the per-coin risk panel,
+the options Trade Risk Scorer, the Portfolio Builder. **Staking Discovery** was raised
+as the one borderline surface not named in the decision and ruled on separately the same
+day — owner: *keep the function, remove the suggestion component* — so the per-pool
+Safety badge and its derived-note came out while live pool discovery, the platform
+directory and TVL ordering stayed. **API/MCP fields kept, decided
+field-by-field:** `/api/v1/staking/opportunities` sorts by APR and Staking Discovery
+sorts by TVL — in both, a score is a per-row attribute of something the caller asked
+about, not the ranking key, which is the explanation side of the line. ·
+~~6/7~~ ✅ **DONE 2026-08-19** (three scanner pages — `/scanner`, `/equities/scanner`,
+`/macro/scanner`; equities merges setups + the AI Outlier Scan and closes the E14-E16
+maturity gap; nested-nav primitive shipped with a registry guard test) ·
+~~1~~ ✅ **DONE 2026-08-19** (AI Agents + Data Sources nested under Settings; **routes
+unchanged**, so every `SourceLine` provenance link still resolves) · ~~11/13~~ ✅ **DONE 2026-08-19** (8 bond funds — international
+and municipal; muni row on `BOND_ETF_SHELF`; `municipal` credit tier on the rate risk
+profile; TEY calculator, pure + 10 tests, on muni fund detail pages) · ~~16~~ ✅ **DONE 2026-08-19** (build-by-allocation mode —
+`buildFromAllocation` + `validateAllocation`, 13 tests; same output type so saved plans,
+drift and review are shared; weights are never auto-normalized) ·
+~~18b~~ ✅ **DONE 2026-08-18** (`.github/CODEOWNERS` +
+the steward carve-out; CODEOWNERS requests review but does not gate a merge until
+"Require review from Code Owners" is enabled on the default branch — stated in the file
+so its presence is not mistaken for enforcement) · ~~2b~~ ✅ **DONE 2026-08-18** (beta on Compare —
+`betaVsBenchmark()` in the tested `compareStats.ts`, six benchmarks incl. BTC, R² shown
+beside every figure and amber under 0.20; pairs returns by date, never by index).
+
+**Subprojects:** P3-W2-S1 (backtest build-out) · NT2 (trade ledger, FIFO-vs-average as
+its first decision).
+
+### Deferred, with the unblocker named
+
+D1 and D2 (owner's planning session: paid-vs-free, then hosting and the enterprise key) ·
+12b (fund return screening — same key conversation) · NT8 (futures term structure — same) ·
+NT10 (score history — reopens once the item 4 removals land).
+
+**Nothing in this appendix is undecided.** Every row is decided, deferred with a named
+unblocker, or on the owner-machine checklist above.
+
 ## Appendix D — Owner short-list intake (P3-W2, 2026-08-15) — open items
 
 The owner brought an 18-item short list into the Wave 2 sitting before the module
@@ -738,19 +894,25 @@ catalog coins can never receive a Safety Score, recorded nowhere (CR2 and CR5 bo
 
 | Item | What | Why it is still open | Where it lands |
 |---|---|---|---|
-| 1 | Consolidate AI Agents / Integrations / Data Sources under a Settings group | Needs a nested-nav primitive `ModuleNavItem` does not have; the same primitive items 6/7 need. Build once, after the scanner architecture settles. Any route move needs redirects — `SourceLine.tsx:68` links `/data-sources` from every provenance badge in the app | Core module walkthrough (C11, C12, C14) |
-| 4 | Remove Safety Score placeholders — *"risk scores may be too close to a regulated recommendation"* | **Parked pending regulatory review.** Reaches 17 modules and 13 components. In tension with items 9 and 16, which keep the options scorer and the risk-based builder — both risk scoring on the same canonical scale. The defensible line, if one is wanted: scoring what the user brought you is explanation; ranking a universe to surface winners is closer to a recommendation. `BUSINESS-CHECKLIST.md:40-43` already carries this as open regulatory research | Crypto walkthrough (CR2, CR3, CR5, CR8, CR16, CR18) + D2 |
-| 5b | Retire the "Strong Add / Consider / Monitor / Too Speculative" vocabulary (~15 strings) | Held with item 4 — same advice-framing question. The sort half shipped | Crypto walkthrough (CR16, D-11) |
-| 6, 7 | Promote every scanner out of its TA page into a per-section nav entry | **Owner still deciding** whether equities gets one combined scanner or several, and whether a "scanner" merges technical setups, the registry's fundamental screener and the AI Outlier Scan. That answer generalizes to the other sections. Note the maturity gap: crypto has 7 setup detectors, 3 timeframes and auto-refresh; equities has 24 hardcoded large-caps | Crypto (CR17), Equities (E14-E16), Macro (M11, M12) |
-| 11, 13 | Corporate, high-yield, international and municipal bond coverage | Confirmed gap, not yet built. Today the catalog carries LQD and HYG only — no international (BNDX/IAGG/BWX/EMB/VWOB), no muni (MUB/VTEB/TFI), no muni row in `BOND_ETF_SHELF`, no muni tier in `RateCreditQuality`, and no tax-equivalent-yield concept, which is the whole point of holding munis | Funds (F1, F7) + Macro (M9) |
-| 12b | Restore return screening on the fund registry | **Settled as a purchasing decision, not an engineering one** — see the sourcing revisit in the Funds section. FMP's `/stable/stock-price-change` is the right endpoint; batching is paid-gated | Funds (F4) |
-| 14b | Remove the Budget module | **Awaiting an explicit call** — contradicts NT1, destroys imported bank history irreversibly where HIDE would not, and the new planner wants Budget's actuals as its expense input. Full reasoning in the TASK-QUEUE entry | Budget walkthrough (B1-B11) + NT1 |
-| 16 | Portfolio Builder: user-set percentages per industry / sector / market cap, with sub-division inside each asset class | Owner confirmed **setting**, not reporting, and additive — the risk-based builder stays. This is a second engine, not an edit: `BuilderInputs` has no target-weight field and every weight is derived. Owner also flagged a legality question of his own | Portfolio Builder walkthrough (PB1-PB6) |
-| 18b | Make this document a maintained, protected reference | Scaffolding done. Still needs: a narrow carve-out in `checklist-steward.md:27` (which currently forbids maintaining assessments), and a decision on what "protected" means — CODEOWNERS, branch protection, or a doc-vs-code CI guard | Process, W3 entry conditions |
-| 2b | Beta vs a benchmark on Compare | Asked for in T3, never delivered; still absent. Needs a benchmark-series fetch and a choice of benchmark | Core walkthrough (C9) |
+| 1 | ✅ **DECIDED 2026-08-17** (Appendix E) — Consolidate AI Agents / Integrations / Data Sources under a Settings group | Needs a nested-nav primitive `ModuleNavItem` does not have; the same primitive items 6/7 need. Build once, after the scanner architecture settles. Any route move needs redirects — `SourceLine.tsx:68` links `/data-sources` from every provenance badge in the app | Core module walkthrough (C11, C12, C14) |
+| 4 | ✅ **DECIDED 2026-08-17** (Appendix E) — Remove Safety Score placeholders — *"risk scores may be too close to a regulated recommendation"* | **Parked pending regulatory review.** Reaches 17 modules and 13 components. In tension with items 9 and 16, which keep the options scorer and the risk-based builder — both risk scoring on the same canonical scale. The defensible line, if one is wanted: scoring what the user brought you is explanation; ranking a universe to surface winners is closer to a recommendation. `BUSINESS-CHECKLIST.md:40-43` already carries this as open regulatory research | Crypto walkthrough (CR2, CR3, CR5, CR8, CR16, CR18) + D2 |
+| 5b | ✅ **DECIDED 2026-08-17** (with item 4) — Retire the "Strong Add / Consider / Monitor / Too Speculative" vocabulary (~15 strings) | Held with item 4 — same advice-framing question. The sort half shipped | Crypto walkthrough (CR16, D-11) |
+| 6, 7 | ✅ **DECIDED 2026-08-17** (Appendix E) — Promote every scanner out of its TA page into a per-section nav entry | **Owner still deciding** whether equities gets one combined scanner or several, and whether a "scanner" merges technical setups, the registry's fundamental screener and the AI Outlier Scan. That answer generalizes to the other sections. Note the maturity gap: crypto has 7 setup detectors, 3 timeframes and auto-refresh; equities has 24 hardcoded large-caps | Crypto (CR17), Equities (E14-E16), Macro (M11, M12) |
+| 11, 13 | ✅ **DECIDED 2026-08-17** (Appendix E) — Corporate, high-yield, international and municipal bond coverage | Confirmed gap, not yet built. Today the catalog carries LQD and HYG only — no international (BNDX/IAGG/BWX/EMB/VWOB), no muni (MUB/VTEB/TFI), no muni row in `BOND_ETF_SHELF`, no muni tier in `RateCreditQuality`, and no tax-equivalent-yield concept, which is the whole point of holding munis | Funds (F1, F7) + Macro (M9) |
+| 12b | ⏸ **DEFERRED 2026-08-17** (Appendix E) — Restore return screening on the fund registry | **Settled as a purchasing decision, not an engineering one** — see the sourcing revisit in the Funds section. FMP's `/stable/stock-price-change` is the right endpoint; batching is paid-gated | Funds (F4) |
+| 14b | ✅ **DECIDED 2026-08-17** — rejected, see RP-2 — Remove the Budget module | **Awaiting an explicit call** — contradicts NT1, destroys imported bank history irreversibly where HIDE would not, and the new planner wants Budget's actuals as its expense input. Full reasoning in the TASK-QUEUE entry | Budget walkthrough (B1-B11) + NT1 |
+| 16 | ✅ **DECIDED 2026-08-17** (Appendix E) — Portfolio Builder: user-set percentages per industry / sector / market cap, with sub-division inside each asset class | Owner confirmed **setting**, not reporting, and additive — the risk-based builder stays. This is a second engine, not an edit: `BuilderInputs` has no target-weight field and every weight is derived. Owner also flagged a legality question of his own | Portfolio Builder walkthrough (PB1-PB6) |
+| 18b | ✅ **DECIDED 2026-08-17** (Appendix E) — Make this document a maintained, protected reference | Scaffolding done. Still needs: a narrow carve-out in `checklist-steward.md:27` (which currently forbids maintaining assessments), and a decision on what "protected" means — CODEOWNERS, branch protection, or a doc-vs-code CI guard | Process, W3 entry conditions |
+| 2b | ✅ **DECIDED 2026-08-17** (Appendix E) — Beta vs a benchmark on Compare | Asked for in T3, never delivered; still absent. Needs a benchmark-series fetch and a choice of benchmark | Core walkthrough (C9) |
 
-> **Note for W3.** Items 4, 6/7 and 14b are decisions, not builds — none can be closed by
-> an agent. Item 1 is blocked on 6/7 by shared plumbing. Everything else in this table is
+> **Note for W3.** Items 4, 5b, 6/7, 14b and 16 were decisions, not builds — all five are
+> now settled in Appendix E (2026-08-17) and have become scoped build work. Item 1 was
+> blocked on 6/7 by shared plumbing and is **now unblocked**: the 6/7 decision commits to the
+> nested-nav primitive item 1 needs.
+>
+> **As of 2026-08-17 every row in this table is decided.** Ten are approved build work, one
+> (12b) is deferred to the enterprise-key conversation with its unblocker named. Nothing on
+> the owner's short list is still waiting on an owner. Everything else in this table is
 > scoped and buildable once the decision above it is made.
 
 ## Appendix A — Documentation corrections (features undocumented or misdocumented)
@@ -760,7 +922,7 @@ code ships. Each is a doc edit, not a code change.
 
 | # | Document | Correction |
 |---|---|---|
-| A1 | CLAUDE.md (Videos row) | Advertises "Video search + AI analysis" — the analysis half (`video-analyze`) has no UI (C2). Either drop the claim or build the trigger (NT4) |
+| A1 | CLAUDE.md (Videos row) | Advertised "Video search + AI analysis" with no UI for the analysis half — ✅ **RESOLVED 2026-08-18:** NT4 shipped the trigger, so the claim is now true rather than retracted |
 | A2 | CLAUDE.md (equity TA row) + `/equities/technical-analysis` subtitle | "18 indicators" — the shared registry ships ~62; both copies predate the shared-engine migration |
 | A3 | CLAUDE.md (marketData section) | Claims built-in provider "reordering" — no such action exists in UI or `/live-data/config` — ✅ **RESOLVED 2026-08-16:** corrected |
 | A4 | CLAUDE.md (module registry / entitlements) | Implies entitlements persist like other user data — they are localStorage-only (`useEntitlementStore`); no `/api/user/entitlements` route exists. Load-bearing for the rollout-posture decision (D1) — ✅ **RESOLVED 2026-08-16:** CLAUDE.md now states localStorage-only and flags the Phase 6 question |

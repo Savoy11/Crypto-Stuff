@@ -262,3 +262,86 @@ export function correlationMatrix(series: NamedSeries[]): CorrelationMatrix {
 
   return { symbols, matrix }
 }
+
+// ─── Beta vs a benchmark (item 2b) ───────────────────────────────────────────
+
+export interface BetaResult {
+  /**
+   * Slope of the series' returns regressed on the benchmark's — how much this
+   * moved, on average, per 1% of benchmark move. Deliberately NOT annualized:
+   * beta is a ratio of two returns measured over the same periods, so a √periods
+   * factor would cancel itself. Sharpe/Sortino annualize; beta does not.
+   */
+  beta: number
+  /**
+   * Share of the series' variance the benchmark explains (the regression's R²).
+   * Reported because beta alone is misleading without it: a 1.0 beta with an R²
+   * of 0.05 means "unrelated, and the slope is noise", which is exactly the case
+   * for crypto against an equity index. Range 0–1.
+   */
+  rSquared: number
+  /** Number of aligned return periods the figure was computed from. */
+  overlap: number
+}
+
+/**
+ * Beta of `points` against `benchmark`, computed on the two series' SHARED
+ * timestamps.
+ *
+ * Alignment is the whole difficulty here, and it is why this does not simply zip
+ * two return arrays: a crypto series trades weekends and an equity series does
+ * not, so index-aligned returns would silently pair Saturday's BTC move with
+ * Friday's SPY move and slide further apart with every weekend in the window.
+ * Pairing by timestamp (the same approach correlationMatrix takes) is what makes
+ * a cross-class beta mean anything.
+ */
+export function betaVsBenchmark(points: ChartPoint[], benchmark: ChartPoint[]): BetaResult | null {
+  if (points.length < 2 || benchmark.length < 2) return null
+
+  const benchByT = new Map<number, number>()
+  for (const p of benchmark) benchByT.set(p.t, p.close)
+
+  // Walk the series' consecutive pairs and keep only those where BOTH the
+  // period's start and end exist in the benchmark, so each paired return covers
+  // the identical interval on both sides.
+  const a: number[] = []
+  const b: number[] = []
+  for (let i = 1; i < points.length; i++) {
+    const prevT = points[i - 1].t
+    const currT = points[i].t
+    const bPrev = benchByT.get(prevT)
+    const bCurr = benchByT.get(currT)
+    if (bPrev == null || bCurr == null || bPrev === 0) continue
+    const prev = points[i - 1].close
+    if (prev === 0) continue
+    a.push(points[i].close / prev - 1)
+    b.push(bCurr / bPrev - 1)
+  }
+
+  // Two paired returns can produce a slope, but not a meaningful one. 20 daily
+  // periods (about a trading month) is the floor for reporting a figure at all.
+  if (a.length < MIN_BETA_PERIODS) return null
+
+  const ma = mean(a)
+  const mb = mean(b)
+  let cov = 0
+  let varB = 0
+  let varA = 0
+  for (let i = 0; i < a.length; i++) {
+    const da = a[i] - ma
+    const db = b[i] - mb
+    cov += da * db
+    varB += db * db
+    varA += da * da
+  }
+  // A benchmark that never moved has no slope to measure — not a beta of zero.
+  if (varB === 0) return null
+
+  const beta = cov / varB
+  const rSquared = varA === 0 ? 0 : (cov * cov) / (varA * varB)
+
+  return { beta, rSquared, overlap: a.length }
+}
+
+/** Minimum aligned periods before a beta is reported rather than withheld. */
+export const MIN_BETA_PERIODS = 20

@@ -1,4 +1,4 @@
-// Coins already tracked in Finance Now — excluded from discovery recommendations.
+// Coins already tracked in Finance Now — excluded from discovery candidates.
 // Add CoinGecko IDs here whenever a coin is formally added to the platform.
 
 export const FN_TRACKED_IDS = new Set([
@@ -20,7 +20,7 @@ export const FN_TRACKED_IDS = new Set([
 
 // ─── Utility category map ─────────────────────────────────────────────────────
 // Maps CoinGecko IDs to a category and utility score (1–10).
-// Add new coins here to improve recommendation quality.
+// Add new coins here to improve candidate quality.
 
 export const UTILITY_MAP: Record<string, { category: string; utilityScore: number; note: string }> = {
   // Layer 2 / Scaling
@@ -136,19 +136,29 @@ export const SCORING_CONFIG = {
     { min:     10_000_000, score: 2,  label: 'Small cap ($10M–$100M)' },
     { min:              0, score: 1,  label: 'Micro cap (<$10M)' },
   ],
-  recommendationThresholds: {
-    strongAdd:     7.0,
-    consider:      5.5,
-    monitor:       4.0,
-    // below 4.0 → 'too-speculative'
+  profileBandThresholds: {
+    // Item 5b (2026-08-18): these were named strongAdd / consider / monitor and
+    // below-4 was 'too-speculative'. The thresholds are unchanged — only the
+    // vocabulary is, because "Strong Add" tells the reader what to DO with a
+    // coin, which is the advice-shaped side of the line item 4 drew. The bands
+    // now describe the composite score itself.
+    high:          7.0,
+    moderate:      5.5,
+    low:           4.0,
+    // below 4.0 → 'very-low'
   },
 }
 
-export type RecommendationLevel = 'strong-add' | 'consider' | 'monitor' | 'too-speculative'
+/**
+ * Band of the composite profile score — NOT a recommendation. It describes
+ * where a candidate's market cap / utility / liquidity composite falls, and
+ * says nothing about whether to buy it.
+ */
+export type ProfileBand = 'high' | 'moderate' | 'low' | 'very-low'
 
-export function getRecommendationLevel(score: number): RecommendationLevel {
-  if (score >= SCORING_CONFIG.recommendationThresholds.strongAdd)  return 'strong-add'
-  if (score >= SCORING_CONFIG.recommendationThresholds.consider)    return 'consider'
-  if (score >= SCORING_CONFIG.recommendationThresholds.monitor)     return 'monitor'
-  return 'too-speculative'
+export function getProfileBand(score: number): ProfileBand {
+  if (score >= SCORING_CONFIG.profileBandThresholds.high)     return 'high'
+  if (score >= SCORING_CONFIG.profileBandThresholds.moderate) return 'moderate'
+  if (score >= SCORING_CONFIG.profileBandThresholds.low)      return 'low'
+  return 'very-low'
 }

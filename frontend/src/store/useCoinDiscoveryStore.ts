@@ -18,9 +18,15 @@ export interface AddedCoin {
   marketCap: number
   marketCapRank: number
   addedAt: string
-  addedBy: 'recommended' | 'manual'
+  addedBy: 'candidate' | 'manual'
   score?: number
-  recommendation?: string
+  /**
+   * Composite score band. Renamed from `recommendation` on 2026-08-18 (item 5b).
+   * Optional and read defensively: coins saved before the rename carry the old
+   * key in localStorage, and this store is the user's own list — a rename must
+   * not silently blank a field on data they already saved.
+   */
+  profileBand?: string
   notes: string
 }
 
@@ -29,7 +35,7 @@ interface CoinDiscoveryStore {
   dismissedIds: string[]
   addCoin: (coin: AddedCoin) => void
   removeCoin: (cgId: string) => void
-  dismissRecommendation: (cgId: string) => void
+  dismissCandidate: (cgId: string) => void
   clearDismissed: () => void
   isAdded: (cgId: string) => boolean
   isDismissed: (cgId: string) => boolean
@@ -67,7 +73,7 @@ export const useCoinDiscoveryStore = create<CoinDiscoveryStore>((set, get) => ({
     set({ addedCoins: next })
   },
 
-  dismissRecommendation: (cgId) => {
+  dismissCandidate: (cgId) => {
     const next = [...new Set([...get().dismissedIds, cgId])]
     save(STORAGE_KEY_DISMISSED, next)
     set({ dismissedIds: next })

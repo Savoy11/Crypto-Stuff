@@ -6,7 +6,6 @@ import { ExternalLink, Copy, CheckCircle } from 'lucide-react'
 import { useState } from 'react'
 import type { Asset } from '@/types/asset'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import { RiskScoreBadge, RiskBandPill } from './RiskScoreBadge'
 import { formatCompact, formatBps, formatPercent, formatScore, formatAddress, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { Sparkline } from '@/components/charts/Sparkline'
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
@@ -97,19 +96,10 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
           </span>
         ),
       },
-      {
-        key: 'riskScore',
-        header: 'Safety Score',
-        sortable: true,
-        align: 'right',
-        accessor: (row) => <RiskScoreBadge score={row.riskScore} band={row.riskBand} />,
-      },
-      {
-        key: 'riskBand',
-        header: 'Risk Band',
-        sortable: true,
-        accessor: (row) => <RiskBandPill band={row.riskBand} />,
-      },
+      // Item 4 (2026-08-18): the 'Safety Score' and 'Risk Band' columns were
+      // removed. Both were sortable, which made this table a leaderboard —
+      // ranking a universe by score is the advice-shaped side of the line the
+      // owner drew. The per-coin risk panel on /assets/[id] is unaffected.
       {
         key: 'pegDeviationBps',
         header: 'Peg Dev',

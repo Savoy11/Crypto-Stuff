@@ -1594,6 +1594,36 @@ conditions are checkable at a glance.
 ```
 </details>
 
+### P3-W2-S2 — Trade ledger (subproject of W2, approved 2026-08-18)
+
+> **Owner decision, P3-W2 decision session.** Tool candidate NT2 was approved but
+> scoped as a **subproject rather than a queued ticket**, for one reason: it carries a
+> product decision that changes numbers users file taxes against.
+
+**Why a subproject, not a ticket.** ROADMAP Phase 1's one unmet "Done when" is a trade
+ledger; the `trade_transactions` table and its index are already built, so the DB work is
+the small half. The real content is a cost-basis engine, and cost basis is not a detail —
+**FIFO and average cost produce different realized P&L for the identical trade history**.
+
+**First decision (make it before writing the engine): FIFO vs average cost.** Whatever is
+chosen, the method must be *stated on every surface that prints a realized figure* — an
+unlabelled realized P&L is the same class of defect as an undated static table. Consider
+whether the method is per-portfolio rather than global; a user with holdings in two
+jurisdictions may need both.
+
+**Scope:** `/api/user/trades` CRUD (dynamic segments — must live under `/api/user/`, see
+the `next.config.mjs` rewrite note) · a pure cost-basis engine in `lib/` · an entry UI on
+`/portfolios`.
+
+**House rules that bind here:** the engine emits dollar figures a user acts on, so it is
+**pure + vitest-tested with an injectable `now`**. Wash sales, partial lots, and
+same-day round trips are the edge cases worth tests before they are worth code.
+
+**Relationship to existing work:** `computeMetrics` on `/portfolios` currently reports
+*unrealized* position value only, and is separately under a FIX-FIRST correction (PB-1,
+unpriced holdings must leave the totals). Land PB-1 first — building realized P&L on top
+of totals that are being corrected means doing the reconciliation twice.
+
 ### P3-W2-S1 — Backtest build-out (subproject of W2, owner-directed 2026-08-15)
 
 > **Owner directive:** raised during the W2 short-list intake. Item 10 of the owner's
@@ -1638,6 +1668,10 @@ guard this wants is exactly Appendix B's **NT12 (boundary drift guard)** shape: 
 1. **Resample or relabel?** Restore true weekly/monthly resampling server-side in
    `security-ohlcv`, or set every range to daily and relabel. This changes what the 5Y and
    MAX strategies *mean*; it is a product call, not a bug fix.
+   → **Owner decision 2026-08-17 (P3-W2 decision session): delegated to this subproject.**
+   It was put to the owner directly and deliberately handed back — *"let the subproject
+   decide"* — so it is made with the rest of the backtest rework in view rather than in
+   isolation. Treat it as **S1's first decision**, not an open question inherited from W2.
 2. **Do the two engines converge?** One shared engine across crypto/equities/portfolios, or
    deliberately separate with the reason written down.
 3. **Symbol universe.** Backtests are bounded to the 79-name curated catalog while TA charts

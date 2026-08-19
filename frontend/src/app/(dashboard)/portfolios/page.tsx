@@ -606,6 +606,13 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
             <div className={clsx('text-xl font-bold', pnlColor(metrics.totalPnlPct))}>{fmtPct(metrics.totalPnlPct)}</div>
             <div className="text-xs text-text-muted mt-0.5">Total P&L</div>
             <div className={clsx('text-[10px] mt-0.5', pnlColor(metrics.totalPnlUsd))}>{metrics.totalPnlUsd != null ? fmt$(metrics.totalPnlUsd) : ''}</div>
+            {/* PB-1: totals cover only the priced slice. Say so rather than
+                letting a partial figure read as portfolio-wide. */}
+            {metrics.pricedPct < 99.5 && (
+              <div className="text-[10px] text-amber-400 mt-0.5">
+                {metrics.pricedPct.toFixed(0)}% of capital priced
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-bg-card border border-border rounded-xl p-4 text-center">

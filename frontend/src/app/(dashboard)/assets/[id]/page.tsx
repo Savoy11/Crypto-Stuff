@@ -711,8 +711,13 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
           </div>
 
           <p className="mt-4 pt-3 border-t border-border text-[11px] text-text-muted">
-            Profile v{entry.risk.profileVersion} ·{' '}
-            <Link href="/risk-scores" className="text-accent-blue hover:underline">full leaderboard &amp; methodology →</Link>
+            {/* The "full leaderboard & methodology" link was removed with the
+                /risk-scores page (2026-08-18, item 4): the leaderboard ranked a
+                universe. This panel — scoring the coin the reader opened — is
+                the explanatory surface the decision keeps, so the methodology
+                it needs is stated here rather than linked away. */}
+            Profile v{entry.risk.profileVersion} · composite of the pillars below,
+            reweighted for whatever data is available
           </p>
         </div>
 

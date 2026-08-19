@@ -19,6 +19,7 @@ import {
   type BuilderAssetClass, type SleeveAppetite,
   type CryptoStyle, type CommodityStyle, type CurrencyStyle, type BondStyle,
 } from '@/lib/data/portfolioBuilder'
+import { AllocationBuilder } from '@/components/portfolio-builder/AllocationBuilder'
 import { formatCurrency } from '@/lib/utils/format'
 
 type SectorStance = 'focus' | 'exclude'
@@ -131,6 +132,10 @@ function BuilderContent() {
   const [currencyStyle, setCurrencyStyle] = useState<CurrencyStyle>('reserve')
   const [bondStyle, setBondStyle] = useState<BondStyle>('aggregate')
   const [amount, setAmount] = useState(25_000)
+  // Item 16: two ways in, one output. 'questionnaire' derives weights from a
+  // risk profile; 'allocation' takes the weights as given. Both produce a
+  // BuiltPortfolio, so saving, drift and review are identical downstream.
+  const [mode, setMode] = useState<'questionnaire' | 'allocation'>('questionnaire')
   const [result, setResult] = useState<BuiltPortfolio | null>(null)
   const [planName, setPlanName] = useState('')
   const [openPlanId, setOpenPlanId] = useState<string | null>(null)
@@ -275,7 +280,24 @@ function BuilderContent() {
         </div>
       )}
 
+      {/* Mode switch (item 16) */}
+      <div className="flex w-fit gap-1 rounded-lg bg-bg-elevated p-1">
+        {([['questionnaire', 'Guided questionnaire'], ['allocation', 'Set my own weights']] as const).map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => { setMode(id); setResult(null) }}
+            className={clsx('rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              mode === id ? 'bg-bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'allocation' && <AllocationBuilder onBuilt={setResult} />}
+
       {/* Questionnaire */}
+      {mode === 'questionnaire' && (
       <div className="rounded-card border border-border bg-bg-card p-5 space-y-5">
         <h2 className="text-sm font-medium text-text-secondary">1 · Tell the builder about the money</h2>
         <div className="grid gap-5 md:grid-cols-2">
@@ -374,6 +396,7 @@ function BuilderContent() {
           </button>
         </div>
       </div>
+      )}
 
       {/* Result */}
       {result && (

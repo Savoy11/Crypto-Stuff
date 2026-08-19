@@ -13,7 +13,6 @@ import {
   DollarSign,
   BarChart2,
   Rss,
-  PieChart,
   TrendingUp,
   ChevronDown,
   ChevronRight,
@@ -24,7 +23,7 @@ import { useAlertStore } from '@/store/useAlertStore'
 import { useFeedStore, type FeedStatus } from '@/store/useFeedStore'
 import { useEntitlementStore } from '@/store/useEntitlementStore'
 import { usePopoutStore, POPOUT_META, type PopoutKey } from '@/store/usePopoutStore'
-import { MODULES, moduleForPath, type ModuleId, type SuiteModule } from '@/lib/modules/registry'
+import { MODULES, moduleForPath, flattenNavItems, type ModuleId, type ModuleNavItem, type SuiteModule } from '@/lib/modules/registry'
 import { APP_NAME, APP_VERSION } from '@/lib/constants'
 import { migrateStorageKey } from '@/lib/utils/storageMigration'
 
@@ -41,6 +40,25 @@ type SectionOrder = Partial<Record<ModuleId, string[]>>
 
 const STORAGE_KEY = 'fn:nav-order:v2'
 const COLLAPSE_KEY = 'fn:nav-collapsed'
+/** Expansion state for nav GROUPS (a nav item with children), keyed by href. */
+const GROUP_KEY = 'fn:nav-groups'
+
+/**
+ * Does this path belong to this nav entry?
+ *
+ * Prefix-match with a specificity rule: a more specific sibling wins, so
+ * /equities does not light up while you are on /equities/news. `siblings` is the
+ * set the entry competes with — its own level, plus every child in the module,
+ * since a child route is more specific than any parent.
+ */
+function matchesPath(pathname: string, href: string, siblings: ModuleNavItem[]): boolean {
+  if (pathname === href) return true
+  if (!pathname.startsWith(`${href}/`)) return false
+  return !siblings.some((other) =>
+    other.href !== href && other.href.length > href.length &&
+    (pathname === other.href || pathname.startsWith(`${other.href}/`)),
+  )
+}
 
 function defaultOrder(mod: SuiteModule): string[] {
   return mod.navItems.map((item) => item.href)
@@ -78,7 +96,6 @@ const POPOUT_ICONS: Record<PopoutKey, React.ElementType> = {
   'market-overview': BarChart2,
   'news-feed':       Rss,
   'staking-rates':   TrendingUp,
-  'risk-heatmap':    PieChart,
 }
 
 function PopoutLauncher() {
@@ -191,12 +208,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
   // saved choice from clicking a section header.
   const [collapsedChoice, setCollapsedChoice] = useState<Partial<Record<ModuleId, boolean>>>({})
 
+  // Expansion of nav GROUPS (nested children), keyed by the parent's href.
+  // Same convention as sections: undefined = automatic (open while the route is
+  // inside the group), explicit boolean = the user's saved choice.
+  const [groupChoice, setGroupChoice] = useState<Record<string, boolean>>({})
+
   // Load persisted order + collapse choices on mount
   useEffect(() => {
     setOrder(loadOrder())
     try {
       const stored = localStorage.getItem(COLLAPSE_KEY)
       if (stored) setCollapsedChoice(JSON.parse(stored))
+    } catch { /* ignore */ }
+    try {
+      const stored = localStorage.getItem(GROUP_KEY)
+      if (stored) setGroupChoice(JSON.parse(stored))
     } catch { /* ignore */ }
   }, [])
 
@@ -229,6 +255,23 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
       return next
     })
   }, [isExpanded])
+
+  const isGroupOpen = useCallback((item: ModuleNavItem) => {
+    const choice = groupChoice[item.href]
+    if (choice !== undefined) return choice
+    // Automatic: a group opens when the current route is inside it, so landing
+    // on a child page by link or deep link never leaves it hidden.
+    return (item.children ?? []).some((c) => pathname === c.href || pathname.startsWith(`${c.href}/`))
+      || pathname === item.href
+  }, [groupChoice, pathname])
+
+  const toggleGroup = useCallback((item: ModuleNavItem) => {
+    setGroupChoice((prev) => {
+      const next = { ...prev, [item.href]: !isGroupOpen(item) }
+      try { localStorage.setItem(GROUP_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }, [isGroupOpen])
 
   const visibleModules = MODULES.filter((mod) => isEnabled(mod.id))
 
@@ -365,23 +408,23 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                 <span>{mod.label}</span>
                 {!expanded && (
                   <span className="ml-auto font-mono text-[9px] text-text-muted/70 normal-case tracking-normal">
-                    {mod.navItems.length}
+                    {flattenNavItems(mod.navItems).length}
                   </span>
                 )}
               </button>
             )}
             {expanded && (
             <ul className="space-y-0.5" role="list">
-              {orderedItems(mod).map(({ href, label, icon: Icon, badge }, index) => {
-                // Prefix-match, but a more specific sibling wins (e.g. /equities
-                // stays inactive on /equities/news, which has its own entry).
-                const isActive = pathname === href || (
-                  pathname.startsWith(`${href}/`) &&
-                  !mod.navItems.some((other) =>
-                    other.href !== href && other.href.length > href.length &&
-                    (pathname === other.href || pathname.startsWith(`${other.href}/`))
-                  )
-                )
+              {orderedItems(mod).map((item, index) => {
+                const { href, label, icon: Icon, badge } = item
+                const siblings = flattenNavItems(mod.navItems)
+                const isActive = matchesPath(pathname, href, siblings)
+                const children = item.children ?? []
+                const groupOpen = children.length > 0 && isGroupOpen(item)
+                // A collapsed group whose child is the current page still shows
+                // as active, or navigating into it would look like leaving the
+                // section entirely.
+                const childActive = children.some((c) => matchesPath(pathname, c.href, siblings))
                 const isDragging = drag?.mod === mod.id && drag.index === index
                 const isDropTarget = drop?.mod === mod.id && drop.index === index && drag?.index !== index
 
@@ -416,14 +459,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                         <GripVertical size={14} className="text-text-muted flex-shrink-0" aria-hidden />
                       </div>
                     ) : (
+                      // Link and chevron are SIBLINGS, not nested. A button
+                      // inside an anchor is invalid markup: screen readers
+                      // announce one control, and a middle-click or
+                      // open-in-new-tab on the chevron would navigate.
+                      <div className="flex items-center">
                       <Link
                         href={href}
                         onClick={onClose}
                         className={clsx(
-                          'flex items-center justify-between px-3 py-2 rounded text-sm transition-all',
+                          'flex flex-1 items-center justify-between px-3 py-2 rounded text-sm transition-all',
                           isActive
                             ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
-                            : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
+                            : childActive && !groupOpen
+                              ? 'text-accent-blue hover:bg-bg-elevated'
+                              : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated'
                         )}
                         aria-current={isActive ? 'page' : undefined}
                       >
@@ -440,6 +490,50 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                           </span>
                         )}
                       </Link>
+                      {children.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(item)}
+                          aria-expanded={groupOpen}
+                          aria-label={`${groupOpen ? 'Collapse' : 'Expand'} ${label}`}
+                          className="ml-0.5 rounded p-1 text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
+                        >
+                          {groupOpen
+                            ? <ChevronDown size={13} aria-hidden />
+                            : <ChevronRight size={13} aria-hidden />}
+                        </button>
+                      )}
+                      </div>
+                    )}
+
+                    {/* Child items. Hidden in reorder mode: only top-level
+                        entries are draggable, and showing undraggable rows
+                        beside draggable ones reads as a broken affordance. */}
+                    {children.length > 0 && groupOpen && !reordering && (
+                      <ul className="mt-0.5 ml-4 space-y-0.5 border-l border-border/60 pl-2" role="list">
+                        {children.map((child) => {
+                          const childIsActive = matchesPath(pathname, child.href, siblings)
+                          const ChildIcon = child.icon
+                          return (
+                            <li key={child.href}>
+                              <Link
+                                href={child.href}
+                                onClick={onClose}
+                                className={clsx(
+                                  'flex items-center gap-2.5 px-2.5 py-1.5 rounded text-[13px] transition-all',
+                                  childIsActive
+                                    ? 'bg-accent-blue/10 text-accent-blue'
+                                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-elevated',
+                                )}
+                                aria-current={childIsActive ? 'page' : undefined}
+                              >
+                                <ChildIcon size={14} aria-hidden className={childIsActive ? 'text-accent-blue' : 'text-text-muted'} />
+                                <span>{child.label}</span>
+                              </Link>
+                            </li>
+                          )
+                        })}
+                      </ul>
                     )}
                   </li>
                 )

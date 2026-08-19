@@ -55,6 +55,14 @@ export interface PortfolioMetrics {
   stablecoinPct:      number
   pricesAvailable:    boolean
   hasEntryPrices:     boolean
+  /**
+   * Share of target capital that actually carries a live price (0–100).
+   * `totalCurrentValue` and `totalPnlPct` describe only this slice — the page
+   * discloses it rather than implying the figures cover the whole portfolio.
+   */
+  pricedPct:          number
+  /** Target capital behind the priced slice, in USD. The P&L% denominator. */
+  pricedCapital:      number
 }
 
 export interface CategorySlice {
@@ -126,21 +134,39 @@ export function computeMetrics(
     weightedRisk <= 5 ? 'Moderate' :
     weightedRisk <= 7 ? 'Aggressive' : 'Speculative'
 
-  // P&L — only if at least one holding has entry price + live price
+  // P&L — only if at least one holding has entry price + live price.
+  //
+  // PB-1 (fixed 2026-08-18). This block used to read
+  //   holdings.reduce((acc, h) => acc + (h.currentValue ?? h.targetValue), 0)
+  // which values an unpriced holding **at cost** and folds it into the total —
+  // contradicting the page's own stated invariant ("positions without a live
+  // price are excluded from totals, never valued at cost"). Under partial
+  // coverage that produced a total that looked complete and was not, and a P&L%
+  // whose denominator included capital no live price ever touched, damping the
+  // real move toward zero. Unpriced holdings now leave the totals entirely and
+  // `pricedPct` reports what the figures actually cover.
   const holdingsWithPnl = holdings.filter(h => h.pnlUsd != null)
+  const pricedHoldings  = holdings.filter(h => h.currentValue != null)
   const hasEntryPrices  = holdings.some(h => h.entryPrice != null)
-  const pricesAvailable = holdings.some(h => h.currentPrice != null)
+  const pricesAvailable = pricedHoldings.length > 0
+
+  const pricedCapital = pricedHoldings.reduce((acc, h) => acc + h.targetValue, 0)
+  const pricedPct     = totalTarget > 0 ? (pricedCapital / totalTarget) * 100 : 0
 
   let totalCurrentValue: number | null = null
   let totalPnlUsd: number | null = null
   let totalPnlPct: number | null = null
 
+  if (pricesAvailable) {
+    totalCurrentValue = pricedHoldings.reduce((acc, h) => acc + (h.currentValue ?? 0), 0)
+  }
+
   if (holdingsWithPnl.length > 0) {
-    totalCurrentValue = holdings.reduce((acc, h) => acc + (h.currentValue ?? h.targetValue), 0)
     totalPnlUsd = holdingsWithPnl.reduce((acc, h) => acc + (h.pnlUsd ?? 0), 0)
-    totalPnlPct = (totalPnlUsd / totalTarget) * 100
-  } else if (pricesAvailable) {
-    totalCurrentValue = totalTarget
+    // Denominator is the capital these P&L figures are actually measured against
+    // — the priced-with-entry slice — not the whole portfolio.
+    const pnlCapital = holdingsWithPnl.reduce((acc, h) => acc + h.targetValue, 0)
+    totalPnlPct = pnlCapital > 0 ? (totalPnlUsd / pnlCapital) * 100 : null
   }
 
   // Category breakdown
@@ -178,6 +204,8 @@ export function computeMetrics(
     stablecoinPct,
     pricesAvailable,
     hasEntryPrices,
+    pricedPct,
+    pricedCapital,
   }
 }
 

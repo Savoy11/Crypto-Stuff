@@ -8,6 +8,7 @@ import {
   toDailyCloses,
   commonStartTime,
   periodsPerYear,
+  betaVsBenchmark,
   type ChartPoint,
 } from '../compareStats'
 
@@ -239,5 +240,90 @@ describe('windowStats — Sortino', () => {
   it('is finite for a mixed series', () => {
     const s = windowStats(series([100, 104, 99, 103, 97, 105, 101]))
     expect(Number.isFinite(s!.sortino!)).toBe(true)
+  })
+})
+
+// ─── Beta vs a benchmark (item 2b) ───────────────────────────────────────────
+
+describe('betaVsBenchmark', () => {
+  const DAY = 86_400_000
+  /** Build a series from period returns, starting at 100 on day 0. */
+  const fromReturns = (rets: number[], startDay = 0): ChartPoint[] => {
+    const pts: ChartPoint[] = [{ t: startDay * DAY, close: 100 }]
+    rets.forEach((r, i) => {
+      pts.push({ t: (startDay + i + 1) * DAY, close: pts[i].close * (1 + r) })
+    })
+    return pts
+  }
+  /** 24 alternating moves — enough periods to clear MIN_BETA_PERIODS. */
+  const BENCH_RETURNS = Array.from({ length: 24 }, (_, i) => (i % 2 === 0 ? 0.01 : -0.008))
+
+  it('recovers a known slope: a series moving 2× the benchmark has beta 2', () => {
+    const bench = fromReturns(BENCH_RETURNS)
+    const asset = fromReturns(BENCH_RETURNS.map((r) => r * 2))
+    const res = betaVsBenchmark(asset, bench)!
+    expect(res.beta).toBeCloseTo(2, 6)
+    expect(res.rSquared).toBeCloseTo(1, 6)
+    expect(res.overlap).toBe(24)
+  })
+
+  it('recovers an inverse relationship as a negative beta', () => {
+    const bench = fromReturns(BENCH_RETURNS)
+    const asset = fromReturns(BENCH_RETURNS.map((r) => -r))
+    expect(betaVsBenchmark(asset, bench)!.beta).toBeCloseTo(-1, 6)
+  })
+
+  it('is not annualized — the same relationship on weekly bars gives the same beta', () => {
+    // Beta is a ratio of two returns over identical periods, so a √periods
+    // factor would cancel. This pins that it is never applied.
+    const daily = fromReturns(BENCH_RETURNS)
+    const dailyAsset = fromReturns(BENCH_RETURNS.map((r) => r * 1.5))
+    const weekly = daily.map((p, i) => ({ t: i * 7 * DAY, close: p.close }))
+    const weeklyAsset = dailyAsset.map((p, i) => ({ t: i * 7 * DAY, close: p.close }))
+    expect(betaVsBenchmark(dailyAsset, daily)!.beta)
+      .toBeCloseTo(betaVsBenchmark(weeklyAsset, weekly)!.beta, 9)
+  })
+
+  it('pairs by timestamp, so a weekend-trading series is not slid against a weekday one', () => {
+    // The failure this prevents: index-zipping would pair the asset's Saturday
+    // move with the benchmark's Friday move and drift further every weekend.
+    const bench = fromReturns(BENCH_RETURNS)
+    // Asset trades the same days PLUS extra ones the benchmark never sees.
+    const asset = fromReturns(BENCH_RETURNS.map((r) => r * 3))
+    const extras: ChartPoint[] = [{ t: 100 * DAY, close: 500 }, { t: 101 * DAY, close: 250 }]
+    const res = betaVsBenchmark([...asset, ...extras], bench)!
+    // The unpaired days are dropped, not zipped in: the slope is still exactly 3.
+    expect(res.beta).toBeCloseTo(3, 6)
+    expect(res.overlap).toBe(24)
+  })
+
+  it('reports low R² when the benchmark explains nothing, even at a plausible beta', () => {
+    // Beta alone misleads without R²: an unrelated series can still regress to
+    // a slope near 1. This is the crypto-vs-equity-index case.
+    const bench = fromReturns(BENCH_RETURNS)
+    const unrelated = fromReturns(BENCH_RETURNS.map((_, i) => (i % 3 === 0 ? 0.02 : -0.005)))
+    const res = betaVsBenchmark(unrelated, bench)!
+    expect(res.rSquared).toBeLessThan(0.5)
+  })
+
+  it('withholds a figure rather than computing one from too few overlapping periods', () => {
+    const short = Array.from({ length: 5 }, () => 0.01)
+    expect(betaVsBenchmark(fromReturns(short), fromReturns(short))).toBeNull()
+  })
+
+  it('returns null when the two series share no dates at all', () => {
+    const bench = fromReturns(BENCH_RETURNS, 0)
+    const asset = fromReturns(BENCH_RETURNS, 5_000)
+    expect(betaVsBenchmark(asset, bench)).toBeNull()
+  })
+
+  it('returns null for a flat benchmark — no slope exists, which is not a beta of 0', () => {
+    const flat: ChartPoint[] = Array.from({ length: 30 }, (_, i) => ({ t: i * DAY, close: 100 }))
+    const asset = fromReturns(BENCH_RETURNS)
+    expect(betaVsBenchmark(asset, flat)).toBeNull()
+  })
+
+  it('degenerates cleanly on empty input', () => {
+    expect(betaVsBenchmark([], [])).toBeNull()
   })
 })

@@ -171,12 +171,6 @@ const SIGNAL_STYLES: Record<Signal, { label: string; color: string; Icon: Lucide
   strong_sell: { label: 'Strong Sell', color: 'text-red-400',     Icon: TrendingDown },
 }
 
-// Bounded list for the screener — one OHLCV fetch per symbol.
-const SCREENER_SYMBOLS = [
-  'AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'AVGO',
-  'BRK-B', 'JPM', 'V', 'LLY', 'UNH', 'XOM', 'WMT', 'HD',
-  'COST', 'PG', 'NFLX', 'AMD', 'CAT', 'GE', 'BA', 'PLTR',
-]
 
 function useOhlcv(symbol: string, range: Range, enabled = true) {
   return useQuery<SecurityOhlcvResponse>({
@@ -387,120 +381,22 @@ function ChartTab() {
   )
 }
 
-// ─── Screener tab ─────────────────────────────────────────────────────────────
+// The Screener tab moved to /equities/scanner on 2026-08-19 (items 6/7). It ran
+// RSI and vs-SMA over 24 hardcoded symbols; the new page runs the same seven
+// setup detectors the crypto scanner uses over the full curated catalog, and
+// merges the AI Outlier Scan into it — one scanner for the section, not two
+// half-scanners on two pages.
 
-interface ScreenerRow {
-  symbol: string
-  name: string
-  price: number
-  rsi14: number | null
-  vsSma50Pct: number | null
-  overall: Signal | null
-}
-
-function ScreenerTab() {
-  const queries = useQueries({
-    queries: SCREENER_SYMBOLS.map((symbol) => ({
-      queryKey: ['security-ohlcv', symbol, '6M'],
-      queryFn: () => fetch(`/live-data/security-ohlcv?symbol=${encodeURIComponent(symbol)}&range=6M`).then((r) => r.json() as Promise<SecurityOhlcvResponse>),
-      staleTime: 10 * 60 * 1000,
-    })),
-  })
-
-  const loading = queries.some((q) => q.isLoading)
-
-  const rows: ScreenerRow[] = useMemo(() => {
-    return SCREENER_SYMBOLS.map((symbol, i) => {
-      const entry = EQUITY_CATALOG.find((e) => e.symbol === symbol)
-      const candles = queries[i].data?.candles ?? []
-      if (candles.length < 30) {
-        return { symbol, name: entry?.name ?? symbol, price: entry?.referencePrice ?? 0, rsi14: null, vsSma50Pct: null, overall: null }
-      }
-      const closes = candles.map((c) => c.close)
-      const last = closes[closes.length - 1]
-      const rsiVals = rsi(closes, 14)
-      const smaVals = sma(closes, 50)
-      const sma50 = smaVals[smaVals.length - 1]
-      return {
-        symbol,
-        name: entry?.name ?? symbol,
-        price: last,
-        rsi14: rsiVals[rsiVals.length - 1],
-        vsSma50Pct: sma50 ? ((last - sma50) / sma50) * 100 : null,
-        overall: computeSignalSummary(candles).overall,
-      }
-    }).sort((a, b) => (b.rsi14 ?? -1) - (a.rsi14 ?? -1))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queries.map((q) => q.dataUpdatedAt).join(',')])
-
-  const rsiColor = (value: number | null) =>
-    value == null ? 'text-text-muted'
-      : value >= 70 ? 'text-red-400'
-      : value <= 30 ? 'text-emerald-400'
-      : 'text-text-secondary'
-
-  return (
-    <div className="rounded-card border border-border bg-bg-card overflow-hidden">
-      <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40 text-xs font-medium uppercase tracking-wider text-text-muted">
-        <span className="col-span-4">Company</span>
-        <span className="col-span-2 text-right">Price</span>
-        <span className="col-span-2 text-right">RSI (14)</span>
-        <span className="col-span-2 text-right">vs SMA 50</span>
-        <span className="col-span-2 text-right">Signal</span>
-      </div>
-      {loading && (
-        <div className="flex items-center justify-center py-10 gap-2 text-slate-500">
-          <Loader2 size={16} className="animate-spin" />
-          <span className="text-sm">Screening {SCREENER_SYMBOLS.length} symbols…</span>
-        </div>
-      )}
-      <div className="divide-y divide-border/60">
-        {!loading && rows.map((row) => {
-          const cfg = row.overall ? SIGNAL_STYLES[row.overall] : null
-          return (
-            <Link
-              key={row.symbol}
-              href={`/equities/${row.symbol.toLowerCase()}`}
-              className="grid grid-cols-12 gap-2 px-4 py-2.5 text-sm items-center hover:bg-bg-elevated/40 transition-colors"
-            >
-              <div className="col-span-4 min-w-0">
-                <span className="font-mono font-semibold text-text-primary">{row.symbol}</span>
-                <span className="ml-2 text-xs text-text-muted truncate">{row.name}</span>
-              </div>
-              <span className="col-span-2 text-right font-mono tabular-nums text-text-primary">
-                {row.price ? `$${row.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}
-              </span>
-              <span className={clsx('col-span-2 text-right font-mono tabular-nums', rsiColor(row.rsi14))}>
-                {row.rsi14?.toFixed(1) ?? '—'}
-              </span>
-              <span className={clsx('col-span-2 text-right font-mono tabular-nums text-xs',
-                row.vsSma50Pct == null ? 'text-text-muted' : row.vsSma50Pct >= 0 ? 'text-emerald-400' : 'text-red-400')}>
-                {row.vsSma50Pct == null ? '—' : `${row.vsSma50Pct >= 0 ? '+' : ''}${row.vsSma50Pct.toFixed(1)}%`}
-              </span>
-              <span className={clsx('col-span-2 text-right text-xs font-medium', cfg?.color ?? 'text-text-muted')}>
-                {cfg?.label ?? 'No data'}
-              </span>
-            </Link>
-          )
-        })}
-      </div>
-      <p className="px-4 py-2.5 text-[11px] text-text-muted border-t border-border/60">
-        RSI ≤ 30 (green) = oversold · RSI ≥ 70 (red) = overbought · Signal aggregates RSI, MACD, moving averages, and stochastic — not investment advice.
-      </p>
-    </div>
-  )
-}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 function EquityTaContent() {
-  const [tab, setTab] = useState<'chart' | 'screener'>('chart')
 
   return (
     <div className="space-y-6 max-w-screen-2xl mx-auto">
       <PageHeader
         title="Equity Technical Analysis"
-        subtitle="Candlestick charting, 62 indicators from the shared registry, pattern detection, and a momentum screener"
+        subtitle="Candlestick charting, 62 indicators from the shared registry, and pattern detection"
         description="The same TA engine as the crypto module — indicator registry, signal aggregation, and pattern detection — running on daily/weekly stock candles from Tiingo (FMP fallback). Both need an API key."
         details={[
           { label: 'Signals', text: 'The summary aggregates RSI, MACD, moving-average posture, and stochastic into buy/neutral/sell counts. Informational only.' },
@@ -511,20 +407,7 @@ function EquityTaContent() {
       {/* Data provenance */}
       <SourceLine id="security-ohlcv" />
 
-      <div className="flex gap-1 border-b border-slate-800">
-        {([['chart', 'Chart'], ['screener', 'Screener']] as const).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id)}
-            className={clsx('px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-              tab === id ? 'border-accent-blue text-accent-blue' : 'border-transparent text-text-muted hover:text-text-secondary')}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'chart' ? <ChartTab /> : <ScreenerTab />}
+      <ChartTab />
     </div>
   )
 }

@@ -6,7 +6,8 @@ import type { CompositeRisk } from '@/lib/risk/types'
 import { bandForScore } from '@/lib/risk/engine'
 import { getRiskTailwindClasses } from '@/lib/risk/presentation'
 
-// Renders a CompositeRisk the way the risk-scores page renders composites:
+// Renders a CompositeRisk the way the per-coin risk panel renders composites:
+// (the /risk-scores page this once matched was removed in the item 4 cut)
 // canonical 0–100 higher-is-safer score with its band, per-dimension cards
 // with weights and evidence, confidence and coverage always visible. Shared
 // shape with that page on purpose — a composite must read the same wherever

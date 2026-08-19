@@ -14,10 +14,11 @@ import type { FundHoldingsResponse } from '@/app/live-data/fund-holdings/route'
 // N-PORT portfolio (SEC), FMP's aggregated holdings + sector weights, or the
 // catalog's indicative list as a last resort — always labelled with its source.
 //
-// The asset-allocation donut renders only when `assetAllocation` is non-empty,
-// which it now never is: the stock/bond/cash mix had exactly one source and it
-// was withdrawn. The chart code is kept because restoring a source is a route
-// change, not a component rewrite.
+// The asset-allocation chart went dark on 2026-08-06 — its only source was
+// withdrawn on terms grounds — and was restored on 2026-08-18 by NT9, derived
+// from the fund's own N-PORT `assetCat` codes. That prediction held exactly:
+// bringing it back was a route change, not a component rewrite. It renders on
+// the SEC path only, since neither FMP nor the catalog carries the category.
 
 const COLLAPSED_ROWS = 25
 
@@ -26,7 +27,7 @@ const ALLOCATION_COLORS: Record<string, string> = {
   Bonds: '#64748b',
   Cash: '#22c55e',
   Preferred: '#8b5cf6',
-  Convertible: '#f59e0b',
+  Derivatives: '#f59e0b',
   Other: '#a16207',
 }
 
@@ -44,8 +45,8 @@ function sourceLabel(data: FundHoldingsResponse): string {
 
 // The 'yahoo' option went with the source itself on 2026-08-06 (terms grounds —
 // see lib/server/sourceTerms.ts). It supplied the top-10 list, sector weights
-// and the asset-allocation mix keylessly; sector weights now require an FMP key
-// and the asset mix has no source at all, so that chart no longer renders.
+// and the asset-allocation mix keylessly; sector weights still require an FMP
+// key, but the asset mix now comes from N-PORT directly (NT9).
 type HoldingsSourceChoice = 'auto' | 'sec' | 'fmp'
 
 const SOURCE_OPTIONS: Array<[HoldingsSourceChoice, string, string]> = [
@@ -201,7 +202,11 @@ export function FundHoldingsSection({ symbol }: { symbol: string }) {
                     <div
                       key={slice.class}
                       title={`${slice.class} ${slice.weightPct.toFixed(1)}%`}
-                      style={{ width: `${Math.min(100, slice.weightPct)}%`, backgroundColor: ALLOCATION_COLORS[slice.class] }}
+                      // A short position reports a negative weight. It belongs in
+                      // the legend as a negative number, but a bar cannot have
+                      // negative width — so the bar clamps and the list below
+                      // shows the real figure.
+                      style={{ width: `${Math.max(0, Math.min(100, slice.weightPct))}%`, backgroundColor: ALLOCATION_COLORS[slice.class] }}
                     />
                   ))}
                 </div>
@@ -216,6 +221,22 @@ export function FundHoldingsSection({ symbol }: { symbol: string }) {
                     </li>
                   ))}
                 </ul>
+                {data.assetAllocationCoverage && (
+                  <p className="mt-1.5 text-[10px] leading-relaxed text-text-muted">
+                    From the fund&rsquo;s N-PORT filing
+                    {data.asOf ? ` (as of ${data.asOf})` : ''}. Covers{' '}
+                    {data.assetAllocationCoverage.coveredPct.toFixed(1)}% of net assets
+                    {data.assetAllocationCoverage.coveredPct < 99.5 && (
+                      <> — the remainder is cash at the custodian, payables and receivables the
+                      position list does not carry. Not rescaled to 100%.</>
+                    )}
+                    {data.assetAllocationCoverage.unclassifiedCount > 0 && (
+                      <> {data.assetAllocationCoverage.unclassifiedCount} position
+                      {data.assetAllocationCoverage.unclassifiedCount === 1 ? '' : 's'} had no
+                      category in the filing and {data.assetAllocationCoverage.unclassifiedCount === 1 ? 'is' : 'are'} shown as Other.</>
+                    )}
+                  </p>
+                )}
               </div>
             )}
 

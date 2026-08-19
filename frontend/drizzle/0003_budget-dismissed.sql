@@ -1,0 +1,1 @@
+ALTER TABLE "recurring_rules" ADD COLUMN "dismissed" boolean DEFAULT false NOT NULL;

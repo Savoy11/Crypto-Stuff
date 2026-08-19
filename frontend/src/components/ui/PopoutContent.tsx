@@ -5,7 +5,6 @@ import { TrendingUp, TrendingDown, RefreshCw } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useMarketOverview } from '@/hooks/useMarketData'
 import { useAlertStats } from '@/hooks/useAlerts'
-import { RiskHeatmap } from '@/components/dashboard/RiskHeatmap'
 import { formatCompact, formatScore, formatOrNA, NA_LABEL } from '@/lib/utils/format'
 import { getScoreColor } from '@/lib/utils/risk'
 import type { PopoutKey } from '@/store/usePopoutStore'
@@ -192,15 +191,9 @@ function StakingRates() {
   )
 }
 
-// ─── Risk Heatmap ─────────────────────────────────────────────────────────────
-
-function RiskHeatmapPopout() {
-  return (
-    <div className="p-2 overflow-auto">
-      <RiskHeatmap />
-    </div>
-  )
-}
+// The Risk Heatmap popout was removed with its component (2026-08-18, item 4):
+// a grid ranking every tracked coin by risk band is a leaderboard in another
+// shape. Per-coin risk explanation on /assets/[id] is unaffected.
 
 // ─── Registry ─────────────────────────────────────────────────────────────────
 
@@ -210,7 +203,6 @@ export function PopoutContent({ contentKey }: { contentKey: PopoutKey }) {
     case 'market-overview': return <MarketOverviewPopout />
     case 'news-feed':       return <NewsFeed />
     case 'staking-rates':   return <StakingRates />
-    case 'risk-heatmap':    return <RiskHeatmapPopout />
     default:                return null
   }
 }

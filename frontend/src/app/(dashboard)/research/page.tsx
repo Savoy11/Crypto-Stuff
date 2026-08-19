@@ -26,11 +26,56 @@ const RESEARCH_AGENT: Record<Market, string> = {
  */
 const AGENT_MARKET: Record<string, Market> = {
   'research-analyst': 'crypto',
+  'data-scraper': 'crypto',
   'equity-research': 'equities',
   'equity-screener': 'equities',
+  'equity-data-scraper': 'equities',
+  'equity-diligence': 'equities',
   'macro-research': 'macro',
   'macro-screener': 'macro',
 }
+
+/**
+ * The agents each market offers, in the order they appear as chips.
+ *
+ * NT5 (2026-08-18): `data-scraper`, `equity-data-scraper` and `equity-diligence`
+ * had editable prompts in the AI Agents tab and no way to run them at all —
+ * configurable placeholders that could never execute. This picker is their
+ * invocation path. `equity-screener` and `macro-screener` were already
+ * whitelisted on the run route but reachable only by deep link, so they surface
+ * here too rather than staying URL-only knowledge.
+ *
+ * `structured: true` marks an agent whose prompt asks for machine-readable
+ * output. Its report renders the same way, but the page says what it is — a
+ * wall of JSON with no explanation reads as a malfunction.
+ */
+interface AgentChoice {
+  id: string
+  label: string
+  blurb: string
+  structured?: boolean
+}
+
+const MARKET_AGENTS: Record<Market, AgentChoice[]> = {
+  crypto: [
+    { id: 'research-analyst', label: 'Research', blurb: 'Multi-angle analysis of a coin, protocol or question, grounded in live platform data.' },
+    { id: 'data-scraper', label: 'Data Scraper', blurb: 'Searches for staking opportunities, new listings and market updates not yet tracked here, and returns them as structured records.', structured: true },
+  ],
+  equities: [
+    { id: 'equity-research', label: 'Research', blurb: 'Company analysis: financial health, valuation vs history, growth drivers and risks.' },
+    { id: 'equity-screener', label: 'Screener', blurb: 'Sector-relative outliers across the stock universe, then a drill-down into what makes each one an outlier.' },
+    { id: 'equity-diligence', label: 'Diligence', blurb: 'Red-flag investigation of one company: accounting quality, litigation, SEC enforcement, short-seller reports, governance, insider activity.' },
+    { id: 'equity-data-scraper', label: 'Data Scraper', blurb: 'Upcoming earnings, rating changes, IPOs and index changes as structured records.', structured: true },
+  ],
+  macro: [
+    { id: 'macro-research', label: 'Research', blurb: 'Commodities, currencies and rates analysis grounded in live quotes, the yield curve and macro news.' },
+    { id: 'macro-screener', label: 'Screener', blurb: 'Cross-instrument scan over the macro universe.' },
+  ],
+}
+
+const AGENT_BY_ID = new Map<string, AgentChoice>(
+  Object.values(MARKET_AGENTS).flat().map((a) => [a.id, a]),
+)
 
 const EXAMPLES: Record<Market, string[]> = {
   crypto: [
@@ -53,6 +98,37 @@ const EXAMPLES: Record<Market, string[]> = {
   ],
 }
 
+/**
+ * Examples for the agents that are not their market's default. A scraper or a
+ * diligence run needs a differently-shaped task than "analyze X", and offering
+ * the research examples for them would teach the wrong usage on first contact.
+ */
+const AGENT_EXAMPLES: Record<string, string[]> = {
+  'data-scraper': [
+    'Find liquid staking protocols launched in the last six months that are not in the platform catalog. Return name, chain, receipt token, current APR and source URL.',
+    'Collect current advertised staking APRs for ETH, SOL and ATOM across the major exchanges, with the page you read each figure from.',
+    'List coins that entered the top 200 by market cap this month, with market cap, chain and launch date.',
+  ],
+  'equity-data-scraper': [
+    'Collect the earnings dates confirmed for the next two weeks among S&P 500 companies, with the session (pre/post) and the source.',
+    'Find analyst rating changes published this week for mega-cap technology names, with the firm, old and new rating, and price target.',
+    'List index additions and deletions announced this quarter for the S&P 500 and Nasdaq-100, with effective dates.',
+  ],
+  'equity-diligence': [
+    'Investigate NVDA for red flags: accounting quality, litigation, SEC enforcement history, short-seller reports, governance and insider selling. Cite every source.',
+    'Run diligence on a recent IPO of your choosing and report what a buyer should verify before investing.',
+    'Review the last three years of filings for any restatements, auditor changes or going-concern language at BA.',
+  ],
+  'equity-screener': [
+    'Scan for sector-relative valuation outliers and explain what makes the three most extreme ones outliers.',
+    'Find high-dividend-yield outliers and check whether each yield is supported by earnings or a falling price.',
+  ],
+  'macro-screener': [
+    'Scan the macro universe for instruments furthest from their 50-day average and explain what moved them.',
+    'Which commodities and currencies show the strongest 1-month momentum right now, and what is driving each?',
+  ],
+}
+
 interface ReportResult {
   report: string
   toolsUsed: { name: string; input: unknown }[]
@@ -69,15 +145,16 @@ function ResearchInner() {
       : 'crypto')
 
   // A deep link naming a specific agent runs THAT agent, not just its market's
-  // default. `?agent=macro-screener` is the documented way to reach the screener,
-  // which has no panel of its own — before this it landed on macro-research at
-  // best. Cleared as soon as the user switches market by hand, since the pinned
-  // agent would no longer belong to the market on screen.
-  const [pinnedAgent, setPinnedAgent] = useState<string | null>(
-    AGENT_MARKET[agentParam] ? agentParam : null,
-  )
-
+  // default — `?agent=macro-screener` is the documented way to reach a screener.
+  // Before NT5 that state lived in a separate `pinnedAgent` flag; the agent
+  // selector made it redundant, since the selection IS the agent to run.
   const [market, setMarket] = useState<Market>(initialMarket)
+  // The agent actually being run. A deep link pins one; otherwise it is the
+  // market's first (research) agent, and switching market resets it — a pinned
+  // equity agent must not survive a switch to Macro.
+  const [agentId, setAgentId] = useState<string>(
+    AGENT_MARKET[agentParam] ? agentParam : RESEARCH_AGENT[initialMarket],
+  )
   const [task, setTask] = useState('')
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ReportResult | null>(null)
@@ -91,7 +168,7 @@ function ResearchInner() {
     if (preset) { setTask(preset); return }
     if (symbol) {
       setMarket('equities')
-      setPinnedAgent(null)
+      setAgentId(RESEARCH_AGENT.equities)
       setTask(`Analyze ${symbol.toUpperCase()}: business and industry, financial health, valuation vs history and peers, growth drivers, catalysts, and key risks. End with a risk-adjusted outlook.`)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -109,7 +186,7 @@ function ResearchInner() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           task: trimmed,
-          agentId: pinnedAgent ?? RESEARCH_AGENT[market],
+          agentId,
           // See AssistantWidget — the server cannot read the watchlist itself.
           watchlist: agentWatchlistPayload(watchlist) ?? undefined,
         }),
@@ -122,6 +199,8 @@ function ResearchInner() {
     }
     setLoading(false)
   }
+
+  const activeAgent = AGENT_BY_ID.get(agentId)
 
   const markets: Array<{ id: Market; label: string; icon: React.ElementType }> = [
     { id: 'crypto', label: 'Crypto', icon: Bitcoin },
@@ -148,7 +227,7 @@ function ResearchInner() {
         {markets.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
-            onClick={() => { setMarket(id); setPinnedAgent(null); setResult(null); setError(null) }}
+            onClick={() => { setMarket(id); setAgentId(RESEARCH_AGENT[id]); setResult(null); setError(null) }}
             className={clsx(
               'flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
               market === id ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200',
@@ -157,6 +236,28 @@ function ResearchInner() {
             <Icon size={14} /> {label}
           </button>
         ))}
+      </div>
+
+      {/* Agent selector (NT5). Every agent in this market, not just the default —
+          three of these had no invocation path at all before. */}
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap gap-1.5">
+          {MARKET_AGENTS[market].map((a) => (
+            <button
+              key={a.id}
+              onClick={() => { setAgentId(a.id); setResult(null); setError(null) }}
+              className={clsx(
+                'rounded-full border px-3 py-1 text-xs font-medium transition-colors',
+                agentId === a.id
+                  ? 'border-violet-500/60 bg-violet-600/20 text-violet-200'
+                  : 'border-slate-700 bg-slate-900/60 text-slate-400 hover:text-slate-200',
+              )}
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+        <p className="text-[11px] leading-relaxed text-slate-500">{activeAgent?.blurb}</p>
       </div>
 
       {/* Task input */}
@@ -174,7 +275,8 @@ function ResearchInner() {
         />
         <div className="flex items-center justify-between">
           <p className="text-[11px] text-slate-600">
-            {market === 'equities' ? 'Equity Research Agent' : market === 'macro' ? 'Macro Research Agent' : 'Crypto Research Agent'} · reports can take 20–60s.
+            {activeAgent?.label ?? 'Research'} agent · reports can take 20–60s.
+            {activeAgent?.structured && ' Returns structured records rather than prose.'}
           </p>
           <button
             onClick={() => run(task)}
@@ -191,7 +293,7 @@ function ResearchInner() {
       {!result && !loading && (
         <div className="space-y-2">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Try an example</p>
-          {EXAMPLES[market].map((e) => (
+          {(AGENT_EXAMPLES[agentId] ?? EXAMPLES[market]).map((e) => (
             <button
               key={e}
               onClick={() => { setTask(e); run(e) }}

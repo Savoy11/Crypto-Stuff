@@ -6,9 +6,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ExternalLink, ChevronDown, ChevronUp, CheckCircle, AlertTriangle, Shield, Building2, Wallet, Layers, Search, RefreshCw, Radio } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
-import { DerivedNote } from '@/components/ui/DerivedNote'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
-import { RiskScoreBadge } from '@/components/assets/RiskScoreBadge'
 import { STALE_TIME_LONG, GC_TIME } from '@/lib/constants'
 import { clsx } from 'clsx'
 import {
@@ -318,7 +316,6 @@ function LiveOpportunities({ search }: { search: string }) {
                 <th className="py-2 px-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider">Chain</th>
                 <th className="py-2 px-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider">APY</th>
                 <th className="py-2 px-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider">TVL</th>
-                <th className="py-2 px-2 text-[10px] font-semibold text-text-muted uppercase tracking-wider">Safety</th>
                 <th className="py-2 pl-2 pr-4 text-[10px] font-semibold text-text-muted uppercase tracking-wider">Source</th>
               </tr>
             </thead>
@@ -348,9 +345,6 @@ function LiveOpportunities({ search }: { search: string }) {
                     {p.apy.toFixed(2)}%
                   </td>
                   <td className="py-2.5 px-2 text-xs font-mono text-text-secondary">{fmtUsd(p.tvlUsd)}</td>
-                  <td className="py-2.5 px-2">
-                    <RiskScoreBadge score={p.riskCanonical} band={p.band} size="xs" />
-                  </td>
                   <td className="py-2.5 pl-2 pr-4">
                     <span className="text-[10px] text-text-muted bg-bg-elevated border border-border px-1.5 py-0.5 rounded">
                       {SOURCE_LABELS[p.source]}
@@ -439,9 +433,6 @@ function StakingPlatformsPageInner() {
 
       {/* Data provenance */}
       <SourceLine id="staking-discovery" />
-      <DerivedNote what="Risk scores" scale="0–100, higher = safer">
-        APRs come from the protocols; the risk score beside them is our own weighting.
-      </DerivedNote>
 
       {/* The live-discovery half of this page (DefiLlama/Yearn/Pendle/Beefy) is
           covered by the SourceLine above. The directory platforms come from the
@@ -451,7 +442,7 @@ function StakingPlatformsPageInner() {
         const prov = getStakingDataProvenance()
         return (
           <ProvenanceNotice
-            label="Directory platforms & risk scores"
+            label="Directory platforms"
             staleLabel="Directory platform data may be out of date"
             confidence={prov.confidence}
             stale={prov.stale}
@@ -459,8 +450,8 @@ function StakingPlatformsPageInner() {
             — {prov.source.toLowerCase()}, compiled{' '}
             {new Date(STAKING_DATA_LAST_VERIFIED).toLocaleDateString()} ({prov.ageDays} days ago)
             {prov.stale && `, past the ${STAKING_DATA_STALE_AFTER_DAYS}-day review window`}. Discovered
-            on-chain opportunities are live; the platform directory and its risk scores are curated
-            estimates — confirm current terms with the platform.
+            on-chain opportunities are live; the platform directory is a curated
+            snapshot — confirm current terms with the platform.
           </ProvenanceNotice>
         )
       })()}

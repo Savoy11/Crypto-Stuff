@@ -29,10 +29,12 @@ import {
   Percent,
   Network,
   Activity,
+  Radar,
   Sigma,
   PiggyBank,
   Goal,
   ReceiptText,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -58,6 +60,24 @@ export interface ModuleNavItem {
   label: string
   icon: LucideIcon
   badge?: boolean
+  /**
+   * Sub-items rendered as a collapsible group under this entry.
+   *
+   * ONE level only, deliberately. A sidebar that nests arbitrarily deep stops
+   * being navigation and becomes a file tree — every extra level is another
+   * click between a user and the page they wanted. Two levels covers what the
+   * suite actually needs: a section (Crypto), and a group inside it.
+   *
+   * A parent WITH children is still a real destination: its `href` must route
+   * somewhere, because a header that looks clickable and does nothing is worse
+   * than no header. Clicking the label navigates; clicking the chevron expands.
+   */
+  children?: ModuleNavItem[]
+}
+
+/** Every nav entry in a module, parents and children alike, flattened. */
+export function flattenNavItems(items: ModuleNavItem[]): ModuleNavItem[] {
+  return items.flatMap((item) => [item, ...(item.children ?? [])])
 }
 
 export interface SuiteModule {
@@ -85,9 +105,27 @@ export const MODULES: SuiteModule[] = [
       { href: '/portfolios', label: 'Portfolios', icon: Briefcase },
       { href: '/compare', label: 'Compare', icon: GitCompareArrows },
       { href: '/research', label: 'Research', icon: Microscope },
-      { href: '/agent-config', label: 'AI Agents', icon: Bot },
-      { href: '/settings', label: 'Integrations', icon: Settings },
-      { href: '/data-sources', label: 'Data Sources', icon: Network },
+      // Item 1 (2026-08-19), unblocked by the nested-nav primitive items 6/7
+      // required. AI Agents, Integrations and Data Sources are three faces of
+      // one thing — how the app is configured and where its data comes from —
+      // and sat as three siblings of Headlines and Portfolios.
+      //
+      // Only the GROUPING changed. Every route path is identical, on purpose:
+      // SourceLine.tsx links /data-sources from every provenance badge in the
+      // app, and moving the URL would trade a real regression for a tidier
+      // path. Settings stays the parent because it is itself a destination.
+      {
+        href: '/settings',
+        label: 'Settings',
+        icon: Settings,
+        // The parent IS the Integrations page (/settings), so it is not
+        // repeated as a child — a duplicate href makes one of the two entries
+        // permanently un-highlightable, and the registry guard fails on it.
+        children: [
+          { href: '/agent-config', label: 'AI Agents', icon: Bot },
+          { href: '/data-sources', label: 'Data Sources', icon: Network },
+        ],
+      },
     ],
   },
   {
@@ -96,7 +134,7 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: [
       '/assets', '/news', '/social', '/wallets',
       '/transfer-fees', '/staking', '/staking-discovery', '/coin-discovery',
-      '/technical-analysis', '/risk-scores',
+      '/technical-analysis', '/scanner',
       // De-routed but retained page (T5): unreachable via the next.config
       // redirect, gated here so removing that redirect can't re-expose it
       // outside the entitlement (review defect D-8).
@@ -121,6 +159,11 @@ export const MODULES: SuiteModule[] = [
       { href: '/staking-discovery', label: 'Staking Discovery', icon: TrendingUp },
       { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
       { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
+      // Item 6/7 (2026-08-19): one scanner per section, promoted to a top-level
+      // nav entry. A scanner sweeps a universe to find candidates; a TA page
+      // charts an asset already chosen. Burying the first inside the second
+      // made discovery reachable only after picking something to look at.
+      { href: '/scanner', label: 'Scanner', icon: Radar },
     ],
   },
   {
@@ -133,6 +176,7 @@ export const MODULES: SuiteModule[] = [
       { href: '/equities/news', label: 'Market News', icon: Newspaper },
       { href: '/equities/social', label: 'Stock Social', icon: MessageSquare },
       { href: '/equities/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
+      { href: '/equities/scanner', label: 'Scanner', icon: Radar },
       { href: '/equities/options', label: 'Options Scorer', icon: Sigma },
       { href: '/equities/backtests', label: 'Backtests', icon: FlaskConical },
       { href: '/equities/calendar', label: 'Calendar', icon: CalendarDays },
@@ -153,6 +197,7 @@ export const MODULES: SuiteModule[] = [
       { href: '/macro/currencies', label: 'Currencies', icon: Banknote },
       { href: '/macro/rates', label: 'Bonds & Rates', icon: Percent },
       { href: '/macro/technical-analysis', label: 'Macro TA', icon: Activity },
+      { href: '/macro/scanner', label: 'Scanner', icon: Radar },
     ],
   },
   {
@@ -189,8 +234,18 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: ['/budget'],
     optional: true,
     navItems: [
-      { href: '/budget', label: 'Budget', icon: PiggyBank },
-      { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
+      // NT1 (2026-08-19): the management half of the module gets a home, and
+      // uses the nested-nav primitive — Budget is a real destination with the
+      // two working surfaces under it.
+      {
+        href: '/budget',
+        label: 'Budget',
+        icon: PiggyBank,
+        children: [
+          { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
+          { href: '/budget/manage', label: 'Settings', icon: SlidersHorizontal },
+        ],
+      },
     ],
   },
   {

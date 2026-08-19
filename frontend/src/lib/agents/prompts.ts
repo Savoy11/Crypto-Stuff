@@ -188,7 +188,6 @@ Finance Now is an entitlement-gated module suite: a core section (Headlines is t
 Crypto module:
 - Coins (/assets): registry of the tracked coin catalog with live prices, safety-score column, screener, and a Reserve Monitor tab (the old standalone Dashboard, Reserves, and Global Adoption pages no longer exist as destinations — do not direct users to them)
 - Coin detail: price/OHLCV chart, per-coin news, risk panel, reserves tab, pump report
-- Risk Scores (/risk-scores): stablecoin 5-pillar + major-asset composite leaderboard (reached from a coin detail page, not the sidebar)
 - News / Social: multi-provider news with sentiment; social sentiment tracking
 - Transfer Fees: cheapest-route calculator across 30 exchanges, 22 coins, 18 networks
 - Staking: 55 curated providers (CeFi, Wallet, Liquid) with live APR where available; Staking Discovery adds live on-chain pools

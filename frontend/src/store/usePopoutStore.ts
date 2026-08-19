@@ -1,13 +1,12 @@
 import { create } from 'zustand'
 
-export type PopoutKey = 'prices' | 'market-overview' | 'news-feed' | 'staking-rates' | 'risk-heatmap'
+export type PopoutKey = 'prices' | 'market-overview' | 'news-feed' | 'staking-rates'
 
 export const POPOUT_META: Record<PopoutKey, { title: string; defaultWidth: number; defaultHeight: number }> = {
   'prices':          { title: 'Live Prices',      defaultWidth: 360, defaultHeight: 400 },
   'market-overview': { title: 'Market Overview',  defaultWidth: 520, defaultHeight: 220 },
   'news-feed':       { title: 'News Feed',         defaultWidth: 440, defaultHeight: 520 },
   'staking-rates':   { title: 'Staking Rates',    defaultWidth: 380, defaultHeight: 340 },
-  'risk-heatmap':    { title: 'Risk Heatmap',     defaultWidth: 580, defaultHeight: 360 },
 }
 
 export interface PopoutInstance {

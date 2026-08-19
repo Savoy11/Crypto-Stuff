@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { accountBalance, monthTotals, type CategoryKind } from '../aggregate'
+import { accountBalance, monthTotals, type CategoryKind, averageMonthlySpend } from '../aggregate'
 
 describe('accountBalance', () => {
   it('balance is the opening anchor plus the signed transaction sum', () => {
@@ -78,5 +78,44 @@ describe('monthTotals', () => {
     expect(t.income).toBe(0)
     expect(t.spend === 0).toBe(true)
     expect(t.uncategorized).toBe(0)
+  })
+})
+
+// ─── averageMonthlySpend (NT1 extension: Budget → Retirement) ────────────────
+
+describe('averageMonthlySpend', () => {
+  const m = (month: string, spend: number, uncategorized = 0) => ({ month, spend, uncategorized })
+
+  it('averages the months that have activity', () => {
+    const r = averageMonthlySpend([m('2026-05', 3000), m('2026-06', 3400), m('2026-07', 3200)])
+    expect(r.averageMonthly).toBe(3200)
+    expect(r.monthsUsed).toBe(3)
+  })
+
+  it('drops empty months instead of averaging them in as zeros', () => {
+    // The failure this prevents: two months of imported history plus one empty
+    // month would report an average a third too low, which is exactly the kind
+    // of confidently wrong number a plan gets built on.
+    const r = averageMonthlySpend([m('2026-05', 3000), m('2026-06', 3000), m('2026-07', 0)])
+    expect(r.averageMonthly).toBe(3000)
+    expect(r.monthsUsed).toBe(2)
+  })
+
+  it('counts uncategorized outflow as spending and reports its share', () => {
+    // Uncategorized money left the account whether or not it was labelled.
+    const r = averageMonthlySpend([m('2026-06', 800, -200)])
+    expect(r.averageMonthly).toBe(1000)
+    expect(r.uncategorizedShare).toBe(0.2)
+  })
+
+  it('ignores uncategorized INFLOW — an unlabelled deposit is not spending', () => {
+    const r = averageMonthlySpend([m('2026-06', 900, 500)])
+    expect(r.averageMonthly).toBe(900)
+    expect(r.uncategorizedShare).toBe(0)
+  })
+
+  it('degenerates cleanly with no data at all', () => {
+    expect(averageMonthlySpend([])).toEqual({ averageMonthly: 0, monthsUsed: 0, uncategorizedShare: 0 })
+    expect(averageMonthlySpend([m('2026-06', 0)])).toMatchObject({ averageMonthly: 0, monthsUsed: 0 })
   })
 })

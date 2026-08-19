@@ -69,7 +69,11 @@ const server = new McpServer({
 
 server.tool(
   'get_coin_prices',
-  'Get live USD prices for one or more cryptocurrencies. Supported coins: btc, eth, usdt, usdc, bnb, sol, dai, xrp, ltc, trx, doge, matic, avax, ada, dot, atom.',
+  // NT12: this description used to enumerate 16 coin ids while the catalog
+  // carried 22 (link, ton, shib, uni, near, arb were missing). An agent reads a
+  // tool description as the contract, so a short list silently removes
+  // capability. Point at discovery instead of restating a list that drifts.
+  'Get live USD prices for one or more cryptocurrencies. GET /api/v1/ (the discovery endpoint) returns the full supported-coin list; omit the `coins` argument here to price every supported coin.',
   {
     coins: z.string().optional().describe('Comma-separated coin ids, e.g. "btc,eth,usdt". Omit for every supported coin (the API discovery endpoint lists them).'),
   },
