@@ -459,11 +459,16 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                         <GripVertical size={14} className="text-text-muted flex-shrink-0" aria-hidden />
                       </div>
                     ) : (
+                      // Link and chevron are SIBLINGS, not nested. A button
+                      // inside an anchor is invalid markup: screen readers
+                      // announce one control, and a middle-click or
+                      // open-in-new-tab on the chevron would navigate.
+                      <div className="flex items-center">
                       <Link
                         href={href}
                         onClick={onClose}
                         className={clsx(
-                          'flex items-center justify-between px-3 py-2 rounded text-sm transition-all',
+                          'flex flex-1 items-center justify-between px-3 py-2 rounded text-sm transition-all',
                           isActive
                             ? 'bg-accent-blue/10 text-accent-blue border border-accent-blue/20'
                             : childActive && !groupOpen
@@ -484,29 +489,21 @@ export function Sidebar({ open = false, onClose }: SidebarProps) {
                             {unreadCount > 99 ? '99+' : unreadCount}
                           </span>
                         )}
-                        {/* Chevron toggles the group WITHOUT navigating — the
-                            label still routes, so a parent that is also a real
-                            page keeps working as a link. */}
-                        {children.length > 0 && (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            aria-expanded={groupOpen}
-                            aria-label={`${groupOpen ? 'Collapse' : 'Expand'} ${label}`}
-                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleGroup(item) }}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault(); e.stopPropagation(); toggleGroup(item)
-                              }
-                            }}
-                            className="p-0.5 -mr-1 rounded text-text-muted hover:text-text-primary"
-                          >
-                            {groupOpen
-                              ? <ChevronDown size={13} aria-hidden />
-                              : <ChevronRight size={13} aria-hidden />}
-                          </span>
-                        )}
                       </Link>
+                      {children.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => toggleGroup(item)}
+                          aria-expanded={groupOpen}
+                          aria-label={`${groupOpen ? 'Collapse' : 'Expand'} ${label}`}
+                          className="ml-0.5 rounded p-1 text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-primary"
+                        >
+                          {groupOpen
+                            ? <ChevronDown size={13} aria-hidden />
+                            : <ChevronRight size={13} aria-hidden />}
+                        </button>
+                      )}
+                      </div>
                     )}
 
                     {/* Child items. Hidden in reorder mode: only top-level

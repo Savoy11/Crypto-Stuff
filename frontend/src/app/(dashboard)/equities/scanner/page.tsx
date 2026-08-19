@@ -155,7 +155,17 @@ function ScannerPanel() {
     setLastScan(new Date())
   }, [historyWindow])
 
-  useEffect(() => { void runScan() }, [runScan])
+  // Deliberately NOT scanned on mount, and this is the same reasoning that
+  // rules out auto-refresh: one visit is 79 keyed provider requests. The crypto
+  // scanner runs on mount because its source is keyless and costs nothing;
+  // spending someone's provider quota just because they opened a page is not a
+  // trade this scanner gets to make on their behalf. Changing the window after
+  // a scan re-runs it, because at that point the user has asked for results.
+  const scannedOnce = useRef(false)
+  useEffect(() => {
+    if (!scannedOnce.current) return
+    void runScan()
+  }, [runScan])
 
   const visible = useMemo(() => {
     let out = rows
@@ -212,12 +222,12 @@ function ScannerPanel() {
         </select>
 
         <button
-          onClick={() => void runScan()}
+          onClick={() => { scannedOnce.current = true; void runScan() }}
           disabled={scanning}
           className="flex items-center gap-1.5 rounded-lg border border-border bg-bg-elevated px-3 py-1 text-xs font-medium text-text-secondary transition-colors hover:text-text-primary disabled:opacity-50"
         >
           {scanning ? <Loader2 size={12} className="animate-spin" aria-hidden /> : <RefreshCw size={12} aria-hidden />}
-          {scanning ? `Scanning ${done}/${SCAN_UNIVERSE.length}` : 'Rescan'}
+          {scanning ? `Scanning ${done}/${SCAN_UNIVERSE.length}` : lastScan ? 'Rescan' : 'Run scan'}
         </button>
 
         {lastScan && !scanning && (
@@ -245,6 +255,13 @@ function ScannerPanel() {
           </button>
         ))}
       </div>
+
+      {!lastScan && !scanning && (
+        <p className="rounded-card border border-border bg-bg-card p-3 text-xs text-text-muted">
+          Press <strong>Run scan</strong> to sweep the catalog. One scan is {SCAN_UNIVERSE.length} keyed
+          provider requests, so it runs when you ask rather than on every visit.
+        </p>
+      )}
 
       {/* Coverage, never silently capped */}
       <p className="text-[11px] leading-relaxed text-text-muted">

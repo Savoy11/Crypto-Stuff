@@ -1,4 +1,4 @@
-// Coins already tracked in Finance Now — excluded from discovery recommendations.
+// Coins already tracked in Finance Now — excluded from discovery candidates.
 // Add CoinGecko IDs here whenever a coin is formally added to the platform.
 
 export const FN_TRACKED_IDS = new Set([
@@ -20,7 +20,7 @@ export const FN_TRACKED_IDS = new Set([
 
 // ─── Utility category map ─────────────────────────────────────────────────────
 // Maps CoinGecko IDs to a category and utility score (1–10).
-// Add new coins here to improve recommendation quality.
+// Add new coins here to improve candidate quality.
 
 export const UTILITY_MAP: Record<string, { category: string; utilityScore: number; note: string }> = {
   // Layer 2 / Scaling
