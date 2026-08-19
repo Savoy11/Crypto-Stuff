@@ -34,6 +34,7 @@ import {
   PiggyBank,
   Goal,
   ReceiptText,
+  SlidersHorizontal,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -233,8 +234,18 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: ['/budget'],
     optional: true,
     navItems: [
-      { href: '/budget', label: 'Budget', icon: PiggyBank },
-      { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
+      // NT1 (2026-08-19): the management half of the module gets a home, and
+      // uses the nested-nav primitive — Budget is a real destination with the
+      // two working surfaces under it.
+      {
+        href: '/budget',
+        label: 'Budget',
+        icon: PiggyBank,
+        children: [
+          { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
+          { href: '/budget/manage', label: 'Settings', icon: SlidersHorizontal },
+        ],
+      },
     ],
   },
   {

@@ -149,6 +149,19 @@ export const recurringRules = pgTable('recurring_rules', {
   // hasn't confirmed it — inferred rules are shown as suggestions, not facts.
   confirmed: boolean('confirmed').notNull().default(false),
   active: boolean('active').notNull().default(true),
+  /**
+   * The user saw this suggestion and said no.
+   *
+   * Added by NT1 (2026-08-19) to close the review's Budget note 7: detection
+   * runs fresh on every load, so a suggestion the user did not want came back
+   * forever and the only way to silence it was to confirm it, then deactivate
+   * it by curl. A dismissal is a real answer and needs somewhere to live.
+   *
+   * Dismissed rows stay in the table — they are what suppresses the suggestion
+   * (matched by merchant key) — but they are never returned as confirmed
+   * recurring items.
+   */
+  dismissed: boolean('dismissed').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   userIdx: index('recurring_rules_user_idx').on(t.userId),

@@ -17,6 +17,7 @@ import {
 } from '@/lib/retirement/engine'
 import { amortize, cardPayoff } from '@/lib/retirement/debt'
 import { getLimitsProvenance, LIMITS_TAX_YEAR } from '@/lib/retirement/limits'
+import { UseBudgetSpend } from '@/components/budget/UseBudgetSpend'
 
 // Retirement planner — ported from the owner's planning spreadsheet
 // (Budget_Sheet.xlsx). All arithmetic lives in lib/retirement/ (pure, vitest-
@@ -180,6 +181,12 @@ function RetirementInner() {
             <Field label="Employer match" value={form.companyMatchPct} onChange={set('companyMatchPct')} step={0.5} suffix="%" />
             <Field label="Other income at retirement" value={form.otherMonthlyIncome} onChange={set('otherMonthlyIncome')} step={100} hint="pension, annuity, rental, Social Security" />
           </div>
+
+          {/* NT1 extension: the Budget module already knows what this user
+              spends, and the source spreadsheet wired these two together.
+              Fills the field once — it does not keep the plan in sync, because
+              an assumption that changes underneath makes a plan unreproducible. */}
+          <UseBudgetSpend onApply={(v: number) => setForm((f) => ({ ...f, monthlyExpenses: v }))} />
 
           <h3 className="text-xs font-medium text-text-secondary pt-2">Emergency fund</h3>
           <div className="grid grid-cols-2 gap-3">
