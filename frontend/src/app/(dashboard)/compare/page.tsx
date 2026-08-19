@@ -1,7 +1,7 @@
 'use client'
 
 import { Suspense, useEffect, useMemo, useState, type CSSProperties } from 'react'
-import { useQueries } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { clsx } from 'clsx'
 import { GitCompareArrows, Search, X } from 'lucide-react'
@@ -18,6 +18,8 @@ import {
   normalizeToCommonStart,
   windowStats,
   correlationMatrix,
+  betaVsBenchmark,
+  MIN_BETA_PERIODS,
   toDailyCloses,
   commonStartTime,
   type ChartPoint,
@@ -61,6 +63,24 @@ const RANGES = [
 ] as const
 type Range = (typeof RANGES)[number]['value']
 const RANGE_VALUES = RANGES.map((r) => r.value) as readonly string[]
+
+/**
+ * Benchmarks for the beta row (item 2b — asked for in T3, delivered 2026-08-18).
+ *
+ * Deliberately a short list of liquid, unambiguous reference series rather than
+ * "any symbol": beta is only interpretable against something the reader can name
+ * from memory, and an arbitrary benchmark invites comparisons ("beta vs DOGE")
+ * that read as analysis while meaning nothing. BTC is included because a beta
+ * against equities is the wrong question for a crypto-only comparison.
+ */
+const BENCHMARKS: Array<{ symbol: string; label: string }> = [
+  { symbol: 'SPY', label: 'S&P 500 (SPY)' },
+  { symbol: 'QQQ', label: 'Nasdaq-100 (QQQ)' },
+  { symbol: 'IWM', label: 'Russell 2000 (IWM)' },
+  { symbol: 'VT',  label: 'Global equity (VT)' },
+  { symbol: 'AGG', label: 'US bonds (AGG)' },
+  { symbol: 'BTC', label: 'Bitcoin (BTC)' },
+]
 
 const color = (i: number) => CHART_COLORS[i % CHART_COLORS.length]
 
@@ -178,6 +198,8 @@ function CompareInner() {
     const raw = searchParams.get('range')
     return raw && RANGE_VALUES.includes(raw) ? (raw as Range) : '1y'
   })
+
+  const [benchmark, setBenchmark] = useState<string>(BENCHMARKS[0].symbol)
   const [search, setSearch] = useState('')
 
   // Keep the URL in sync so a comparison is shareable/bookmarkable.
@@ -206,6 +228,16 @@ function CompareInner() {
         staleTime: STALE_TIME_LONG,
       }
     }),
+  })
+
+  // Benchmark series for the beta row. The query key is IDENTICAL in shape to a
+  // selected symbol's, so when the benchmark is also one of the compared series
+  // React Query serves it from the same cache entry instead of fetching twice.
+  const benchOpt = OPTION_BY_SYMBOL.get(benchmark)
+  const benchQuery = useQuery({
+    queryKey: ['compare-chart', benchOpt?.kind, benchOpt?.id ?? benchmark, range],
+    queryFn: () => (benchOpt ? fetchPoints(benchOpt, rangeObj) : Promise.resolve([] as ChartPoint[])),
+    staleTime: STALE_TIME_LONG,
   })
 
   const dataKey = chartQueries.map((q) => q.dataUpdatedAt).join(',')
@@ -268,6 +300,19 @@ function CompareInner() {
       stats: windowStats(start != null ? s.points.filter((p) => p.t >= start) : s.points),
     }))
   }, [series])
+  // Beta over the same common-start window the chart and the other stats use, so
+  // every figure in the table describes the same period.
+  const betaBySymbol = useMemo(() => {
+    const bench = benchQuery.data ?? []
+    const start = commonStartTime(series)
+    const clip = (pts: ChartPoint[]) => (start != null ? pts.filter((p) => p.t >= start) : pts)
+    const benchClipped = clip(bench)
+    const out: Record<string, ReturnType<typeof betaVsBenchmark>> = {}
+    for (const s of series) out[s.symbol] = betaVsBenchmark(clip(s.points), benchClipped)
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [series, benchQuery.dataUpdatedAt])
+
   const corr = useMemo(() => correlationMatrix(series.filter((s) => s.points.length > 1)), [series])
 
   const loading = chartQueries.some((q) => q.isLoading)
@@ -421,10 +466,44 @@ function CompareInner() {
                   <td key={p.symbol} className="px-4 py-2.5 text-right text-text-secondary">{p.stats?.sortino != null ? p.stats.sortino.toFixed(2) : '—'}</td>
                 ))}
               </tr>
+              {/* Beta vs a benchmark (item 2b). R² rides along beneath each
+                  figure because a beta without it is easy to over-read: an
+                  unrelated series can regress to a slope near 1. */}
+              <tr>
+                <td className="px-4 py-2.5 text-text-muted font-sans align-top">
+                  <div className="flex items-center gap-2">
+                    <span>Beta vs</span>
+                    <select
+                      value={benchmark}
+                      onChange={(e) => setBenchmark(e.target.value)}
+                      aria-label="Beta benchmark"
+                      className="rounded border border-border bg-bg-elevated px-1.5 py-0.5 text-xs font-sans text-text-primary focus:border-accent-blue/50 focus:outline-none"
+                    >
+                      {BENCHMARKS.map((b) => (
+                        <option key={b.symbol} value={b.symbol}>{b.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </td>
+                {perf.map((p) => {
+                  const b = betaBySymbol[p.symbol]
+                  return (
+                    <td key={p.symbol} className="px-4 py-2.5 text-right align-top">
+                      <div className="text-text-secondary">{b ? b.beta.toFixed(2) : '—'}</div>
+                      {b && (
+                        <div className={clsx('text-[10px] font-sans', b.rSquared < 0.2 ? 'text-amber-400' : 'text-text-muted')}>
+                          R² {b.rSquared.toFixed(2)}
+                        </div>
+                      )}
+                    </td>
+                  )
+                })}
+              </tr>
             </tbody>
           </table>
           <p className="px-4 py-2 text-[11px] text-text-muted border-t border-border/60">
             Derived from date-aligned daily closes over the common window; annualization matches per-series bar spacing (daily/weekly/monthly). Sharpe and Sortino use a 0% risk-free rate; Sortino penalizes downside deviation only, so it exceeds Sharpe when volatility is mostly upside. CAGR is blank on windows under a year — annualizing a one-month move overstates it.
+            {' '}Beta is the slope of a series&rsquo; returns against the chosen benchmark over the same window, paired by date and <strong>not</strong> annualized; R² is how much of the movement the benchmark explains, and a low one (under 0.20, shown amber) means the beta is describing noise rather than a relationship. Blank when fewer than {MIN_BETA_PERIODS} periods overlap. The catalog&rsquo;s static &ldquo;Beta (5Y)&rdquo; in the reference table below is a different figure from a different window.
           </p>
         </div>
       )}

@@ -841,7 +841,9 @@ coverage + tax-equivalent yield) · 16 (Portfolio Builder second mode, build-by-
 ~~18b~~ ✅ **DONE 2026-08-18** (`.github/CODEOWNERS` +
 the steward carve-out; CODEOWNERS requests review but does not gate a merge until
 "Require review from Code Owners" is enabled on the default branch — stated in the file
-so its presence is not mistaken for enforcement) · 2b (beta on Compare).
+so its presence is not mistaken for enforcement) · ~~2b~~ ✅ **DONE 2026-08-18** (beta on Compare —
+`betaVsBenchmark()` in the tested `compareStats.ts`, six benchmarks incl. BTC, R² shown
+beside every figure and amber under 0.20; pairs returns by date, never by index).
 
 **Subprojects:** P3-W2-S1 (backtest build-out) · NT2 (trade ledger, FIFO-vs-average as
 its first decision).
