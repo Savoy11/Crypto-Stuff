@@ -18,6 +18,7 @@ import {
   computeFeeDrag, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
   fundRiskLevel, fundStrategy, fundTradingRestriction, getFund, getFundDataProvenance,
 } from '@/lib/data/fundCatalog'
+import { TaxEquivalentYieldCard } from '@/components/markets/TaxEquivalentYieldCard'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_LONG, STALE_TIME_SHORT } from '@/lib/constants'
@@ -29,6 +30,14 @@ import type { FundUniverseResponse } from '@/app/live-data/fund-universe/route'
 // at an assumed gross return — the compounding cost most fund pages hide.
 
 const HORIZONS = [10, 20, 30] as const
+
+/**
+ * Federally tax-exempt funds in the catalog. A list, not a name-match on
+ * "muni": a fund is exempt because of what it holds, and guessing from a
+ * string would eventually attach a tax claim to the wrong fund.
+ */
+const MUNI_FUNDS = new Set(['MUB', 'VTEB', 'TFI'])
+const isMuniFund = (symbol: string) => MUNI_FUNDS.has(symbol.toUpperCase())
 
 function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; symbol: string }) {
   const [principal, setPrincipal] = useState(10_000)
@@ -319,6 +328,12 @@ function FundDetailInner() {
                 acting on a fee figure.
               </ProvenanceNotice>
               <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
+              {/* Items 11/13: municipal funds arrived with this pass, and their
+                  headline yield is not comparable to a taxable fund's. Shown
+                  only for the funds it actually applies to. */}
+              {isMuniFund(entry.symbol) && entry.yieldPct != null && (
+                <TaxEquivalentYieldCard symbol={entry.symbol} yieldPct={entry.yieldPct} />
+              )}
             </>
           ) : (
             <div className="rounded-card border border-border bg-bg-card p-4">

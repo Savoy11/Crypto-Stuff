@@ -89,4 +89,10 @@ export const BOND_ETF_SHELF: Array<{ symbol: string; role: string }> = [
   { symbol: 'AGG', role: 'US aggregate — BND’s twin' },
   { symbol: 'LQD', role: 'Investment-grade corporates' },
   { symbol: 'HYG', role: 'High-yield corporates — credit risk' },
+  // Items 11/13 (2026-08-19). The shelf listed only Treasuries, aggregates and
+  // US credit — no international exposure and no munis, so two of the four
+  // things a bond allocation is normally built from were simply absent.
+  { symbol: 'BNDX', role: 'International investment-grade, USD-hedged' },
+  { symbol: 'EMB', role: 'EM sovereign debt in dollars — credit, not FX' },
+  { symbol: 'MUB', role: 'National municipals — federally tax-exempt income' },
 ]

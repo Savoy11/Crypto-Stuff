@@ -43,14 +43,22 @@ export const RATE_INSTRUMENT_RISK_PROFILE: RiskProfileSpec = {
     {
       key: 'credit',
       label: 'Credit',
-      description: 'Issuer quality — treasury, investment grade, or high yield',
+      description: 'Issuer quality — treasury, municipal, investment grade, or high yield',
       weight: 0.2,
     },
   ],
 }
 
 export type RateInstrumentKind = 'yield-index' | 'future'
-export type RateCreditQuality = 'treasury' | 'investment-grade' | 'high-yield'
+/**
+ * `municipal` added 2026-08-19 (items 11/13). Munis are not investment-grade
+ * corporates wearing a different name: general-obligation and essential-service
+ * revenue bonds default far less often than similarly-rated corporates, and the
+ * federal tax exemption is the reason to hold them at all. Scoring them as
+ * 'investment-grade' would have understated their quality and left the catalog
+ * unable to express the distinction.
+ */
+export type RateCreditQuality = 'treasury' | 'municipal' | 'investment-grade' | 'high-yield'
 
 export interface RateInstrumentRiskInputs {
   maturityYears: number
@@ -102,6 +110,9 @@ function scoreStructure(inputs: RateInstrumentRiskInputs): DimensionScore {
 
 const CREDIT_SCORES: Record<RateCreditQuality, number> = {
   treasury: 95,
+  // Below Treasuries (no federal backing, and a thinner secondary market) but
+  // above corporates on historical default experience.
+  municipal: 85,
   'investment-grade': 70,
   'high-yield': 40, // behaves like equity in a crisis
 }
