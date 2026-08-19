@@ -838,8 +838,11 @@ directory and TVL ordering stayed. **API/MCP fields kept, decided
 field-by-field:** `/api/v1/staking/opportunities` sorts by APR and Staking Discovery
 sorts by TVL — in both, a score is a per-row attribute of something the caller asked
 about, not the ranking key, which is the explanation side of the line. ·
-6/7 (one scanner per section, promoted to nav — carries the nested-nav primitive) ·
-1 (Settings nav group, blocked on that primitive, routes unchanged) · 11/13 (bond
+~~6/7~~ ✅ **DONE 2026-08-19** (three scanner pages — `/scanner`, `/equities/scanner`,
+`/macro/scanner`; equities merges setups + the AI Outlier Scan and closes the E14-E16
+maturity gap; nested-nav primitive shipped with a registry guard test) ·
+~~1~~ ✅ **DONE 2026-08-19** (AI Agents + Data Sources nested under Settings; **routes
+unchanged**, so every `SourceLine` provenance link still resolves) · 11/13 (bond
 coverage + tax-equivalent yield) · 16 (Portfolio Builder second mode, build-by-allocation) ·
 ~~18b~~ ✅ **DONE 2026-08-18** (`.github/CODEOWNERS` +
 the steward carve-out; CODEOWNERS requests review but does not gate a merge until
