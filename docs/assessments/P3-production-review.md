@@ -845,7 +845,9 @@ maturity gap; nested-nav primitive shipped with a registry guard test) ·
 ~~1~~ ✅ **DONE 2026-08-19** (AI Agents + Data Sources nested under Settings; **routes
 unchanged**, so every `SourceLine` provenance link still resolves) · ~~11/13~~ ✅ **DONE 2026-08-19** (8 bond funds — international
 and municipal; muni row on `BOND_ETF_SHELF`; `municipal` credit tier on the rate risk
-profile; TEY calculator, pure + 10 tests, on muni fund detail pages) · 16 (Portfolio Builder second mode, build-by-allocation) ·
+profile; TEY calculator, pure + 10 tests, on muni fund detail pages) · ~~16~~ ✅ **DONE 2026-08-19** (build-by-allocation mode —
+`buildFromAllocation` + `validateAllocation`, 13 tests; same output type so saved plans,
+drift and review are shared; weights are never auto-normalized) ·
 ~~18b~~ ✅ **DONE 2026-08-18** (`.github/CODEOWNERS` +
 the steward carve-out; CODEOWNERS requests review but does not gate a merge until
 "Require review from Code Owners" is enabled on the default branch — stated in the file

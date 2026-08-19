@@ -925,3 +925,236 @@ export function reviewPlan(saved: SavedPlan, actual?: ActualPosition, now = Date
 
   return findings
 }
+
+// ─── Mode 2: build by allocation (short-list item 16) ────────────────────────
+//
+// Owner decision, P3-W2 decision session: *"the user is going to have the
+// ability to set these percentages, ultimately it is going to be a tool
+// enhancement."* ADDITIVE — the risk-based questionnaire builder above stays
+// exactly as it is. This is a second entry point into the same output type, so
+// a hand-built plan saves to the same `builder_plans` storage and gets the same
+// drift monitor and suitability review as a generated one.
+//
+// The split of responsibility is the whole design: the questionnaire DERIVES
+// weights from a risk profile, while this mode takes the weights as given and
+// only does the work the user should not have to — picking the instruments,
+// laddering the bond sleeve, computing fees, and telling them what their own
+// allocation implies.
+
+export interface AllocationInputs {
+  amount: number
+  /**
+   * Years until the money is first spent. Not used to change the allocation —
+   * the user's weights are the allocation — but it drives the bond ladder's
+   * duration, the fee-drag horizon, and the review cadence.
+   */
+  horizonYears: number
+  /** User-set weight per asset class, in percent. Absent or 0 = not held. */
+  classWeights: Partial<Record<BuilderAssetClass, number>>
+  /**
+   * Market-cap split WITHIN the US equity sleeve, in percent of that sleeve.
+   * Absent means a single total-market fund, which is the honest default: a
+   * total-market fund already holds mid and small caps at market weight, so
+   * splitting is a deliberate tilt rather than a requirement.
+   */
+  capSplit?: { largePct: number; midPct: number; smallPct: number }
+  /** Per-sector weights WITHIN the sector-tilt sleeve, in percent of it. */
+  sectorWeights?: Partial<Record<SectorId, number>>
+  bondStyle?: BondStyle
+}
+
+/** Market-cap instruments for the split. Total market first — it is the default. */
+const CAP_FUNDS = {
+  large: { symbol: 'VOO', label: 'large cap' },
+  mid: { symbol: 'IJH', label: 'mid cap' },
+  small: { symbol: 'IJR', label: 'small cap' },
+} as const
+
+export interface AllocationValidation {
+  ok: boolean
+  /** Sum of the class weights, so the UI can show the running total. */
+  totalPct: number
+  errors: string[]
+}
+
+/**
+ * Check an allocation before building from it.
+ *
+ * Weights that do not sum to 100 are an ERROR, not something to normalise
+ * silently: if a user typed 60/30/5 the missing 5 is a mistake they need to
+ * see, and quietly scaling their numbers to 100 would hand back a plan they did
+ * not describe. Same reasoning as never rescaling a partial holdings list.
+ */
+export function validateAllocation(inputs: AllocationInputs): AllocationValidation {
+  const errors: string[] = []
+  const entries = Object.entries(inputs.classWeights) as Array<[BuilderAssetClass, number]>
+  const totalPct = round1(entries.reduce((s, [, pct]) => s + (pct || 0), 0))
+
+  if (entries.some(([, pct]) => pct < 0)) errors.push('A negative weight is not an allocation — remove the class instead.')
+  if (Math.abs(totalPct - 100) > 0.05) {
+    errors.push(`Weights total ${totalPct.toFixed(1)}% — they must add up to 100%.`)
+  }
+  if (inputs.amount <= 0) errors.push('Amount must be greater than zero.')
+
+  const capTotal = inputs.capSplit
+    ? round1(inputs.capSplit.largePct + inputs.capSplit.midPct + inputs.capSplit.smallPct)
+    : 100
+  if (Math.abs(capTotal - 100) > 0.05) errors.push(`Market-cap split totals ${capTotal.toFixed(1)}% — it must add up to 100% of the US equity sleeve.`)
+
+  const sectorTotal = inputs.sectorWeights
+    ? round1(Object.values(inputs.sectorWeights).reduce((s, v) => s + (v ?? 0), 0))
+    : 100
+  if ((inputs.classWeights['sector-tilt'] ?? 0) > 0 && Math.abs(sectorTotal - 100) > 0.05) {
+    errors.push(`Sector weights total ${sectorTotal.toFixed(1)}% — they must add up to 100% of the sector sleeve.`)
+  }
+
+  return { ok: errors.length === 0, totalPct, errors }
+}
+
+/**
+ * Build a plan from weights the user set.
+ *
+ * Returns the same `BuiltPortfolio` the questionnaire produces, so every
+ * downstream consumer — saved plans, checkDrift, reviewPlan, the monitor UI —
+ * works on it unchanged.
+ */
+export function buildFromAllocation(inputs: AllocationInputs): BuiltPortfolio {
+  const horizon = Math.max(0, inputs.horizonYears)
+  const holdings: BuiltHolding[] = []
+  const notes: SuitabilityNote[] = []
+  const w = (c: BuilderAssetClass) => inputs.classWeights[c] ?? 0
+
+  const push = (symbol: string, assetClass: BuilderAssetClass, pct: number, rationale: string) => {
+    if (pct < MIN_SLEEVE_LEG_PCT) return
+    const f = fund(symbol)
+    holdings.push({
+      symbol, name: f.name, assetClass,
+      weightPct: round1(pct),
+      amountUsd: Math.round(inputs.amount * pct / 100),
+      rationale,
+    })
+  }
+
+  // US equity — one total-market fund unless a cap split was asked for.
+  const usPct = w('us-equity')
+  if (usPct > 0) {
+    if (inputs.capSplit) {
+      const { largePct, midPct, smallPct } = inputs.capSplit
+      push(CAP_FUNDS.large.symbol, 'us-equity', usPct * largePct / 100, `${largePct}% of your US sleeve in large caps, as set`)
+      push(CAP_FUNDS.mid.symbol, 'us-equity', usPct * midPct / 100, `${midPct}% of your US sleeve in mid caps, as set`)
+      push(CAP_FUNDS.small.symbol, 'us-equity', usPct * smallPct / 100, `${smallPct}% of your US sleeve in small caps, as set`)
+      notes.push({
+        level: 'info',
+        message: 'A total-market fund already holds mid and small caps at market weight. Splitting by size is a deliberate tilt away from the market, not a diversification fix.',
+      })
+    } else {
+      push('VTI', 'us-equity', usPct, 'Total US market at your chosen weight')
+    }
+  }
+
+  if (w('intl-equity') > 0) push('VXUS', 'intl-equity', w('intl-equity'), 'Total international market at your chosen weight')
+
+  // Sector tilts — the user's own sector weights inside their sleeve.
+  const sectorPct = w('sector-tilt')
+  if (sectorPct > 0 && inputs.sectorWeights) {
+    for (const [sector, pct] of Object.entries(inputs.sectorWeights) as Array<[SectorId, number]>) {
+      const symbol = SECTOR_ETF[sector]
+      if (!symbol || !pct) continue
+      push(symbol, 'sector-tilt', sectorPct * pct / 100, `${pct}% of your sector sleeve in ${sector.replace('-', ' ')}, as set`)
+    }
+    notes.push({
+      level: 'info',
+      message: 'Sector funds sit ON TOP of the sectors your broad-market funds already hold — a 10% technology tilt is 10% more technology, not your only technology exposure.',
+    })
+  }
+
+  // Bonds — laddered to the horizon, with the same style table the
+  // questionnaire uses. The user set HOW MUCH; duration is still a function of
+  // when the money is needed, which is not a preference.
+  const bondsPct = w('bonds')
+  if (bondsPct > 0) {
+    // `share` is the rung's share OF THE SLEEVE; the sleeve is the user's own
+    // bond weight, so the portfolio weight is the product of the two.
+    for (const rung of consolidateLadder(applyBondStyle(bondLadder(horizon), inputs.bondStyle ?? 'aggregate'), bondsPct)) {
+      push(rung.symbol, 'bonds', bondsPct * rung.share, rung.rationale)
+    }
+  }
+
+  if (w('inflation') > 0) push('TIP', 'inflation', w('inflation'), 'Inflation-protected Treasuries at your chosen weight')
+  if (w('cash') > 0) push('SGOV', 'cash', w('cash'), 'T-bills at your chosen weight')
+  if (w('crypto') > 0) push('IBIT', 'crypto', w('crypto'), 'Spot bitcoin at your chosen weight')
+  if (w('commodity') > 0) push('GLDM', 'commodity', w('commodity'), 'Gold at your chosen weight')
+  if (w('currency') > 0) push('FXE', 'currency', w('currency'), 'Foreign currency at your chosen weight')
+
+  // Class mix is the user's own input, echoed back from what was actually
+  // bought — a sleeve too small to carry a position drops out, and the mix must
+  // reflect that rather than the request.
+  const mixMap = new Map<BuilderAssetClass, number>()
+  for (const h of holdings) mixMap.set(h.assetClass, round1((mixMap.get(h.assetClass) ?? 0) + h.weightPct))
+  const classMix = Array.from(mixMap.entries()).map(([assetClass, pct]) => ({ assetClass, pct }))
+    .sort((a, b) => b.pct - a.pct)
+
+  const placed = round1(classMix.reduce((s, c) => s + c.pct, 0))
+  if (placed < 99.5) {
+    notes.push({
+      level: 'warn',
+      message: `${(100 - placed).toFixed(1)}% of the plan could not be placed — a sleeve below ${MIN_SLEEVE_LEG_PCT}% is too small to be a position worth holding and rebalancing. Raise it or drop it.`,
+    })
+  }
+
+  const priced = holdings.map((h) => ({ h, er: expenseRatio(h.symbol) })).filter((x) => x.er != null)
+  const pricedWeight = priced.reduce((s, x) => s + x.h.weightPct, 0)
+  const blendedExpenseRatioPct = pricedWeight > 0
+    ? Math.round((priced.reduce((s, x) => s + x.h.weightPct * x.er!, 0) / pricedWeight) * 1000) / 1000
+    : 0
+  const drag = computeFeeDrag(inputs.amount, blendedExpenseRatioPct, Math.max(1, Math.round(horizon)))
+
+  const hhi = classMix.reduce((s, c) => s + (c.pct / 100) ** 2, 0)
+  const intlPct = mixMap.get('intl-equity') ?? 0
+  const diversificationScore = Math.round(clamp(90 * (1 - hhi) + 10 * Math.min(intlPct / 20, 1), 0, 100))
+
+  // The one suitability observation this mode owes the user: their weights are
+  // theirs, but a horizon shorter than the growth exposure is a fact about the
+  // plan, not an opinion about their preferences.
+  const growthPct = (['us-equity', 'intl-equity', 'sector-tilt', 'crypto', 'commodity'] as BuilderAssetClass[])
+    .reduce((s, c) => s + (mixMap.get(c) ?? 0), 0)
+  if (horizon < 5 && growthPct > 60) {
+    notes.push({
+      level: 'warn',
+      message: `${growthPct.toFixed(0)}% growth assets against a ${horizon}-year horizon. A drawdown inside that window has no time to recover before the money is spent.`,
+    })
+  }
+
+  return {
+    // Synthesised so a hand-built plan replays through the same review path.
+    // riskTolerance is DERIVED from the growth share rather than invented: it
+    // is what the allocation implies, and reviewPlan's risk-drift check needs
+    // a number to compare against.
+    inputs: {
+      riskTolerance: clamp(Math.round(growthPct / 10), 1, 10),
+      yearsToRetirement: horizon,
+      yearsToFirstUse: horizon,
+      sectorFocus: Object.keys(inputs.sectorWeights ?? {}) as SectorId[],
+      sectorExclude: [],
+      // Derived from what the allocation actually holds, on the same scale the
+      // questionnaire uses — not a guess about the user's feelings.
+      cryptoComfort: (mixMap.get('crypto') ?? 0) >= 5 ? 'moderate'
+        : (mixMap.get('crypto') ?? 0) > 0 ? 'small' : 'none',
+      bondStyle: inputs.bondStyle,
+      amount: inputs.amount,
+    },
+    horizonYears: horizon,
+    classMix,
+    holdings,
+    fees: {
+      blendedExpenseRatioPct,
+      annualFeeUsd: Math.round(inputs.amount * blendedExpenseRatioPct / 100),
+      horizonFeeDragUsd: Math.max(0, drag[drag.length - 1]?.feesPaid ?? 0),
+      coveragePct: round1(pricedWeight),
+    },
+    driftBandPct: 5,
+    reviewIntervalDays: 90,
+    diversificationScore,
+    notes,
+  }
+}
