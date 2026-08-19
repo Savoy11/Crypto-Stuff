@@ -11,7 +11,7 @@ import type { ScanTarget } from '@/app/live-data/pump-report/scan/route'
 import { clsx } from 'clsx'
 import { SourceLine } from '@/components/ui/SourceLine'
 import {
-  useWalletStore,
+  useWalletStore, hydrateWallets,
   CHAIN_META, ALL_CHAINS,
   type ChainId,
   type WatchedWallet, type ConnectedWallet,
@@ -318,7 +318,11 @@ function ConnectTab() {
 
 function WalletsPageInner() {
   const [tab, setTab] = useState<TabId>('watch')
-  const { watched, connected } = useWalletStore()
+  const { watched, connected, hydrated, syncError } = useWalletStore()
+
+  // NT3: wallets are DB-backed now, so the page loads them on mount like
+  // /portfolios and /watchlist do.
+  useEffect(() => { void hydrateWallets() }, [])
 
   const counts: Record<TabId, number> = {
     watch:        watched.length,
@@ -340,6 +344,16 @@ function WalletsPageInner() {
           Track balances across watched addresses and connected browser wallets.
         </p>
         <SourceLine id="wallet" className="mt-2" />
+        {/* An unreachable server must not look like an empty wallet list —
+            the same disclosure the other DB-backed pages carry. */}
+        {syncError && (
+          <p className="mt-2 text-xs text-amber-400">
+            Saved wallets unavailable: {syncError}
+          </p>
+        )}
+        {!hydrated && !syncError && (
+          <p className="mt-2 text-xs text-text-muted">Loading saved wallets…</p>
+        )}
       </div>
 
       {/* Tab bar */}

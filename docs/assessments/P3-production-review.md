@@ -808,9 +808,10 @@ checks on entry.
 ### Approved build work — queued, not built
 
 **Tools/capabilities:** NT1 (Budget management UI, scope extended to feed Budget actuals
-into the Retirement Planner) · NT3 (wallets → DB — **scope reduced 2026-08-18**: exchange API linking was removed
-on security grounds, RP-5, so this now covers watched addresses and browser connections
-only) · ~~NT4~~ ✅ **DONE 2026-08-18** (video-analyze trigger UI —
+into the Retirement Planner) · ~~NT3~~ ✅ **DONE 2026-08-18** (wallets → DB: `user_wallets` table + migration 0002,
+`/api/user/wallets` (+`/[id]`), optimistic store with a one-time localStorage import, 14
+validation tests. Scope had been reduced the same day — exchange API linking was removed
+on security grounds, RP-5 — so this covers watched addresses and browser connections) · ~~NT4~~ ✅ **DONE 2026-08-18** (video-analyze trigger UI —
 "Ask about this video" on each card, rendered only when an analyzer is configured;
 closes A1) ·
 ~~NT5~~ ✅ **DONE 2026-08-18** (per-market agent picker on
