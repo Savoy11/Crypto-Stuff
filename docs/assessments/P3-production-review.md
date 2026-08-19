@@ -813,7 +813,9 @@ on security grounds, RP-5, so this now covers watched addresses and browser conn
 only) · ~~NT4~~ ✅ **DONE 2026-08-18** (video-analyze trigger UI —
 "Ask about this video" on each card, rendered only when an analyzer is configured;
 closes A1) ·
-NT5 (invocation UI for the three placeholder agents) · ~~NT9~~ ✅ **DONE 2026-08-18**
+~~NT5~~ ✅ **DONE 2026-08-18** (per-market agent picker on
+/research; the two screeners surface there too rather than staying deep-link-only; a
+symmetry guard keeps picker ↔ route ↔ catalog aligned) · ~~NT9~~ ✅ **DONE 2026-08-18**
 (fund asset-mix from N-PORT — `lib/utils/assetMix.ts`, 10 tests; revives the F-note-4 donut
 keylessly and reports coverage instead of rescaling to 100%) ·
 ~~NT11~~ ✅ **DONE 2026-08-18** (all three wired into the crypto TA Market Structure

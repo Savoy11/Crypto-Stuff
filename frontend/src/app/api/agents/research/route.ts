@@ -8,7 +8,16 @@ export const maxDuration = 120
 
 // Research/scan agents the user may target. Whitelisted so the client can't
 // invoke an arbitrary agent id.
-const RESEARCH_AGENTS = new Set(['research-analyst', 'equity-research', 'equity-screener', 'macro-research', 'macro-screener'])
+//
+// NT5 (2026-08-18) added the last three. They had been configurable in the AI
+// Agents tab since they were written — editable model, temperature and prompt —
+// with no invocation path anywhere, so nothing could ever run them. The owner's
+// decision was to finish them rather than retire them: "build these out the way
+// they were intended and we can discuss removing them once they are fully built."
+const RESEARCH_AGENTS = new Set([
+  'research-analyst', 'equity-research', 'equity-screener', 'macro-research', 'macro-screener',
+  'data-scraper', 'equity-data-scraper', 'equity-diligence',
+])
 
 // POST /api/agents/research
 //   { task: string }
