@@ -29,6 +29,7 @@ import {
   Percent,
   Network,
   Activity,
+  Radar,
   Sigma,
   PiggyBank,
   Goal,
@@ -58,6 +59,24 @@ export interface ModuleNavItem {
   label: string
   icon: LucideIcon
   badge?: boolean
+  /**
+   * Sub-items rendered as a collapsible group under this entry.
+   *
+   * ONE level only, deliberately. A sidebar that nests arbitrarily deep stops
+   * being navigation and becomes a file tree — every extra level is another
+   * click between a user and the page they wanted. Two levels covers what the
+   * suite actually needs: a section (Crypto), and a group inside it.
+   *
+   * A parent WITH children is still a real destination: its `href` must route
+   * somewhere, because a header that looks clickable and does nothing is worse
+   * than no header. Clicking the label navigates; clicking the chevron expands.
+   */
+  children?: ModuleNavItem[]
+}
+
+/** Every nav entry in a module, parents and children alike, flattened. */
+export function flattenNavItems(items: ModuleNavItem[]): ModuleNavItem[] {
+  return items.flatMap((item) => [item, ...(item.children ?? [])])
 }
 
 export interface SuiteModule {
@@ -96,7 +115,7 @@ export const MODULES: SuiteModule[] = [
     routePrefixes: [
       '/assets', '/news', '/social', '/wallets',
       '/transfer-fees', '/staking', '/staking-discovery', '/coin-discovery',
-      '/technical-analysis',
+      '/technical-analysis', '/scanner',
       // De-routed but retained page (T5): unreachable via the next.config
       // redirect, gated here so removing that redirect can't re-expose it
       // outside the entitlement (review defect D-8).
@@ -121,6 +140,11 @@ export const MODULES: SuiteModule[] = [
       { href: '/staking-discovery', label: 'Staking Discovery', icon: TrendingUp },
       { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
       { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
+      // Item 6/7 (2026-08-19): one scanner per section, promoted to a top-level
+      // nav entry. A scanner sweeps a universe to find candidates; a TA page
+      // charts an asset already chosen. Burying the first inside the second
+      // made discovery reachable only after picking something to look at.
+      { href: '/scanner', label: 'Scanner', icon: Radar },
     ],
   },
   {

@@ -195,3 +195,17 @@ export function formatOrNA<T>(
 ): string {
   return value === null || value === undefined ? NA_LABEL : fmt(value)
 }
+
+/**
+ * Price with precision that follows magnitude — 2dp above $1,000, 4dp above $1,
+ * 6dp below it, so a sub-cent token does not render as "$0.00".
+ *
+ * Lifted out of the crypto TA page on 2026-08-19 when the scanner moved to its
+ * own route (short-list item 6/7) and both surfaces needed it. Distinct from
+ * formatCurrency, which takes a fixed decimal count.
+ */
+export function formatAdaptivePrice(price: number): string {
+  if (price >= 1000) return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 2 })
+  if (price >= 1)    return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 4 })
+  return '$' + price.toLocaleString(undefined, { maximumFractionDigits: 6 })
+}
