@@ -7,8 +7,6 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "css:build": "tailwindcss -i ./src/app/globals.css -o ./src/app/globals.compiled.css",
-    "css:watch": "tailwindcss -i ./src/app/globals.css -o ./src/app/globals.compiled.css --watch",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",

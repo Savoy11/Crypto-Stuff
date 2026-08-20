@@ -1684,6 +1684,15 @@ of totals that are being corrected means doing the reconciliation twice.
 > **Open in S3:** the owner-approved refresh pass itself (worksheet is ready;
 > withdrawal table is 445 days past verification); route history; fee alerts;
 > spread modelling for zero-commission venues (needs a data-source decision).
+>
+> **Refresh attempt 1 (2026-08-20):** four agents swept the 16 top exchanges —
+> the session's egress proxy hard-blocks every exchange domain, so ZERO rows
+> were verified (never-from-memory rule held). Deliverable:
+> `docs/audits/fee-refresh-2026-08-20.md` — an 8-item priority re-check queue
+> (headline: Bitfinex may be 0/0 since 2025-12, our Hyperliquid rates look like
+> a $25M+ tier) and a keyless Bybit API shortcut. **The verification pass now
+> runs on the owner's machine via `npm run fee-worksheet`** — the same
+> conclusion the IP-dependence rule reaches for data audits.
 
 **State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
 networks, hand-maintained with provenance, path-finding (`findTransferPaths`),
