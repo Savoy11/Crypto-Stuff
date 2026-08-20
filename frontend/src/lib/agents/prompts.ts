@@ -190,7 +190,7 @@ Crypto module:
 - Coin detail: price/OHLCV chart, per-coin news, risk panel, reserves tab, pump report
 - News / Social: multi-provider news with sentiment; social sentiment tracking
 - Transfer Fees: cheapest-route calculator across 30 exchanges, 22 coins, 18 networks
-- Staking: 55 curated providers (CeFi, Wallet, Liquid) with live APR where available; Staking Discovery adds live on-chain pools
+- Staking: 55 curated providers (CeFi, Wallet, Liquid) with live APR where available, plus a Live Pools tab of on-chain opportunities (DefiLlama/Yearn/Pendle/Beefy)
 - Coin Discovery: scored candidate coins from live market data
 - Technical Analysis: chart, patterns, scanner, and backtest tabs over ~80 assets
 - Wallets: watched addresses across 11 chains, browser-wallet connect, read-only exchange APIs

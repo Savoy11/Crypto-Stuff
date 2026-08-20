@@ -10,7 +10,7 @@ import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { LineChart } from '@/components/charts/LineChart'
 import {
-  BOND_ETF_SHELF, RATES_CATALOG, RATES_CATEGORY_INFO, formatRatesQuote,
+  BOND_ETF_SHELF_GROUPS, RATES_CATALOG, RATES_CATEGORY_INFO, formatRatesQuote,
 } from '@/lib/data/ratesCatalog'
 import { getFund } from '@/lib/data/fundCatalog'
 import { STALE_TIME_SHORT, STALE_TIME_LONG } from '@/lib/constants'
@@ -207,18 +207,28 @@ export function RatesClient() {
         {/* Bond ETF shelf */}
         <div className="rounded-card border border-border bg-bg-card p-4 self-start">
           <h2 className="text-sm font-medium text-text-secondary mb-3">Bond ETF Shelf</h2>
-          <div className="space-y-2.5">
-            {BOND_ETF_SHELF.map(({ symbol, role }) => {
-              const fund = getFund(symbol)
-              if (!fund) return null
-              return (
-                <Link key={symbol} href={`/funds/${symbol.toLowerCase()}`} className="flex items-start gap-2.5 text-xs group">
-                  <span className="font-mono font-semibold text-text-primary group-hover:text-accent-blue transition-colors w-10 flex-shrink-0">{symbol}</span>
-                  <span className="text-text-muted flex-1 leading-snug">{role}</span>
-                  <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue transition-colors flex-shrink-0 mt-0.5" aria-hidden />
-                </Link>
-              )
-            })}
+          {/* Grouped by type (W3-8): the flat list hid the categories people
+              actually look for — the owner read it as corporate/junk/muni/
+              international being absent when all four were present. */}
+          <div className="space-y-3">
+            {BOND_ETF_SHELF_GROUPS.map((group) => (
+              <div key={group.label}>
+                <h3 className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">{group.label}</h3>
+                <div className="space-y-1.5">
+                  {group.funds.map(({ symbol, role }) => {
+                    const fund = getFund(symbol)
+                    if (!fund) return null
+                    return (
+                      <Link key={symbol} href={`/funds/${symbol.toLowerCase()}`} className="flex items-start gap-2.5 text-xs group">
+                        <span className="font-mono font-semibold text-text-primary group-hover:text-accent-blue transition-colors w-10 flex-shrink-0">{symbol}</span>
+                        <span className="text-text-muted flex-1 leading-snug">{role}</span>
+                        <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue transition-colors flex-shrink-0 mt-0.5" aria-hidden />
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
           <p className="mt-3 pt-3 border-t border-border/60 text-[11px] text-text-muted leading-relaxed">
             The practical way to own duration or credit without a bond desk. Full fund pages live in ETFs &amp; Funds.

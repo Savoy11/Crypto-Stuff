@@ -1,7 +1,8 @@
 'use client'
 
 import { ModuleGate } from '@/components/layout/ModuleGate'
-import React, { useState, useMemo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useRef, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
   AlertTriangle, TrendingUp, Clock, Lock, ExternalLink,
@@ -9,6 +10,7 @@ import {
   Building2, Wallet, Layers,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { LivePoolsPanel } from './LivePoolsPanel'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { clsx } from 'clsx'
@@ -456,11 +458,23 @@ function AssetDropdown({
 
 type CategoryFilter = 'all' | ProviderCategory
 
+type StakingTab = 'providers' | 'pools'
+
 function StakingPageInner() {
+  // W3-3, option B (2026-08-20): Staking Discovery merged into this page. Its
+  // curated directory duplicated the provider cards below almost exactly; the
+  // live on-chain pool discovery — the one thing it had that this page did not
+  // — is now the Live Pools tab. /staking-discovery redirects to ?tab=pools so
+  // old links land on the surviving surface, not a 404.
+  const params = useSearchParams()
+  const [tab, setTab] = useState<StakingTab>(params.get('tab') === 'pools' ? 'pools' : 'providers')
   const [coinFilter, setCoinFilter] = useState<StakingCoinId | 'all'>('all')
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   // Off by default: "ETH staking" should mean ETH staking, not governance/lending.
   const [showAdjacent, setShowAdjacent] = useState(false)
+  // Celsius — the educational cautionary example — previously lived only on the
+  // Discovery directory's toggle; the merge carries it here so it stays reachable.
+  const [showDefunct, setShowDefunct] = useState(false)
 
   const { data: ratesData } = useQuery<StakingRatesResponse>({
     queryKey: ['staking-rates'],
@@ -477,7 +491,7 @@ function StakingPageInner() {
 
   const filteredProviders = useMemo(() => {
     return STAKING_PROVIDERS.filter(p => {
-      if (p.defunct) return false
+      if (p.defunct && !showDefunct) return false
       if (categoryFilter !== 'all' && p.category !== categoryFilter) return false
       // Provider must have at least one asset that survives the coin + adjacency filters
       const entries = Object.entries(p.assets) as [StakingCoinId, NonNullable<(typeof p.assets)[StakingCoinId]>][]
@@ -488,7 +502,7 @@ function StakingPageInner() {
       })
       return hasVisible
     })
-  }, [categoryFilter, coinFilter, showAdjacent])
+  }, [categoryFilter, coinFilter, showAdjacent, showDefunct])
 
   const COINS = Object.keys(STAKING_COIN_INFO) as StakingCoinId[]
   const CATEGORIES: { value: CategoryFilter; label: string }[] = [
@@ -515,9 +529,9 @@ function StakingPageInner() {
               // Celsius "is included" while this page unconditionally filters
               // defunct providers. Rendering the scores here is tool candidate
               // NT7 — an open decision, so the copy now matches the page.
-              { label: 'Risk profiles', text: 'Each provider carries a curated six-dimension risk profile (custody, counterparty, contract, slashing, liquidity, regulatory). The composite Safety Score built from it renders on Staking Discovery and the public API — not on these cards.' },
+              { label: 'Risk profiles', text: 'Each provider carries a curated six-dimension risk profile (custody, counterparty, contract, slashing, liquidity, regulatory). The composite renders on the public API only — the per-pool badge was removed from the app on 2026-08-18 (item 4).' },
               { label: 'Live APY', text: 'Liquid-staking & restaking protocols pull live APY from DeFiLlama plus each protocol’s own API (Lido, Rocket Pool, Marinade, Jito, Stride). Self-custody wallets show the live on-chain network rate for native delegation. CeFi exchange rates are static estimates and may differ from current offerings.' },
-              { label: 'Defunct providers', text: 'Failed providers are excluded here. Celsius — the educational cautionary example — is on Staking Discovery behind its "show defunct" toggle.' },
+              { label: 'Defunct providers', text: 'Failed providers are excluded here. Celsius — the educational cautionary example — is behind the "Show defunct platforms" toggle below.' },
             ]}
           />
         </div>
@@ -557,6 +571,23 @@ function StakingPageInner() {
         )
       })()}
 
+      {/* Tab switcher (W3-3): curated directory vs live on-chain pools */}
+      <div className="flex gap-1 bg-bg-elevated p-1 rounded-lg w-fit">
+        {([['providers', 'Providers'], ['pools', 'Live Pools']] as [StakingTab, string][]).map(([t, label]) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={clsx('px-4 py-1.5 rounded-md text-sm font-medium transition-colors',
+              tab === t ? 'bg-bg-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary')}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'pools' && <LivePoolsPanel />}
+
+      {tab === 'providers' && (<>
       {/* Network base APY reference */}
       <NetworkAprReference />
 
@@ -599,6 +630,20 @@ function StakingPageInner() {
             {showAdjacent ? 'Hiding nothing — showing adjacent yield' : 'Show adjacent yield (governance / lending)'}
           </button>
 
+          <button
+            onClick={() => setShowDefunct(v => !v)}
+            title="Failed platforms kept as cautionary examples — Celsius is the canonical one"
+            className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+              showDefunct
+                ? 'bg-red-500/15 text-red-300 border-red-500/40'
+                : 'border-border text-text-muted hover:text-text-primary'
+            )}
+          >
+            <XCircle size={12} />
+            {showDefunct ? 'Hide' : 'Show'} defunct platforms
+          </button>
+
         </div>
       </div>
 
@@ -632,6 +677,7 @@ function StakingPageInner() {
         wallet rows show the live network base rate for native delegation (gross of validator commission).
         Risk scores are editorial assessments and do not constitute financial advice. Always do your own research before staking.
       </div>
+      </>)}
     </div>
   )
 }
@@ -642,7 +688,9 @@ function StakingPageInner() {
 export default function StakingPage() {
   return (
     <ModuleGate module="crypto">
-      <StakingPageInner />
+      <Suspense>
+        <StakingPageInner />
+      </Suspense>
     </ModuleGate>
   )
 }

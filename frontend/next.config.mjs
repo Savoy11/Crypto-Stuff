@@ -79,6 +79,11 @@ const nextConfig = {
       // removes access. Restore = delete this line + re-add the nav entry in
       // lib/modules/registry.ts.
       { source: '/equities/backtests', destination: '/equities', permanent: false },
+      // Staking Discovery merged into /staking (2026-08-20, W3-3 option B):
+      // its curated directory duplicated the Staking page's provider cards,
+      // and its one unique feature — live on-chain pool discovery — became the
+      // Live Pools tab there. Content-preserving redirect, like /reserves.
+      { source: '/staking-discovery', destination: '/staking?tab=pools', permanent: false },
     ]
   },
   async headers() {

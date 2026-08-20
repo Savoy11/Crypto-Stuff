@@ -121,6 +121,7 @@ export function useAssetsWithStore() {
     // any UI bound to it (the Coins screener's "Min mkt cap") silently did
     // nothing. applyParams has supported it all along.
     minMarketCap: filters.minMarketCap > 0 ? filters.minMarketCap : undefined,
+    minLiquidityPct: filters.minLiquidityPct > 0 ? filters.minLiquidityPct : undefined,
     search: filters.search || undefined,
     sortBy: sort.key,
     sortDirection: sort.direction,

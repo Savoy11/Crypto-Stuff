@@ -105,6 +105,9 @@ function ScannerPanel() {
   const [sector, setSector] = useState<SectorId | 'all'>('all')
   const [activeSetup, setActiveSetup] = useState<SetupKey | 'all'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('setups')
+  // W3-4: search + signal filter, matching the crypto scanner's options.
+  const [search, setSearch] = useState('')
+  const [signalFilter, setSignalFilter] = useState<Signal | 'all'>('all')
   const [rows, setRows] = useState<ScanRow[]>(emptyRows)
   const [scanning, setScanning] = useState(false)
   const [done, setDone] = useState(0)
@@ -171,13 +174,16 @@ function ScannerPanel() {
     let out = rows
     if (sector !== 'all') out = out.filter((r) => r.sector === sector)
     if (activeSetup !== 'all') out = out.filter((r) => r.setups.some((s) => s.key === activeSetup))
+    if (signalFilter !== 'all') out = out.filter((r) => r.signal?.overall === signalFilter)
+    const q = search.trim().toLowerCase()
+    if (q) out = out.filter((r) => r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q))
     const sorted = [...out]
     if (sortKey === 'setups') sorted.sort((a, b) => b.setups.length - a.setups.length || a.symbol.localeCompare(b.symbol))
     else if (sortKey === 'signal') sorted.sort((a, b) => signalRank(b.signal) - signalRank(a.signal))
     else if (sortKey === 'rsi') sorted.sort((a, b) => (a.rsi14 ?? 999) - (b.rsi14 ?? 999))
     else sorted.sort((a, b) => a.symbol.localeCompare(b.symbol))
     return sorted
-  }, [rows, sector, activeSetup, sortKey])
+  }, [rows, sector, activeSetup, sortKey, signalFilter, search])
 
   const errored = rows.filter((r) => r.status === 'error').length
   const withSetups = rows.filter((r) => r.setups.length > 0).length
@@ -220,6 +226,27 @@ function ScannerPanel() {
         >
           {SORT_OPTIONS.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}
         </select>
+
+        <select
+          value={signalFilter}
+          onChange={(e) => setSignalFilter(e.target.value as Signal | 'all')}
+          className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+          aria-label="Signal filter"
+        >
+          <option value="all">Any signal</option>
+          <option value="strong_buy">Strong Buy</option>
+          <option value="buy">Buy</option>
+          <option value="neutral">Neutral</option>
+          <option value="sell">Sell</option>
+          <option value="strong_sell">Strong Sell</option>
+        </select>
+
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search stock…"
+          className="w-32 rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-text-primary placeholder:text-text-muted/60 focus:border-accent-blue/50 focus:outline-none"
+        />
 
         <button
           onClick={() => { scannedOnce.current = true; void runScan() }}

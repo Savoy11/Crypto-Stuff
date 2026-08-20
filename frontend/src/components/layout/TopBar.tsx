@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Bell, Settings, RefreshCw, ChevronDown, Menu } from 'lucide-react'
 import { useLiveAlerts }   from '@/hooks/useLiveAlerts'
 import { LiveAlertRow }    from '@/components/alerts/LiveAlertRow'
@@ -229,10 +230,16 @@ export function TopBar({ onMenuClick }: TopBarProps) {
         {/* Alerts bell */}
         <AlertsBell />
 
-        {/* Settings */}
-        <button className="p-2 rounded hover:bg-bg-elevated transition-colors text-text-secondary hover:text-text-primary" aria-label="Settings">
+        {/* Settings. A Link, not a button: this was a dead control from the
+            day it shipped (W3-9) — it had no onClick at all, so the most
+            prominent settings affordance in the app did nothing. */}
+        <Link
+          href="/settings"
+          className="p-2 rounded hover:bg-bg-elevated transition-colors text-text-secondary hover:text-text-primary"
+          aria-label="Settings"
+        >
           <Settings size={16} aria-hidden />
-        </button>
+        </Link>
       </div>
     </header>
   )

@@ -169,6 +169,12 @@ export interface AssetFilters {
   minRiskScore: number
   maxRiskScore: number
   minMarketCap: number
+  /**
+   * Minimum 24h-volume/market-cap ratio, in percent (W3-2 — "search by
+   * liquidity"). 0 = no filter. A fact from the feed, same definition as Coin
+   * Discovery's liquidity ratio.
+   */
+  minLiquidityPct: number
 }
 
 export interface AssetSortConfig {

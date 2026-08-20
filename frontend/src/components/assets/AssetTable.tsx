@@ -128,6 +128,30 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         accessor: (row) => <Sparkline assetId={row.id} width={80} height={32} pegTarget={row.pegTarget} />,
       },
       {
+        // W3-2: growth, sortable — the owner asked to sort by it.
+        key: 'priceChangePercent24h',
+        header: '24h %',
+        sortable: true,
+        align: 'right',
+        accessor: (row) => row.priceChangePercent24h == null
+          ? <span className="font-mono text-xs text-text-muted">—</span>
+          : <span className={clsx('font-mono text-xs', row.priceChangePercent24h >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+              {row.priceChangePercent24h >= 0 ? '+' : ''}{row.priceChangePercent24h.toFixed(2)}%
+            </span>,
+      },
+      {
+        // W3-2: liquidity (24h vol ÷ mcap), sortable via the derived key.
+        key: 'liquidityRatio',
+        header: 'Liq %',
+        sortable: true,
+        align: 'right',
+        accessor: (row) => row.volume24h != null && row.marketCap != null && row.marketCap > 0
+          ? <span className="font-mono text-xs text-text-secondary" title="24h volume ÷ market cap">
+              {((row.volume24h / row.marketCap) * 100).toFixed(1)}%
+            </span>
+          : <span className="font-mono text-xs text-text-muted">—</span>,
+      },
+      {
         key: 'volume24h',
         header: '24h Vol',
         sortable: true,

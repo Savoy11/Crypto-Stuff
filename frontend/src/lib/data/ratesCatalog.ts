@@ -80,19 +80,62 @@ export function formatRatesQuote(entry: RatesEntry, value: number): string {
  * Bond ETFs surfaced on the rates page — must exist in FUND_CATALOG so the
  * links resolve to /funds/[symbol]. Ordered short → long duration, then credit.
  */
-export const BOND_ETF_SHELF: Array<{ symbol: string; role: string }> = [
-  { symbol: 'SHY', role: '1–3Y Treasuries — near-cash duration' },
-  { symbol: 'IEF', role: '7–10Y Treasuries — the belly' },
-  { symbol: 'TLT', role: '20+Y Treasuries — long duration' },
-  { symbol: 'TIP', role: 'Inflation-protected Treasuries' },
-  { symbol: 'BND', role: 'Total US investment-grade market' },
-  { symbol: 'AGG', role: 'US aggregate — BND’s twin' },
-  { symbol: 'LQD', role: 'Investment-grade corporates' },
-  { symbol: 'HYG', role: 'High-yield corporates — credit risk' },
-  // Items 11/13 (2026-08-19). The shelf listed only Treasuries, aggregates and
-  // US credit — no international exposure and no munis, so two of the four
-  // things a bond allocation is normally built from were simply absent.
-  { symbol: 'BNDX', role: 'International investment-grade, USD-hedged' },
-  { symbol: 'EMB', role: 'EM sovereign debt in dollars — credit, not FX' },
-  { symbol: 'MUB', role: 'National municipals — federally tax-exempt income' },
+/**
+ * Bond fund shelf, grouped by TYPE.
+ *
+ * W3-8 (2026-08-20). This was a flat 11-row list, and the owner's review read
+ * it as "none of my requested bond types were added" — every one of them was
+ * there (LQD corporate, HYG junk, BNDX/EMB international, MUB municipal), but a
+ * flat list with prose labels made the CATEGORIES unfindable. The grouping and
+ * the group names now use the words a person looks for.
+ */
+export interface BondShelfGroup {
+  label: string
+  funds: Array<{ symbol: string; role: string }>
+}
+
+export const BOND_ETF_SHELF_GROUPS: BondShelfGroup[] = [
+  {
+    label: 'US Treasuries',
+    funds: [
+      { symbol: 'SHY', role: '1–3Y — near-cash duration' },
+      { symbol: 'IEF', role: '7–10Y — the belly' },
+      { symbol: 'TLT', role: '20+Y — long duration' },
+    ],
+  },
+  {
+    label: 'Inflation-protected',
+    funds: [{ symbol: 'TIP', role: 'TIPS — guards purchasing power' }],
+  },
+  {
+    label: 'Broad market',
+    funds: [
+      { symbol: 'BND', role: 'Total US investment-grade market' },
+      { symbol: 'AGG', role: 'US aggregate — BND’s twin' },
+    ],
+  },
+  {
+    label: 'Corporate',
+    funds: [{ symbol: 'LQD', role: 'Investment-grade corporates' }],
+  },
+  {
+    label: 'High yield (junk)',
+    funds: [{ symbol: 'HYG', role: 'Sub-investment-grade — behaves like equity in a crisis' }],
+  },
+  {
+    label: 'Municipal',
+    funds: [{ symbol: 'MUB', role: 'National munis — federally tax-exempt income' }],
+  },
+  {
+    label: 'International',
+    funds: [
+      { symbol: 'BNDX', role: 'Global investment-grade, USD-hedged' },
+      { symbol: 'EMB', role: 'EM sovereigns in dollars — credit, not FX' },
+    ],
+  },
 ]
+
+/** Flat view, kept for anything that wants the old shape. */
+export const BOND_ETF_SHELF: Array<{ symbol: string; role: string }> =
+  BOND_ETF_SHELF_GROUPS.flatMap((g) => g.funds)
+
