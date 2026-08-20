@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
-import {
-  FN_TRACKED_IDS, UTILITY_MAP, CATEGORY_INFO, SCORING_CONFIG,
-  getProfileBand, type ProfileBand,
-} from '@/lib/data/coinCatalog'
+import { FN_TRACKED_IDS, UTILITY_MAP, CATEGORY_INFO } from '@/lib/data/coinCatalog'
 import { fetchCoinGeckoPages } from '@/lib/server/coingeckoPages'
-import { tenPointSafetyToCanonical } from '@/lib/risk/normalize'
-import { bandForScore } from '@/lib/risk/engine'
-import type { RiskBand } from '@/lib/risk/types'
 
 export const dynamic = 'force-dynamic'
 
+// W3-1 (2026-08-20): the composite score is GONE, not renamed. Item 5b had
+// renamed the verdicts ('Strong Add' …) to score bands; the owner's review
+// then cut the score itself — "remove any reference to a score because it may
+// imply a recommendation. Replace with price, growth, or liquidity." What
+// remains is exactly what the feed reports: price, growth, volume, liquidity
+// ratio, market cap, plus the factual category/utility annotation. Sorting is
+// the reader's choice over facts; default order is market cap, the feed's own.
 export interface CandidateCoin {
   cgId: string
   symbol: string
@@ -26,29 +27,12 @@ export interface CandidateCoin {
   categoryLabel: string
   categoryColor: string
   utilityNote: string
-  scores: {
-    marketCap: number         // 1–10
-    utility: number           // 1–10
-    risk: number              // 1–10 (higher = less risky) — LEGACY, kept one release
-    /** Canonical 0–100 safety score (higher = safer). R2 migration; prefer this. */
-    riskCanonical: number     // 0–100
-    /** Canonical band for riskCanonical (low/moderate/elevated/high/critical). */
-    band: RiskBand
-    overall: number           // weighted composite (still on the 1–10 sub-scores)
-  }
-  scoreReasons: {
-    marketCap: string
-    utility: string
-    risk: string
-  }
   /**
-   * Band of the composite profile score. Renamed from `recommendation`
-   * ('strong-add' | 'consider' | 'monitor' | 'too-speculative') on 2026-08-18,
-   * item 5b: the old values told a reader what to do with a coin. Same
-   * thresholds, same ordering — the field describes the score, not an action.
+   * 24h volume ÷ market cap — the liquidity measure the owner asked to search
+   * by (W3-1). A FACT from the feed, not a judgment: 0.15 means 15% of the cap
+   * turned over in a day.
    */
-  profileBand: ProfileBand
-  reasons: string[]           // human-readable bullet points
+  liquidityRatio: number
 }
 
 export interface CoinDiscoveryResponse {
@@ -60,98 +44,16 @@ export interface CoinDiscoveryResponse {
   error?: string
 }
 
-// ─── Scoring helpers ──────────────────────────────────────────────────────────
-
-function scoreMarketCap(marketCap: number): { score: number; reason: string } {
-  const tier = SCORING_CONFIG.marketCapTiers.find(t => marketCap >= t.min)
-  return {
-    score:  tier?.score ?? 1,
-    reason: tier?.label ?? 'Micro cap',
-  }
-}
-
-function scoreUtility(cgId: string): { score: number; reason: string; category: string; note: string } {
+/** Category/utility annotation — factual metadata, no scoring (W3-1). */
+function classifyUtility(cgId: string): { category: string; note: string } {
   const mapped = UTILITY_MAP[cgId]
-  if (mapped) {
-    return {
-      score:    mapped.utilityScore,
-      reason:   mapped.note,
-      category: mapped.category,
-      note:     mapped.note,
-    }
-  }
-  // Heuristic fallbacks from symbol/id patterns
+  if (mapped) return { category: mapped.category, note: mapped.note }
   const id = cgId.toLowerCase()
   if (id.includes('usd') || id.includes('stable') || id.includes('dai'))
-    return { score: 7, reason: 'Likely stablecoin', category: 'stablecoin', note: 'Stablecoin (heuristic)' }
+    return { category: 'stablecoin', note: 'Stablecoin (heuristic)' }
   if (id.includes('swap') || id.includes('dex') || id.includes('defi'))
-    return { score: 6, reason: 'DeFi protocol (heuristic)', category: 'defi', note: 'DeFi protocol' }
-  return { score: 4, reason: 'Category unknown — manual review recommended', category: 'unknown', note: '' }
-}
-
-function scoreRisk(coin: {
-  marketCap: number
-  volume24h: number
-  priceChange24h: number
-  athChangePercent: number
-}): { score: number; reason: string } {
-  let score = 5
-  const reasons: string[] = []
-
-  // Liquidity: volume/marketCap ratio — higher is better
-  const liquidityRatio = coin.volume24h / Math.max(coin.marketCap, 1)
-  if (liquidityRatio > 0.15) { score += 2; reasons.push('High liquidity (vol/mcap >15%)') }
-  else if (liquidityRatio > 0.05) { score += 1; reasons.push('Adequate liquidity') }
-  else { score -= 1; reasons.push('Low liquidity (vol/mcap <5%)') }
-
-  // ATH drawdown — less drawdown = less volatility history
-  const drawdown = Math.abs(coin.athChangePercent)
-  if (drawdown < 50)       { score += 2; reasons.push('Near ATH (<50% drawdown)') }
-  else if (drawdown < 70)  { score += 1; reasons.push('Moderate ATH drawdown (50–70%)') }
-  else if (drawdown < 85)  { reasons.push('Significant ATH drawdown (70–85%)') }
-  else                     { score -= 2; reasons.push('Severe ATH drawdown (>85%)') }
-
-  // 24h volatility — high swings increase risk
-  const absChange = Math.abs(coin.priceChange24h)
-  if (absChange > 20)      { score -= 2; reasons.push('High 24h volatility (>20%)') }
-  else if (absChange > 10) { score -= 1; reasons.push('Elevated 24h volatility (>10%)') }
-
-  // Market cap floor — very small caps are higher risk
-  if (coin.marketCap < 50_000_000)   { score -= 2; reasons.push('Very small market cap (<$50M)') }
-  else if (coin.marketCap < 200_000_000) { score -= 1; reasons.push('Small market cap (<$200M)') }
-
-  const clamped = Math.max(1, Math.min(10, score))
-  return { score: clamped, reason: reasons.slice(0, 3).join(' · ') }
-}
-
-function buildReasons(
-  coin: { name: string; marketCap: number; priceChange24h: number },
-  profileBand: ProfileBand,
-  mcScore: number,
-  utilScore: number,
-  riskScore: number,
-  utilNote: string
-): string[] {
-  const reasons: string[] = []
-  const mcap = coin.marketCap >= 1e9
-    ? `$${(coin.marketCap / 1e9).toFixed(1)}B`
-    : `$${(coin.marketCap / 1e6).toFixed(0)}M`
-
-  if (profileBand === 'high') {
-    reasons.push(`Established market cap of ${mcap} signals broad adoption`)
-  } else if (profileBand === 'moderate') {
-    reasons.push(`Market cap of ${mcap} — notable but not top-tier`)
-  } else {
-    reasons.push(`Smaller market cap of ${mcap} — higher risk`)
-  }
-
-  if (utilNote) reasons.push(utilNote)
-  if (utilScore <= 3) reasons.push('Limited utility — community/speculative value primarily')
-  if (riskScore >= 8) reasons.push('Strong liquidity and stable price history')
-  if (riskScore <= 3) reasons.push('Elevated risk: low liquidity or high volatility observed')
-  if (Math.abs(coin.priceChange24h) > 15) reasons.push(`Significant 24h price movement (${coin.priceChange24h > 0 ? '+' : ''}${coin.priceChange24h.toFixed(1)}%)`)
-
-  return reasons.slice(0, 4)
+    return { category: 'defi', note: 'DeFi protocol (heuristic)' }
+  return { category: 'unknown', note: '' }
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -202,23 +104,8 @@ export async function GET(req: Request) {
   const candidates: CandidateCoin[] = rawCoins
     .filter(c => !FN_TRACKED_IDS.has(c.id) && c.market_cap > 0)
     .map(c => {
-      const mc   = scoreMarketCap(c.market_cap)
-      const util = scoreUtility(c.id)
-      const risk = scoreRisk({
-        marketCap:        c.market_cap,
-        volume24h:        c.total_volume,
-        priceChange24h:   c.price_change_percentage_24h ?? 0,
-        athChangePercent: c.ath_change_percentage ?? -50,
-      })
-
-      const { weights } = SCORING_CONFIG
-      const overall = parseFloat(
-        (mc.score * weights.marketCap + util.score * weights.utility + risk.score * weights.risk).toFixed(2)
-      )
-
-      const profileBand = getProfileBand(overall)
+      const util = classifyUtility(c.id)
       const catInfo = CATEGORY_INFO[util.category] ?? CATEGORY_INFO.unknown
-
       return {
         cgId:           c.id,
         symbol:         c.symbol.toUpperCase(),
@@ -237,29 +124,11 @@ export async function GET(req: Request) {
         categoryLabel:   catInfo.label,
         categoryColor:   catInfo.color,
         utilityNote:     util.note,
-        scores: {
-          marketCap: mc.score,
-          utility:   util.score,
-          risk:      risk.score,
-          // R2: scoreRisk is 1–10 higher=SAFER, so rescale (preserve polarity).
-          // NOT tenPointRiskToSafety — that inverter would flip a safe coin to critical.
-          riskCanonical: parseFloat(tenPointSafetyToCanonical(risk.score).toFixed(1)),
-          band:          bandForScore(tenPointSafetyToCanonical(risk.score)),
-          overall,
-        },
-        scoreReasons: {
-          marketCap: mc.reason,
-          utility:   util.reason,
-          risk:      risk.reason,
-        },
-        profileBand,
-        reasons: buildReasons(
-          { name: c.name, marketCap: c.market_cap, priceChange24h: c.price_change_percentage_24h ?? 0 },
-          profileBand, mc.score, util.score, risk.score, util.note
-        ),
+        liquidityRatio:  parseFloat((c.total_volume / Math.max(c.market_cap, 1)).toFixed(4)),
       }
     })
-    .sort((a, b) => b.scores.overall - a.scores.overall)
+    // Market-cap order — the feed's own, and a fact rather than our opinion.
+    .sort((a, b) => b.marketCap - a.marketCap)
 
   return NextResponse.json({
     ok: true,

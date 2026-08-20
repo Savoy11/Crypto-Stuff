@@ -28,40 +28,20 @@ function fmtMcap(n: number) {
   return `$${n.toLocaleString()}`
 }
 
-// Item 5b (2026-08-18): "Strong Add / Consider / Monitor / Too Speculative"
-// was retired. Those four strings told the reader what to DO with a coin —
-// the advice-shaped side of the line item 4 drew — while the thing behind them
-// is just a band of the composite score. Same bands, same thresholds, named
-// after what they measure.
-const BAND_STYLES: Record<string, { label: string; badge: string; dot: string }> = {
-  'high':     { label: 'High score',     badge: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', dot: 'bg-emerald-400' },
-  'moderate': { label: 'Moderate score', badge: 'bg-blue-500/20 text-blue-400 border-blue-500/30',         dot: 'bg-blue-400' },
-  'low':      { label: 'Low score',      badge: 'bg-amber-500/20 text-amber-400 border-amber-500/30',      dot: 'bg-amber-400' },
-  'very-low': { label: 'Very low score', badge: 'bg-red-500/20 text-red-400 border-red-500/30',            dot: 'bg-red-400' },
-}
+// W3-1 (2026-08-20): the composite score is GONE. Item 5b renamed the verdicts
+// to score bands; the owner's next review cut the score itself — "remove any
+// reference to a score because it may imply a recommendation. Replace with
+// price, growth, or liquidity." This page now shows only what the feed
+// reports, sortable by the reader's own criterion.
 
-function ProfileBandBadge({ level }: { level: string }) {
-  const s = BAND_STYLES[level] ?? BAND_STYLES['low']
+/** 24h-volume/market-cap liquidity, rendered as the fact it is. */
+function LiquidityBadge({ ratio }: { ratio: number }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${s.badge}`}>
-      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-      {s.label}
+    <span className="inline-flex items-center rounded-full border border-border bg-bg-elevated px-2 py-0.5 text-xs text-text-secondary" title="24h volume ÷ market cap">
+      liq {(ratio * 100).toFixed(1)}%
     </span>
   )
 }
-
-function ScoreBar({ score, max = 10, color = 'bg-accent-blue' }: { score: number; max?: number; color?: string }) {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 h-1.5 bg-bg-elevated rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${(score / max) * 100}%` }} />
-      </div>
-      <span className="text-xs text-text-muted w-6 text-right">{score}</span>
-    </div>
-  )
-}
-
-// ─── Candidate card ───────────────────────────────────────────────────────────
 
 function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact?: boolean }) {
   const [expanded, setExpanded] = useState(false)
@@ -80,8 +60,7 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
       cgId: coin.cgId, symbol: coin.symbol, name: coin.name, image: coin.image,
       category: coin.category, price: coin.price, marketCap: coin.marketCap,
       marketCapRank: coin.marketCapRank, addedAt: new Date().toISOString(),
-      addedBy: 'candidate', score: coin.scores.overall,
-      profileBand: coin.profileBand, notes,
+      addedBy: 'candidate', notes,
     })
   }
 
@@ -102,8 +81,7 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
         {coin.marketCapRank && <span className="text-xs text-text-muted flex-shrink-0 hidden sm:inline">#{coin.marketCapRank}</span>}
         <span className="text-xs text-text-muted flex-shrink-0 hidden md:inline">{fmtMcap(coin.marketCap)}</span>
         <span className={`text-xs flex-shrink-0 hidden lg:inline ${changeColor}`}>{change >= 0 ? '+' : ''}{fmt(change)}%</span>
-        <div className="flex-shrink-0 ml-auto"><ProfileBandBadge level={coin.profileBand} /></div>
-        <span className="text-sm font-bold text-text-primary flex-shrink-0 w-10 text-right">{coin.scores.overall}<span className="text-text-muted text-xs font-normal">/10</span></span>
+        <div className="flex-shrink-0 ml-auto"><LiquidityBadge ratio={coin.liquidityRatio} /></div>
         {added ? (
           <span className="text-xs text-emerald-400 flex items-center gap-1 flex-shrink-0"><Star className="w-3 h-3" /></span>
         ) : (
@@ -147,7 +125,6 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
             </a>
             <span className="text-xs text-text-muted">{coin.symbol}</span>
             {coin.marketCapRank && <span className="text-xs text-text-muted">#{coin.marketCapRank}</span>}
-            <ProfileBandBadge level={coin.profileBand} />
           </div>
           <div className="flex items-center gap-3 mt-1 text-sm">
             <span className="text-text-secondary">${coin.price < 0.01 ? coin.price.toFixed(6) : coin.price < 1 ? coin.price.toFixed(4) : coin.price.toLocaleString()}</span>
@@ -158,60 +135,31 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
             </span>
           </div>
         </div>
-        <div className="text-right flex-shrink-0">
-          <div className="text-lg font-bold text-text-primary">{coin.scores.overall}</div>
-          <div className="text-xs text-text-muted">/ 10</div>
-        </div>
       </div>
 
-      {/* Score bars */}
-      <div className="px-4 pb-3 grid grid-cols-2 gap-x-4 gap-y-1.5">
-        {[
-          { label: 'Market Cap', score: coin.scores.marketCap, color: 'bg-blue-500' },
-          { label: 'Utility', score: coin.scores.utility, color: 'bg-purple-500' },
-        ].map(({ label, score, color }) => (
-          <div key={label}>
-            <div className="text-xs text-text-muted mb-1">{label}</div>
-            <ScoreBar score={score} color={color} />
+      {/* The facts (W3-1) — what the feed reports, nothing derived. */}
+      <div className="px-4 pb-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 text-xs">
+        <div>
+          <div className="text-text-muted mb-0.5">7d change</div>
+          <div className={coin.priceChange7d == null ? 'text-text-muted' : coin.priceChange7d >= 0 ? 'text-emerald-400' : 'text-red-400'}>
+            {coin.priceChange7d == null ? '—' : `${coin.priceChange7d >= 0 ? '+' : ''}${fmt(coin.priceChange7d)}%`}
           </div>
-        ))}
+        </div>
+        <div>
+          <div className="text-text-muted mb-0.5">24h volume</div>
+          <div className="text-text-secondary">{fmtMcap(coin.volume24h)}</div>
+        </div>
+        <div>
+          <div className="text-text-muted mb-0.5" title="24h volume ÷ market cap">Liquidity</div>
+          <div className="text-text-secondary">{(coin.liquidityRatio * 100).toFixed(1)}%</div>
+        </div>
+        <div>
+          <div className="text-text-muted mb-0.5">From ATH</div>
+          <div className="text-text-secondary">{coin.athChangePercent}%</div>
+        </div>
       </div>
-
-      {/* Reasons */}
-      {coin.reasons.length > 0 && (
-        <div className="px-4 pb-3">
-          <ul className="space-y-1">
-            {coin.reasons.map((r, i) => (
-              <li key={i} className="text-xs text-text-secondary flex gap-2">
-                <span className="text-text-muted mt-0.5">•</span>
-                <span>{r}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {/* Expand toggle */}
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className="w-full px-4 py-2 flex items-center justify-center gap-1 text-xs text-text-muted hover:text-text-secondary border-t border-border transition-colors"
-      >
-        {expanded ? <><ChevronUp className="w-3 h-3" /> Less detail</> : <><ChevronDown className="w-3 h-3" /> Score breakdown</>}
-      </button>
-
-      {expanded && (
-        <div className="px-4 pb-3 border-t border-border pt-3 space-y-2">
-          {[
-            { label: 'Market Cap', reason: coin.scoreReasons.marketCap },
-            { label: 'Utility', reason: coin.scoreReasons.utility },
-          ].map(({ label, reason }) => (
-            <div key={label} className="text-xs">
-              <span className="text-text-muted font-medium">{label}: </span>
-              <span className="text-text-secondary">{reason}</span>
-            </div>
-          ))}
-          <div className="text-xs text-text-muted">ATH drawdown: {coin.athChangePercent}%</div>
-        </div>
+      {coin.utilityNote && (
+        <div className="px-4 pb-3 text-xs text-text-secondary">{coin.utilityNote}</div>
       )}
 
       {/* Actions */}
@@ -364,8 +312,9 @@ function AddedCoinsTab() {
             </div>
             <div className="flex items-center gap-3 mt-0.5 text-xs text-text-muted">
               {coin.marketCapRank ? <span>#{coin.marketCapRank}</span> : null}
-              {coin.score ? <span>Score: {coin.score}/10</span> : null}
-              {coin.profileBand ? <ProfileBandBadge level={coin.profileBand} /> : null}
+              {/* Legacy fields from coins saved before W3-1 removed scoring —
+                  shown as inert text, never re-styled as a verdict. */}
+              {coin.score ? <span>saved with score {coin.score}/10 (legacy)</span> : null}
               <span>Added {new Date(coin.addedAt).toLocaleDateString()}</span>
             </div>
             {coin.notes && <p className="text-xs text-text-secondary mt-1 italic">&quot;{coin.notes}&quot;</p>}
@@ -390,13 +339,14 @@ const TAB_LABELS: Record<Tab, string> = {
   added:           'Added Coins',
 }
 
-const BAND_FILTER_OPTIONS = [
-  { value: 'all',      label: 'All' },
-  { value: 'high',     label: 'High score' },
-  { value: 'moderate', label: 'Moderate' },
-  { value: 'low',      label: 'Low' },
-  { value: 'very-low', label: 'Very low' },
-]
+// W3-1: liquidity replaces the score bands as the primary filter — it is the
+// dimension the owner asked to search by, and it is a fact from the feed.
+const LIQUIDITY_FILTER_OPTIONS = [
+  { value: 'all',  label: 'Any liquidity' },
+  { value: 'high', label: 'High (>15%/day)' },
+  { value: 'mid',  label: 'Moderate (5–15%)' },
+  { value: 'low',  label: 'Thin (<5%)' },
+] as const
 
 // Coin type is `category` on every candidate (CATEGORY_INFO in coinCatalog.ts),
 // already computed server-side and already rendered as the badge on each card —
@@ -407,9 +357,11 @@ const TYPE_OPTIONS = [
 ]
 
 const SORT_OPTIONS = [
-  { value: 'score', label: 'Score' },
-  { value: 'type', label: 'Coin type' },
   { value: 'market-cap', label: 'Market cap' },
+  { value: 'growth-24h', label: '24h growth' },
+  { value: 'growth-7d', label: '7d growth' },
+  { value: 'liquidity', label: 'Liquidity' },
+  { value: 'type', label: 'Coin type' },
 ] as const
 type SortKey = typeof SORT_OPTIONS[number]['value']
 
@@ -423,7 +375,7 @@ function CoinDiscoveryPageInner() {
   const [tab, setTab]             = useState<Tab>('candidates')
   const [recoFilter, setRecoFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
-  const [sortBy, setSortBy]       = useState<SortKey>('score')
+  const [sortBy, setSortBy]       = useState<SortKey>('market-cap')
   const [search, setSearch]       = useState('')
   const [limit, setLimit]         = useState(250)
   const [sourceOpen, setSourceOpen] = useState(false)
@@ -446,7 +398,9 @@ function CoinDiscoveryPageInner() {
   const candidates = data?.candidates ?? []
 
   const filtered = candidates.filter(c => {
-    if (recoFilter !== 'all' && c.profileBand !== recoFilter) return false
+    if (recoFilter === 'high' && c.liquidityRatio <= 0.15) return false
+    if (recoFilter === 'mid' && (c.liquidityRatio <= 0.05 || c.liquidityRatio > 0.15)) return false
+    if (recoFilter === 'low' && c.liquidityRatio > 0.05) return false
     if (typeFilter !== 'all' && c.category !== typeFilter) return false
     if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.symbol.toLowerCase().includes(search.toLowerCase())) return false
     return true
@@ -456,22 +410,22 @@ function CoinDiscoveryPageInner() {
   // filters change without depending on a freshly-allocated array each render.
   const filteredKey = filtered.map(c => c.cgId).join(',')
 
-  // The route already returns candidates ordered by composite score, so 'score'
-  // is a no-op pass-through rather than a re-sort — keeping the server's order
-  // authoritative. 'type' groups by category label and keeps the score order
-  // inside each group, so the list stays readable as a set of type sections.
+  // Every sort is over a FACT from the feed (W3-1). The route's own order is
+  // market cap, so that one is a pass-through.
   const sorted = useMemo(() => {
-    if (sortBy === 'score') return filtered
+    if (sortBy === 'market-cap') return filtered
     const rows = [...filtered]
-    if (sortBy === 'market-cap') return rows.sort((a, b) => b.marketCap - a.marketCap)
+    if (sortBy === 'growth-24h') return rows.sort((a, b) => b.priceChange24h - a.priceChange24h)
+    if (sortBy === 'growth-7d') return rows.sort((a, b) => (b.priceChange7d ?? -Infinity) - (a.priceChange7d ?? -Infinity))
+    if (sortBy === 'liquidity') return rows.sort((a, b) => b.liquidityRatio - a.liquidityRatio)
     return rows.sort((a, b) =>
-      a.categoryLabel.localeCompare(b.categoryLabel) || b.scores.overall - a.scores.overall,
+      a.categoryLabel.localeCompare(b.categoryLabel) || b.marketCap - a.marketCap,
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filteredKey, sortBy])
 
-  const highBandCount     = candidates.filter(c => c.profileBand === 'high').length
-  const moderateBandCount = candidates.filter(c => c.profileBand === 'moderate').length
+  const liquidCount = candidates.filter(c => c.liquidityRatio > 0.15).length
+  const risingCount = candidates.filter(c => (c.priceChange7d ?? 0) > 0).length
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -481,23 +435,23 @@ function CoinDiscoveryPageInner() {
           <PageHeader
             title="Coin Discovery"
             subtitle="Assets not yet in your registry, profiled on market cap and utility"
-            description="Coin Discovery surfaces assets not yet in your registry. Each candidate is scored on market cap, on-chain utility, and liquidity/volatility, and the composite is reported as a score band. The band describes the score — it is not a recommendation to buy, hold or avoid anything."
+            description="Coin Discovery lists assets not yet in your registry with the market facts the feed reports — price, growth, volume, liquidity, market cap — plus a factual category tag. Nothing here is scored or ranked by us: sort by whichever fact matters to you."
             details={[
               { label: 'Data source', text: 'Candidates are fetched from CoinGecko and filtered to assets above the minimum market cap threshold.' },
-              { label: 'Score bands', text: 'High (7.0+), Moderate (5.5–7.0), Low (4.0–5.5) and Very low (under 4.0) are bands of the same composite score, shown so a long list is scannable. They describe what was measured — market cap, utility, liquidity and volatility — and carry no view on whether an asset is worth owning.' },
+              { label: 'Liquidity', text: '24h volume divided by market cap. Above 15%/day is deep; under 5% is thin — a figure from the feed, not a judgment about the coin.' },
               { label: 'Adding assets', text: 'Clicking "Add" saves the asset to your local discovery store for review — it does not modify the main Asset Registry without backend integration.' },
             ]}
           />
         </div>
         {data && (
           <div className="flex gap-3 text-sm">
-            <div className="bg-bg-card border border-border rounded-lg px-3 py-2 text-center">
-              <div className="text-lg font-bold text-emerald-400">{highBandCount}</div>
-              <div className="text-xs text-text-muted">High score</div>
+            <div className="bg-bg-card border border-border rounded-lg px-3 py-2 text-center" title="24h volume over 15% of market cap">
+              <div className="text-lg font-bold text-emerald-400">{liquidCount}</div>
+              <div className="text-xs text-text-muted">Highly liquid</div>
             </div>
             <div className="bg-bg-card border border-border rounded-lg px-3 py-2 text-center">
-              <div className="text-lg font-bold text-blue-400">{moderateBandCount}</div>
-              <div className="text-xs text-text-muted">Moderate</div>
+              <div className="text-lg font-bold text-blue-400">{risingCount}</div>
+              <div className="text-xs text-text-muted">Up on 7d</div>
             </div>
             <div className="bg-bg-card border border-border rounded-lg px-3 py-2 text-center">
               <div className="text-lg font-bold text-text-primary">{addedCoins.length}</div>
@@ -515,10 +469,6 @@ function CoinDiscoveryPageInner() {
 
       {/* Data provenance */}
       <SourceLine id="coin-discovery" />
-      <DerivedNote what="Discovery scores" scale="1–10, higher = stronger candidate">
-        The market data underneath is the provider&rsquo;s; the ranking built from it is ours.
-        These are candidate-quality scores, not the app-wide 0&ndash;100 Safety Scores.
-      </DerivedNote>
 
       {/* Source selector */}
       <div className="flex items-center gap-3 flex-wrap">
@@ -601,7 +551,7 @@ function CoinDiscoveryPageInner() {
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex gap-1">
-              {BAND_FILTER_OPTIONS.map(opt => (
+              {LIQUIDITY_FILTER_OPTIONS.map(opt => (
                 <button
                   key={opt.value}
                   onClick={() => setRecoFilter(opt.value)}

@@ -122,43 +122,9 @@ export const CATEGORY_INFO: Record<string, { label: string; color: string; defau
 // Weights must sum to 1.0. Thresholds are the breakpoints for each band.
 // Edit here when the framework is expanded later.
 
-export const SCORING_CONFIG = {
-  weights: {
-    marketCap: 0.40,
-    utility:   0.35,
-    risk:      0.25,
-  },
-  marketCapTiers: [
-    { min: 50_000_000_000, score: 10, label: 'Mega cap (>$50B)' },
-    { min: 10_000_000_000, score: 8,  label: 'Large cap ($10B–$50B)' },
-    { min:  1_000_000_000, score: 6,  label: 'Mid-large cap ($1B–$10B)' },
-    { min:    100_000_000, score: 4,  label: 'Mid cap ($100M–$1B)' },
-    { min:     10_000_000, score: 2,  label: 'Small cap ($10M–$100M)' },
-    { min:              0, score: 1,  label: 'Micro cap (<$10M)' },
-  ],
-  profileBandThresholds: {
-    // Item 5b (2026-08-18): these were named strongAdd / consider / monitor and
-    // below-4 was 'too-speculative'. The thresholds are unchanged — only the
-    // vocabulary is, because "Strong Add" tells the reader what to DO with a
-    // coin, which is the advice-shaped side of the line item 4 drew. The bands
-    // now describe the composite score itself.
-    high:          7.0,
-    moderate:      5.5,
-    low:           4.0,
-    // below 4.0 → 'very-low'
-  },
-}
-
-/**
- * Band of the composite profile score — NOT a recommendation. It describes
- * where a candidate's market cap / utility / liquidity composite falls, and
- * says nothing about whether to buy it.
- */
-export type ProfileBand = 'high' | 'moderate' | 'low' | 'very-low'
-
-export function getProfileBand(score: number): ProfileBand {
-  if (score >= SCORING_CONFIG.profileBandThresholds.high)     return 'high'
-  if (score >= SCORING_CONFIG.profileBandThresholds.moderate) return 'moderate'
-  if (score >= SCORING_CONFIG.profileBandThresholds.low)      return 'low'
-  return 'very-low'
-}
+// W3-1 (2026-08-20): SCORING_CONFIG, ProfileBand and getProfileBand were
+// REMOVED with the discovery score itself — the owner: "remove any reference
+// to a score because it may imply a recommendation." Discovery now serves the
+// feed's facts (price, growth, volume, liquidity ratio, market cap) plus the
+// factual category annotations below. Do not reintroduce a composite ranking
+// here without an explicit decision reversing that.

@@ -1616,7 +1616,7 @@ conditions are checkable at a glance.
 
 | # | Slide | Item | Notes |
 |---|---|---|---|
-| W3-1 | 1 | Coin Discovery: remove the composite score entirely; replace with factual sortable columns (price, growth, liquidity, market cap) | Extends item 5b — the owner now cuts the score itself, not just the verdict names |
+| W3-1 | 1 | ✅ **DONE 2026-08-20.** Composite score, sub-scores, bands, score-derived prose and `SCORING_CONFIG` all removed; cards and sorts now carry only feed facts — price, 24h/7d growth, volume, liquidity ratio (24h vol ÷ mcap), market cap, ATH distance, category. Liquidity replaces the band filter; default order is market cap (the feed's own). Coins saved with a legacy score render it as inert text | Extends item 5b — the owner cut the score itself, not just the verdict names |
 | W3-2 | 2 | Coins screener: search by liquidity; sort by market cap, growth, and similar factors | `/assets` |
 | W3-3 | 3 | Evaluate Staking vs Staking Discovery overlap | Confirmed real: both pages render `STAKING_PROVIDERS` with filters. Likely outcome: one page, or a hard split (curated catalog vs live pools) |
 | W3-4 | 4, 6 | More options on the crypto and equity scanners | Owner asked twice — treat as one pass over the shared scanner pattern |
