@@ -1622,9 +1622,9 @@ conditions are checkable at a glance.
 | W3-4 | 4, 6 | More options on the crypto and equity scanners | Owner asked twice — treat as one pass over the shared scanner pattern |
 | W3-5 | 5 | Stock Registry screeners "should be more like filters; more options" | `/equities` |
 | W3-6 | 8 | Market Calendar: real calendar grid, month navigation | `/equities/calendar` |
-| W3-7 | 9 | No UI path to ADD a data source; charts' no-data notices don't link to Integrations | The notice text names the fix but nothing is clickable |
-| W3-8 | 10 | Bond shelf: group by type with headings (Treasury / Corporate / High-yield / Municipal / International / Inflation) | The funds the owner asked for all exist (LQD/HYG/BNDX/EMB/MUB…) — the flat list made them unfindable; slide screenshot cut off above MUB |
-| W3-9 | 12 | TopBar settings cog is a dead button | `TopBar.tsx:233` — no onClick; wire to `/settings` |
+| W3-7 | 9 | ✅ **DONE 2026-08-20.** `LiveUnavailable` now renders an "Add a data source in Integrations" link by default (opt-out prop for genuinely sourceless notices); `/data-sources` gains a visible "Add a data source" pointer to Integrations, where the per-section add-custom forms already lived | The notice text named the fix but nothing was clickable |
+| W3-8 | 10 | ✅ **DONE 2026-08-20.** `BOND_ETF_SHELF_GROUPS` — seven typed groups with headings using the owner's own vocabulary (incl. "High yield (junk)"); flat export retained for old consumers | The funds all existed — the flat list made the categories unfindable |
+| W3-9 | 12 | ✅ **DONE 2026-08-20.** The cog is now a `Link` to `/settings` — it had shipped with no handler at all | Dead control from day one |
 | W3-10 | 13 | Transfer Fees, Options Scorer, Portfolio Builder, Fund Registry each become their own sub-project | Program structure — owner scoping call per module, like S1/S2 |
 
 ### P3-W2-S2 — Trade ledger (subproject of W2, approved 2026-08-18)

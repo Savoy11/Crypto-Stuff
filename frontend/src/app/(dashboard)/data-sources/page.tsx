@@ -2,8 +2,9 @@
 
 import React, { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ExternalLink, Database, KeyRound, ShieldCheck, ShieldAlert, Scale, ChevronDown } from 'lucide-react'
+import { ExternalLink, Database, KeyRound, ShieldCheck, ShieldAlert, Scale, ChevronDown, Plus } from 'lucide-react'
 import { clsx } from 'clsx'
+import Link from 'next/link'
 import { PageHeader } from '@/components/ui/PageHeader'
 import {
   DATA_SOURCES, SOURCE_STATUS_META, PROVIDER_AUTH_META,
@@ -257,6 +258,25 @@ export default function DataSourcesPage() {
           { label: 'Permitted use', text: 'Every host below has a dated terms verdict (see the panel underneath). Prohibited hosts are blocked in code, and a source nobody has reviewed cannot be added without an explicit acknowledgement.' },
         ]}
       />
+
+      {/* W3-7: this page LISTS every source, and the owner's review found no
+          way to ADD one from here — adding lives on Integrations, behind
+          collapsed per-section buttons. A visible pointer beats making people
+          guess which page owns which half. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-bg-card px-4 py-3">
+        <p className="text-xs leading-relaxed text-text-muted">
+          <span className="font-medium text-text-secondary">Want another source?</span>{' '}
+          API keys for built-in providers and custom feeds (RSS, JSON quotes, OHLCV history,
+          social) are added per section on the Integrations page. Custom feeds pass a
+          terms-of-use check before they are saved.
+        </p>
+        <Link
+          href="/settings"
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-accent-blue px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-600"
+        >
+          <Plus size={13} aria-hidden /> Add a data source
+        </Link>
+      </div>
 
       <SourceTermsPanel />
 
