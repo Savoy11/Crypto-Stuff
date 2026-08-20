@@ -9,7 +9,6 @@ import {
   ArrowLeftRight,
   Coins,
   Search,
-  TrendingUp,
   CandlestickChart,
   Briefcase,
   FlaskConical,
@@ -135,7 +134,7 @@ export const MODULES: SuiteModule[] = [
     label: 'Crypto',
     routePrefixes: [
       '/assets', '/news', '/social', '/wallets',
-      '/transfer-fees', '/staking', '/staking-discovery', '/coin-discovery',
+      '/transfer-fees', '/staking', '/coin-discovery',
       '/technical-analysis', '/scanner',
       // De-routed but retained page (T5): unreachable via the next.config
       // redirect, gated here so removing that redirect can't re-expose it
@@ -158,7 +157,6 @@ export const MODULES: SuiteModule[] = [
       { href: '/wallets', label: 'Wallets', icon: Wallet },
       { href: '/transfer-fees', label: 'Transfer Fees', icon: ArrowLeftRight },
       { href: '/staking', label: 'Staking', icon: Coins },
-      { href: '/staking-discovery', label: 'Staking Discovery', icon: TrendingUp },
       { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
       { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
       // Item 6/7 (2026-08-19): one scanner per section, promoted to a top-level
