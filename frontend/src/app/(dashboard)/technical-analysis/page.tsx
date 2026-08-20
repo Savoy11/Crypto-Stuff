@@ -930,7 +930,10 @@ function BacktestPanel({ assetId, symbol }: { assetId: string; symbol: string })
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
-type Tab = 'chart' | 'patterns' | 'backtest'
+// 'backtest' HIDDEN 2026-08-20 (owner decision, revisitable): the tab, its
+// panel and lib/utils/backtest.ts are retained — restore by re-adding the tab
+// to the union and the two lists below.
+type Tab = 'chart' | 'patterns'
 
 // useSearchParams() forces a CSR bailout, so the page body must sit inside a
 // Suspense boundary for `next build` prerendering to succeed.
@@ -1147,7 +1150,7 @@ function TechnicalAnalysisContent() {
 
         {/* Tabs */}
         <div className="ml-auto flex items-center rounded-lg border border-border overflow-hidden">
-          {([['chart', 'Chart'], ['patterns', 'Patterns'], ['backtest', 'Backtest']] as [Tab, string][]).map(([t, label]) => (
+          {([['chart', 'Chart'], ['patterns', 'Patterns']] as [Tab, string][]).map(([t, label]) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -1257,15 +1260,7 @@ function TechnicalAnalysisContent() {
       )}
 
       {/* ── Backtest Tab ── */}
-      {tab === 'backtest' && (
-        <div className="flex flex-col gap-2">
-          <p className="text-xs text-text-muted">
-            Backtest a preset technical strategy on {asset.symbol}, using a dedicated multi-year daily
-            history (independent of the chart range) so the trend strategies have enough warm-up data.
-          </p>
-          <BacktestPanel assetId={assetId} symbol={asset.symbol} />
-        </div>
-      )}
+      {/* Backtest tab hidden 2026-08-20 — panel code retained below. */}
     </div>
   )
 }

@@ -31,10 +31,6 @@ import {
   Activity,
   Radar,
   Sigma,
-  PiggyBank,
-  Goal,
-  ReceiptText,
-  SlidersHorizontal,
 } from 'lucide-react'
 
 // ─── Suite module registry ────────────────────────────────────────────────────
@@ -53,7 +49,13 @@ import {
 //     the component boundary rather than inside the page's JSX, so a disabled
 //     module never mounts the page and its queries never fire.
 
-export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'budget' | 'retirement' | 'builder'
+/**
+ * Budget and Retirement were REMOVED on 2026-08-20 — owner decision: they will
+ * be explored in a different tool. Their ids are gone from this union, so any
+ * stale `enabled` flag for them in a browser's entitlement store is simply
+ * ignored rather than resurrecting a module that no longer exists.
+ */
+export type ModuleId = 'core' | 'crypto' | 'equities' | 'macro' | 'funds' | 'builder'
 
 export interface ModuleNavItem {
   href: string
@@ -178,7 +180,11 @@ export const MODULES: SuiteModule[] = [
       { href: '/equities/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },
       { href: '/equities/scanner', label: 'Scanner', icon: Radar },
       { href: '/equities/options', label: 'Options Scorer', icon: Sigma },
-      { href: '/equities/backtests', label: 'Backtests', icon: FlaskConical },
+      // Backtests HIDDEN 2026-08-20 (owner: "hide the back testing tool …
+      // I may revisit back testing"). The page, lib/utils/equityBacktest.ts,
+      // its tests and subproject P3-W2-S1 are all retained — /equities/backtests
+      // redirects in next.config.mjs. To restore: delete that redirect and put
+      // this entry back.
       { href: '/equities/calendar', label: 'Calendar', icon: CalendarDays },
     ],
   },
@@ -222,44 +228,6 @@ export const MODULES: SuiteModule[] = [
     optional: true,
     navItems: [
       { href: '/funds', label: 'Fund Registry', icon: Landmark },
-    ],
-  },
-  {
-    // Personal-finance pillar, phase 2 of docs/ROADMAP.md: accounts, manual +
-    // CSV-imported transactions, rule-based categorization, monthly budgets
-    // vs actuals. All user data in Postgres via /api/user/budget/* — no
-    // external providers, so these pages carry no SourceLine.
-    id: 'budget',
-    label: 'Budget',
-    routePrefixes: ['/budget'],
-    optional: true,
-    navItems: [
-      // NT1 (2026-08-19): the management half of the module gets a home, and
-      // uses the nested-nav primitive — Budget is a real destination with the
-      // two working surfaces under it.
-      {
-        href: '/budget',
-        label: 'Budget',
-        icon: PiggyBank,
-        children: [
-          { href: '/budget/transactions', label: 'Transactions', icon: ReceiptText },
-          { href: '/budget/manage', label: 'Settings', icon: SlidersHorizontal },
-        ],
-      },
-    ],
-  },
-  {
-    // Personal-finance pillar: accumulation projection to a target retirement
-    // age, drawdown to a plan-to age, and the loan/credit-card calculators that
-    // sat alongside it in the owner's planning spreadsheet. Pure engine in
-    // lib/retirement/ — nothing is fetched, so no SourceLine; the IRS
-    // contribution limits carry provenance like any other curated table.
-    id: 'retirement',
-    label: 'Retirement',
-    routePrefixes: ['/retirement'],
-    optional: true,
-    navItems: [
-      { href: '/retirement', label: 'Retirement Planner', icon: Goal },
     ],
   },
 ]

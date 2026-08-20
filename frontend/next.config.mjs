@@ -73,6 +73,12 @@ const nextConfig = {
       // per-coin panel is its consumer. Deleting the route would remove an
       // explanatory surface the decision preserves.
       { source: '/risk-scores', destination: '/headlines', permanent: false },
+      // Equity Strategy Backtests HIDDEN 2026-08-20 — owner decision, explicitly
+      // revisitable ("I may revisit back testing"). Page + engine + tests +
+      // subproject P3-W2-S1 all retained; this redirect is the only thing that
+      // removes access. Restore = delete this line + re-add the nav entry in
+      // lib/modules/registry.ts.
+      { source: '/equities/backtests', destination: '/equities', permanent: false },
     ]
   },
   async headers() {
