@@ -1625,7 +1625,7 @@ conditions are checkable at a glance.
 | W3-7 | 9 | ✅ **DONE 2026-08-20.** `LiveUnavailable` now renders an "Add a data source in Integrations" link by default (opt-out prop for genuinely sourceless notices); `/data-sources` gains a visible "Add a data source" pointer to Integrations, where the per-section add-custom forms already lived | The notice text named the fix but nothing was clickable |
 | W3-8 | 10 | ✅ **DONE 2026-08-20.** `BOND_ETF_SHELF_GROUPS` — seven typed groups with headings using the owner's own vocabulary (incl. "High yield (junk)"); flat export retained for old consumers | The funds all existed — the flat list made the categories unfindable |
 | W3-9 | 12 | ✅ **DONE 2026-08-20.** The cog is now a `Link` to `/settings` — it had shipped with no handler at all | Dead control from day one |
-| W3-10 | 13 | Transfer Fees, Options Scorer, Portfolio Builder, Fund Registry each become their own sub-project | Program structure — owner scoping call per module, like S1/S2 |
+| W3-10 | 13 | ✅ **SCOPED 2026-08-20** — four subproject charters drafted below (S3 Transfer Fees, S4 Options Scorer, S5 Portfolio Builder, S6 Fund Registry), each with its current state, build-out scope, and the first decision it carries. **Activation and priority are owner calls** — a charter existing does not start the work | Program structure, modeled on S1/S2 |
 
 ### P3-W2-S2 — Trade ledger (subproject of W2, approved 2026-08-18)
 
@@ -1656,6 +1656,99 @@ same-day round trips are the edge cases worth tests before they are worth code.
 *unrealized* position value only, and is separately under a FIX-FIRST correction (PB-1,
 unpriced holdings must leave the totals). Land PB-1 first — building realized P&L on top
 of totals that are being corrected means doing the reconciliation twice.
+
+
+### Subproject charters from W3-10 (drafted 2026-08-20 — PROPOSED, not active)
+
+> Slide 13 named four modules as future sub-projects. Each charter below is
+> S1/S2-shaped: what exists, what the build-out contains, and the first decision
+> the subproject must make before code. **None is active until the owner says
+> so** — and the first-decision rows are owner decisions, not agent ones.
+
+#### S3 — Transfer Fees — **ACTIVE (owner, 2026-08-20)**
+
+> Owner's brief on activation: concerns are **accuracy** and that **all types
+> of transfers and exchanges are considered** — "the idea with this tool is
+> that a person can see all costs associated with an exchange or sale of a
+> coin." Refresh model chosen: **agent-drafted + owner-approved** diffs.
+>
+> **Landed on activation day:** (1) `SPOT_TRADING_FEES` — default-tier
+> maker/taker for all 30 exchanges (28 seeded, 2 explicitly uncatalogued),
+> provenance pinned to LOW confidence while seeded (the sourceTerms lesson,
+> enforced by test); (2) `computeSaleCost()` — pure + 7 tests — and an
+> "I'm selling first" panel on the calculator: taker fee + withdrawal +
+> network = all-in cost of sale, with uncatalogued venues shown as UNKNOWN
+> rather than zero; (3) the fee worksheet (`npm run fee-worksheet`) now
+> includes a trading-fee verification section.
+>
+> **Open in S3:** the owner-approved refresh pass itself (worksheet is ready;
+> withdrawal table is 445 days past verification); route history; fee alerts;
+> spread modelling for zero-commission venues (needs a data-source decision).
+
+**State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
+networks, hand-maintained with provenance, path-finding (`findTransferPaths`),
+live token prices, v1 API + MCP tool. **The urgent fact: `TRANSFER_FEES_LAST_VERIFIED
+= '2025-06-01'` — ~14 months old against a 120-day staleness window.** The
+banner is honest, but every fee in the table is from another market era.
+**Build-out:** (1) a data-refresh workflow — the scraping agent (`data-scraper`)
+now has an invocation path and could draft per-exchange updates for owner
+review; (2) route history ("this route was $4 cheaper last week"); (3) fee
+alerts; (4) more exchanges/networks.
+**First decision:** the refresh model. Hand-verify all 30 exchanges (a real
+owner time cost, repeating every ~120 days), agent-drafted + owner-approved
+diffs, or narrow the table to the exchanges the owner actually uses and keep
+those genuinely fresh. The staleness clock makes this the natural first
+subproject.
+
+#### S4 — Options Scorer
+**State:** pure tested engine (`optionsTrade.ts`), hand-entry UI (1–4 legs; API
+accepts 8), v1 POST endpoint, MCP tool, agent tool. Chain browser REJECTED
+(RP-1 — no permissible source; reopen trigger recorded). Scoring-what-you-brought
+is the kept side of the item 4 line.
+**Build-out:** (1) UI parity with the API — 8 legs, more structure presets;
+(2) saved positions (a `user_positions` table — same optimistic pattern as
+wallets) so a user can re-score a position as conditions change; (3) what-if
+sliders (IV/underlying move) — the engine is pure, so this is cheap; (4) plain-
+language explanations per dimension.
+**First decision:** whether saved positions join the DB. Everything else is
+UI polish; persistence is the one architectural call.
+**Constraint carried forward:** no chain feed — hand entry stays; RP-1 stands
+unless its reopen trigger fires.
+
+#### S5 — Portfolio Builder
+**State:** two modes since item 16 (questionnaire + build-by-allocation), pure
+engine, DB-backed plans, drift monitor, suitability review. The premium module.
+**Build-out:** (1) plan HISTORY — what did the drift look like over time, when
+did rebalances happen (needs snapshot persistence — the honest version of what
+NT10 wanted, but for the user's own plan rather than market scores);
+(2) rebalance execution notes — printable trade lists; (3) contribution
+modeling ("$500/mo into this plan" projections — the engine piece the removed
+Retirement module would have fed); (4) taxable-vs-sheltered account awareness
+(asset LOCATION, not just allocation).
+**First decision:** scope boundary with the departed personal-finance product.
+Contribution modeling and account-type awareness edge toward retirement
+planning, which the owner moved to a separate tool. The subproject needs an
+explicit line: portfolio construction stays, financial planning goes.
+**Note:** the owner flagged a legality question on item 16 — surface it here
+before building further advice-adjacent features.
+
+#### S6 — Fund Registry
+**State:** 126-fund catalog with provenance, live quotes, N-PORT holdings +
+history + the NT9 asset mix, TEY on munis, look-through, overlap on Compare.
+Return screening DISABLED pending a paid FMP tier (blocked, not rejected).
+**Build-out:** (1) fund comparison view (side-by-side facts: fees, yield,
+duration/credit for bonds, holdings overlap — Compare has the pieces);
+(2) catalog growth with the provenance discipline; (3) a fee-impact screener
+(sort/filter by expense ratio × horizon — computed from `computeFeeDrag`,
+already pure+tested); (4) IF the enterprise key lands: return columns +
+screening restore (the code carries its own restore condition).
+**First decision:** none blocking — this is the least decision-heavy of the
+four. Its real dependency is the D2/enterprise-key conversation, which is
+already parked with the owner's planning session.
+
+**Suggested order, if the owner wants a default:** S3 first (a live staleness
+problem is worth more than any new feature), then S4 (small, self-contained),
+S5 and S6 behind their respective open conversations (legality note; key).
 
 ### P3-W2-S1 — Backtest build-out (subproject of W2, owner-directed 2026-08-15)
 

@@ -55,6 +55,121 @@ export function getTransferFeeProvenance(now: Date = new Date()): TransferFeePro
   }
 }
 
+
+// ─── Spot trading fees (S3, 2026-08-20) ──────────────────────────────────────
+//
+// The owner's brief for this tool: "a person can see all costs associated with
+// an exchange or sale of a coin." Withdrawal + network fees were only part of
+// that — the trade itself costs a maker/taker fee (or, on commission-free
+// venues, a spread), and leaving it out understated every route that begins
+// with a sale.
+//
+// Rates are the DEFAULT tier (no volume discounts, no exchange-token discount)
+// because that is what a person without a fee tier actually pays. Seeded from
+// each exchange's published fee schedule; like the source-terms registry,
+// seeded ≠ verified — confidence is capped at 'low' until an owner review
+// confirms them, regardless of how fresh the compile date is.
+
+export const TRADING_FEES_COMPILED = '2026-08-20'
+
+export interface SpotTradingFees {
+  /** Percent, e.g. 0.1 = 0.1%. Default/entry tier, no discounts. */
+  makerPct: number
+  takerPct: number
+  note?: string
+}
+
+export interface TradingFeeProvenance {
+  source: string
+  compiledAt: string
+  confidence: TransferFeeConfidence
+}
+
+export function getTradingFeeProvenance(): TradingFeeProvenance {
+  return {
+    source: 'Seeded from published exchange fee schedules — not individually re-verified',
+    compiledAt: TRADING_FEES_COMPILED,
+    // Deliberately pinned low: a seeded table must not inherit high confidence
+    // from a fresh compile date (the sourceTerms lesson).
+    confidence: 'low',
+  }
+}
+
+/**
+ * Default-tier spot fees per exchange. `null` = not catalogued — rendered as
+ * "unknown", never as zero. Spread-based venues carry 0-commission rates and a
+ * note, because "no fee" with a wide spread is not free.
+ */
+export const SPOT_TRADING_FEES: Record<string, SpotTradingFees | null> = {
+  binance:     { makerPct: 0.1, takerPct: 0.1 },
+  coinbase:    { makerPct: 0.4, takerPct: 0.6, note: 'Advanced Trade, entry tier; simple Coinbase buys cost more' },
+  kraken:      { makerPct: 0.25, takerPct: 0.4, note: 'Kraken Pro, entry tier' },
+  okx:         { makerPct: 0.08, takerPct: 0.1 },
+  bybit:       { makerPct: 0.1, takerPct: 0.1 },
+  bitfinex:    { makerPct: 0.1, takerPct: 0.2 },
+  gemini:      { makerPct: 0.2, takerPct: 0.4, note: 'ActiveTrader; the simple interface costs more' },
+  cryptocom:   { makerPct: 0.25, takerPct: 0.5, note: 'Entry tier before CRO staking discounts' },
+  kucoin:      { makerPct: 0.1, takerPct: 0.1 },
+  bitget:      { makerPct: 0.1, takerPct: 0.1 },
+  gateio:      { makerPct: 0.2, takerPct: 0.2 },
+  mexc:        { makerPct: 0, takerPct: 0.05 },
+  htx:         { makerPct: 0.2, takerPct: 0.2 },
+  upbit:       { makerPct: 0.05, takerPct: 0.05, note: 'KRW market' },
+  bitstamp:    { makerPct: 0.3, takerPct: 0.4, note: 'Entry tier (<$10k monthly volume)' },
+  pionex:      { makerPct: 0.05, takerPct: 0.05 },
+  lbank:       { makerPct: 0.1, takerPct: 0.1 },
+  bitrue:      { makerPct: 0.098, takerPct: 0.098 },
+  coinw:       { makerPct: 0.2, takerPct: 0.2 },
+  xtcom:       { makerPct: 0.2, takerPct: 0.2 },
+  hotcoin:     null,
+  azbit:       null,
+  toobit:      { makerPct: 0.1, takerPct: 0.1 },
+  coinstore:   { makerPct: 0.2, takerPct: 0.2 },
+  poloniex:    { makerPct: 0.145, takerPct: 0.155 },
+  bingx:       { makerPct: 0.1, takerPct: 0.1 },
+  phemex:      { makerPct: 0.1, takerPct: 0.1 },
+  woox:        { makerPct: 0.08, takerPct: 0.1 },
+  bitmart:     { makerPct: 0.25, takerPct: 0.25 },
+  hyperliquid: { makerPct: 0.01, takerPct: 0.035, note: 'DEX — plus any builder fee the front-end adds' },
+}
+
+/**
+ * All-in cost of SELLING on an exchange and moving the proceeds: taker fee on
+ * the sale + the cheapest withdrawal (exchange fee + network fee). Pure, so it
+ * is testable; returns null when the trading fee is uncatalogued rather than
+ * treating unknown as zero.
+ */
+export interface SaleCostBreakdown {
+  tradeFeeUsd: number
+  takerPct: number
+  withdrawFeeUsd: number
+  networkFeeUsd: number
+  totalUsd: number
+  totalPct: number
+  note?: string
+}
+
+export function computeSaleCost(
+  exchangeId: string,
+  amountUsd: number,
+  withdrawFeeUsd: number,
+  networkFeeUsd: number,
+): SaleCostBreakdown | null {
+  const fees = SPOT_TRADING_FEES[exchangeId]
+  if (!fees || amountUsd <= 0) return null
+  const tradeFeeUsd = amountUsd * (fees.takerPct / 100)
+  const totalUsd = tradeFeeUsd + withdrawFeeUsd + networkFeeUsd
+  return {
+    tradeFeeUsd,
+    takerPct: fees.takerPct,
+    withdrawFeeUsd,
+    networkFeeUsd,
+    totalUsd,
+    totalPct: (totalUsd / amountUsd) * 100,
+    note: fees.note,
+  }
+}
+
 export type NetworkId =
   | 'erc20' | 'trc20' | 'bep20' | 'solana' | 'polygon'
   | 'arbitrum' | 'base' | 'optimism' | 'avalanche' | 'bitcoin'

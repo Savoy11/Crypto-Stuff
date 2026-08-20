@@ -32,6 +32,8 @@ import {
   NETWORKS,
   TRANSFER_FEES_LAST_VERIFIED,
   transferFeesAgeDays,
+  SPOT_TRADING_FEES,
+  TRADING_FEES_COMPILED,
 } from '../src/lib/data/transferFees'
 
 // Withdrawal-fee pages, best known at time of writing. These are a starting point,
@@ -209,6 +211,25 @@ md.push(
   '  which routes the calculator offers.',
   ''
 )
+
+// ── Spot trading fees (S3) — seeded, needs the same verification pass ─────────
+md.push(
+  '## Spot trading fees (seeded ' + TRADING_FEES_COMPILED + ' — verify alongside withdrawals)',
+  '',
+  'Default-tier maker/taker per exchange, powering the "all-in cost of sale" panel.',
+  'Seeded from published schedules, confidence pinned LOW until verified. Check the',
+  'spot fee schedule page while you have each exchange open for withdrawals.',
+  '',
+  '| Done | Exchange | Maker % | Taker % | Note | Observed maker | Observed taker |',
+  '|------|----------|---------|---------|------|----------------|----------------|',
+)
+for (const ex of EXCHANGES) {
+  const f = SPOT_TRADING_FEES[ex.id]
+  md.push(
+    `| [ ] | ${ex.name} | ${f ? f.makerPct : 'NOT CATALOGUED'} | ${f ? f.takerPct : '—'} | ${f?.note ?? ''} |  |  |`,
+  )
+}
+md.push('')
 
 const root = join(process.cwd(), '..')
 writeFileSync(join(root, 'transfer-fee-worksheet.csv'), csv + '\n', 'utf8')
