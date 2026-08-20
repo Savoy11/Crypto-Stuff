@@ -11,6 +11,8 @@ export interface GetAssetsParams extends QueryParams {
   minRiskScore?: number
   maxRiskScore?: number
   minMarketCap?: number
+  /** Minimum 24h-volume / market-cap, in percent (W3-2). */
+  minLiquidityPct?: number
   search?: string
   sortBy?: string
   sortDirection?: 'asc' | 'desc'
@@ -62,11 +64,29 @@ export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedRes
   if (params.minMarketCap !== undefined) {
     assets = assets.filter((a) => a.marketCap !== null && a.marketCap >= (params.minMarketCap ?? 0))
   }
+  if (params.minLiquidityPct !== undefined) {
+    // Liquidity = 24h volume / market cap. Rows missing either figure are
+    // EXCLUDED when the filter is active: an unknown ratio is not a passing
+    // ratio, and letting N/A through would make the filter read stricter than
+    // it is.
+    assets = assets.filter((a) =>
+      a.volume24h !== null && a.marketCap !== null && a.marketCap > 0 &&
+      (a.volume24h / a.marketCap) * 100 >= (params.minLiquidityPct ?? 0))
+  }
 
   if (params.sortBy) {
-    const key = params.sortBy as keyof Asset
     const dir = params.sortDirection === 'asc' ? 1 : -1
-    assets = assets.sort((a, b) => compareValues(a[key], b[key], dir))
+    if (params.sortBy === 'liquidityRatio') {
+      // Derived sort key (W3-2): vol/mcap is not a stored column. Null-safe
+      // like every other sort — rows missing either figure go to the end.
+      const ratio = (a: Asset) =>
+        a.volume24h !== null && a.marketCap !== null && a.marketCap > 0
+          ? a.volume24h / a.marketCap : null
+      assets = assets.sort((a, b) => compareValues(ratio(a), ratio(b), dir))
+    } else {
+      const key = params.sortBy as keyof Asset
+      assets = assets.sort((a, b) => compareValues(a[key], b[key], dir))
+    }
   }
 
   const page = params.page ?? 1

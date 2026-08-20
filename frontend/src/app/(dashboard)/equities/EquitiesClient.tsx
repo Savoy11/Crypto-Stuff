@@ -49,16 +49,25 @@ export function EquitiesClient() {
   const [minPe, setMinPe] = useState('')
   const [maxPe, setMaxPe] = useState('')
   const [minYield, setMinYield] = useState('')
+  const [maxYield, setMaxYield] = useState('')
+  const [minBeta, setMinBeta] = useState('')
   const [maxBeta, setMaxBeta] = useState('')
+  const [minPrice, setMinPrice] = useState('')
+  const [maxPrice, setMaxPrice] = useState('')
+  // W3-5: every filter is a RANGE over a catalog fact — the owner asked for
+  // "more like filters; more options", and half-ranges (min-only yield,
+  // max-only beta) were the old shape's arbitrary limits.
+  const [payersOnly, setPayersOnly] = useState(false)
 
   // Deep-linkable screener state — /equities?sector=technology&peMax=20&sort=pe
   useScreenerUrl(
     {
       sector, q: search, sort: sortKey, dir: sortAsc ? 'asc' : 'desc',
       mcapMin: minMcapB, mcapMax: maxMcapB, peMin: minPe, peMax: maxPe,
-      yieldMin: minYield, betaMax: maxBeta,
+      yieldMin: minYield, yieldMax: maxYield, betaMin: minBeta, betaMax: maxBeta,
+      priceMin: minPrice, priceMax: maxPrice, payers: payersOnly ? '1' : '',
     },
-    { sector: 'all', q: '', sort: 'marketCap', dir: 'desc', mcapMin: '', mcapMax: '', peMin: '', peMax: '', yieldMin: '', betaMax: '' },
+    { sector: 'all', q: '', sort: 'marketCap', dir: 'desc', mcapMin: '', mcapMax: '', peMin: '', peMax: '', yieldMin: '', yieldMax: '', betaMin: '', betaMax: '', priceMin: '', priceMax: '', payers: '' },
     (p) => {
       if (p.sector && (p.sector === 'all' || p.sector in SECTOR_INFO)) setSector(p.sector as SectorId | 'all')
       if (p.q) setSearch(p.q)
@@ -87,7 +96,9 @@ export function EquitiesClient() {
     const query = search.trim().toLowerCase()
     const mcMin = parseNum(minMcapB), mcMax = parseNum(maxMcapB)
     const peMin = parseNum(minPe), peMax = parseNum(maxPe)
-    const yMin = parseNum(minYield), bMax = parseNum(maxBeta)
+    const yMin = parseNum(minYield), yMax = parseNum(maxYield)
+    const bMin = parseNum(minBeta), bMax = parseNum(maxBeta)
+    const pMin = parseNum(minPrice), pMax = parseNum(maxPrice)
     const subset = universe.filter((e) =>
       (sector === 'all' || e.sector === sector) &&
       (!query || e.symbol.toLowerCase().includes(query) || e.name.toLowerCase().includes(query)) &&
@@ -96,7 +107,12 @@ export function EquitiesClient() {
       (!isFinite(peMin) || (e.peRatio != null && e.peRatio >= peMin)) &&
       (!isFinite(peMax) || (e.peRatio != null && e.peRatio <= peMax)) &&
       (!isFinite(yMin) || (e.dividendYieldPct != null && e.dividendYieldPct >= yMin)) &&
-      (!isFinite(bMax) || e.beta <= bMax)
+      (!isFinite(yMax) || (e.dividendYieldPct != null && e.dividendYieldPct <= yMax)) &&
+      (!isFinite(bMin) || e.beta >= bMin) &&
+      (!isFinite(bMax) || e.beta <= bMax) &&
+      (!isFinite(pMin) || e.referencePrice >= pMin) &&
+      (!isFinite(pMax) || e.referencePrice <= pMax) &&
+      (!payersOnly || (e.dividendYieldPct != null && e.dividendYieldPct > 0))
     )
     const dir = sortAsc ? 1 : -1
     const value = (e: UniverseEntry): number | string => {
@@ -115,10 +131,10 @@ export function EquitiesClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [universe, sector, search, sortKey, sortAsc, minMcapB, maxMcapB, minPe, maxPe, minYield, maxBeta])
+  }, [universe, sector, search, sortKey, sortAsc, minMcapB, maxMcapB, minPe, maxPe, minYield, maxYield, minBeta, maxBeta, minPrice, maxPrice, payersOnly])
 
   // Reset to first page whenever the result set changes
-  useEffect(() => { setPage(0) }, [sector, search, sortKey, sortAsc, minMcapB, maxMcapB, minPe, maxPe, minYield, maxBeta])
+  useEffect(() => { setPage(0) }, [sector, search, sortKey, sortAsc, minMcapB, maxMcapB, minPe, maxPe, minYield, maxYield, minBeta, maxBeta, minPrice, maxPrice, payersOnly])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage = Math.min(page, totalPages - 1)
@@ -155,7 +171,7 @@ export function EquitiesClient() {
   const advancers = pageWithChange.filter((r) => (r.changePercent ?? 0) > 0).length
   const decliners = pageWithChange.filter((r) => (r.changePercent ?? 0) < 0).length
 
-  const anyFilter = !!(search || minMcapB || maxMcapB || minPe || maxPe || minYield || maxBeta || sector !== 'all')
+  const anyFilter = !!(search || minMcapB || maxMcapB || minPe || maxPe || minYield || maxYield || minBeta || maxBeta || minPrice || maxPrice || payersOnly || sector !== 'all')
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((a) => !a)
@@ -277,17 +293,16 @@ export function EquitiesClient() {
         <span className="text-xs font-medium uppercase tracking-wider text-text-muted">Screener</span>
         <RangeFilter label="Mkt cap $B" min={minMcapB} max={maxMcapB} setMin={setMinMcapB} setMax={setMaxMcapB} />
         <RangeFilter label="P/E" min={minPe} max={maxPe} setMin={setMinPe} setMax={setMaxPe} />
+        <RangeFilter label="Price $" min={minPrice} max={maxPrice} setMin={setMinPrice} setMax={setMaxPrice} />
+        <RangeFilter label="Yield %" min={minYield} max={maxYield} setMin={setMinYield} setMax={setMaxYield} />
+        <RangeFilter label="Beta" min={minBeta} max={maxBeta} setMin={setMinBeta} setMax={setMaxBeta} />
         <label className="flex items-center gap-1.5 text-xs text-text-muted">
-          Min yield %
-          <NumInput value={minYield} onChange={setMinYield} placeholder="2" />
-        </label>
-        <label className="flex items-center gap-1.5 text-xs text-text-muted">
-          Max beta
-          <NumInput value={maxBeta} onChange={setMaxBeta} placeholder="1.2" />
+          <input type="checkbox" checked={payersOnly} onChange={(e) => setPayersOnly(e.target.checked)} className="rounded border-border" />
+          Dividend payers only
         </label>
         {anyFilter && (
           <button
-            onClick={() => { setMinMcapB(''); setMaxMcapB(''); setMinPe(''); setMaxPe(''); setMinYield(''); setMaxBeta(''); setSearch(''); setSector('all') }}
+            onClick={() => { setMinMcapB(''); setMaxMcapB(''); setMinPe(''); setMaxPe(''); setMinYield(''); setMaxYield(''); setMinBeta(''); setMaxBeta(''); setMinPrice(''); setMaxPrice(''); setPayersOnly(false); setSearch(''); setSector('all') }}
             className="text-xs text-accent-blue hover:underline"
           >
             Clear all

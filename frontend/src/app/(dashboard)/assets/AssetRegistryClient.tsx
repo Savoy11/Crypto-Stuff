@@ -98,6 +98,7 @@ export function AssetRegistryClient() {
     filters.assetType !== 'all' ||
     filters.blockchain !== 'all' ||
     filters.minMarketCap > 0 ||
+    filters.minLiquidityPct > 0 ||
     !!filters.search
 
   return (
@@ -246,6 +247,15 @@ export function AssetRegistryClient() {
                 value={filters.minMarketCap > 0 ? String(filters.minMarketCap / 1e9) : ''}
                 onChange={(v) => setFilters({ minMarketCap: v === '' ? 0 : Number(v) * 1e9 })}
                 placeholder="1"
+              />
+            </label>
+
+            <label className="flex items-center gap-1.5 text-xs text-text-muted" title="24h volume ÷ market cap, in percent — a fact from the feed">
+              Min liquidity %/day
+              <NumInput
+                value={filters.minLiquidityPct > 0 ? String(filters.minLiquidityPct) : ''}
+                onChange={(v) => setFilters({ minLiquidityPct: v === '' ? 0 : Number(v) })}
+                placeholder="5"
               />
             </label>
 

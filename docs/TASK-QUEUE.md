@@ -1617,10 +1617,10 @@ conditions are checkable at a glance.
 | # | Slide | Item | Notes |
 |---|---|---|---|
 | W3-1 | 1 | ✅ **DONE 2026-08-20.** Composite score, sub-scores, bands, score-derived prose and `SCORING_CONFIG` all removed; cards and sorts now carry only feed facts — price, 24h/7d growth, volume, liquidity ratio (24h vol ÷ mcap), market cap, ATH distance, category. Liquidity replaces the band filter; default order is market cap (the feed's own). Coins saved with a legacy score render it as inert text | Extends item 5b — the owner cut the score itself, not just the verdict names |
-| W3-2 | 2 | Coins screener: search by liquidity; sort by market cap, growth, and similar factors | `/assets` |
+| W3-2 | 2 | ✅ **DONE 2026-08-20.** New min-liquidity screener input (24h vol ÷ mcap %, N/A rows excluded when active — an unknown ratio is not a passing one), plus sortable 24h-% and Liq-% columns; `liquidityRatio` is a null-safe derived sort key in `applyParams` (3 tests) | `/assets` |
 | W3-3 | 3 | Evaluate Staking vs Staking Discovery overlap | Confirmed real: both pages render `STAKING_PROVIDERS` with filters. Likely outcome: one page, or a hard split (curated catalog vs live pools) |
 | W3-4 | 4, 6 | More options on the crypto and equity scanners | Owner asked twice — treat as one pass over the shared scanner pattern |
-| W3-5 | 5 | Stock Registry screeners "should be more like filters; more options" | `/equities` |
+| W3-5 | 5 | ✅ **DONE 2026-08-20.** Every screener dimension is now a full range — Price $, Yield %, Beta joined Mkt cap and P/E (the old min-only-yield/max-only-beta halves were arbitrary) — plus a dividend-payers-only toggle. All deep-linkable; all catalog facts, no derived scores | `/equities` |
 | W3-6 | 8 | Market Calendar: real calendar grid, month navigation | `/equities/calendar` |
 | W3-7 | 9 | ✅ **DONE 2026-08-20.** `LiveUnavailable` now renders an "Add a data source in Integrations" link by default (opt-out prop for genuinely sourceless notices); `/data-sources` gains a visible "Add a data source" pointer to Integrations, where the per-section add-custom forms already lived | The notice text named the fix but nothing was clickable |
 | W3-8 | 10 | ✅ **DONE 2026-08-20.** `BOND_ETF_SHELF_GROUPS` — seven typed groups with headings using the owner's own vocabulary (incl. "High yield (junk)"); flat export retained for old consumers | The funds all existed — the flat list made the categories unfindable |

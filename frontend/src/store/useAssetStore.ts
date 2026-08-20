@@ -32,6 +32,7 @@ const DEFAULT_FILTERS: AssetFilters = {
   minRiskScore: 0,
   maxRiskScore: 100,
   minMarketCap: 0,
+  minLiquidityPct: 0,
 }
 
 const DEFAULT_SORT: AssetSortConfig = {
