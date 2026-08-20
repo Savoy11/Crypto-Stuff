@@ -1,6 +1,11 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import './globals.compiled.css'
+// Import the Tailwind SOURCE, not a pre-compiled snapshot. Next's postcss
+// pipeline (postcss.config.js) compiles it on every build, so new utility
+// classes always ship. The old globals.compiled.css import froze the CSS at
+// whenever `npm run css:build` last ran — the market-calendar grid rendered
+// single-column because grid-cols-7 postdated the snapshot.
+import './globals.css'
 import { Providers } from './providers'
 
 const inter = Inter({
