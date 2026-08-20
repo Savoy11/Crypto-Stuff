@@ -1665,7 +1665,26 @@ of totals that are being corrected means doing the reconciliation twice.
 > the subproject must make before code. **None is active until the owner says
 > so** — and the first-decision rows are owner decisions, not agent ones.
 
-#### S3 — Transfer Fees
+#### S3 — Transfer Fees — **ACTIVE (owner, 2026-08-20)**
+
+> Owner's brief on activation: concerns are **accuracy** and that **all types
+> of transfers and exchanges are considered** — "the idea with this tool is
+> that a person can see all costs associated with an exchange or sale of a
+> coin." Refresh model chosen: **agent-drafted + owner-approved** diffs.
+>
+> **Landed on activation day:** (1) `SPOT_TRADING_FEES` — default-tier
+> maker/taker for all 30 exchanges (28 seeded, 2 explicitly uncatalogued),
+> provenance pinned to LOW confidence while seeded (the sourceTerms lesson,
+> enforced by test); (2) `computeSaleCost()` — pure + 7 tests — and an
+> "I'm selling first" panel on the calculator: taker fee + withdrawal +
+> network = all-in cost of sale, with uncatalogued venues shown as UNKNOWN
+> rather than zero; (3) the fee worksheet (`npm run fee-worksheet`) now
+> includes a trading-fee verification section.
+>
+> **Open in S3:** the owner-approved refresh pass itself (worksheet is ready;
+> withdrawal table is 445 days past verification); route history; fee alerts;
+> spread modelling for zero-commission venues (needs a data-source decision).
+
 **State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
 networks, hand-maintained with provenance, path-finding (`findTransferPaths`),
 live token prices, v1 API + MCP tool. **The urgent fact: `TRANSFER_FEES_LAST_VERIFIED

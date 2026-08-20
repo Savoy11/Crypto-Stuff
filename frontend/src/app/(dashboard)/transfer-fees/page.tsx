@@ -16,6 +16,7 @@ import { clsx } from 'clsx'
 import {
   EXCHANGES, COIN_INFO, NETWORKS, PERSONAL_WALLET_ID,
   EVM_NETWORKS, findTransferPaths,
+  SPOT_TRADING_FEES, computeSaleCost, getTradingFeeProvenance, TRADING_FEES_COMPILED,
   TRANSFER_FEES_LAST_VERIFIED, transferFeesAreStale, transferFeesAgeDays,
   getTransferFeeProvenance,
   type CoinId, type TransferPath, type TransferWarning,
@@ -395,6 +396,10 @@ function WrongNetworkExplainer() {
 
 function TransferFeesPageInner() {
   const [coinId, setCoinId] = useState<string>('usdt')
+  // S3: "all costs associated with an exchange or sale of a coin" — the trade
+  // itself costs a taker fee before anything is withdrawn. Off by default: a
+  // pure transfer (no sale) genuinely has no trade leg.
+  const [includeSale, setIncludeSale] = useState(false)
   const [amount, setAmount] = useState<string>('1000')
   const [stops, setStops]   = useState<string[]>(['binance', 'coinbase'])
 
@@ -471,6 +476,16 @@ function TransferFeesPageInner() {
   ).length
 
   const hasAdjacentDuplicate = stops.some((s, i) => i > 0 && s === stops[i - 1])
+
+  // All-in sale cost at the ORIGIN venue: taker fee on selling `amount`, plus
+  // the best first-leg withdrawal+network cost. null = trading fee not
+  // catalogued for that venue — rendered as unknown, never as zero, or an
+  // uncatalogued venue would look cheaper than the ones we know about.
+  const firstLegBest = segmentPaths[0]?.find(p => p.isViable && p.type !== 'no-path')
+  const saleCost = includeSale && firstLegBest && fromId !== PERSONAL_WALLET_ID
+    ? computeSaleCost(fromId, numAmount * (coinPrices[coinId] ?? liveCoin?.price ?? 1), firstLegBest.exchangeFeeUsd, firstLegBest.networkFeeUsd)
+    : null
+  const saleFeesUncatalogued = includeSale && fromId !== PERSONAL_WALLET_ID && !SPOT_TRADING_FEES[fromId]
 
   // Price: live route price first, then live coin quote, then 1 as a last
   // resort. (Never coinInfo.defaultAmount — that's a transfer quantity.)
@@ -786,6 +801,61 @@ function TransferFeesPageInner() {
                   </span>
                 </div>
               )}
+
+              {/* S3 — all-in sale cost */}
+              <div className="rounded-lg border border-border bg-bg-card px-3 py-2.5 space-y-2">
+                <label className="flex items-start gap-2 text-xs text-text-muted">
+                  <input
+                    type="checkbox"
+                    checked={includeSale}
+                    onChange={(e) => setIncludeSale(e.target.checked)}
+                    className="mt-0.5 rounded border-border"
+                  />
+                  <span>
+                    <span className="font-medium text-text-secondary">I&rsquo;m selling first</span> — include the
+                    origin exchange&rsquo;s taker fee, so the total is the full cost of the sale, not just the move.
+                  </span>
+                </label>
+                {includeSale && fromId === PERSONAL_WALLET_ID && (
+                  <p className="text-[11px] text-text-muted">A personal wallet has no trading fee — the sale happens wherever you trade.</p>
+                )}
+                {saleFeesUncatalogued && (
+                  <p className="text-[11px] text-amber-400">
+                    {EXCHANGES.find(e => e.id === fromId)?.name ?? fromId}&rsquo;s trading fees aren&rsquo;t catalogued yet —
+                    shown as unknown rather than zero, because omitting them would make this venue look cheaper than ones we know.
+                  </p>
+                )}
+                {saleCost && (
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                      <div className="rounded bg-bg-elevated px-2 py-1.5">
+                        <div className="text-text-muted text-[10px]">Trade fee ({saleCost.takerPct}% taker, est.)</div>
+                        <div className="font-mono text-text-primary">${saleCost.tradeFeeUsd.toFixed(2)}</div>
+                      </div>
+                      <div className="rounded bg-bg-elevated px-2 py-1.5">
+                        <div className="text-text-muted text-[10px]">Withdrawal</div>
+                        <div className="font-mono text-text-primary">${saleCost.withdrawFeeUsd.toFixed(2)}</div>
+                      </div>
+                      <div className="rounded bg-bg-elevated px-2 py-1.5">
+                        <div className="text-text-muted text-[10px]">Network</div>
+                        <div className="font-mono text-text-primary">${saleCost.networkFeeUsd.toFixed(2)}</div>
+                      </div>
+                      <div className="rounded bg-accent-blue/10 border border-accent-blue/30 px-2 py-1.5">
+                        <div className="text-accent-blue text-[10px] font-medium">All-in cost of sale</div>
+                        <div className="font-mono font-bold text-accent-blue">
+                          ${saleCost.totalUsd.toFixed(2)} <span className="font-normal text-[10px]">({saleCost.totalPct.toFixed(2)}%)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-text-muted leading-relaxed">
+                      Trade fee is the {EXCHANGES.find(e => e.id === fromId)?.name ?? fromId} default-tier taker rate
+                      {saleCost.note ? ` (${saleCost.note})` : ''}, seeded from the published schedule on {TRADING_FEES_COMPILED} —
+                      an estimate ({getTradingFeeProvenance().confidence} confidence), not a quote. Volume tiers, token discounts
+                      and spread are not modelled; verify on the exchange before trading.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Multi-leg cumulative summary */}
               {stops.length > 2 && (
