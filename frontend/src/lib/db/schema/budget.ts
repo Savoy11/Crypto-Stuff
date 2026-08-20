@@ -1,3 +1,27 @@
+// ⚠ RETAINED FOR DATA ONLY — the Budget module was REMOVED from the app on
+// 2026-08-20 (owner decision: "remove the budget and retirement tools … the
+// other two need to be explored somewhere else").
+//
+// Nothing in the application imports these tables any more: the pages, the
+// /api/user/budget/* routes, lib/budget/ and the server helpers are all gone.
+// The DEFINITIONS stay for two deliberate reasons:
+//
+//  1. **Your data is still in them.** These tables hold imported bank history
+//     that took real effort to get in, and the replacement tool may want it.
+//     Deleting the definitions would make drizzle-kit generate a DROP migration
+//     — and the next routine `npm run db:migrate` would then destroy that data
+//     silently, which is not a thing a migration should ever do by accident.
+//  2. Keeping them means the migration journal stays consistent with the
+//     database as it actually is.
+//
+// To export before dropping:
+//   pg_dump "$DATABASE_URL" -t finance_accounts -t finance_transactions \
+//     -t budget_categories -t budgets -t categorization_rules \
+//     -t import_profiles -t recurring_rules > budget-export.sql
+//
+// To drop them once the data is somewhere else, run that SQL by hand, then
+// delete this file and generate the migration deliberately.
+
 import { pgTable, text, timestamp, uuid, numeric, integer, boolean, date, jsonb, uniqueIndex, index, type AnyPgColumn } from 'drizzle-orm/pg-core'
 import { users } from './auth'
 

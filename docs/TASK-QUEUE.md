@@ -1594,6 +1594,39 @@ conditions are checkable at a glance.
 ```
 </details>
 
+### W3 intake — owner review deck, 2026-08-20 ("Changes to apply to Wave 2 changes")
+
+> 13-slide screenshot deck reviewed with the owner on 2026-08-20. Two decisions were
+> taken immediately; the rest is queued work. Slide → item mapping below.
+
+**Decided and executed same day:**
+
+- **Budget + Retirement modules REMOVED** (slide 11) — *"we will build this out in a
+  completely different tool … the other two need to be explored somewhere else."*
+  Fired RP-2's recorded reopen trigger (ledger annotated). Pages, routes, libs deleted;
+  **DB tables and imported bank history retained** with export instructions in
+  `lib/db/schema/budget.ts`.
+- **Backtesting HIDDEN, not removed** (slide 7) — *"I may revisit back testing."* All
+  three surfaces (equities page → redirect, crypto TA tab, portfolios tab); engines,
+  panels, tests retained in place with restore instructions at each site.
+  **Subproject P3-W2-S1 is SUSPENDED** — do not work it unless the owner reopens.
+  ⚠ The owner's parallel-session WIP branch `local-wip-s1` touches these files.
+
+**Queued (not yet built):**
+
+| # | Slide | Item | Notes |
+|---|---|---|---|
+| W3-1 | 1 | Coin Discovery: remove the composite score entirely; replace with factual sortable columns (price, growth, liquidity, market cap) | Extends item 5b — the owner now cuts the score itself, not just the verdict names |
+| W3-2 | 2 | Coins screener: search by liquidity; sort by market cap, growth, and similar factors | `/assets` |
+| W3-3 | 3 | Evaluate Staking vs Staking Discovery overlap | Confirmed real: both pages render `STAKING_PROVIDERS` with filters. Likely outcome: one page, or a hard split (curated catalog vs live pools) |
+| W3-4 | 4, 6 | More options on the crypto and equity scanners | Owner asked twice — treat as one pass over the shared scanner pattern |
+| W3-5 | 5 | Stock Registry screeners "should be more like filters; more options" | `/equities` |
+| W3-6 | 8 | Market Calendar: real calendar grid, month navigation | `/equities/calendar` |
+| W3-7 | 9 | No UI path to ADD a data source; charts' no-data notices don't link to Integrations | The notice text names the fix but nothing is clickable |
+| W3-8 | 10 | Bond shelf: group by type with headings (Treasury / Corporate / High-yield / Municipal / International / Inflation) | The funds the owner asked for all exist (LQD/HYG/BNDX/EMB/MUB…) — the flat list made them unfindable; slide screenshot cut off above MUB |
+| W3-9 | 12 | TopBar settings cog is a dead button | `TopBar.tsx:233` — no onClick; wire to `/settings` |
+| W3-10 | 13 | Transfer Fees, Options Scorer, Portfolio Builder, Fund Registry each become their own sub-project | Program structure — owner scoping call per module, like S1/S2 |
+
 ### P3-W2-S2 — Trade ledger (subproject of W2, approved 2026-08-18)
 
 > **Owner decision, P3-W2 decision session.** Tool candidate NT2 was approved but
