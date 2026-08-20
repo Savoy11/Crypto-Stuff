@@ -9,6 +9,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { computeSignalSummary, type OhlcvCandle, type Signal, type SignalSummary } from '@/lib/utils/indicators'
 import { detectSetups, type SetupKey, type DetectedSetup } from '@/lib/utils/scanSetups'
+import { rsi, sma } from '@/lib/utils/indicators'
 import { formatAdaptivePrice } from '@/lib/utils/format'
 import { runPool } from '@/lib/utils/runPool'
 import { SignalBadge } from '@/components/charts/SignalBadge'
@@ -49,6 +50,10 @@ interface ScanRow {
   assetId: string
   setups: DetectedSetup[]
   signal: SignalSummary | null
+  /** W3-4: RSI 14 and distance from SMA 50 — same columns the equity scanner
+   *  shows, computed from the candles this scan already fetched. */
+  rsi14: number | null
+  vsSma50Pct: number | null
   status: ScanStatus
 }
 
@@ -73,7 +78,17 @@ const SORT_OPTIONS = [
   { key: 'rank',    label: 'Market cap' },
   { key: 'setups',  label: 'Most setups' },
   { key: 'signal',  label: 'Signal' },
+  { key: 'rsi',     label: 'RSI (low→high)' },
 ] as const
+
+const SIGNAL_FILTER_OPTIONS: Array<{ value: Signal | 'all'; label: string }> = [
+  { value: 'all', label: 'Any signal' },
+  { value: 'strong_buy', label: 'Strong Buy' },
+  { value: 'buy', label: 'Buy' },
+  { value: 'neutral', label: 'Neutral' },
+  { value: 'sell', label: 'Sell' },
+  { value: 'strong_sell', label: 'Strong Sell' },
+]
 type SortKey = typeof SORT_OPTIONS[number]['key']
 
 function ScannerPanel() {
@@ -98,8 +113,14 @@ function ScannerPanel() {
   const [autoRefresh, setAutoRefresh] = useState(false)
   const [activeScan, setActiveScan] = useState<SetupKey | 'all'>('all')
   const [sortKey, setSortKey] = useState<SortKey>('rank')
+  // W3-4: search, a signal filter, and an all-rows toggle. The old behaviour
+  // hid every no-setup row unconditionally — "show all" lets the scanner double
+  // as a universe overview with RSI/SMA readings per asset.
+  const [search, setSearch] = useState('')
+  const [signalFilter, setSignalFilter] = useState<Signal | 'all'>('all')
+  const [showAll, setShowAll] = useState(false)
   const [rows, setRows] = useState<ScanRow[]>(
-    () => SUPPORTED_IDS.map(id => ({ assetId: id, setups: [], signal: null, status: 'loading' as ScanStatus })),
+    () => SUPPORTED_IDS.map(id => ({ assetId: id, setups: [], signal: null, rsi14: null, vsSma50Pct: null, status: 'loading' as ScanStatus })),
   )
   const [scanning, setScanning] = useState(false)
   const [done, setDone] = useState(0)
@@ -118,7 +139,7 @@ function ScannerPanel() {
     const tf = SCAN_TIMEFRAMES.find(t => t.key === timeframe) ?? SCAN_TIMEFRAMES[1]
     setScanning(true)
     setDone(0)
-    setRows(SUPPORTED_IDS.map(id => ({ assetId: id, setups: [], signal: null, status: 'loading' as ScanStatus })))
+    setRows(SUPPORTED_IDS.map(id => ({ assetId: id, setups: [], signal: null, rsi14: null, vsSma50Pct: null, status: 'loading' as ScanStatus })))
 
     await runPool(SUPPORTED_IDS, SCAN_CONCURRENCY, async (id) => {
       let patch: Partial<ScanRow>
@@ -129,9 +150,16 @@ function ScannerPanel() {
         if (!json.ok || candles.length === 0) {
           patch = { status: 'error' }
         } else {
+          const closes = candles.map(c => c.close)
+          const rsiSeries = rsi(closes, 14)
+          const sma50 = sma(closes, 50)
+          const last = closes[closes.length - 1]
+          const lastSma = sma50[sma50.length - 1]
           patch = {
             setups: detectSetups(candles),
             signal: candles.length >= 50 ? computeSignalSummary(candles) : null,
+            rsi14: rsiSeries[rsiSeries.length - 1] ?? null,
+            vsSma50Pct: lastSma ? ((last - lastSma) / lastSma) * 100 : null,
             status: 'ok',
           }
         }
@@ -166,12 +194,17 @@ function ScannerPanel() {
 
   const failed = rows.filter(r => r.status === 'error').length
 
+  const q = search.trim().toLowerCase()
   const filtered = rows
-    .filter(r => activeScan === 'all' ? r.setups.length > 0 : r.setups.some(s => s.key === activeScan))
+    .filter(r => showAll || (activeScan === 'all' ? r.setups.length > 0 : r.setups.some(s => s.key === activeScan)))
+    .filter(r => !showAll || activeScan === 'all' || r.setups.some(s => s.key === activeScan))
+    .filter(r => signalFilter === 'all' || r.signal?.overall === signalFilter)
     .map(r => ({ ...r, meta: metaById.get(r.assetId) }))
+    .filter(r => !q || r.assetId.toLowerCase().includes(q) || (r.meta?.label ?? '').toLowerCase().includes(q) || (r.meta?.symbol ?? '').toLowerCase().includes(q))
     .sort((a, b) => {
       if (sortKey === 'setups') return b.setups.length - a.setups.length
       if (sortKey === 'signal') return signalRank(b.signal) - signalRank(a.signal)
+      if (sortKey === 'rsi') return (a.rsi14 ?? 999) - (b.rsi14 ?? 999)
       return (a.meta?.rank ?? 9999) - (b.meta?.rank ?? 9999)
     })
 
@@ -208,6 +241,31 @@ function ScannerPanel() {
             {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </div>
+
+        <select
+          value={signalFilter}
+          onChange={(e) => setSignalFilter(e.target.value as Signal | 'all')}
+          aria-label="Signal filter"
+          className="bg-bg-elevated border border-border rounded-lg px-2 py-1 text-xs text-text-secondary focus:outline-none focus:border-accent-blue/40"
+        >
+          {SIGNAL_FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search coin…"
+          className="w-32 rounded-lg border border-border bg-bg-elevated px-2 py-1 text-xs text-text-primary placeholder:text-text-muted/60 focus:border-accent-blue/40 focus:outline-none"
+        />
+
+        <button
+          onClick={() => setShowAll(v => !v)}
+          className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
+            showAll ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+          title="Include assets with no detected setup — the scanner then doubles as a universe overview"
+        >
+          {showAll ? 'All assets' : 'With setups'}
+        </button>
 
         <button
           onClick={() => setAutoRefresh(a => !a)}
@@ -277,6 +335,8 @@ function ScannerPanel() {
               <tr className="border-b border-border bg-bg-elevated">
                 <th className="text-left px-4 py-2.5 text-text-muted font-medium">Asset</th>
                 <th className="text-right px-3 py-2.5 text-text-muted font-medium">Price</th>
+                <th className="text-right px-3 py-2.5 text-text-muted font-medium">RSI 14</th>
+                <th className="text-right px-3 py-2.5 text-text-muted font-medium">vs SMA 50</th>
                 <th className="text-center px-3 py-2.5 text-text-muted font-medium">Signal</th>
                 <th className="text-left px-4 py-2.5 text-text-muted font-medium">Detected setups</th>
               </tr>
@@ -296,11 +356,24 @@ function ScannerPanel() {
                       return typeof price === 'number' ? formatAdaptivePrice(price) : <span className="text-text-muted text-xs">—</span>
                     })()}
                   </td>
+                  <td className={clsx('px-3 py-3 text-right font-mono text-xs whitespace-nowrap',
+                    row.rsi14 == null ? 'text-text-muted'
+                      : row.rsi14 >= 70 ? 'text-red-400'
+                      : row.rsi14 <= 30 ? 'text-emerald-400'
+                      : 'text-text-secondary')}>
+                    {row.rsi14 == null ? '—' : row.rsi14.toFixed(1)}
+                  </td>
+                  <td className={clsx('px-3 py-3 text-right font-mono text-xs whitespace-nowrap',
+                    row.vsSma50Pct == null ? 'text-text-muted'
+                      : row.vsSma50Pct >= 0 ? 'text-emerald-400' : 'text-red-400')}>
+                    {row.vsSma50Pct == null ? '—' : `${row.vsSma50Pct >= 0 ? '+' : ''}${row.vsSma50Pct.toFixed(1)}%`}
+                  </td>
                   <td className="px-3 py-3 text-center">
                     {row.signal ? <SignalBadge signal={row.signal.overall} /> : <span className="text-text-muted text-[10px]">N/A</span>}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-col gap-1.5">
+                      {row.setups.length === 0 && <span className="text-[11px] text-text-muted">none</span>}
                       {row.setups
                         .filter(s => activeScan === 'all' || s.key === activeScan)
                         .map((s, i) => (

@@ -35,9 +35,26 @@ export interface MarketCalendarResponse {
 }
 
 export async function GET(req: NextRequest) {
-  const days = Math.min(parseInt(req.nextUrl.searchParams.get('days') ?? '14', 10) || 14, 30)
-  const from = new Date().toISOString().slice(0, 10)
-  const to = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+  // W3-6: ?month=YYYY-MM fetches that calendar month, for the month-grid UI.
+  // Bounded to ±12 months from now — FMP serves history and far-future dates
+  // thinly, and an unbounded month param would let one URL sweep years of the
+  // provider's calendar for nothing.
+  const monthParam = req.nextUrl.searchParams.get('month')
+  let from: string
+  let to: string
+  if (monthParam && /^\d{4}-(0[1-9]|1[0-2])$/.test(monthParam)) {
+    const [y, m] = monthParam.split('-').map(Number)
+    const now = new Date()
+    const offset = (y - now.getUTCFullYear()) * 12 + (m - 1 - now.getUTCMonth())
+    const clamped = Math.max(-12, Math.min(12, offset))
+    const target = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + clamped, 1))
+    from = target.toISOString().slice(0, 10)
+    to = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).toISOString().slice(0, 10)
+  } else {
+    const days = Math.min(parseInt(req.nextUrl.searchParams.get('days') ?? '14', 10) || 14, 30)
+    from = new Date().toISOString().slice(0, 10)
+    to = new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10)
+  }
   const base = { from, to, updatedAt: new Date().toISOString() }
 
   // UI-saved key (Integrations page) or FMP_API_KEY env var
@@ -60,7 +77,7 @@ export async function GET(req: NextRequest) {
     for (const row of rows) {
       const entry = EQUITY_BY_SYMBOL[row.symbol?.toUpperCase() ?? '']
       // Catalog names first; cap the long tail of non-catalog names
-      if (!entry && earnings.filter((e) => !e.inCatalog).length >= 40) continue
+      if (!entry && earnings.filter((e) => !e.inCatalog).length >= 120) continue
       earnings.push({
         symbol: row.symbol,
         name: entry?.name ?? row.symbol,
