@@ -19,7 +19,6 @@
 
 import { NextResponse } from 'next/server'
 import {
-  parseBybitCoinInfo,
   parseKucoinCurrencies,
   parseHtxCurrencies,
   buildFeeOverrideMap,
@@ -49,12 +48,10 @@ export interface WithdrawFeesResponse {
   skipped: number
 }
 
+// Bybit was probed and removed (2026-08-21): /v5/asset/coin/query-info
+// returned 403 from the owner's machine — it is in Bybit's authenticated
+// Asset API group, not public. Keyless-only is the rule (RP-5), so no Bybit.
 const SOURCES: { exchangeId: string; url: string; parse: (json: any) => ParsedFeeRow[] }[] = [
-  {
-    exchangeId: 'bybit',
-    url: 'https://api.bybit.com/v5/asset/coin/query-info',
-    parse: parseBybitCoinInfo,
-  },
   {
     exchangeId: 'kucoin',
     url: 'https://api.kucoin.com/api/v3/currencies',

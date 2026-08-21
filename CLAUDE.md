@@ -95,7 +95,7 @@ frontend/src/
 │       ├── chart/route.ts
 │       ├── config/route.ts
 │       ├── network-fees/route.ts   # Live BTC fees + all 16-network gas prices
-│       ├── withdraw-fees/route.ts  # Live exchange withdrawal fees (Bybit/KuCoin/HTX keyless) — overlay-only, per-row live tags
+│       ├── withdraw-fees/route.ts  # Live exchange withdrawal fees (KuCoin/HTX keyless; Bybit probed 403 — authed) — overlay-only, per-row live tags
 │       ├── staking-rates/route.ts  # Live APR from Lido, Marinade, Jito
 │       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→…→Alpha Vantage→reference; ALL KEYED)
 │       ├── security-chart/route.ts  # Price history (Tiingo→FMP; both keyed)
