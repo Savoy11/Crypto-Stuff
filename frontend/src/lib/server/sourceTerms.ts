@@ -429,6 +429,42 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     confidence: 'high',
   },
   {
+    domain: 'bybit.com',
+    name: 'Bybit (public market-data API)',
+    verdict: 'conditional',
+    termsUrl: 'https://bybit-exchange.github.io/docs/v5/intro',
+    finding:
+      'Bybit publishes a documented public v5 API; coin/chain info (incl. withdrawal fees) is served without authentication. Docs impose rate limits per endpoint. Seeded from the published API documentation — the exchange ToS have not been read for this project.',
+    conditions: ['Respect documented rate limits', 'Keyless public endpoints only — no authenticated endpoints (RP-5)'],
+    reviewedAt: '2026-08-21',
+    review: 'seeded',
+    confidence: 'medium',
+  },
+  {
+    domain: 'kucoin.com',
+    name: 'KuCoin (public market-data API)',
+    verdict: 'conditional',
+    termsUrl: 'https://www.kucoin.com/docs',
+    finding:
+      'KuCoin publishes a documented public REST API; the currencies endpoint (incl. per-chain withdrawal fees) is unauthenticated. Docs impose public rate limits. Seeded from the published API documentation — the exchange ToS have not been read for this project.',
+    conditions: ['Respect documented rate limits', 'Keyless public endpoints only — no authenticated endpoints (RP-5)'],
+    reviewedAt: '2026-08-21',
+    review: 'seeded',
+    confidence: 'medium',
+  },
+  {
+    domain: 'huobi.pro',
+    name: 'HTX / Huobi (public market-data API)',
+    verdict: 'conditional',
+    termsUrl: 'https://huobiapi.github.io/docs/spot/v1/en/',
+    finding:
+      'HTX publishes a documented public REST API; v2/reference/currencies (incl. per-chain withdrawal fees) is unauthenticated. Seeded from the published API documentation — the exchange ToS have not been read for this project.',
+    conditions: ['Respect documented rate limits', 'Keyless public endpoints only — no authenticated endpoints (RP-5)'],
+    reviewedAt: '2026-08-21',
+    review: 'seeded',
+    confidence: 'medium',
+  },
+  {
     domain: 'blockchain.info',
     name: 'Blockchain.com (explorer)',
     verdict: 'approved',

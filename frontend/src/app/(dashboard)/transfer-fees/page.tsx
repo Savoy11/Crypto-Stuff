@@ -20,9 +20,10 @@ import {
   TRANSFER_FEES_LAST_VERIFIED, transferFeesAreStale, transferFeesAgeDays,
   getTransferFeeProvenance,
   type CoinId, type TransferPath, type TransferWarning,
-  type NetworkFeeMap, type CoinPriceMap,
+  type NetworkFeeMap, type CoinPriceMap, type LiveFeeOverrideMap,
 } from '@/lib/data/transferFees'
 import type { NetworkFeesResponse } from '@/app/live-data/network-fees/route'
+import type { WithdrawFeesResponse } from '@/app/live-data/withdraw-fees/route'
 import type { CoinListResponse, CoinListEntry } from '@/lib/types/coinList'
 import { NETWORK_GAS, FALLBACK_PRICES } from '@/lib/data/networkFees'
 
@@ -45,6 +46,12 @@ const STATIC_PRICES: CoinPriceMap = { ...FALLBACK_PRICES }
 async function fetchNetworkFees(): Promise<NetworkFeesResponse> {
   const res = await fetch('/live-data/network-fees')
   if (!res.ok) throw new Error('Failed to fetch network fees')
+  return res.json()
+}
+
+async function fetchWithdrawFees(): Promise<WithdrawFeesResponse> {
+  const res = await fetch('/live-data/withdraw-fees')
+  if (!res.ok) throw new Error('Failed to fetch live withdrawal fees')
   return res.json()
 }
 
@@ -121,7 +128,14 @@ function HopRow({ hop, coinId, coinPrices }: {
             <p className="text-emerald-400 font-semibold">Free</p>
           ) : (
             <>
-              <p className="text-slate-200 font-mono">{hop.exchangeFee} {coinInfo.symbol}</p>
+              <p className="text-slate-200 font-mono">
+                {hop.exchangeFee} {coinInfo.symbol}
+                {hop.feeLive && (
+                  <span className="ml-1.5 rounded px-1 py-px text-[9px] font-semibold uppercase tracking-wide bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                    live
+                  </span>
+                )}
+              </p>
               <p className="text-slate-500">${hop.exchangeFeeUsd.toFixed(2)}</p>
             </>
           )}
@@ -430,6 +444,21 @@ function TransferFeesPageInner() {
     refetchInterval: 10 * 60 * 1000,
   })
 
+  // Live withdrawal-fee overlay (keyless Tier-1 exchanges). Failure is fine —
+  // the calculator falls back to the static table plus its staleness banner.
+  const { data: liveFeesData } = useQuery({
+    queryKey: ['withdraw-fees'],
+    queryFn: fetchWithdrawFees,
+    staleTime: 15 * 60 * 1000,
+    refetchInterval: 30 * 60 * 1000,
+    retry: 1,
+  })
+  const liveOverrides: LiveFeeOverrideMap | undefined =
+    liveFeesData?.ok ? liveFeesData.overrides : undefined
+  const liveExchangeIds = (liveFeesData?.sources ?? [])
+    .filter(s => s.status === 'live')
+    .map(s => s.exchangeId)
+
   const [coinListData, setCoinListData] = useState<CoinListResponse | null>(null)
   const [coinListLoading, setCoinListLoading] = useState(true)
   useEffect(() => {
@@ -461,9 +490,9 @@ function TransferFeesPageInner() {
     return stops.slice(0, -1).map((from, i) => {
       const to = stops[i + 1]
       if (from === to) return []
-      return findTransferPaths(from, to, coinId as CoinId, numAmount, networkFees, coinPrices)
+      return findTransferPaths(from, to, coinId as CoinId, numAmount, networkFees, coinPrices, liveOverrides)
     })
-  }, [isSupportedCoin, stops, coinId, numAmount, networkFees, coinPrices])
+  }, [isSupportedCoin, stops, coinId, numAmount, networkFees, coinPrices, liveOverrides])
 
   // Cumulative cost: best viable path from each leg. Legs with no viable path
   // contribute nothing — count them so the total isn't presented as complete.
@@ -550,8 +579,22 @@ function TransferFeesPageInner() {
             stale={prov.stale}
           >
             — {prov.source.toLowerCase()}, verified{' '}
-            {new Date(TRANSFER_FEES_LAST_VERIFIED).toLocaleDateString()} ({transferFeesAgeDays()} days ago).
+            {/* T00:00:00 pins the date-only string to local midnight — a bare
+                ISO date parses as UTC and renders as the previous day in the US */}
+            {new Date(TRANSFER_FEES_LAST_VERIFIED + 'T00:00:00').toLocaleDateString()} ({transferFeesAgeDays()} days ago).
             Network gas is live; withdrawal fees are static estimates — always confirm on the exchange before sending.
+            {liveExchangeIds.length > 0 && (
+              <>
+                {' '}Exception:{' '}
+                <span className="text-emerald-400 font-medium">
+                  {liveExchangeIds
+                    .map(id => EXCHANGES.find(e => e.id === id)?.name ?? id)
+                    .join(', ')}
+                </span>{' '}
+                withdrawal fees are live from each exchange&rsquo;s public API (rows tagged{' '}
+                <span className="text-emerald-400">live</span> in the route breakdown).
+              </>
+            )}
           </ProvenanceNotice>
         )
       })()}
