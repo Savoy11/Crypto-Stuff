@@ -32,6 +32,27 @@
 export const TAX_GUIDANCE_COMPILED = '2026-08-21'
 
 /**
+ * Has anyone opened the primary documents?
+ *
+ * `seeded` — written from the regulation text and IRS guidance as reproduced by
+ * research, WITHOUT every pinpoint cite being read in the original. This is the
+ * source-terms registry's distinction, and it exists here for the same reason:
+ * the first cut of these notes carried authority citations that read as though
+ * someone had checked them, and two of them were wrong — a withdrawal fee was
+ * said to reduce a taxable gain (it does not), and the per-wallet basis rule
+ * was credited to the revenue procedure that is merely its elective transition
+ * safe harbor. A verdict nobody read, wearing a citation that says somebody
+ * did, launders an assumption into a record.
+ *
+ * Verification is also environment-dependent, exactly like the data audits:
+ * irs.gov, eCFR, congress.gov and Cornell are unreachable from the build
+ * environment, so this must be re-read on a machine that can open them. Flip to
+ * `verified` only when someone has actually read §1.1001-7, §1.1012-1(h) and
+ * (j), Rev. Proc. 2024-28 and the current §67 text in the original.
+ */
+export const TAX_GUIDANCE_REVIEW: 'seeded' | 'verified' = 'seeded'
+
+/**
  * Tax guidance goes stale faster than a fee table in one specific way: an Act
  * of Congress can invalidate a note overnight. 180 days matches the source-terms
  * registry — long enough that the app is not crying wolf, short enough that a
@@ -81,11 +102,21 @@ export interface TaxCharacterInput {
    */
   sellingFirst: boolean
   /**
-   * Does any leg pay on-chain gas out of the user's own wallet (rather than the
-   * gas being covered by an exchange withdrawal fee)? Only then does the
-   * uncertain fee-unit question arise.
+   * Does any leg pay on-chain gas out of the user's own wallet?
    */
   paysGasFromWallet: boolean
+  /**
+   * Does any leg have a fee the venue withholds IN THE COIN being moved (the
+   * ordinary exchange withdrawal fee)?
+   *
+   * This exists because the first cut gated the fee-disposition note on
+   * `paysGasFromWallet` alone — so the note was hidden on precisely the case the
+   * IRS names in terms ("digital assets you use, or are withheld, to pay for
+   * transaction services") and shown on the case it does not. Withheld and
+   * self-paid are the same event in substance: units leave you to pay for the
+   * transfer.
+   */
+  feeWithheldInCoin?: boolean
   /**
    * Might the sale be into another crypto/stablecoin rather than fiat?
    *
@@ -103,19 +134,39 @@ const NOT_A_TAXABLE_EVENT: TaxNote = {
   character: 'not-taxable',
   title: 'Moving your own coin between your own accounts is not a taxable event',
   detail:
-    'No disposition occurs when you transfer crypto between wallets or exchange accounts you control, so no gain or loss is realised. Your original cost basis and holding period carry over unchanged — the transfer does not restart the one-year long-term clock.',
+    'No disposition occurs when you transfer crypto between wallets or exchange accounts you control, so no gain or loss is realised on the coin being moved, and its cost basis and holding period carry over — the transfer does not restart the one-year long-term clock. The exception is the fee: any coin you spend, or that the venue withholds, to pay for the transfer is treated separately (see below). Both ends must genuinely be yours — sending to someone else is a different question.',
   confidence: 'settled',
-  authority: 'Crypto is property (IRS Notice 2014-21); gain is realised only on a disposition (IRC §1001)',
+  authority: 'Gain is realised only on a sale or exchange (IRC §1001; crypto is property — Notice 2014-21). IRS FAQs on digital asset transactions state the self-transfer rule and its "used, or are withheld, to pay for transaction services" exception',
+}
+
+const FEE_UNITS_DISPOSED: TaxNote = {
+  id: 'fee-paid-in-crypto-is-a-disposition',
+  character: 'taxable-disposition',
+  title: 'A fee paid in crypto is itself a small sale of the coin used to pay it',
+  detail:
+    'Whenever units are spent — gas you sign for, or a withdrawal fee the exchange takes out of the coin being sent — those units are disposed of to pay for a service. You have a gain or loss on them: their market value at that moment, less your basis in those particular units. It is small, it is separate from the transfer being non-taxable, and it is reportable.',
+  confidence: 'settled',
+  authority: 'Treas. Reg. §1.1001-7(b)(1)(ii) (TD 10000): using or withholding digital assets to pay transaction costs is a disposition of those assets',
+}
+
+const TRANSFER_FEES_STRANDED: TaxNote = {
+  id: 'transfer-fees-stranded',
+  character: 'basis-adjustment',
+  title: 'The withdrawal and network fees on a move do not reduce your gain',
+  detail:
+    'Only costs that effect a sale, disposition or acquisition adjust proceeds or basis. Moving your own coin between your own accounts is none of those, so the IRS treats fees paid for that transfer as outside those rules — they are not netted against proceeds, not added to basis, and investment expenses are not separately deductible either. The practical result is that these fees are a real economic cost with no tax offset, even though the units spent paying them are a reportable disposition.',
+  confidence: 'settled',
+  authority: 'Treas. Reg. §1.1001-7(b)(2)(i) / §1.1012-1(h) — costs must effect a sale, disposition or acquisition; IRS FAQs state transfer-service fees between your own wallets are not digital asset transaction costs; miscellaneous itemized deductions are disallowed under IRC §67',
 }
 
 const TRANSFER_RECORD_KEEPING: TaxNote = {
   id: 'transfer-record-keeping',
   character: 'record-keeping',
-  title: 'It does create a record-keeping obligation',
+  title: 'A move still creates a record-keeping obligation',
   detail:
-    'Since 2025 basis must be tracked per wallet and per account rather than pooled across all your holdings, and brokers report transferred-in assets as "noncovered" — meaning the receiving exchange generally does not know what you paid. Keep your own record of the basis and acquisition date that moved with these coins; reconstructing it later is the expensive part.',
+    'Basis is tracked per wallet and per account rather than pooled across everything you hold, and brokers report transferred-in assets as "noncovered" — the receiving exchange generally does not know what you paid. Keep your own record of the basis and acquisition date that moved with these coins; reconstructing it later is the expensive part.',
   confidence: 'recently-changed',
-  authority: 'Rev. Proc. 2024-28 (per-wallet basis, from 2025); Form 1099-DA regime (TD 10000)',
+  authority: 'Treas. Reg. §1.1012-1(j) imposes per-wallet/per-account basis identification for acquisitions and dispositions from 1 Jan 2025; Rev. Proc. 2024-28 is the ELECTIVE transition safe harbor for allocating pre-2025 basis, not the source of the requirement. Form 1099-DA regime (TD 10000)',
 }
 
 const SALE_IS_A_DISPOSITION: TaxNote = {
@@ -123,9 +174,9 @@ const SALE_IS_A_DISPOSITION: TaxNote = {
   character: 'taxable-disposition',
   title: 'Selling is a taxable disposition',
   detail:
-    'A sale realises capital gain or loss: proceeds minus your adjusted cost basis, per tax lot. Whether it is short-term or long-term turns on whether you held that lot more than one year — the rates differ, and which lots you are deemed to sell depends on the accounting method you have applied consistently.',
+    'A sale realises capital gain or loss: proceeds minus your adjusted cost basis, per tax lot. Whether it is short-term or long-term turns on whether you held that lot more than one year. Which lots you are treated as selling depends on identifying them at the time of sale; absent that, the earliest units in that wallet or account go first.',
   confidence: 'settled',
-  authority: 'IRC §1001 (gain/loss); IRC §1222 (holding period)',
+  authority: 'IRC §1001 (gain/loss); IRC §1222 (holding period); Treas. Reg. §1.1012-1(j) (identification, and FIFO within the wallet or account absent it)',
 }
 
 const CRYPTO_TO_CRYPTO: TaxNote = {
@@ -133,29 +184,19 @@ const CRYPTO_TO_CRYPTO: TaxNote = {
   character: 'taxable-disposition',
   title: 'Converting to another coin — including a stablecoin — is also a disposition',
   detail:
-    'Swapping one crypto for another is taxed as if you sold the first for its fair market value, even though no cash is received. Like-kind exchange deferral is not available: since 2018 IRC §1031 applies only to real property. Routing through a stablecoin to "avoid" a sale does not avoid the disposition.',
+    'Swapping one crypto for another is taxed as if you sold the first for its market value, even though no cash is received. Like-kind exchange deferral is not available: since 2018 it applies only to real property. Routing through a stablecoin does not avoid the disposition.',
   confidence: 'settled',
   authority: 'IRC §1001; IRC §1031(a)(1) as amended by the TCJA (real property only)',
 }
 
-const FEES_ADJUST_BASIS: TaxNote = {
-  id: 'fees-adjust-basis',
+const TRADING_FEES_ADJUST: TaxNote = {
+  id: 'trading-fees-adjust-gain',
   character: 'basis-adjustment',
-  title: 'The fees on this page are not a separate deduction — they change the gain',
+  title: 'Trading fees on the sale itself are not a separate deduction — they change the gain',
   detail:
-    'Fees paid to acquire crypto are added to its cost basis; fees paid to dispose of it reduce the proceeds. Either way they flow into the capital gain calculation rather than being written off separately. So a withdrawal or trading fee on a sale leg is not simply money lost — it reduces the gain you are taxed on.',
+    'Fees paid to acquire crypto are added to its cost basis; fees paid to effect the sale reduce the proceeds. Either way they flow into the capital gain calculation rather than being written off separately. This covers the trading commission on the sale leg — not the withdrawal or network fee for moving the coin afterwards, which is the different case described above.',
   confidence: 'settled',
-  authority: 'IRC §1012 (basis); IRC §1001 (amount realised)',
-}
-
-const GAS_FEE_UNITS: TaxNote = {
-  id: 'gas-paid-in-crypto',
-  character: 'taxable-disposition',
-  title: 'Paying gas from your own wallet may itself be a small disposition',
-  detail:
-    'When you pay network gas in crypto (ETH, SOL, BNB…), you are spending those fee units — and spending crypto is generally a disposition of the units spent, producing a small gain or loss against their basis. There is no direct IRS guidance on this point and practice varies; on a large or frequent transfer it is worth raising with a preparer rather than assuming either treatment.',
-  confidence: 'uncertain',
-  authority: 'No direct guidance; follows from IRC §1001 disposition principles',
+  authority: 'Treas. Reg. §1.1012-1(h) (basis) and §1.1001-7(b) (amount realised) — digital asset transaction costs, for dispositions from 1 Jan 2025',
 }
 
 /**
@@ -165,15 +206,26 @@ const GAS_FEE_UNITS: TaxNote = {
  * uncertain one never appears without the settled context around it.
  */
 export function getTransferTaxNotes(input: TaxCharacterInput): TaxNote[] {
-  const notes: TaxNote[] = [NOT_A_TAXABLE_EVENT, TRANSFER_RECORD_KEEPING]
+  const notes: TaxNote[] = [NOT_A_TAXABLE_EVENT]
+
+  // The carve-out travels WITH the reassuring rule, never below the fold: a fee
+  // paid in crypto is the common case (on-chain gas always; an exchange
+  // withdrawal fee usually), and "not a taxable event" read alone teaches the
+  // reader that moving coins is free of consequence.
+  if (input.paysGasFromWallet || input.feeWithheldInCoin) {
+    notes.push(FEE_UNITS_DISPOSED)
+    notes.push(TRANSFER_FEES_STRANDED)
+  }
+
+  notes.push(TRANSFER_RECORD_KEEPING)
 
   if (input.sellingFirst) {
     notes.push(SALE_IS_A_DISPOSITION)
     if (input.saleMayBeIntoCrypto) notes.push(CRYPTO_TO_CRYPTO)
-    notes.push(FEES_ADJUST_BASIS)
+    // Only ever shown alongside TRANSFER_FEES_STRANDED when a transfer fee
+    // exists, so "fees reduce the gain" can't be read as covering the move.
+    notes.push(TRADING_FEES_ADJUST)
   }
-
-  if (input.paysGasFromWallet) notes.push(GAS_FEE_UNITS)
 
   return notes
 }
@@ -184,14 +236,16 @@ export interface TaxGuidanceProvenance {
   ageDays: number
   stale: boolean
   scope: string
+  review: 'seeded' | 'verified'
 }
 
 export function getTaxGuidanceProvenance(now: Date = new Date()): TaxGuidanceProvenance {
   return {
-    source: 'Plain-language summary of US federal tax treatment, compiled from the Code, IRS guidance and published procedures',
+    source: 'Plain-language summary of US federal tax treatment, compiled from the Code, Treasury regulations and IRS guidance',
     compiledAt: TAX_GUIDANCE_COMPILED,
     ageDays: taxGuidanceAgeDays(now),
     stale: taxGuidanceIsStale(now),
     scope: 'US federal only — no state tax, no non-US regime. Educational, not tax advice.',
+    review: TAX_GUIDANCE_REVIEW,
   }
 }

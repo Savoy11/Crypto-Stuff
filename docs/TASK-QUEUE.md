@@ -1755,6 +1755,37 @@ of totals that are being corrected means doing the reconciliation twice.
 > reads as an instruction to transact. Dated + staleness-windowed (180d) because
 > an Act of Congress can invalidate a note overnight.
 >
+> **Corrected after adversarial + legal review (2026-08-21, same day).** The
+> first cut shipped two wrong claims, both understating tax: (a) it said a
+> **withdrawal** fee reduces a taxable gain — only costs effecting a sale,
+> disposition or acquisition do, and the panel's own first note says a
+> self-transfer is none of those, so it contradicted itself under a "settled
+> law" badge; (b) it stated the not-taxable rule without the IRS's own
+> "used, or are withheld, to pay for transaction services" carve-out, and gated
+> the fee-disposition note on wallet gas alone — hiding it on the ordinary
+> exchange withdrawal fee, the case the IRS names in terms, while showing it on
+> the case it does not. A test pinned that inversion in place. Also corrected:
+> the per-wallet basis rule is imposed by Treas. Reg. §1.1012-1(j); Rev. Proc.
+> 2024-28 is its ELECTIVE transition safe harbor, not the source.
+>
+> The note set is now: not-taxable **with** its carve-out → fee paid in crypto
+> is a disposition of the units spent → those transfer fees are stranded (not
+> netted, not capitalised, not deductible) → record-keeping → sale/crypto-to-
+> crypto/trading-fee notes when selling. The all-in-cost tile now says it is an
+> execution cost, not a single tax number.
+>
+> **`TAX_GUIDANCE_REVIEW = 'seeded'`, surfaced in the UI.** Two of three
+> independent legal reviewers reported every primary host (irs.gov, eCFR,
+> congress.gov, Cornell) blocked from this environment and labelled their own
+> work seeded — one warned that two of its searches returned the **superseded
+> proposed** 50/50 cost-allocation rule as though it were current law. Same
+> doctrine as the source-terms registry: couldn't-read-it is not verification.
+> **Owner action:** read §1.1001-7, §1.1012-1(h) and (j), Rev. Proc. 2024-28 and
+> the current §67 text in the original, then flip to `'verified'`. Two cites to
+> check first: the §1.1001-7(b)(2)(ii) subparagraph letter, and whether OBBBA
+> redesignated §67(g) as §67(h) for 2026 (reviewers disagreed, so no pinpoint
+> subsection is cited in the shipped copy).
+>
 > **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
 > user-supplied basis/holding period/rate on the TEY pattern (store no bracket
 > table, so nothing goes stale) and is the piece that touches the owner's

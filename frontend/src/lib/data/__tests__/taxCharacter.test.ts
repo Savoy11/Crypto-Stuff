@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   getTransferTaxNotes,
+  TAX_GUIDANCE_REVIEW,
   getTaxGuidanceProvenance,
   taxGuidanceAgeDays,
   taxGuidanceIsStale,
@@ -29,11 +30,11 @@ describe('getTransferTaxNotes — what applies when', () => {
     expect(notes.some(n => n.character === 'taxable-disposition')).toBe(false)
   })
 
-  it('adds the disposition and basis notes only when the user is selling first', () => {
+  it('adds the disposition and trading-fee notes only when the user is selling first', () => {
     const notes = getTransferTaxNotes({ ...MOVE_ONLY, sellingFirst: true })
     const ids = notes.map(n => n.id)
     expect(ids).toContain('sale-is-disposition')
-    expect(ids).toContain('fees-adjust-basis')
+    expect(ids).toContain('trading-fees-adjust-gain')
   })
 
   it('calls out crypto-to-crypto only when the sale is into crypto', () => {
@@ -43,25 +44,68 @@ describe('getTransferTaxNotes — what applies when', () => {
     expect(intoCrypto.map(n => n.id)).toContain('crypto-to-crypto-taxable')
   })
 
-  it('raises the gas-units question only when gas is actually paid from the wallet', () => {
-    expect(getTransferTaxNotes(MOVE_ONLY).map(n => n.id)).not.toContain('gas-paid-in-crypto')
-    const walletGas = getTransferTaxNotes({ ...MOVE_ONLY, paysGasFromWallet: true })
-    expect(walletGas.map(n => n.id)).toContain('gas-paid-in-crypto')
+  // The IRS names BOTH ways units leave you to pay for a transfer — "digital
+  // assets you use, or are withheld". Gating on wallet gas alone hid the note
+  // on the withheld case, which is the ordinary exchange withdrawal fee.
+  it('raises the fee-disposition note for a venue-withheld fee, not just wallet gas', () => {
+    expect(getTransferTaxNotes(MOVE_ONLY).map(n => n.id))
+      .not.toContain('fee-paid-in-crypto-is-a-disposition')
+    for (const input of [
+      { ...MOVE_ONLY, paysGasFromWallet: true },
+      { ...MOVE_ONLY, feeWithheldInCoin: true },
+    ]) {
+      expect(getTransferTaxNotes(input).map(n => n.id))
+        .toContain('fee-paid-in-crypto-is-a-disposition')
+    }
+  })
+
+  it('never claims a transfer fee reduces the gain, and pairs the fee notes', () => {
+    const notes = getTransferTaxNotes({ ...MOVE_ONLY, feeWithheldInCoin: true })
+    const ids = notes.map(n => n.id)
+    // the stranded-cost note must accompany the disposition note
+    expect(ids).toContain('transfer-fees-stranded')
+    const stranded = notes.find(n => n.id === 'transfer-fees-stranded')!
+    expect(stranded.detail).toContain('not netted against proceeds')
+  })
+
+  it('scopes the fees-change-the-gain claim to the sale, never the move', () => {
+    const notes = getTransferTaxNotes({ ...MOVE_ONLY, sellingFirst: true, feeWithheldInCoin: true })
+    const trading = notes.find(n => n.id === 'trading-fees-adjust-gain')!
+    // it must disclaim the withdrawal/network leg explicitly
+    expect(trading.detail).toContain('not the withdrawal or network fee')
+    // and it may never appear without the stranded-cost note when a transfer fee exists
+    expect(notes.map(n => n.id)).toContain('transfer-fees-stranded')
+  })
+
+  it('no settled note claims a withdrawal or network fee adjusts basis or proceeds', () => {
+    const notes = getTransferTaxNotes({
+      sellingFirst: true, paysGasFromWallet: true, feeWithheldInCoin: true, saleMayBeIntoCrypto: true,
+    })
+    for (const n of notes.filter(n => n.character === 'basis-adjustment')) {
+      const claimsReduction = /withdrawal[^.]*reduces the gain|network fee[^.]*reduces the gain/i
+      expect(`${n.title} ${n.detail}`, `${n.id} extends the basis rule to a transfer fee`)
+        .not.toMatch(claimsReduction)
+    }
+  })
+
+  it('is honest that the notes have not been read against primary sources', () => {
+    expect(TAX_GUIDANCE_REVIEW).toBe('seeded')
+    expect(getTaxGuidanceProvenance().review).toBe('seeded')
   })
 })
 
 describe('honesty invariants', () => {
   const everyNote = (): TaxNote[] => getTransferTaxNotes({
-    sellingFirst: true, paysGasFromWallet: true, saleMayBeIntoCrypto: true,
+    sellingFirst: true, paysGasFromWallet: true, feeWithheldInCoin: true, saleMayBeIntoCrypto: true,
   })
 
-  it('the uncertain note is labelled uncertain and never appears alone', () => {
+  it('the not-taxable headline never stands without its fee carve-out when a fee is paid in coin', () => {
     const notes = everyNote()
-    const gas = notes.find(n => n.id === 'gas-paid-in-crypto')!
-    expect(gas.confidence).toBe('uncertain')
-    // the settled framing must always be present around it
-    expect(notes.some(n => n.confidence === 'settled')).toBe(true)
-    expect(notes.length).toBeGreaterThan(1)
+    expect(notes[0].id).toBe('self-transfer-not-taxable')
+    // the carve-out is stated in the headline note itself...
+    expect(notes[0].detail).toContain('withholds')
+    // ...and the disposition note follows it immediately
+    expect(notes[1].id).toBe('fee-paid-in-crypto-is-a-disposition')
   })
 
   it('the two rules that changed for 2025/2026 are not presented as long-settled', () => {

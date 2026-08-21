@@ -255,6 +255,15 @@ function TaxCharacterPanel({ notes }: { notes: TaxNote[] }) {
             )
           })}
 
+          {prov.review === 'seeded' && (
+            <p className="text-[10px] text-amber-400/90 leading-relaxed">
+              <strong className="font-semibold">Not yet checked against the primary documents.</strong>{' '}
+              These notes were written from the regulations and IRS guidance as reproduced in
+              research, not read in the original — the same seeded-vs-verified distinction this
+              app applies to its data sources. Treat them as a starting point for a conversation
+              with a preparer, not as a citation.
+            </p>
+          )}
           <p className="text-[10px] text-text-muted leading-relaxed">
             {prov.scope} Compiled {prov.compiledAt}
             {prov.stale && <span className="text-amber-400"> · {prov.ageDays} days old — tax rules may have changed since</span>}
@@ -636,8 +645,13 @@ function TransferFeesPageInner() {
   // Tax CHARACTER of the route the user actually built — what kind of event each
   // leg is, never a number. Gas paid from the user's own wallet is the only
   // trigger for the uncertain fee-units note, so it keys off the real hop flag.
+  // Both halves of "a fee is paid in crypto": gas the user signs for, and the
+  // fee a venue withholds out of the coin being sent. The second was previously
+  // missed, which hid the note on exactly the case the IRS names in terms.
   const paysGasFromWallet = segmentPaths.some(seg =>
-    seg.some(p => p.isViable && p.hops.some(h => !h.gasCoveredByFee)))
+    seg.some(p => p.isViable && p.hops.some(h => !h.gasCoveredByFee && h.networkFee > 0)))
+  const feeWithheldInCoin = segmentPaths.some(seg =>
+    seg.some(p => p.isViable && p.hops.some(h => h.exchangeFee > 0)))
   // True only when a route ON SCREEN carries a live status report.
   const routesWithLiveStatus = segmentPaths.some(seg =>
     seg.some(p => p.hops.some(h => h.availabilityLive)))
@@ -645,6 +659,7 @@ function TransferFeesPageInner() {
   const taxNotes = getTransferTaxNotes({
     sellingFirst: includeSale,
     paysGasFromWallet,
+    feeWithheldInCoin,
     // The calculator does not capture what a sale is settled INTO, and swapping
     // to a stablecoin is the case people most often assume is untaxed — so the
     // clarification is shown rather than withheld.
@@ -1060,6 +1075,10 @@ function TransferFeesPageInner() {
                       {saleCost.note ? ` (${saleCost.note})` : ''}, seeded from the published schedule on {TRADING_FEES_COMPILED} —
                       an estimate ({getTradingFeeProvenance().confidence} confidence), not a quote. Volume tiers, token discounts
                       and spread are not modelled; verify on the exchange before trading.
+                      {' '}This all-in figure is an execution cost, not a single tax number — the trading fee
+                      and the transfer fees it adds together are treated differently for tax (see the tax
+                      character panel below).</p>
+                    <p className="text-[10px] text-text-muted leading-relaxed">
                     </p>
                   </div>
                 )}
