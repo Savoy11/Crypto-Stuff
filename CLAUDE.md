@@ -172,6 +172,9 @@ frontend/src/
 │   │   ├── stablecoinMeta.ts       # Curated issuer metadata (+ provenance)
 │   │   ├── portfolioBuilder.ts     # Portfolio Builder engine (pure TS, vitest-tested)
 │   │   ├── lookThrough.ts          # Fund look-through + pairwise overlap (pure TS, vitest-tested)
+│   │   ├── taxCharacter.ts         # Tax CHARACTER of a transfer route — what kind of event each
+│   │   │                           #   leg is (settled/recently-changed/unsettled + authority).
+│   │   │                           #   Computes nothing; tests forbid rates/$ figures in the copy
 │   │   └── assetCatalog.ts         # Coin reference metadata
 │   ├── agents/                     # Agent runner, prompts, tools
 │   ├── server/                     # Server-only helpers (apiGuard, edgar, secFundamentals, customFeeds…)
@@ -601,7 +604,7 @@ Risk/status color convention used across the app:
 | News | `/news` | 🟢 Live | Multi-provider RSS/JSON; sentiment + asset detection |
 | Social | `/social` | 🟡 Partial | `/live-data/social` — verify which signals are live vs derived |
 | Global | `/global-adoption` | ⚪ De-routed | Access removed (T5) pending a post-production rework — a mislabeled CBDC tracker on stale/duplicated static data with a fabricated live timestamp. Page + `/live-data/cbdc-data` route retained; `/global-adoption` redirects to `/headlines`. See `docs/assessments/T5-utility-triage.md`. |
-| Transfer Fee Calc | `/transfer-fees` | 🟡 Partial | Static fee table (`transferFees.ts`) + live token prices; staleness-labeled |
+| Transfer Fee Calc | `/transfer-fees` | 🟡 Partial | Static fee table (`transferFees.ts`) + live token prices; staleness-labeled. **Live withdrawal-fee overlay** (`/live-data/withdraw-fees`, keyless KuCoin/HTX confirmed + 5 unprobed; RP-5 forbids keyed endpoints) — overlay-only, per-row `live` tags. **Withdrawal availability is disclosed as assumed, not checked**: live-reported suspensions render as blocked routes with attribution, and the notice is deliberately NOT gated on fee staleness. `depositEnabled` is the same assumption with no source — a known open gap. Tax-character panel (`lib/data/taxCharacter.ts`) states what kind of event each leg is, with no numbers |
 | Staking | `/staking` | 🟡 Partial | **Two tabs since 2026-08-20 (W3-3):** Providers (curated catalog, live APR where available, defunct toggle) and Live Pools (on-chain opportunities via `/live-data/staking-discovery`). Curated catalog is staleness-labeled (`getStakingDataProvenance()`) |
 | Staking Discovery | ~~`/staking-discovery`~~ | ⚪ Merged | **Merged into `/staking` 2026-08-20 (W3-3, option B)** — its curated directory duplicated the Staking page's provider cards; the live on-chain pool discovery became the **Live Pools tab** on `/staking` (`?tab=pools`, content-preserving redirect). The defunct-platform toggle (Celsius, the cautionary example) moved to the Providers tab. `/live-data/staking-discovery` unchanged |
 | Coin Discovery | `/coin-discovery` | 🟢 Live | Scored candidate coins from live market data. **Verdict vocabulary retired 2026-08-18** (item 5b): "Strong Add / Consider / Monitor / Too Speculative" told the reader what to *do* with a coin; the same four bands are now named after the composite score they report (`profileBand`: high / moderate / low / very-low). Thresholds unchanged. The store's saved-coin field was renamed with a defensive read so pre-rename localStorage entries survive |

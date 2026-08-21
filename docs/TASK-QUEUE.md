@@ -1739,6 +1739,27 @@ of totals that are being corrected means doing the reconciliation twice.
 > funds the same way. The page copy covers availability on both sides rather
 > than implying only withdrawals are uncertain; closing it needs a
 > deposit-status source.
+>
+> **Tax character, part 1 (2026-08-21):** `lib/data/taxCharacter.ts` — pure +
+> 14 tests — tags the route the user built with what KIND of event each leg is:
+> a self-transfer is **not** a disposition (basis and holding period carry
+> over), but it does create a per-wallet basis / 1099-DA noncovered-basis
+> record-keeping obligation; selling is a disposition; converting to another
+> coin *including a stablecoin* is too (§1031 unavailable post-TCJA); the page's
+> fees adjust basis/proceeds rather than being a separate deduction. Every note
+> names its authority and carries a confidence tag — `settled` /
+> `recently-changed` (the 2025 per-wallet rule, the 1099-DA phase-in) /
+> `unsettled` (whether paying gas in crypto is itself a micro-disposition —
+> practitioner consensus only). **Computes nothing and asks for nothing**: tests
+> assert no rate, bracket or dollar figure appears in the copy and that no note
+> reads as an instruction to transact. Dated + staleness-windowed (180d) because
+> an Act of Congress can invalidate a note overnight.
+>
+> **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
+> user-supplied basis/holding period/rate on the TEY pattern (store no bracket
+> table, so nothing goes stale) and is the piece that touches the owner's
+> advice-adjacent caution in the S5 charter: surface the legality question
+> before building it.
 
 **State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
 networks, hand-maintained with provenance, path-finding (`findTransferPaths`),

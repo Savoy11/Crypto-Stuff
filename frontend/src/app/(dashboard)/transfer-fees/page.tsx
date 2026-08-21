@@ -22,6 +22,10 @@ import {
   type CoinId, type TransferPath, type TransferWarning,
   type NetworkFeeMap, type CoinPriceMap, type LiveFeeOverrideMap,
 } from '@/lib/data/transferFees'
+import {
+  getTransferTaxNotes, getTaxGuidanceProvenance,
+  type TaxNote, type TaxConfidence,
+} from '@/lib/data/taxCharacter'
 import type { NetworkFeesResponse } from '@/app/live-data/network-fees/route'
 import type { WithdrawFeesResponse } from '@/app/live-data/withdraw-fees/route'
 import type { CoinListResponse, CoinListEntry } from '@/lib/types/coinList'
@@ -167,6 +171,81 @@ function HopRow({ hop, coinId, coinPrices }: {
           Address: <span style={{ color: network.color }}>{network.addressFormat === '0x' ? '0x…' : network.addressFormat === 'tron' ? 'T…' : network.addressFormat === 'base58_sol' ? 'base58' : 'bc1…'}</span>
         </span>
       </div>
+    </div>
+  )
+}
+
+
+// ─── Tax character panel ───────────────────────────────────────────────────────
+//
+// Part 1 of the tax work: it says what KIND of event each leg is, with the
+// authority named, and computes nothing. The reassuring settled fact (a
+// self-transfer is not a disposition) leads; the uncertain one is visibly
+// labelled so it cannot be read as equally solid.
+
+const TAX_CONFIDENCE_STYLE: Record<TaxConfidence, { label: string; cls: string }> = {
+  settled:            { label: 'settled law',      cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' },
+  'recently-changed': { label: 'changed recently', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/25' },
+  uncertain:          { label: 'unsettled',        cls: 'bg-orange-500/10 text-orange-400 border-orange-500/25' },
+}
+
+const TAX_CHARACTER_STYLE: Record<TaxNote['character'], { label: string; cls: string }> = {
+  'not-taxable':         { label: 'Not taxable',    cls: 'text-emerald-400' },
+  'taxable-disposition': { label: 'Taxable event',  cls: 'text-amber-300' },
+  'basis-adjustment':    { label: 'Affects gain',   cls: 'text-blue-300' },
+  'record-keeping':      { label: 'Record-keeping', cls: 'text-slate-300' },
+}
+
+function TaxCharacterPanel({ notes }: { notes: TaxNote[] }) {
+  const [open, setOpen] = useState(false)
+  const prov = getTaxGuidanceProvenance()
+  const headline = notes[0]
+
+  return (
+    <div className="rounded-lg border border-border bg-bg-card overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full text-left px-3 py-2.5 flex items-center gap-2"
+      >
+        <Info size={13} className="shrink-0 text-accent-blue" />
+        <span className="text-xs font-medium text-text-secondary flex-1 min-w-0">
+          US federal tax character of this route
+          <span className="ml-2 text-[11px] font-normal text-emerald-400">
+            {headline?.character === 'not-taxable' ? 'the transfer itself is not a taxable event' : ''}
+          </span>
+        </span>
+        <span className="text-[10px] text-text-muted">{notes.length} point{notes.length === 1 ? '' : 's'}</span>
+        {open ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border">
+          {notes.map(n => {
+            const c = TAX_CHARACTER_STYLE[n.character]
+            const conf = TAX_CONFIDENCE_STYLE[n.confidence]
+            return (
+              <div key={n.id} className="rounded-md bg-bg-elevated border border-border/60 px-3 py-2.5">
+                <div className="flex items-start gap-2 flex-wrap">
+                  <span className={clsx('text-[10px] font-bold uppercase tracking-wide', c.cls)}>{c.label}</span>
+                  <span className={clsx('rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide border', conf.cls)}>
+                    {conf.label}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs font-medium text-text-primary">{n.title}</p>
+                <p className="mt-1 text-[11px] text-text-muted leading-relaxed">{n.detail}</p>
+                <p className="mt-1.5 text-[10px] text-slate-600">{n.authority}</p>
+              </div>
+            )
+          })}
+
+          <p className="text-[10px] text-text-muted leading-relaxed">
+            {prov.scope} Compiled {prov.compiledAt}
+            {prov.stale && <span className="text-amber-400"> · {prov.ageDays} days old — tax rules may have changed since</span>}
+            . This describes how the Code treats these transaction types; it cannot know your lots,
+            basis, residency or filing position. Check anything material with a preparer.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -533,6 +612,20 @@ function TransferFeesPageInner() {
     ? computeSaleCost(fromId, numAmount * (coinPrices[coinId] ?? liveCoin?.price ?? 1), firstLegBest.exchangeFeeUsd, firstLegBest.networkFeeUsd)
     : null
   const saleFeesUncatalogued = includeSale && fromId !== PERSONAL_WALLET_ID && !SPOT_TRADING_FEES[fromId]
+
+  // Tax CHARACTER of the route the user actually built — what kind of event each
+  // leg is, never a number. Gas paid from the user's own wallet is the only
+  // trigger for the uncertain fee-units note, so it keys off the real hop flag.
+  const paysGasFromWallet = segmentPaths.some(seg =>
+    seg.some(p => p.isViable && p.hops.some(h => !h.gasCoveredByFee)))
+  const taxNotes = getTransferTaxNotes({
+    sellingFirst: includeSale,
+    paysGasFromWallet,
+    // The calculator does not capture what a sale is settled INTO, and swapping
+    // to a stablecoin is the case people most often assume is untaxed — so the
+    // clarification is shown rather than withheld.
+    saleMayBeIntoCrypto: includeSale,
+  })
 
   // Price: live route price first, then live coin quote, then 1 as a last
   // resort. (Never coinInfo.defaultAmount — that's a transfer quantity.)
@@ -946,6 +1039,11 @@ function TransferFeesPageInner() {
                   </div>
                 )}
               </div>
+
+              {/* S3 — tax character (part 1: what KIND of event, never a number).
+                  Collapsed by default: it is reference material, not a per-route
+                  alert, and expanding the accordion is the user asking for it. */}
+              <TaxCharacterPanel notes={taxNotes} />
 
               {/* Multi-leg cumulative summary */}
               {stops.length > 2 && (
