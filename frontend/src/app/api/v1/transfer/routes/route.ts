@@ -52,9 +52,9 @@ export async function GET(req: NextRequest) {
   const { fees: networkFees, prices: coinPrices, priceSource } = feesSettled.value
   const overlay = overlaySettled.status === 'fulfilled' ? overlaySettled.value : null
   const liveExchangeIds = (overlay?.sources ?? []).filter(s => s.status === 'live').map(s => s.exchangeId)
-  // Exchanges that reported withdrawal STATUS — narrower than the live-fee
-  // sources: a source can send a fee while saying nothing about availability.
-  const availabilityCheckedIds = overlay?.availabilityExchangeIds ?? []
+  // Deliberately NOT overlay.availabilityExchangeIds: that is exchange-level,
+  // and status coverage is per row. The disclosure below is scoped to the routes
+  // this response actually returns, computed after the paths are built.
   // `liveAsOf` is embedded in a human-readable warning sentence, so it must be
   // a display string, not a raw ISO timestamp.
   const liveAsOfDisplay = overlay?.updatedAt
@@ -103,6 +103,10 @@ export async function GET(req: NextRequest) {
       // rather than the hand-maintained table. Consumers should not present a
       // static fee with the same confidence as a live one.
       feeLive:       h.feeLive ?? false,
+      // Whether THIS route's withdrawal status was live-reported. Coverage is
+      // per (exchange, coin, network) row, so an exchange-level claim would
+      // present a stored "open" as a checked one.
+      availabilityLive: h.availabilityLive ?? false,
     })),
     warnings: p.warnings.map(w => ({
       severity: w.type,
@@ -110,6 +114,11 @@ export async function GET(req: NextRequest) {
       message:  w.message,
     })),
   }))
+
+  // Networks whose status was live-reported in THIS response.
+  const routesWithLiveStatus = [...new Set(
+    paths.flatMap(p => p.hops.filter(h => h.availabilityLive).map(h => h.networkId)),
+  )]
 
   const viable   = routes.filter(r => r.viable)
   const blocked  = routes.filter(r => !r.viable)
@@ -142,9 +151,10 @@ export async function GET(req: NextRequest) {
     // liveOverlay.liveExchanges, since a source can report a fee and no status.
     // Every other route's open/closed flag is the stored snapshot's assumption.
     withdrawalAvailability: {
-      checkedFor: availabilityCheckedIds,
+      // Per-ROUTE, because that is the granularity at which we actually know.
+      checkedForNetworks: routesWithLiveStatus,
       assumedOpenFrom: TRANSFER_FEES_LAST_VERIFIED,
-      note: `Withdrawal availability was live-checked only for: ${availabilityCheckedIds.length ? availabilityCheckedIds.join(', ') : 'no exchange in this response'}. For every other exchange the open/closed state is a stored value from ${TRANSFER_FEES_LAST_VERIFIED}, not a current check — exchanges suspend withdrawals on a network without notice. A route appearing here is NOT a confirmation that the withdrawal will go through; do not tell a user a transfer will succeed on the strength of this response.`,
+      note: `Withdrawal status was live-reported for ${routesWithLiveStatus.length ? `these networks only: ${routesWithLiveStatus.join(', ')}` : 'none of the routes in this response'} (see each hop's availabilityLive). For every other route the open/closed state is a stored value from ${TRANSFER_FEES_LAST_VERIFIED}, not a current check — exchanges suspend withdrawals on a network without notice, and coverage is per coin and network, not per exchange. A route appearing here is NOT a confirmation that the withdrawal will go through; do not tell a user a transfer will succeed on the strength of this response.`,
     },
     priceSource,
     // Every USD figure above is derived from `priceSource`. On 'fallback' the

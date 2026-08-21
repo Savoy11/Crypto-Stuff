@@ -72,13 +72,14 @@ describe('parseHtxCurrencies', () => {
         currency: 'usdt',
         chains: [
           { displayName: 'TRC20', withdrawFeeType: 'fixed', transactFeeWithdraw: '1', minWithdrawAmt: '10', withdrawStatus: 'allowed' },
-          // ratio-type fees don't map to a flat per-withdrawal amount — skipped
+          // ratio-type fee AND no status → nothing usable, so the row is dropped.
+          // (A ratio fee WITH a status survives as status-only — see below.)
           { displayName: 'ERC20', withdrawFeeType: 'ratio', transactFeeRateWithdraw: '0.001' },
         ],
       },
     ],
   }
-  it('parses fixed-fee rows and skips ratio fees', () => {
+  it('parses fixed-fee rows and drops a ratio row carrying no status', () => {
     expect(parseHtxCurrencies(payload)).toEqual([
       { exchangeId: 'htx', coin: 'usdt', network: 'trc20', withdrawFee: 1, minWithdraw: 10, withdrawEnabled: true },
     ])
@@ -207,6 +208,7 @@ describe('buildFeeOverrideMap — overlay-only rule', () => {
 describe('findTransferPaths with live overrides', () => {
   const fees: NetworkFeeMap = {
     trc20: { feeNative: 0.5, feeUsd: 0.5, nativeToken: 'TRX', source: 'estimate' },
+    erc20: { feeNative: 0.002, feeUsd: 6, nativeToken: 'ETH', source: 'estimate' },
   } as NetworkFeeMap
   const prices: CoinPriceMap = { usdt: 1 } as CoinPriceMap
 
@@ -264,5 +266,61 @@ describe('findTransferPaths with live overrides', () => {
     const b = findTransferPaths('bybit', 'wallet', 'usdt', 1000, fees, prices, undefined)
     expect(a).toEqual(b)
     expect(a.every(p => p.hops.every(h => !h.feeLive))).toBe(true)
+  })
+})
+
+describe('status survives an unparseable fee (the suspension is the point)', () => {
+  const fees: NetworkFeeMap = {
+    trc20: { feeNative: 0.5, feeUsd: 0.5, nativeToken: 'TRX', source: 'estimate' },
+    erc20: { feeNative: 0.002, feeUsd: 6, nativeToken: 'ETH', source: 'estimate' },
+  } as NetworkFeeMap
+  const prices: CoinPriceMap = { usdt: 1 } as CoinPriceMap
+
+  it('keeps an HTX ratio-fee chain as a status-only row instead of discarding it', () => {
+    // HTX quotes some chains on a ratio basis. The fee does not map to a
+    // per-withdrawal amount — but "withdrawals prohibited" still does, and
+    // dropping the row would fall back to the 2025 snapshot's "open".
+    const rows = parseHtxCurrencies({
+      code: 200,
+      data: [{
+        currency: 'usdt',
+        chains: [{ displayName: 'ERC20', withdrawFeeType: 'ratio', transactFeeRateWithdraw: '0.001', withdrawStatus: 'prohibited' }],
+      }],
+    })
+    expect(rows).toEqual([
+      { exchangeId: 'htx', coin: 'usdt', network: 'erc20', withdrawFee: undefined, minWithdraw: undefined, withdrawEnabled: false },
+    ])
+  })
+
+  it('a status-only override blocks the route without promoting the stored fee to live', () => {
+    const { overrides, availabilityRows } = buildFeeOverrideMap([
+      { exchangeId: 'bybit', coin: 'usdt', network: 'trc20', withdrawEnabled: false },
+    ])
+    expect(availabilityRows).toEqual(['bybit:usdt:trc20'])
+    const paths = findTransferPaths('bybit', 'wallet', 'usdt', 1000, fees, prices, overrides, '4:10 PM')
+    const trc = paths.find(p => p.networkId === 'trc20')!
+    expect(trc.blockedReason).toBe('withdrawals-suspended')
+  })
+
+  it('tracks availability coverage per row, not per exchange', () => {
+    // one row reports status, another reports only a fee — the second must not
+    // inherit "status checked" from the first
+    const { availabilityRows } = buildFeeOverrideMap([
+      { exchangeId: 'bybit', coin: 'usdt', network: 'trc20', withdrawFee: 1, withdrawEnabled: true },
+      { exchangeId: 'bybit', coin: 'usdt', network: 'erc20', withdrawFee: 3 },
+    ])
+    expect(availabilityRows).toEqual(['bybit:usdt:trc20'])
+  })
+
+  it('marks availabilityLive only on the hop whose status was reported', () => {
+    const { overrides } = buildFeeOverrideMap([
+      { exchangeId: 'bybit', coin: 'usdt', network: 'trc20', withdrawFee: 1, withdrawEnabled: true },
+    ])
+    const paths = findTransferPaths('bybit', 'wallet', 'usdt', 1000, fees, prices, overrides)
+    const trc = paths.find(p => p.networkId === 'trc20')!
+    expect(trc.hops[0].availabilityLive).toBe(true)
+    for (const p of paths.filter(p => p.networkId !== 'trc20' && p.hops.length)) {
+      expect(p.hops[0].availabilityLive).toBeFalsy()
+    }
   })
 })

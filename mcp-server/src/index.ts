@@ -135,11 +135,11 @@ server.tool(
       routes: Array<{
         viable: boolean; recommended: boolean; network: string | null
         totalFeeUsd: number; feePercent: number; estimatedTime: string | null
-        hops: Array<{ from: string; to: string; network: string | null; exchangeFee: number; networkFee: number; totalFeeUsd: number; networkName: string | null; note: string | null }>
+        hops: Array<{ from: string; to: string; network: string | null; exchangeFee: number; networkFee: number; totalFeeUsd: number; networkName: string | null; note: string | null; feeLive?: boolean; availabilityLive?: boolean }>
         warnings: Array<{ severity: string; title: string; message: string }>
         blockedReason?: string | null
       }>
-      withdrawalAvailability?: { checkedFor: string[]; assumedOpenFrom: string; note: string }
+      withdrawalAvailability?: { checkedForNetworks: string[]; assumedOpenFrom: string; note: string }
     }>(`/transfer/routes?${params}`)
 
     const { summary, routes } = data
@@ -167,6 +167,10 @@ server.tool(
           text += `  ${hop.from} → ${hop.to}`
           if (hop.networkName) text += ` via ${hop.networkName}`
           text += ` | fee $${hop.totalFeeUsd.toFixed(4)}`
+          // Provenance the UI always shows: a stored fee must not be quoted with
+          // the confidence of a live one, and status coverage is per route.
+          text += hop.feeLive ? ' (live fee)' : ' (stored fee)'
+          if (hop.availabilityLive) text += ' (withdrawal open, reported live)'
           if (hop.note) text += ` | ${hop.note}`
           text += '\n'
         }

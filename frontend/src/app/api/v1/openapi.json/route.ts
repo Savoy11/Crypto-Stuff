@@ -335,7 +335,7 @@ const SPEC = {
             type: 'object',
             description: 'CRITICAL CAVEAT. A route appearing in `routes` is NOT a confirmation that the withdrawal is currently open. Availability was live-checked only for the exchanges in `checkedFor`; for every other exchange the open/closed state is a stored value from `assumedOpenFrom`. Exchanges suspend withdrawals on a network without notice — do not tell a user a transfer will succeed on the strength of this response.',
             properties: {
-              checkedFor:      { type: 'array', items: { type: 'string' }, description: 'Exchange ids that reported withdrawal status live. Narrower than liveOverlay.liveExchanges — a source can report a fee while saying nothing about availability.' },
+              checkedForNetworks: { type: 'array', items: { type: 'string' }, description: 'Networks in THIS response whose withdrawal status was live-reported. Scoped per route, not per exchange: a source can report a fee while saying nothing about availability, and can cover some coin/network rows and not others.' },
               assumedOpenFrom: { type: 'string', format: 'date', description: 'Verification date of the stored table whose availability flags are assumed for every other exchange.' },
               note:            { type: 'string' },
             },
@@ -377,6 +377,7 @@ const SPEC = {
                       network:     { type: 'string', nullable: true },
                       exchangeFee: { type: 'number', description: 'Exchange withdrawal fee in USD.' },
                       feeLive:     { type: 'boolean', description: "True when this hop's withdrawal fee came from the exchange's live public API rather than the hand-maintained table. Do not present a stored fee with the confidence of a live one." },
+                      availabilityLive: { type: 'boolean', description: "True when THIS route's withdrawal status was live-reported by the exchange. Coverage is per (exchange, coin, network) row, not per exchange — false means the open/closed state is the stored snapshot's assumption." },
                       networkFee:  { type: 'number', description: 'On-chain gas in USD.' },
                       totalFeeUsd: {
                         type: 'number',

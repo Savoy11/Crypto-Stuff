@@ -51,6 +51,12 @@ export interface LiveFeeOverlay {
    * user as availability-checked.
    */
   availabilityExchangeIds: string[]
+  /**
+   * `exchangeId:coin:network` keys whose STATUS was live-reported. Coverage is
+   * per row, not per exchange — a consumer describing a specific route as
+   * status-checked must key off this, not the exchange list.
+   */
+  availabilityRows: string[]
 }
 
 // Bybit was probed 2026-08-21 and returned 403: /v5/asset/coin/query-info is in
@@ -95,7 +101,7 @@ export async function fetchLiveFeeOverlay(): Promise<LiveFeeOverlay> {
     }
   })
 
-  const { overrides, applied, skipped, availabilityExchangeIds } = buildFeeOverrideMap(allRows)
+  const { overrides, applied, skipped, availabilityExchangeIds, availabilityRows } = buildFeeOverrideMap(allRows)
 
   return {
     ok: sources.some(s => s.status === 'live'),
@@ -105,5 +111,6 @@ export async function fetchLiveFeeOverlay(): Promise<LiveFeeOverlay> {
     applied,
     skipped,
     availabilityExchangeIds,
+    availabilityRows,
   }
 }

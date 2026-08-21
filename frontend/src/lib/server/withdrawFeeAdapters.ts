@@ -24,7 +24,14 @@ export interface ParsedFeeRow {
   exchangeId: string
   coin: CoinId
   network: NetworkId
-  withdrawFee: number
+  /**
+   * Optional on purpose. A row may carry a STATUS without a usable fee (HTX
+   * quotes some chains on a ratio basis, which does not map to a per-withdrawal
+   * coin amount). Discarding such a row would throw away a known suspension
+   * because the price was unparseable — the exact inversion of "unknown is not
+   * zero": an unknown fee is not a reason to forget that the door is shut.
+   */
+  withdrawFee?: number
   minWithdraw?: number
   withdrawEnabled?: boolean
 }
@@ -97,11 +104,12 @@ export function parseKucoinCurrencies(json: any): ParsedFeeRow[] {
     for (const c of cur?.chains ?? []) {
       const network = normalizeChain(String(c?.chainName ?? c?.chainId ?? ''))
       const withdrawFee = num(c?.withdrawalMinFee)
-      if (!network || withdrawFee === undefined) continue
+      const withdrawEnabled = typeof c?.isWithdrawEnabled === 'boolean' ? c.isWithdrawEnabled : undefined
+      if (!network || (withdrawFee === undefined && withdrawEnabled === undefined)) continue
       rows.push({
         exchangeId: 'kucoin', coin, network, withdrawFee,
         minWithdraw: num(c?.withdrawalMinSize),
-        withdrawEnabled: typeof c?.isWithdrawEnabled === 'boolean' ? c.isWithdrawEnabled : undefined,
+        withdrawEnabled,
       })
     }
   }
@@ -116,16 +124,19 @@ export function parseHtxCurrencies(json: any): ParsedFeeRow[] {
     const coin = normalizeSymbol(String(cur?.currency ?? ''))
     if (!coin) continue
     for (const c of cur?.chains ?? []) {
-      // HTX only quotes a flat fee when feeType is 'fixed'; ratio/circulated
-      // fee types don't map to a per-withdrawal coin amount — skip those.
-      if (c?.withdrawFeeType !== 'fixed') continue
       const network = normalizeChain(String(c?.displayName ?? c?.baseChain ?? c?.chain ?? ''))
-      const withdrawFee = num(c?.transactFeeWithdraw)
-      if (!network || withdrawFee === undefined) continue
+      if (!network) continue
+      // HTX quotes a flat amount only when feeType is 'fixed'; ratio/circulated
+      // types don't map to a per-withdrawal coin amount, so the FEE is dropped —
+      // but the withdrawal STATUS on that chain is still known and still worth
+      // more than the 2025 snapshot's assumption, so the row survives.
+      const withdrawFee = c?.withdrawFeeType === 'fixed' ? num(c?.transactFeeWithdraw) : undefined
+      const withdrawEnabled = c?.withdrawStatus === undefined ? undefined : c.withdrawStatus === 'allowed'
+      if (withdrawFee === undefined && withdrawEnabled === undefined) continue
       rows.push({
         exchangeId: 'htx', coin, network, withdrawFee,
         minWithdraw: num(c?.minWithdrawAmt),
-        withdrawEnabled: c?.withdrawStatus === undefined ? undefined : c.withdrawStatus === 'allowed',
+        withdrawEnabled,
       })
     }
   }
@@ -142,11 +153,12 @@ export function parseBitgetCoins(json: any): ParsedFeeRow[] {
     for (const c of cur?.chains ?? []) {
       const network = normalizeChain(String(c?.chain ?? ''))
       const withdrawFee = num(c?.withdrawFee)
-      if (!network || withdrawFee === undefined) continue
+      const withdrawEnabled = c?.withdrawable === undefined ? undefined : String(c.withdrawable) === 'true'
+      if (!network || (withdrawFee === undefined && withdrawEnabled === undefined)) continue
       rows.push({
         exchangeId: 'bitget', coin, network, withdrawFee,
         minWithdraw: num(c?.minWithdrawAmount),
-        withdrawEnabled: c?.withdrawable === undefined ? undefined : String(c.withdrawable) === 'true',
+        withdrawEnabled,
       })
     }
   }
@@ -169,11 +181,9 @@ export function parsePoloniexCurrencies(json: any): ParsedFeeRow[] {
       const coin = normalizeSymbol(symbol) ?? normalizeSymbol(String(info.parentChain ?? ''))
       const network = normalizeChain(String(info.blockchain ?? ''))
       const withdrawFee = num(info.withdrawalFee)
-      if (!coin || !network || withdrawFee === undefined) continue
-      rows.push({
-        exchangeId: 'poloniex', coin, network, withdrawFee,
-        withdrawEnabled: info.walletState === undefined ? undefined : info.walletState === 'ENABLED',
-      })
+      const withdrawEnabled = info.walletState === undefined ? undefined : info.walletState === 'ENABLED'
+      if (!coin || !network || (withdrawFee === undefined && withdrawEnabled === undefined)) continue
+      rows.push({ exchangeId: 'poloniex', coin, network, withdrawFee, withdrawEnabled })
     }
   }
   return rows
@@ -190,11 +200,12 @@ export function parseLbankWithdrawConfigs(json: any): ParsedFeeRow[] {
     // (btc → bitcoin, ltc → litecoin, ...).
     const network = normalizeChain(String(c?.chain ?? '')) ?? normalizeChain(String(c?.assetCode ?? ''))
     const withdrawFee = num(c?.fee)
-    if (!network || withdrawFee === undefined) continue
+    const withdrawEnabled = typeof c?.canWithDraw === 'boolean' ? c.canWithDraw : undefined
+    if (!network || (withdrawFee === undefined && withdrawEnabled === undefined)) continue
     rows.push({
       exchangeId: 'lbank', coin, network, withdrawFee,
       minWithdraw: num(c?.min),
-      withdrawEnabled: typeof c?.canWithDraw === 'boolean' ? c.canWithDraw : undefined,
+      withdrawEnabled,
     })
   }
   return rows
@@ -255,10 +266,11 @@ export function parseXtSupportCurrency(json: any): ParsedFeeRow[] {
     for (const c of cur?.supportChains ?? []) {
       const network = normalizeChain(String(c?.chain ?? ''))
       const withdrawFee = num(c?.withdrawFeeAmount) ?? num(c?.withdrawFee)
-      if (!network || withdrawFee === undefined) continue
+      const withdrawEnabled = typeof c?.withdrawEnabled === 'boolean' ? c.withdrawEnabled : undefined
+      if (!network || (withdrawFee === undefined && withdrawEnabled === undefined)) continue
       rows.push({
         exchangeId: 'xtcom', coin, network, withdrawFee,
-        withdrawEnabled: typeof c?.withdrawEnabled === 'boolean' ? c.withdrawEnabled : undefined,
+        withdrawEnabled,
       })
     }
   }
@@ -277,6 +289,8 @@ export function buildFeeOverrideMap(rows: ParsedFeeRow[]): {
   applied: number
   skipped: number
   availabilityExchangeIds: string[]
+  /** `exchangeId:coin:network` keys whose STATUS was live-reported. */
+  availabilityRows: string[]
 } {
   const overrides: LiveFeeOverrideMap = {}
   let applied = 0
@@ -287,6 +301,7 @@ export function buildFeeOverrideMap(rows: ParsedFeeRow[]): {
   // telling us whether a withdrawal is open. Deriving "availability checked"
   // from fee liveness would advertise a check that never happened.
   const availability = new Set<string>()
+  const availabilityRows: string[] = []
   for (const row of rows) {
     const ex = EXCHANGES.find(e => e.id === row.exchangeId)
     const known = ex?.coins[row.coin]?.networks.some(n => n.networkId === row.network)
@@ -298,8 +313,15 @@ export function buildFeeOverrideMap(rows: ParsedFeeRow[]): {
       minWithdraw: row.minWithdraw,
       withdrawEnabled: row.withdrawEnabled,
     }
-    if (row.withdrawEnabled !== undefined) availability.add(row.exchangeId)
+    if (row.withdrawEnabled !== undefined) {
+      availability.add(row.exchangeId)
+      availabilityRows.push(`${row.exchangeId}:${row.coin}:${row.network}`)
+    }
     applied++
   }
-  return { overrides, applied, skipped, availabilityExchangeIds: [...availability] }
+  return {
+    overrides, applied, skipped,
+    availabilityExchangeIds: [...availability],
+    availabilityRows,
+  }
 }

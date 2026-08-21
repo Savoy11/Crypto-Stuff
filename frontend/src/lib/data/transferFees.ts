@@ -369,7 +369,12 @@ export interface NetworkConfig {
 //      and static rows keep the staleness warning. The two are never blended
 //      silently.
 export interface LiveFeeOverride {
-  withdrawFee: number
+  /**
+   * Optional: a source can report a STATUS without a usable fee. When absent the
+   * stored fee stands and keeps its stored labelling — a live suspension must
+   * not silently promote a 2025 fee to "live".
+   */
+  withdrawFee?: number
   minWithdraw?: number
   withdrawEnabled?: boolean
 }
@@ -1818,6 +1823,13 @@ export interface TransferHop {
   note?: string
   /** True when the withdrawal fee on this hop came from a live exchange API. */
   feeLive?: boolean
+  /**
+   * True when this hop's withdrawal STATUS was live-reported. Separate from
+   * `feeLive`: coverage is per (exchange, coin, network) row, so an exchange
+   * can be a live source while this specific route's status was never reported
+   * — claiming otherwise presents a stored "open" as a checked one.
+   */
+  availabilityLive?: boolean
 }
 
 export interface TransferPath {
@@ -1999,18 +2011,19 @@ export function findTransferPaths(
     ? {
         networks: rawFromCoin.networks.map(n => {
           const o = coinOverrides[n.networkId]
-          return o
-            ? {
-                ...n,
-                withdrawFee: o.withdrawFee,
-                minWithdraw: o.minWithdraw ?? n.minWithdraw,
-                withdrawEnabled: o.withdrawEnabled ?? n.withdrawEnabled,
-                liveFee: true,
-                // Only when the adapter actually reported a status — an absent
-                // flag must not inherit "live" from the fee alongside it.
-                liveAvailability: o.withdrawEnabled !== undefined ? true : n.liveAvailability,
-              }
-            : n
+          if (!o) return n
+          // The two halves overlay independently: a source may report a fee, a
+          // status, or both, and each carries its own "live" label. Coupling
+          // them would either promote a stored fee to live off the back of a
+          // status, or discard a known status because the fee was unparseable.
+          return {
+            ...n,
+            withdrawFee: o.withdrawFee ?? n.withdrawFee,
+            minWithdraw: o.minWithdraw ?? n.minWithdraw,
+            withdrawEnabled: o.withdrawEnabled ?? n.withdrawEnabled,
+            liveFee: o.withdrawFee !== undefined ? true : n.liveFee,
+            liveAvailability: o.withdrawEnabled !== undefined ? true : n.liveAvailability,
+          }
         }),
       }
     : rawFromCoin
@@ -2092,7 +2105,7 @@ export function findTransferPaths(
         exchangeFee: wNet.withdrawFee, exchangeFeeUsd,
         networkFee: nFee.feeNative, networkFeeUsd: nFee.feeUsd,
         nativeGasToken: nFee.nativeToken, gasCoveredByFee: true, note: wNet.note,
-        feeLive: wNet.liveFee,
+        feeLive: wNet.liveFee, availabilityLive: wNet.liveAvailability,
       }],
       exchangeFeeCoin: wNet.withdrawFee, exchangeFeeUsd, networkFeeUsd,
       totalFeeUsd, feePercent,
@@ -2132,7 +2145,7 @@ export function findTransferPaths(
         type: 'multi-hop',
         networkId: srcNet.networkId,
         hops: [
-          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken, gasCoveredByFee: true, feeLive: srcNet.liveFee },
+          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken, gasCoveredByFee: true, feeLive: srcNet.liveFee, availabilityLive: srcNet.liveAvailability },
           { step: 2, from: 'Personal Wallet', to: toEx.name, networkId: dstNet.networkId, exchangeFee: 0, exchangeFeeUsd: 0, networkFee: dstNFee.feeNative, networkFeeUsd: dstNFee.feeUsd, nativeGasToken: dstNFee.nativeToken, gasCoveredByFee: false },
         ],
         exchangeFeeCoin: srcNet.withdrawFee, exchangeFeeUsd, networkFeeUsd, totalFeeUsd,

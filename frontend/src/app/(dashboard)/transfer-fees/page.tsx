@@ -153,6 +153,14 @@ function HopRow({ hop, coinId, coinPrices }: {
               ? <span className="text-emerald-500/80"> · covered by fee</span>
               : <span className="text-amber-400/80"> · paid from wallet</span>}
           </p>
+          {/* Status coverage is per (exchange, coin, network) row, so it is
+              stated on the row. Only the positive case is shown, and only when
+              the exchange actually reported it — silence means assumed. */}
+          {hop.availabilityLive && (
+            <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-400">
+              withdrawal open · reported live
+            </p>
+          )}
         </div>
         <div>
           <p className="text-slate-500 mb-0.5">Deposit fee</p>
@@ -199,7 +207,7 @@ const TAX_CHARACTER_STYLE: Record<TaxNote['character'], { label: string; cls: st
 function TaxCharacterPanel({ notes }: { notes: TaxNote[] }) {
   const [open, setOpen] = useState(false)
   const prov = getTaxGuidanceProvenance()
-  const headline = notes[0]
+  const hasDisposition = notes.some(n => n.character === 'taxable-disposition')
 
   return (
     <div className="rounded-lg border border-border bg-bg-card overflow-hidden">
@@ -210,9 +218,18 @@ function TaxCharacterPanel({ notes }: { notes: TaxNote[] }) {
         <Info size={13} className="shrink-0 text-accent-blue" />
         <span className="text-xs font-medium text-text-secondary flex-1 min-w-0">
           US federal tax character of this route
-          <span className="ml-2 text-[11px] font-normal text-emerald-400">
-            {headline?.character === 'not-taxable' ? 'the transfer itself is not a taxable event' : ''}
-          </span>
+          {/* Tracks the note set, not notes[0]. The reassuring line must not
+              stay on screen once the route contains a sale — collapsed, it
+              would be the only tax statement the user reads. */}
+          {hasDisposition ? (
+            <span className="ml-2 text-[11px] font-normal text-amber-300">
+              the move isn&rsquo;t taxable — the sale is
+            </span>
+          ) : (
+            <span className="ml-2 text-[11px] font-normal text-emerald-400">
+              the transfer itself is not a taxable event
+            </span>
+          )}
         </span>
         <span className="text-[10px] text-text-muted">{notes.length} point{notes.length === 1 ? '' : 's'}</span>
         {open ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
@@ -547,10 +564,13 @@ function TransferFeesPageInner() {
   const liveExchangeIds = (liveFeesData?.sources ?? [])
     .filter(s => s.status === 'live')
     .map(s => s.exchangeId)
-  // Exchanges that reported withdrawal STATUS — narrower than the live-fee
-  // sources above, and the only ones we may describe as availability-checked.
-  const availabilityCheckedNames = (liveFeesData?.availabilityExchangeIds ?? [])
-    .map(id => EXCHANGES.find(e => e.id === id)?.name ?? id)
+  // NOTE: deliberately NOT derived from availabilityExchangeIds. Status coverage
+  // is per (exchange, coin, network) row — an exchange can be a live source
+  // while this particular route's status was never reported (HTX quotes some
+  // chains on a ratio basis; a chain name may not map). Naming the exchange
+  // would tell the user their route was checked when it was not, on the one
+  // dimension where a stored value is dangerous. So the claim is made on the
+  // rows actually on screen, and computed below once segmentPaths exists.
   // Formatted here (not in the engine) so findTransferPaths stays clock-free.
   const liveAsOf = liveFeesData?.updatedAt
     ? new Date(liveFeesData.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -618,6 +638,10 @@ function TransferFeesPageInner() {
   // trigger for the uncertain fee-units note, so it keys off the real hop flag.
   const paysGasFromWallet = segmentPaths.some(seg =>
     seg.some(p => p.isViable && p.hops.some(h => !h.gasCoveredByFee)))
+  // True only when a route ON SCREEN carries a live status report.
+  const routesWithLiveStatus = segmentPaths.some(seg =>
+    seg.some(p => p.hops.some(h => h.availabilityLive)))
+
   const taxNotes = getTransferTaxNotes({
     sellingFirst: includeSale,
     paysGasFromWallet,
@@ -971,11 +995,12 @@ function TransferFeesPageInner() {
                   <strong className="font-semibold text-text-secondary">
                     Whether a withdrawal is open right now is assumed, not checked
                   </strong>
-                  {availabilityCheckedNames.length > 0 ? (
-                    <> — except on {availabilityCheckedNames.join(', ')}, which report status
-                      live{liveAsOf ? <> (checked {liveAsOf})</> : null}.</>
+                  {routesWithLiveStatus ? (
+                    <> — except the routes tagged{' '}
+                      <span className="text-emerald-400">withdrawal open · reported live</span>
+                      {liveAsOf ? <> (checked {liveAsOf})</> : null}.</>
                   ) : (
-                    <> — no exchange is reporting live status right now.</>
+                    <> — no route shown here has a live status report.</>
                   )}
                   {' '}The same applies to the receiving side: no source reports whether an
                   exchange is currently accepting <em>deposits</em> on a network. Exchanges
