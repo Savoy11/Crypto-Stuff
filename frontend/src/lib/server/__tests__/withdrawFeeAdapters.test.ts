@@ -220,6 +220,45 @@ describe('findTransferPaths with live overrides', () => {
     expect(trc.hops[0].feeLive).toBe(true)
   })
 
+  it('surfaces a live-reported suspension as a visible blocked route, not a silent drop', () => {
+    const { overrides } = buildFeeOverrideMap([
+      { exchangeId: 'bybit', coin: 'usdt', network: 'trc20', withdrawFee: 2.5, withdrawEnabled: false },
+    ])
+    const paths = findTransferPaths('bybit', 'wallet', 'usdt', 1000, fees, prices, overrides, '7:52 PM')
+    const trc = paths.find(p => p.networkId === 'trc20')
+    // The route must still appear — vanishing tells the user nothing
+    expect(trc).toBeDefined()
+    expect(trc!.isViable).toBe(false)
+    expect(trc!.blockedReason).toBe('withdrawals-suspended')
+    // and it must attribute the claim to the live source, with its timestamp
+    const w = trc!.warnings.find(w => w.title === 'Withdrawals suspended')!
+    expect(w.type).toBe('danger')
+    expect(w.message).toContain('public API')
+    expect(w.message).toContain('7:52 PM')
+    // a suspended route is never presented as costing anything
+    expect(trc!.totalFeeUsd).toBe(0)
+    expect(trc!.isRecommended).toBe(false)
+  })
+
+  it('does not claim a live check when the adapter reported no availability flag', () => {
+    // fee present, withdrawEnabled absent → liveFee true, liveAvailability unset
+    const { overrides } = buildFeeOverrideMap([
+      { exchangeId: 'bybit', coin: 'usdt', network: 'trc20', withdrawFee: 2.5 },
+    ])
+    const paths = findTransferPaths('bybit', 'wallet', 'usdt', 1000, fees, prices, overrides)
+    const trc = paths.find(p => p.networkId === 'trc20')!
+    expect(trc.hops[0].feeLive).toBe(true)
+    expect(trc.isViable).toBe(true)
+    expect(trc.blockedReason).toBeUndefined()
+  })
+
+  it('labels a below-minimum block distinctly from a suspension', () => {
+    const paths = findTransferPaths('bybit', 'wallet', 'usdt', 0.0001, fees, prices)
+    const blocked = paths.filter(p => !p.isViable && p.type !== 'no-path')
+    expect(blocked.length).toBeGreaterThan(0)
+    expect(blocked.every(p => p.blockedReason === 'below-minimum')).toBe(true)
+  })
+
   it('is byte-identical to the static result when no overrides are passed', () => {
     const a = findTransferPaths('bybit', 'wallet', 'usdt', 1000, fees, prices)
     const b = findTransferPaths('bybit', 'wallet', 'usdt', 1000, fees, prices, undefined)

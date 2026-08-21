@@ -458,6 +458,10 @@ function TransferFeesPageInner() {
   const liveExchangeIds = (liveFeesData?.sources ?? [])
     .filter(s => s.status === 'live')
     .map(s => s.exchangeId)
+  // Formatted here (not in the engine) so findTransferPaths stays clock-free.
+  const liveAsOf = liveFeesData?.updatedAt
+    ? new Date(liveFeesData.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : undefined
 
   const [coinListData, setCoinListData] = useState<CoinListResponse | null>(null)
   const [coinListLoading, setCoinListLoading] = useState(true)
@@ -490,9 +494,9 @@ function TransferFeesPageInner() {
     return stops.slice(0, -1).map((from, i) => {
       const to = stops[i + 1]
       if (from === to) return []
-      return findTransferPaths(from, to, coinId as CoinId, numAmount, networkFees, coinPrices, liveOverrides)
+      return findTransferPaths(from, to, coinId as CoinId, numAmount, networkFees, coinPrices, liveOverrides, liveAsOf)
     })
-  }, [isSupportedCoin, stops, coinId, numAmount, networkFees, coinPrices, liveOverrides])
+  }, [isSupportedCoin, stops, coinId, numAmount, networkFees, coinPrices, liveOverrides, liveAsOf])
 
   // Cumulative cost: best viable path from each leg. Legs with no viable path
   // contribute nothing — count them so the total isn't presented as complete.
@@ -841,6 +845,17 @@ function TransferFeesPageInner() {
                     Withdrawal fees were last verified {transferFeesAgeDays()} days ago. The
                     &ldquo;Best&rdquo; ranking below is indicative only — confirm the actual withdrawal
                     fee on each exchange before relying on the cheapest-route result.
+                    {' '}
+                    <strong className="font-semibold">
+                      Whether a withdrawal is currently open is assumed, not checked
+                    </strong>
+                    , except on exchanges tagged{' '}
+                    <span className="text-emerald-400">live</span>
+                    {liveExchangeIds.length > 0 && (
+                      <> ({liveExchangeIds.map(id => EXCHANGES.find(e => e.id === id)?.name ?? id).join(', ')})</>
+                    )}
+                    . Exchanges suspend withdrawals on a network without notice — check the
+                    exchange&rsquo;s status page before planning a large or time-sensitive transfer.
                   </span>
                 </div>
               )}
@@ -968,7 +983,18 @@ function TransferFeesPageInner() {
 
                     {nonViable.length > 0 && (
                       <div className="space-y-2">
-                        <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wide">Blocked routes (amount too low)</p>
+                        <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wide">
+                          {(() => {
+                            // "amount too low" was hard-coded when that was the
+                            // only way to be blocked. A suspended withdrawal is
+                            // a second reason and must not wear the first's label.
+                            const low = nonViable.some(p => p.blockedReason === 'below-minimum')
+                            const susp = nonViable.some(p => p.blockedReason === 'withdrawals-suspended')
+                            if (low && susp) return 'Blocked routes (amount too low · withdrawals suspended)'
+                            if (susp) return 'Blocked routes (withdrawals suspended)'
+                            return 'Blocked routes (amount too low)'
+                          })()}
+                        </p>
                         {nonViable.map(p => <PathCard key={p.id} path={p} coinId={coinId} amount={numAmount} coinPrices={coinPrices} />)}
                       </div>
                     )}
