@@ -321,6 +321,25 @@ const SPEC = {
       TransferRoutesResponse: {
         type: 'object',
         properties: {
+          liveOverlay: {
+            type: 'object',
+            description: 'Which exchanges in this response carry live-fetched withdrawal fees.',
+            properties: {
+              liveExchanges:      { type: 'array', items: { type: 'string' } },
+              candidateExchanges: { type: 'array', items: { type: 'string' } },
+              rowsApplied:        { type: 'integer' },
+              asOf:               { type: 'string', format: 'date-time', nullable: true },
+            },
+          },
+          withdrawalAvailability: {
+            type: 'object',
+            description: 'CRITICAL CAVEAT. A route appearing in `routes` is NOT a confirmation that the withdrawal is currently open. Availability was live-checked only for the exchanges in `checkedFor`; for every other exchange the open/closed state is a stored value from `assumedOpenFrom`. Exchanges suspend withdrawals on a network without notice — do not tell a user a transfer will succeed on the strength of this response.',
+            properties: {
+              checkedFor:      { type: 'array', items: { type: 'string' }, description: 'Exchange ids that reported withdrawal status live. Narrower than liveOverlay.liveExchanges — a source can report a fee while saying nothing about availability.' },
+              assumedOpenFrom: { type: 'string', format: 'date', description: 'Verification date of the stored table whose availability flags are assumed for every other exchange.' },
+              note:            { type: 'string' },
+            },
+          },
           from:      { type: 'string' },
           to:        { type: 'string' },
           coin:      { type: 'string' },
@@ -342,6 +361,7 @@ const SPEC = {
               type: 'object',
               properties: {
                 viable:           { type: 'boolean' },
+                blockedReason:    { type: 'string', nullable: true, enum: ['below-minimum', 'withdrawals-suspended', null], description: "Why a non-viable route is blocked. 'withdrawals-suspended' is reported by the exchange's live API; 'below-minimum' is arithmetic on the requested amount. null when viable." },
                 recommended:      { type: 'boolean' },
                 network:          { type: 'string', nullable: true },
                 totalFeeUsd:      { type: 'number' },
@@ -356,6 +376,7 @@ const SPEC = {
                       to:          { type: 'string' },
                       network:     { type: 'string', nullable: true },
                       exchangeFee: { type: 'number', description: 'Exchange withdrawal fee in USD.' },
+                      feeLive:     { type: 'boolean', description: "True when this hop's withdrawal fee came from the exchange's live public API rather than the hand-maintained table. Do not present a stored fee with the confidence of a live one." },
                       networkFee:  { type: 'number', description: 'On-chain gas in USD.' },
                       totalFeeUsd: {
                         type: 'number',

@@ -137,7 +137,9 @@ server.tool(
         totalFeeUsd: number; feePercent: number; estimatedTime: string | null
         hops: Array<{ from: string; to: string; network: string | null; exchangeFee: number; networkFee: number; totalFeeUsd: number; networkName: string | null; note: string | null }>
         warnings: Array<{ severity: string; title: string; message: string }>
+        blockedReason?: string | null
       }>
+      withdrawalAvailability?: { checkedFor: string[]; assumedOpenFrom: string; note: string }
     }>(`/transfer/routes?${params}`)
 
     const { summary, routes } = data
@@ -180,8 +182,20 @@ server.tool(
     if (blocked.length > 0) {
       text += `\n**Blocked Routes (${blocked.length}):**\n`
       for (const route of blocked) {
-        text += `• ${route.network ?? 'multi-hop'}: ${route.warnings.map(w => w.message).join('; ')}\n`
+        // Name the reason: a suspended withdrawal and an amount below the
+        // exchange minimum are different problems with different remedies.
+        const why = route.blockedReason === 'withdrawals-suspended' ? ' [withdrawals suspended]'
+          : route.blockedReason === 'below-minimum' ? ' [amount below minimum]' : ''
+        text += `• ${route.network ?? 'multi-hop'}${why}: ${route.warnings.map(w => w.message).join('; ')}\n`
       }
+    }
+
+    // The response's most important caveat, relayed verbatim so it reaches the
+    // model rather than dying in the JSON: a listed route is NOT a confirmation
+    // that the withdrawal is open. Without this an agent will happily tell a
+    // user their transfer will go through on the strength of a 2025 snapshot.
+    if (data.withdrawalAvailability) {
+      text += `\n**Withdrawal availability:** ${data.withdrawalAvailability.note}\n`
     }
 
     return { content: [{ type: 'text', text }] }

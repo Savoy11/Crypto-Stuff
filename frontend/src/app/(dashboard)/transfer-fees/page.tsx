@@ -220,8 +220,18 @@ function PathCard({ path, coinId, amount, coinPrices }: {
               Alternative
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700 border border-slate-600 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-              Not viable
+            // A suspended withdrawal and an amount below the minimum are both
+            // "not viable", but only one of them is about the user's input. A
+            // shared grey label buried the distinction behind an accordion.
+            <span className={clsx(
+              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+              path.blockedReason === 'withdrawals-suspended'
+                ? 'bg-red-500/15 border border-red-500/30 text-red-400'
+                : 'bg-slate-700 border border-slate-600 text-slate-400',
+            )}>
+              {path.blockedReason === 'withdrawals-suspended'
+                ? 'Withdrawals suspended'
+                : path.blockedReason === 'below-minimum' ? 'Amount too low' : 'Not viable'}
             </span>
           )}
         </div>
@@ -458,6 +468,10 @@ function TransferFeesPageInner() {
   const liveExchangeIds = (liveFeesData?.sources ?? [])
     .filter(s => s.status === 'live')
     .map(s => s.exchangeId)
+  // Exchanges that reported withdrawal STATUS — narrower than the live-fee
+  // sources above, and the only ones we may describe as availability-checked.
+  const availabilityCheckedNames = (liveFeesData?.availabilityExchangeIds ?? [])
+    .map(id => EXCHANGES.find(e => e.id === id)?.name ?? id)
   // Formatted here (not in the engine) so findTransferPaths stays clock-free.
   const liveAsOf = liveFeesData?.updatedAt
     ? new Date(liveFeesData.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
@@ -845,20 +859,38 @@ function TransferFeesPageInner() {
                     Withdrawal fees were last verified {transferFeesAgeDays()} days ago. The
                     &ldquo;Best&rdquo; ranking below is indicative only — confirm the actual withdrawal
                     fee on each exchange before relying on the cheapest-route result.
-                    {' '}
-                    <strong className="font-semibold">
-                      Whether a withdrawal is currently open is assumed, not checked
-                    </strong>
-                    , except on exchanges tagged{' '}
-                    <span className="text-emerald-400">live</span>
-                    {liveExchangeIds.length > 0 && (
-                      <> ({liveExchangeIds.map(id => EXCHANGES.find(e => e.id === id)?.name ?? id).join(', ')})</>
-                    )}
-                    . Exchanges suspend withdrawals on a network without notice — check the
-                    exchange&rsquo;s status page before planning a large or time-sensitive transfer.
                   </span>
                 </div>
               )}
+
+              {/* Availability is a SEPARATE claim from fee freshness, and this
+                  notice is deliberately NOT gated on staleness: re-verifying the
+                  fee table would not make withdrawal status checked, and a notice
+                  that disappears past a threshold teaches readers to treat its
+                  absence as "live" (the ProvenanceNotice lesson). It is also keyed
+                  on availabilityExchangeIds, not the live-fee sources — a source
+                  can send us a fee while saying nothing about whether the door is
+                  open (Bitfinex), and claiming otherwise advertises a check that
+                  never happened. */}
+              <div className="flex items-start gap-2 rounded-lg border border-border bg-bg-card px-3 py-2 text-xs text-text-muted">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5 text-amber-400/80" />
+                <span>
+                  <strong className="font-semibold text-text-secondary">
+                    Whether a withdrawal is open right now is assumed, not checked
+                  </strong>
+                  {availabilityCheckedNames.length > 0 ? (
+                    <> — except on {availabilityCheckedNames.join(', ')}, which report status
+                      live{liveAsOf ? <> (checked {liveAsOf})</> : null}.</>
+                  ) : (
+                    <> — no exchange is reporting live status right now.</>
+                  )}
+                  {' '}The same applies to the receiving side: no source reports whether an
+                  exchange is currently accepting <em>deposits</em> on a network. Exchanges
+                  suspend both without notice, so a route listed here is not a guarantee it
+                  will go through — check both exchanges&rsquo; status pages before a large or
+                  time-sensitive transfer.
+                </span>
+              </div>
 
               {/* S3 — all-in sale cost */}
               <div className="rounded-lg border border-border bg-bg-card px-3 py-2.5 space-y-2">

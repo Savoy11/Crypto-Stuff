@@ -1716,6 +1716,29 @@ of totals that are being corrected means doing the reconciliation twice.
 > per the Bybit precedent, any that 403s on the owner probe gets removed, not
 > worked around. Ceiling reached after this batch: every remaining exchange is
 > authed-only, no-API, or undocumented.
+>
+> **Withdrawal-availability honesty (2026-08-21):** the table asserted
+> `withdrawEnabled: true` on all 543 rows from the 2025-06-01 snapshot, and a
+> closed withdrawal silently `continue`d out of `findTransferPaths` — the route
+> just vanished. A suspended withdrawal is the one stale value that strands
+> funds rather than mispricing them. Now: suspensions render as visible blocked
+> routes carrying `blockedReason`, attributed to whoever said so (live API +
+> timestamp vs stored snapshot + date); the "no compatible network" copy no
+> longer fires when the real cause is suspension; the availability notice is
+> **deliberately not gated on staleness** (re-verifying fees would not make
+> status checked) and is keyed on `availabilityExchangeIds` — strictly narrower
+> than the live-fee sources, since Bitfinex reports a fee and no status.
+> `/api/v1/transfer/routes` shares the overlay via
+> `lib/server/withdrawFeeOverlay.ts` and carries a `withdrawalAvailability`
+> disclosure that the MCP tool relays verbatim, so an agent cannot tell a user a
+> transfer will go through.
+>
+> **Still open — deposit status.** The mirror gap: `depositEnabled` is also
+> all-true from the snapshot, a closed deposit still silently removes a route,
+> and no keyless source reports deposit status. A suspended deposit strands
+> funds the same way. The page copy covers availability on both sides rather
+> than implying only withdrawals are uncertain; closing it needs a
+> deposit-status source.
 
 **State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
 networks, hand-maintained with provenance, path-finding (`findTransferPaths`),

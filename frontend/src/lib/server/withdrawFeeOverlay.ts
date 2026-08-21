@@ -43,6 +43,14 @@ export interface LiveFeeOverlay {
   applied: number
   /** Live rows dropped because the static table has no matching route. */
   skipped: number
+  /**
+   * Exchanges that reported withdrawal AVAILABILITY, not merely a fee. Strictly
+   * narrower than the `live` sources above — Bitfinex's fee map has no status
+   * field, so it can be a live fee source while telling us nothing about
+   * whether a withdrawal is open. Only these exchanges may be described to a
+   * user as availability-checked.
+   */
+  availabilityExchangeIds: string[]
 }
 
 // Bybit was probed 2026-08-21 and returned 403: /v5/asset/coin/query-info is in
@@ -87,7 +95,7 @@ export async function fetchLiveFeeOverlay(): Promise<LiveFeeOverlay> {
     }
   })
 
-  const { overrides, applied, skipped } = buildFeeOverrideMap(allRows)
+  const { overrides, applied, skipped, availabilityExchangeIds } = buildFeeOverrideMap(allRows)
 
   return {
     ok: sources.some(s => s.status === 'live'),
@@ -96,5 +104,6 @@ export async function fetchLiveFeeOverlay(): Promise<LiveFeeOverlay> {
     overrides,
     applied,
     skipped,
+    availabilityExchangeIds,
   }
 }

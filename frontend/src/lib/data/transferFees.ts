@@ -2024,6 +2024,14 @@ export function findTransferPaths(
     return [{ id: 'no-dest', type: 'no-path', networkId: null, hops: [], exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0, estimatedTime: 'N/A', warnings: [{ type: 'danger', title: 'Not supported at destination', message: `${toEx.name} does not support ${coinId.toUpperCase()} deposits.` }], isViable: false, isRecommended: false }]
   }
 
+  // ⚠ KNOWN GAP (the mirror of the withdrawal-suspension work below): a closed
+  // DEPOSIT silently removes the route here, and no live source reports deposit
+  // status, so all 543 catalogued rows assert depositEnabled: true from the
+  // stored snapshot. A suspended deposit strands funds just as a suspended
+  // withdrawal does — the coin leaves the source and the destination will not
+  // credit it. Closing this needs a deposit-status source; until then the
+  // page-level notice covers availability generally rather than implying only
+  // withdrawals are uncertain.
   const depositNetworkIds = toEx
     ? new Set(toCoin!.networks.filter(n => n.depositEnabled).map(n => n.networkId))
     : null
@@ -2055,7 +2063,7 @@ export function findTransferPaths(
           title: 'Withdrawals suspended',
           message: wNet.liveAvailability
             ? `${fromEx.name} reports ${coinId.toUpperCase()} withdrawals on ${netName} as suspended in its public API${liveAsOf ? ` (checked ${liveAsOf})` : ''}. Suspensions are usually temporary — check the exchange's status page before planning around this.`
-            : `The withdrawal-fee table records ${coinId.toUpperCase()} withdrawals on ${netName} at ${fromEx.name} as disabled as of ${TRANSFER_FEES_LAST_VERIFIED}. That is a stored value, not a live check — confirm on the exchange.`,
+            : `The withdrawal-fee table records ${coinId.toUpperCase()} withdrawals on ${netName} at ${fromEx.name} as disabled — a stored value from ${TRANSFER_FEES_LAST_VERIFIED}, not a live check. Confirm on the exchange.`,
         }],
         isViable: false,
         isRecommended: false,
@@ -2139,7 +2147,20 @@ export function findTransferPaths(
         ...(amount >= srcNet.minWithdraw ? {} : { blockedReason: 'below-minimum' as const }),
       })
     } else {
-      paths.push({ id: 'no-path', type: 'no-path', networkId: null, hops: [], exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0, estimatedTime: 'N/A', warnings: [{ type: 'danger', title: 'No transfer path found', message: `No compatible network found between ${fromEx.name} and ${toEx.name} for ${coinId.toUpperCase()}.` }], isViable: false, isRecommended: false })
+      // State the real cause. When every candidate network is SUSPENDED the
+      // networks are perfectly compatible — saying otherwise sends the user
+      // hunting for a different exchange when they should be waiting out a
+      // temporary halt (or checking the status page).
+      const suspendedCount = paths.filter(p => p.blockedReason === 'withdrawals-suspended').length
+      paths.push({
+        id: 'no-path', type: 'no-path', networkId: null, hops: [],
+        exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0,
+        estimatedTime: 'N/A',
+        warnings: [suspendedCount > 0
+          ? { type: 'danger' as const, title: 'No route available — withdrawals suspended', message: `${fromEx.name} and ${toEx.name} do share a network for ${coinId.toUpperCase()}, but every route out of ${fromEx.name} is currently reported as suspended. This is usually temporary — check ${fromEx.name}'s status page rather than switching exchanges.` }
+          : { type: 'danger' as const, title: 'No transfer path found', message: `No compatible network found between ${fromEx.name} and ${toEx.name} for ${coinId.toUpperCase()}.` }],
+        isViable: false, isRecommended: false,
+      })
     }
   }
 

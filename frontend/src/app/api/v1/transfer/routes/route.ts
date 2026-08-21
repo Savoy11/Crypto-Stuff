@@ -52,6 +52,14 @@ export async function GET(req: NextRequest) {
   const { fees: networkFees, prices: coinPrices, priceSource } = feesSettled.value
   const overlay = overlaySettled.status === 'fulfilled' ? overlaySettled.value : null
   const liveExchangeIds = (overlay?.sources ?? []).filter(s => s.status === 'live').map(s => s.exchangeId)
+  // Exchanges that reported withdrawal STATUS — narrower than the live-fee
+  // sources: a source can send a fee while saying nothing about availability.
+  const availabilityCheckedIds = overlay?.availabilityExchangeIds ?? []
+  // `liveAsOf` is embedded in a human-readable warning sentence, so it must be
+  // a display string, not a raw ISO timestamp.
+  const liveAsOfDisplay = overlay?.updatedAt
+    ? `${new Date(overlay.updatedAt).toISOString().slice(11, 16)} UTC`
+    : undefined
   const coinInfo    = COIN_INFO[coin]
   const transferAmount = amount > 0 ? amount : coinInfo.defaultAmount
 
@@ -66,7 +74,7 @@ export async function GET(req: NextRequest) {
   const paths = findTransferPaths(
     from, to, coin, transferAmount, networkFees, coinPrices,
     overlay?.ok ? overlay.overrides : undefined,
-    overlay?.updatedAt,
+    liveAsOfDisplay,
   )
 
   const routes = paths.map(p => ({
@@ -130,13 +138,13 @@ export async function GET(req: NextRequest) {
     },
     // The most dangerous assumption this endpoint makes, stated rather than
     // implied: a route being listed does NOT mean the withdrawal is open. Only
-    // `liveOverlay.liveExchanges` had availability checked; every other route's
-    // open/closed flag is the stored snapshot's assumption. An agent relaying
-    // these routes must not tell a user a transfer will go through.
+    // `checkedFor` below had availability checked — that is narrower than
+    // liveOverlay.liveExchanges, since a source can report a fee and no status.
+    // Every other route's open/closed flag is the stored snapshot's assumption.
     withdrawalAvailability: {
-      checkedFor: liveExchangeIds,
+      checkedFor: availabilityCheckedIds,
       assumedOpenFrom: TRANSFER_FEES_LAST_VERIFIED,
-      note: `Withdrawal availability is live-checked only for: ${liveExchangeIds.length ? liveExchangeIds.join(', ') : 'none (no live source reachable)'}. For every other exchange the open/closed state is a stored value from ${TRANSFER_FEES_LAST_VERIFIED}, not a current check — exchanges suspend withdrawals on a network without notice. Confirm on the exchange before relying on a route being open.`,
+      note: `Withdrawal availability was live-checked only for: ${availabilityCheckedIds.length ? availabilityCheckedIds.join(', ') : 'no exchange in this response'}. For every other exchange the open/closed state is a stored value from ${TRANSFER_FEES_LAST_VERIFIED}, not a current check — exchanges suspend withdrawals on a network without notice. A route appearing here is NOT a confirmation that the withdrawal will go through; do not tell a user a transfer will succeed on the strength of this response.`,
     },
     priceSource,
     // Every USD figure above is derived from `priceSource`. On 'fallback' the

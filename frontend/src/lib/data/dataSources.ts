@@ -145,7 +145,7 @@ export const DATA_SOURCES: DataSourceEntry[] = [
       { name: 'XT.com', host: 'sapi.xt.com', url: 'https://doc.xt.com/', role: 'primary', auth: 'none' },
     ],
     cadence: '15m revalidate', staticData: ['lib/data/transferFees.ts (the table being overlaid)'],
-    notes: 'Keyless public endpoints only (RP-5: no exchange API-key custody). Overlay-only — live rows update fees on routes the curated table already carries, never add routes. Rows are labeled live per-hop; the other 28 exchanges stay static with the staleness banner. Owner probe 2026-08-21: KuCoin + HTX confirmed live; Bybit removed (its endpoint 403s — authenticated, not public). Batch 2 (Bitget, Poloniex, LBank, Bitfinex, XT.com) added same day, NOT yet probed — remove any that fail like Bybit did.',
+    notes: 'Keyless public endpoints only (RP-5: no exchange API-key custody). Overlay-only — live rows update fees on routes the curated table already carries, never add routes. Rows are labeled live per-hop; the other 28 exchanges stay static with the staleness banner. Owner probe 2026-08-21: KuCoin + HTX confirmed live; Bybit removed (its endpoint 403s — authenticated, not public). Batch 2 (Bitget, Poloniex, LBank, Bitfinex, XT.com) added same day, NOT yet probed — remove any that fail like Bybit did. Also feeds withdrawal AVAILABILITY: a live-reported suspension blocks the route with attribution, while static rows are disclosed as assumed-open (availabilityExchangeIds is narrower than the live-fee source list — Bitfinex reports fees with no status field). Shared with /api/v1/transfer/routes via lib/server/withdrawFeeOverlay.ts.',
   },
   {
     id: 'staking-rates', surface: 'Staking APR/APY', module: 'crypto',

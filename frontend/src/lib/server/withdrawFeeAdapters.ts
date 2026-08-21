@@ -276,10 +276,17 @@ export function buildFeeOverrideMap(rows: ParsedFeeRow[]): {
   overrides: LiveFeeOverrideMap
   applied: number
   skipped: number
+  availabilityExchangeIds: string[]
 } {
   const overrides: LiveFeeOverrideMap = {}
   let applied = 0
   let skipped = 0
+  // Exchanges that actually reported withdrawal AVAILABILITY, which is a
+  // strictly narrower claim than "we got a fee from them". Bitfinex's fee map
+  // carries no status field at all, so it can be a live FEE source while never
+  // telling us whether a withdrawal is open. Deriving "availability checked"
+  // from fee liveness would advertise a check that never happened.
+  const availability = new Set<string>()
   for (const row of rows) {
     const ex = EXCHANGES.find(e => e.id === row.exchangeId)
     const known = ex?.coins[row.coin]?.networks.some(n => n.networkId === row.network)
@@ -291,7 +298,8 @@ export function buildFeeOverrideMap(rows: ParsedFeeRow[]): {
       minWithdraw: row.minWithdraw,
       withdrawEnabled: row.withdrawEnabled,
     }
+    if (row.withdrawEnabled !== undefined) availability.add(row.exchangeId)
     applied++
   }
-  return { overrides, applied, skipped }
+  return { overrides, applied, skipped, availabilityExchangeIds: [...availability] }
 }
