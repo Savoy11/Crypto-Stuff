@@ -66,6 +66,10 @@ describe('getTransferTaxNotes — what applies when', () => {
     expect(ids).toContain('transfer-fees-stranded')
     const stranded = notes.find(n => n.id === 'transfer-fees-stranded')!
     expect(stranded.detail).toContain('not netted against proceeds')
+    // Practice diverges from the IRS position here (major tax software
+    // capitalises the fee instead), so this must never wear the settled badge.
+    expect(stranded.confidence).toBe('uncertain')
+    expect(stranded.detail).toContain('Practice is not uniform')
   })
 
   it('scopes the fees-change-the-gain claim to the sale, never the move', () => {

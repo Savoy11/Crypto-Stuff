@@ -154,8 +154,13 @@ const TRANSFER_FEES_STRANDED: TaxNote = {
   character: 'basis-adjustment',
   title: 'The withdrawal and network fees on a move do not reduce your gain',
   detail:
-    'Only costs that effect a sale, disposition or acquisition adjust proceeds or basis. Moving your own coin between your own accounts is none of those, so the IRS treats fees paid for that transfer as outside those rules — they are not netted against proceeds, not added to basis, and investment expenses are not separately deductible either. The practical result is that these fees are a real economic cost with no tax offset, even though the units spent paying them are a reportable disposition.',
-  confidence: 'settled',
+    'Only costs that effect a sale, disposition or acquisition adjust proceeds or basis. Moving your own coin between your own accounts is none of those, so the IRS has said fees paid for that transfer are not those costs — on that view they are not netted against proceeds and not added to basis, and investment expenses are not separately deductible either, leaving a real cost with no tax offset. Practice is not uniform: major crypto-tax software instead capitalises a transfer fee into the basis of the coin received. If these fees are large, settle the treatment with a preparer rather than assuming they reduce your gain.',
+  // NOT 'settled'. The IRS position and the default behaviour of the
+  // market-leading tax software genuinely diverge here, and a competitor scan
+  // found the mainstream web advice ("fees are deducted from the sale price")
+  // states the opposite of the IRS position outright. Tagging this settled
+  // would repeat the exact error this note was written to correct.
+  confidence: 'uncertain',
   authority: 'Treas. Reg. §1.1001-7(b)(2)(i) / §1.1012-1(h) — costs must effect a sale, disposition or acquisition; IRS FAQs state transfer-service fees between your own wallets are not digital asset transaction costs; miscellaneous itemized deductions are disallowed under IRC §67',
 }
 
