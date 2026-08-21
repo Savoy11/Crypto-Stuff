@@ -84,26 +84,8 @@ function num(v: unknown): number | undefined {
 
 // ─── Per-exchange parsers ─────────────────────────────────────────────────────
 
-/** Bybit `GET /v5/asset/coin/query-info` → { retCode, result: { rows: [{ coin, chains: [...] }] } } */
-export function parseBybitCoinInfo(json: any): ParsedFeeRow[] {
-  const rows: ParsedFeeRow[] = []
-  if (!json || json.retCode !== 0) return rows
-  for (const row of json.result?.rows ?? []) {
-    const coin = normalizeSymbol(String(row?.coin ?? ''))
-    if (!coin) continue
-    for (const c of row?.chains ?? []) {
-      const network = normalizeChain(String(c?.chain ?? c?.chainType ?? ''))
-      const withdrawFee = num(c?.withdrawFee)
-      if (!network || withdrawFee === undefined) continue
-      rows.push({
-        exchangeId: 'bybit', coin, network, withdrawFee,
-        minWithdraw: num(c?.withdrawMin),
-        withdrawEnabled: c?.chainWithdraw === undefined ? undefined : String(c.chainWithdraw) === '1',
-      })
-    }
-  }
-  return rows
-}
+// (Bybit's coin/query-info endpoint was probed 2026-08-21 and returned 403 —
+// it is authenticated, not public. Keyless-only rule → no Bybit adapter.)
 
 /** KuCoin `GET /api/v3/currencies` → { code: '200000', data: [{ currency, chains: [...] }] } */
 export function parseKucoinCurrencies(json: any): ParsedFeeRow[] {

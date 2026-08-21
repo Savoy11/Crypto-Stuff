@@ -1695,8 +1695,11 @@ of totals that are being corrected means doing the reconciliation twice.
 > conclusion the IP-dependence rule reaches for data audits.
 >
 > **Tier-1 live overlay (2026-08-21):** `/live-data/withdraw-fees` fetches the
-> three exchanges that publish withdrawal fees on public, KEYLESS endpoints —
-> Bybit, KuCoin, HTX (keyless only; RP-5's no-key-custody decision stands) —
+> exchanges that publish withdrawal fees on public, KEYLESS endpoints —
+> **KuCoin and HTX, both confirmed live by the owner probe the same day**
+> (48 + 52 parsed rows, 54 overlaying). Bybit was in the first cut but its
+> endpoint 403'd on the owner probe — it is in Bybit's authenticated Asset
+> API group, so the adapter was removed (keyless only; RP-5 stands) —
 > and the calculator overlays them on the static table. Two rules, both
 > test-enforced: **overlay-only** (live rows update fees on curated routes,
 > never add routes) and **labeled per-row** (`live` tag on overlaid hops; the

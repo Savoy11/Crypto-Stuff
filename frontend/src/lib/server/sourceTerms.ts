@@ -429,18 +429,6 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     confidence: 'high',
   },
   {
-    domain: 'bybit.com',
-    name: 'Bybit (public market-data API)',
-    verdict: 'conditional',
-    termsUrl: 'https://bybit-exchange.github.io/docs/v5/intro',
-    finding:
-      'Bybit publishes a documented public v5 API; coin/chain info (incl. withdrawal fees) is served without authentication. Docs impose rate limits per endpoint. Seeded from the published API documentation — the exchange ToS have not been read for this project.',
-    conditions: ['Respect documented rate limits', 'Keyless public endpoints only — no authenticated endpoints (RP-5)'],
-    reviewedAt: '2026-08-21',
-    review: 'seeded',
-    confidence: 'medium',
-  },
-  {
     domain: 'kucoin.com',
     name: 'KuCoin (public market-data API)',
     verdict: 'conditional',

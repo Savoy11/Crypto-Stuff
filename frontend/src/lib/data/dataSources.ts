@@ -136,12 +136,11 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     id: 'withdraw-fees', surface: 'Live exchange withdrawal fees (Transfer Fee Calculator overlay)', module: 'crypto',
     route: '/live-data/withdraw-fees', status: 'partial',
     providers: [
-      { name: 'Bybit', host: 'api.bybit.com', url: 'https://bybit-exchange.github.io/docs/v5/asset/coin-info', role: 'primary', auth: 'none' },
       { name: 'KuCoin', host: 'api.kucoin.com', url: 'https://www.kucoin.com/docs', role: 'primary', auth: 'none' },
       { name: 'HTX', host: 'api.huobi.pro', url: 'https://huobiapi.github.io/docs/spot/v1/en/', role: 'primary', auth: 'none' },
     ],
     cadence: '15m revalidate', staticData: ['lib/data/transferFees.ts (the table being overlaid)'],
-    notes: 'Keyless public endpoints only (RP-5: no exchange API-key custody). Overlay-only — live rows update fees on routes the curated table already carries, never add routes. Rows are labeled live per-hop; the other 27 exchanges stay static with the staleness banner. Availability is IP-dependent — verify on the owner’s machine with scripts/probe-exchange-fee-apis.mjs.',
+    notes: 'Keyless public endpoints only (RP-5: no exchange API-key custody). Overlay-only — live rows update fees on routes the curated table already carries, never add routes. Rows are labeled live per-hop; the other 28 exchanges stay static with the staleness banner. Owner probe 2026-08-21: KuCoin + HTX confirmed live; Bybit removed (its endpoint 403s — authenticated, not public).',
   },
   {
     id: 'staking-rates', surface: 'Staking APR/APY', module: 'crypto',

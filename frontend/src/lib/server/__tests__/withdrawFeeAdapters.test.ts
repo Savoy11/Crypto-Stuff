@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   normalizeSymbol,
   normalizeChain,
-  parseBybitCoinInfo,
   parseKucoinCurrencies,
   parseHtxCurrencies,
   buildFeeOverrideMap,
@@ -35,39 +34,6 @@ describe('normalizeChain', () => {
   })
   it('returns null for unknown chains instead of guessing', () => {
     expect(normalizeChain('Lightning')).toBeNull()
-  })
-})
-
-describe('parseBybitCoinInfo', () => {
-  const payload = {
-    retCode: 0,
-    result: {
-      rows: [
-        {
-          coin: 'USDT',
-          chains: [
-            { chain: 'TRX', withdrawFee: '1', withdrawMin: '10', chainWithdraw: '1' },
-            { chain: 'ETH', withdrawFee: '', withdrawMin: '20', chainWithdraw: '1' }, // empty fee = unknown
-            { chain: 'MADEUPCHAIN', withdrawFee: '1', chainWithdraw: '1' },
-          ],
-        },
-        { coin: 'WEIRDCOIN', chains: [{ chain: 'ETH', withdrawFee: '1' }] },
-      ],
-    },
-  }
-  it('parses fee rows and maps chain names', () => {
-    const rows = parseBybitCoinInfo(payload)
-    expect(rows).toEqual([
-      { exchangeId: 'bybit', coin: 'usdt', network: 'trc20', withdrawFee: 1, minWithdraw: 10, withdrawEnabled: true },
-    ])
-  })
-  it('drops empty fees (unknown is not zero) and unknown coins/chains', () => {
-    const rows = parseBybitCoinInfo(payload)
-    expect(rows.some(r => r.network === 'erc20')).toBe(false)
-  })
-  it('returns nothing on an error payload', () => {
-    expect(parseBybitCoinInfo({ retCode: 10001 })).toEqual([])
-    expect(parseBybitCoinInfo(null)).toEqual([])
   })
 })
 

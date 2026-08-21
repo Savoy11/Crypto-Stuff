@@ -15,14 +15,13 @@
 // exchange's own withdrawal page.
 
 import {
-  parseBybitCoinInfo,
   parseKucoinCurrencies,
   parseHtxCurrencies,
   buildFeeOverrideMap,
 } from '../src/lib/server/withdrawFeeAdapters.ts'
 
 const SOURCES = [
-  { id: 'bybit', url: 'https://api.bybit.com/v5/asset/coin/query-info', parse: parseBybitCoinInfo },
+  // bybit removed 2026-08-21: probe returned 403 — authenticated endpoint, not public
   { id: 'kucoin', url: 'https://api.kucoin.com/api/v3/currencies', parse: parseKucoinCurrencies },
   { id: 'htx', url: 'https://api.huobi.pro/v2/reference/currencies', parse: parseHtxCurrencies },
 ]
