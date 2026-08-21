@@ -1709,6 +1709,13 @@ of totals that are being corrected means doing the reconciliation twice.
 > unverifiable from the remote environment — **owner verdict via
 > `npm run fee-probe`** (prints HTTP status, parsed-row counts, sample fees to
 > spot-check against each exchange's withdrawal page).
+>
+> **Batch 2 adapters (2026-08-21, awaiting probe):** Bitget, Poloniex, LBank,
+> Bitfinex (explicit code→network map only — no chain guessing; TRC-20 tether
+> deliberately unmapped), XT.com. All five are documented-public but unprobed;
+> per the Bybit precedent, any that 403s on the owner probe gets removed, not
+> worked around. Ceiling reached after this batch: every remaining exchange is
+> authed-only, no-API, or undocumented.
 
 **State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
 networks, hand-maintained with provenance, path-finding (`findTransferPaths`),

@@ -4,6 +4,11 @@ import {
   normalizeChain,
   parseKucoinCurrencies,
   parseHtxCurrencies,
+  parseBitgetCoins,
+  parsePoloniexCurrencies,
+  parseLbankWithdrawConfigs,
+  parseBitfinexTxFees,
+  parseXtSupportCurrency,
   buildFeeOverrideMap,
   type ParsedFeeRow,
 } from '../withdrawFeeAdapters'
@@ -77,6 +82,104 @@ describe('parseHtxCurrencies', () => {
     expect(parseHtxCurrencies(payload)).toEqual([
       { exchangeId: 'htx', coin: 'usdt', network: 'trc20', withdrawFee: 1, minWithdraw: 10, withdrawEnabled: true },
     ])
+  })
+})
+
+describe('parseBitgetCoins', () => {
+  const payload = {
+    code: '00000',
+    data: [
+      {
+        coin: 'SOL',
+        chains: [
+          { chain: 'SOL', withdrawFee: '0.005', minWithdrawAmount: '0.01', withdrawable: 'true' },
+          { chain: 'MADEUP', withdrawFee: '1' },
+        ],
+      },
+    ],
+  }
+  it('parses fee rows and drops unknown chains', () => {
+    expect(parseBitgetCoins(payload)).toEqual([
+      { exchangeId: 'bitget', coin: 'sol', network: 'solana', withdrawFee: 0.005, minWithdraw: 0.01, withdrawEnabled: true },
+    ])
+  })
+  it('returns nothing on a non-success code', () => {
+    expect(parseBitgetCoins({ code: '40001' })).toEqual([])
+  })
+})
+
+describe('parsePoloniexCurrencies', () => {
+  const payload = [
+    { BTC: { blockchain: 'BTC', withdrawalFee: '0.0005', walletState: 'ENABLED' } },
+    // multi-chain child: coin comes from parentChain, network from blockchain
+    { USDTTRON: { blockchain: 'TRX', withdrawalFee: '1', walletState: 'ENABLED', parentChain: 'USDT' } },
+    { OBSCURE: { blockchain: 'OBS', withdrawalFee: '1' } },
+  ]
+  it('parses direct and multi-chain-child rows', () => {
+    expect(parsePoloniexCurrencies(payload)).toEqual([
+      { exchangeId: 'poloniex', coin: 'btc', network: 'bitcoin', withdrawFee: 0.0005, withdrawEnabled: true },
+      { exchangeId: 'poloniex', coin: 'usdt', network: 'trc20', withdrawFee: 1, withdrawEnabled: true },
+    ])
+  })
+  it('returns nothing for a non-array payload', () => {
+    expect(parsePoloniexCurrencies({ error: 'x' })).toEqual([])
+  })
+})
+
+describe('parseLbankWithdrawConfigs', () => {
+  const payload = {
+    result: 'true',
+    data: [
+      { assetCode: 'usdt', chain: 'trc20', fee: '1', min: '10', canWithDraw: true },
+      // single-chain asset with no chain field falls back to the asset code
+      { assetCode: 'btc', fee: '0.0005', min: '0.001', canWithDraw: true },
+    ],
+  }
+  it('parses rows, falling back to assetCode for the chain', () => {
+    expect(parseLbankWithdrawConfigs(payload)).toEqual([
+      { exchangeId: 'lbank', coin: 'usdt', network: 'trc20', withdrawFee: 1, minWithdraw: 10, withdrawEnabled: true },
+      { exchangeId: 'lbank', coin: 'btc', network: 'bitcoin', withdrawFee: 0.0005, minWithdraw: 0.001, withdrawEnabled: true },
+    ])
+  })
+  it('returns nothing on a failed result', () => {
+    expect(parseLbankWithdrawConfigs({ result: 'false' })).toEqual([])
+  })
+})
+
+describe('parseBitfinexTxFees', () => {
+  const payload = [[['BTC', ['0', '0.0004']], ['UST', ['0', '15']], ['USTT', ['0', '1']], ['ZZZ', ['0', '9']]]]
+  it('maps only explicitly-listed codes (no chain guessing)', () => {
+    expect(parseBitfinexTxFees(payload)).toEqual([
+      { exchangeId: 'bitfinex', coin: 'btc', network: 'bitcoin', withdrawFee: 0.0004 },
+      // UST is ERC-20 tether on Bitfinex; USTT (TRC-20) is deliberately unmapped
+      { exchangeId: 'bitfinex', coin: 'usdt', network: 'erc20', withdrawFee: 15 },
+    ])
+  })
+  it('returns nothing for a malformed payload', () => {
+    expect(parseBitfinexTxFees({ nope: 1 })).toEqual([])
+  })
+})
+
+describe('parseXtSupportCurrency', () => {
+  const payload = {
+    rc: 0,
+    result: [
+      {
+        currency: 'usdt',
+        supportChains: [
+          { chain: 'Tron', withdrawFeeAmount: '1', withdrawEnabled: true },
+          { chain: 'Bitcoin Cash', withdrawFeeAmount: '1' },
+        ],
+      },
+    ],
+  }
+  it('parses fee rows and drops unmapped chains', () => {
+    expect(parseXtSupportCurrency(payload)).toEqual([
+      { exchangeId: 'xtcom', coin: 'usdt', network: 'trc20', withdrawFee: 1, withdrawEnabled: true },
+    ])
+  })
+  it('returns nothing on a non-zero rc', () => {
+    expect(parseXtSupportCurrency({ rc: 1 })).toEqual([])
   })
 })
 
