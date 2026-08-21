@@ -344,7 +344,31 @@ export interface NetworkConfig {
   withdrawEnabled: boolean
   depositEnabled: boolean
   note?: string
+  /** True when this row's fee was overlaid from a live exchange API this session. */
+  liveFee?: boolean
 }
+
+// ─── Live withdrawal-fee overlay (S3 Tier-1) ──────────────────────────────────
+//
+// A few exchanges publish per-chain withdrawal fees on PUBLIC, keyless API
+// endpoints. /live-data/withdraw-fees fetches those and produces this override
+// map, which findTransferPaths() applies over the static table. Two rules:
+//   1. Overlay only — a live entry updates a row that already exists in
+//      EXCHANGES; it never adds a coin/network route the curated table doesn't
+//      carry (deposit support and route warnings are hand-curated).
+//   2. Labeled per-row — an overlaid fee sets `liveFee` so the UI can tag it,
+//      and static rows keep the staleness warning. The two are never blended
+//      silently.
+export interface LiveFeeOverride {
+  withdrawFee: number
+  minWithdraw?: number
+  withdrawEnabled?: boolean
+}
+
+/** exchangeId → coin → network → override */
+export type LiveFeeOverrideMap = Partial<
+  Record<string, Partial<Record<CoinId, Partial<Record<NetworkId, LiveFeeOverride>>>>>
+>
 
 export interface ExchangeCoin {
   networks: NetworkConfig[]
@@ -1783,6 +1807,8 @@ export interface TransferHop {
    */
   gasCoveredByFee: boolean
   note?: string
+  /** True when the withdrawal fee on this hop came from a live exchange API. */
+  feeLive?: boolean
 }
 
 export interface TransferPath {
@@ -1879,7 +1905,8 @@ export function findTransferPaths(
   coinId: CoinId,
   amount: number,
   networkFees: NetworkFeeMap,
-  coinPrices: CoinPriceMap
+  coinPrices: CoinPriceMap,
+  liveOverrides?: LiveFeeOverrideMap
 ): TransferPath[] {
   if (fromId === toId) return []
 
@@ -1941,7 +1968,26 @@ export function findTransferPaths(
   const fromEx = EXCHANGES.find(e => e.id === fromId)
   if (!fromEx) return []
 
-  const fromCoin = fromEx.coins[coinId]
+  // Apply live fee overrides to the WITHDRAWING side only (deposits are free).
+  // Overlay, never extend: only rows already in the static table are touched.
+  const rawFromCoin = fromEx.coins[coinId]
+  const coinOverrides = liveOverrides?.[fromId]?.[coinId]
+  const fromCoin: ExchangeCoin | undefined = rawFromCoin && coinOverrides
+    ? {
+        networks: rawFromCoin.networks.map(n => {
+          const o = coinOverrides[n.networkId]
+          return o
+            ? {
+                ...n,
+                withdrawFee: o.withdrawFee,
+                minWithdraw: o.minWithdraw ?? n.minWithdraw,
+                withdrawEnabled: o.withdrawEnabled ?? n.withdrawEnabled,
+                liveFee: true,
+              }
+            : n
+        }),
+      }
+    : rawFromCoin
 
   if (!fromCoin || fromCoin.networks.length === 0) {
     return [{ id: 'no-source', type: 'no-path', networkId: null, hops: [], exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0, estimatedTime: 'N/A', warnings: [{ type: 'danger', title: 'Not supported', message: `${fromEx.name} does not support ${coinId.toUpperCase()} withdrawals.` }], isViable: false, isRecommended: false }]
@@ -1985,6 +2031,7 @@ export function findTransferPaths(
         exchangeFee: wNet.withdrawFee, exchangeFeeUsd,
         networkFee: nFee.feeNative, networkFeeUsd: nFee.feeUsd,
         nativeGasToken: nFee.nativeToken, gasCoveredByFee: true, note: wNet.note,
+        feeLive: wNet.liveFee,
       }],
       exchangeFeeCoin: wNet.withdrawFee, exchangeFeeUsd, networkFeeUsd,
       totalFeeUsd, feePercent,
@@ -2019,7 +2066,7 @@ export function findTransferPaths(
         type: 'multi-hop',
         networkId: srcNet.networkId,
         hops: [
-          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken, gasCoveredByFee: true },
+          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken, gasCoveredByFee: true, feeLive: srcNet.liveFee },
           { step: 2, from: 'Personal Wallet', to: toEx.name, networkId: dstNet.networkId, exchangeFee: 0, exchangeFeeUsd: 0, networkFee: dstNFee.feeNative, networkFeeUsd: dstNFee.feeUsd, nativeGasToken: dstNFee.nativeToken, gasCoveredByFee: false },
         ],
         exchangeFeeCoin: srcNet.withdrawFee, exchangeFeeUsd, networkFeeUsd, totalFeeUsd,

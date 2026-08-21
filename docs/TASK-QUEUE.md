@@ -1693,6 +1693,19 @@ of totals that are being corrected means doing the reconciliation twice.
 > a $25M+ tier) and a keyless Bybit API shortcut. **The verification pass now
 > runs on the owner's machine via `npm run fee-worksheet`** — the same
 > conclusion the IP-dependence rule reaches for data audits.
+>
+> **Tier-1 live overlay (2026-08-21):** `/live-data/withdraw-fees` fetches the
+> three exchanges that publish withdrawal fees on public, KEYLESS endpoints —
+> Bybit, KuCoin, HTX (keyless only; RP-5's no-key-custody decision stands) —
+> and the calculator overlays them on the static table. Two rules, both
+> test-enforced: **overlay-only** (live rows update fees on curated routes,
+> never add routes) and **labeled per-row** (`live` tag on overlaid hops; the
+> other 27 exchanges keep the staleness banner, now with an explicit
+> exception line). Parsers are pure + 14 tests
+> (`lib/server/withdrawFeeAdapters.ts`). Availability is IP-dependent and
+> unverifiable from the remote environment — **owner verdict via
+> `npm run fee-probe`** (prints HTTP status, parsed-row counts, sample fees to
+> spot-check against each exchange's withdrawal page).
 
 **State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
 networks, hand-maintained with provenance, path-finding (`findTransferPaths`),
