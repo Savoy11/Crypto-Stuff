@@ -138,9 +138,14 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     providers: [
       { name: 'KuCoin', host: 'api.kucoin.com', url: 'https://www.kucoin.com/docs', role: 'primary', auth: 'none' },
       { name: 'HTX', host: 'api.huobi.pro', url: 'https://huobiapi.github.io/docs/spot/v1/en/', role: 'primary', auth: 'none' },
+      { name: 'Bitget', host: 'api.bitget.com', url: 'https://www.bitget.com/api-doc/spot/market/Get-Coin-List', role: 'primary', auth: 'none' },
+      { name: 'Poloniex', host: 'api.poloniex.com', url: 'https://api-docs.poloniex.com/', role: 'primary', auth: 'none' },
+      { name: 'LBank', host: 'api.lbkex.com', url: 'https://www.lbank.com/docs/index.html', role: 'primary', auth: 'none' },
+      { name: 'Bitfinex', host: 'api-pub.bitfinex.com', url: 'https://docs.bitfinex.com/reference/rest-public-conf', role: 'primary', auth: 'none' },
+      { name: 'XT.com', host: 'sapi.xt.com', url: 'https://doc.xt.com/', role: 'primary', auth: 'none' },
     ],
     cadence: '15m revalidate', staticData: ['lib/data/transferFees.ts (the table being overlaid)'],
-    notes: 'Keyless public endpoints only (RP-5: no exchange API-key custody). Overlay-only — live rows update fees on routes the curated table already carries, never add routes. Rows are labeled live per-hop; the other 28 exchanges stay static with the staleness banner. Owner probe 2026-08-21: KuCoin + HTX confirmed live; Bybit removed (its endpoint 403s — authenticated, not public).',
+    notes: 'Keyless public endpoints only (RP-5: no exchange API-key custody). Overlay-only — live rows update fees on routes the curated table already carries, never add routes. Rows are labeled live per-hop; the other 28 exchanges stay static with the staleness banner. Owner probe 2026-08-21: KuCoin + HTX confirmed live; Bybit removed (its endpoint 403s — authenticated, not public). Batch 2 (Bitget, Poloniex, LBank, Bitfinex, XT.com) added same day, NOT yet probed — remove any that fail like Bybit did.',
   },
   {
     id: 'staking-rates', surface: 'Staking APR/APY', module: 'crypto',

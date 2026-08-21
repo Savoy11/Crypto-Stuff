@@ -21,6 +21,11 @@ import { NextResponse } from 'next/server'
 import {
   parseKucoinCurrencies,
   parseHtxCurrencies,
+  parseBitgetCoins,
+  parsePoloniexCurrencies,
+  parseLbankWithdrawConfigs,
+  parseBitfinexTxFees,
+  parseXtSupportCurrency,
   buildFeeOverrideMap,
   type ParsedFeeRow,
 } from '@/lib/server/withdrawFeeAdapters'
@@ -61,6 +66,34 @@ const SOURCES: { exchangeId: string; url: string; parse: (json: any) => ParsedFe
     exchangeId: 'htx',
     url: 'https://api.huobi.pro/v2/reference/currencies',
     parse: parseHtxCurrencies,
+  },
+  // ── Batch 2 (2026-08-21) — awaiting owner probe. Documented as public;
+  //    seeded claims lose to the probe (the Bybit lesson), and the route
+  //    degrades per-source, so an authed/dead one just reports `error`.
+  {
+    exchangeId: 'bitget',
+    url: 'https://api.bitget.com/api/v2/spot/public/coins',
+    parse: parseBitgetCoins,
+  },
+  {
+    exchangeId: 'poloniex',
+    url: 'https://api.poloniex.com/currencies?includeMultiChainCurrencies=true',
+    parse: parsePoloniexCurrencies,
+  },
+  {
+    exchangeId: 'lbank',
+    url: 'https://api.lbkex.com/v2/withdrawConfigs.do',
+    parse: parseLbankWithdrawConfigs,
+  },
+  {
+    exchangeId: 'bitfinex',
+    url: 'https://api-pub.bitfinex.com/v2/conf/pub:map:currency:tx:fee',
+    parse: parseBitfinexTxFees,
+  },
+  {
+    exchangeId: 'xtcom',
+    url: 'https://sapi.xt.com/v4/public/wallet/support/currency',
+    parse: parseXtSupportCurrency,
   },
 ]
 

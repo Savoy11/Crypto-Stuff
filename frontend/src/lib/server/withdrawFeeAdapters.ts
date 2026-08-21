@@ -132,6 +132,139 @@ export function parseHtxCurrencies(json: any): ParsedFeeRow[] {
   return rows
 }
 
+/** Bitget `GET /api/v2/spot/public/coins` → { code: '00000', data: [{ coin, chains: [...] }] } */
+export function parseBitgetCoins(json: any): ParsedFeeRow[] {
+  const rows: ParsedFeeRow[] = []
+  if (!json || json.code !== '00000') return rows
+  for (const cur of json.data ?? []) {
+    const coin = normalizeSymbol(String(cur?.coin ?? ''))
+    if (!coin) continue
+    for (const c of cur?.chains ?? []) {
+      const network = normalizeChain(String(c?.chain ?? ''))
+      const withdrawFee = num(c?.withdrawFee)
+      if (!network || withdrawFee === undefined) continue
+      rows.push({
+        exchangeId: 'bitget', coin, network, withdrawFee,
+        minWithdraw: num(c?.minWithdrawAmount),
+        withdrawEnabled: c?.withdrawable === undefined ? undefined : String(c.withdrawable) === 'true',
+      })
+    }
+  }
+  return rows
+}
+
+/**
+ * Poloniex `GET /currencies?includeMultiChainCurrencies=true` → an array of
+ * single-key objects: [{ BTC: {...} }, { USDTTRON: { parentChain: 'USDT', ... } }].
+ * Multi-chain children carry the real coin in `parentChain`; the network comes
+ * from `blockchain`.
+ */
+export function parsePoloniexCurrencies(json: any): ParsedFeeRow[] {
+  const rows: ParsedFeeRow[] = []
+  if (!Array.isArray(json)) return rows
+  for (const item of json) {
+    if (!item || typeof item !== 'object') continue
+    for (const [symbol, info] of Object.entries(item as Record<string, any>)) {
+      if (!info || typeof info !== 'object') continue
+      const coin = normalizeSymbol(symbol) ?? normalizeSymbol(String(info.parentChain ?? ''))
+      const network = normalizeChain(String(info.blockchain ?? ''))
+      const withdrawFee = num(info.withdrawalFee)
+      if (!coin || !network || withdrawFee === undefined) continue
+      rows.push({
+        exchangeId: 'poloniex', coin, network, withdrawFee,
+        withdrawEnabled: info.walletState === undefined ? undefined : info.walletState === 'ENABLED',
+      })
+    }
+  }
+  return rows
+}
+
+/** LBank `GET /v2/withdrawConfigs.do` → { result: 'true', data: [{ assetCode, chain, fee, min, canWithDraw }] } */
+export function parseLbankWithdrawConfigs(json: any): ParsedFeeRow[] {
+  const rows: ParsedFeeRow[] = []
+  if (!json || String(json.result) !== 'true') return rows
+  for (const c of json.data ?? []) {
+    const coin = normalizeSymbol(String(c?.assetCode ?? ''))
+    if (!coin) continue
+    // Single-chain assets sometimes omit `chain`; fall back to the asset code
+    // (btc → bitcoin, ltc → litecoin, ...).
+    const network = normalizeChain(String(c?.chain ?? '')) ?? normalizeChain(String(c?.assetCode ?? ''))
+    const withdrawFee = num(c?.fee)
+    if (!network || withdrawFee === undefined) continue
+    rows.push({
+      exchangeId: 'lbank', coin, network, withdrawFee,
+      minWithdraw: num(c?.min),
+      withdrawEnabled: typeof c?.canWithDraw === 'boolean' ? c.canWithDraw : undefined,
+    })
+  }
+  return rows
+}
+
+/**
+ * Bitfinex `GET /v2/conf/pub:map:currency:tx:fee` → [[["BTC", ["0", "0.0004"]], ...]].
+ * ⚠ SHAKY BY DESIGN: the map is per Bitfinex currency CODE, with no chain field,
+ * so only codes whose network is unambiguous are translated — via the explicit
+ * table below. Codes not listed are skipped, never guessed (Bitfinex's UST is
+ * ERC-20 tether; TRC-20 tether is a different code we deliberately don't map).
+ * The fee is the second array element per Bitfinex's conf docs; the owner probe
+ * prints samples to confirm before this is trusted.
+ */
+const BITFINEX_CODE_MAP: Record<string, { coin: CoinId; network: NetworkId }> = {
+  BTC: { coin: 'btc', network: 'bitcoin' },
+  ETH: { coin: 'eth', network: 'erc20' },
+  UST: { coin: 'usdt', network: 'erc20' },
+  UDC: { coin: 'usdc', network: 'erc20' },
+  LTC: { coin: 'ltc', network: 'litecoin' },
+  XRP: { coin: 'xrp', network: 'xrpl' },
+  TRX: { coin: 'trx', network: 'trc20' },
+  SOL: { coin: 'sol', network: 'solana' },
+  ADA: { coin: 'ada', network: 'cardano' },
+  DOT: { coin: 'dot', network: 'polkadot' },
+  ATOM: { coin: 'atom', network: 'cosmos' },
+  LINK: { coin: 'link', network: 'erc20' },
+  UNI: { coin: 'uni', network: 'erc20' },
+  SHIB: { coin: 'shib', network: 'erc20' },
+  DOG: { coin: 'doge', network: 'dogecoin' },
+  NEAR: { coin: 'near', network: 'near_network' },
+  ARB: { coin: 'arb', network: 'arbitrum' },
+}
+
+export function parseBitfinexTxFees(json: any): ParsedFeeRow[] {
+  const rows: ParsedFeeRow[] = []
+  const map = Array.isArray(json) ? json[0] : null
+  if (!Array.isArray(map)) return rows
+  for (const entry of map) {
+    if (!Array.isArray(entry)) continue
+    const [code, fees] = entry
+    const target = BITFINEX_CODE_MAP[String(code).toUpperCase()]
+    if (!target || !Array.isArray(fees)) continue
+    const withdrawFee = num(fees[1]) ?? num(fees[0])
+    if (withdrawFee === undefined) continue
+    rows.push({ exchangeId: 'bitfinex', coin: target.coin, network: target.network, withdrawFee })
+  }
+  return rows
+}
+
+/** XT.com `GET /v4/public/wallet/support/currency` → { rc: 0, result: [{ currency, supportChains: [...] }] } */
+export function parseXtSupportCurrency(json: any): ParsedFeeRow[] {
+  const rows: ParsedFeeRow[] = []
+  if (!json || json.rc !== 0) return rows
+  for (const cur of json.result ?? []) {
+    const coin = normalizeSymbol(String(cur?.currency ?? ''))
+    if (!coin) continue
+    for (const c of cur?.supportChains ?? []) {
+      const network = normalizeChain(String(c?.chain ?? ''))
+      const withdrawFee = num(c?.withdrawFeeAmount) ?? num(c?.withdrawFee)
+      if (!network || withdrawFee === undefined) continue
+      rows.push({
+        exchangeId: 'xtcom', coin, network, withdrawFee,
+        withdrawEnabled: typeof c?.withdrawEnabled === 'boolean' ? c.withdrawEnabled : undefined,
+      })
+    }
+  }
+  return rows
+}
+
 // ─── Overlay filter ───────────────────────────────────────────────────────────
 
 /**
