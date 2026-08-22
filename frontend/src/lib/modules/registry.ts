@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Flame,
+  ShieldAlert,
   Video,
   Database,
   Star,
@@ -132,7 +133,7 @@ export const MODULES: SuiteModule[] = [
     id: 'crypto',
     label: 'Crypto',
     routePrefixes: [
-      '/assets', '/news', '/social',
+      '/assets', '/news', '/social', '/pump-report',
       // '/wallets' and '/transfer-fees' — HIDDEN, see the nav notes below.
       // Both prefixes stay OUT so the entitlement gate can't be the thing
       // holding them shut; the next.config redirects are what make them dark,
@@ -162,12 +163,10 @@ export const MODULES: SuiteModule[] = [
       // /live-data/wallet/* chain routes, /api/user/wallets, useWalletStore and
       // every test stay in place.
       //
-      // ⚠ THE PUMP REPORT GOES DARK WITH IT. PumpReportTab is a tab on this
-      // page and has no other route, so hiding /wallets hides the pump-report
-      // scan and chat too. Its own /live-data/pump-report/* routes still run —
-      // nothing user-facing reaches them. If the Pump Report is wanted in the
-      // rollout it needs a page of its own; that is a separate decision, not
-      // something to fix by quietly re-exposing this one.
+      // The Pump Report USED to go dark with this page, because it was a tab
+      // here with no route of its own. It now has one — /pump-report, below —
+      // and that page reads saved wallets from the store but carries its own
+      // address entry, so it does not depend on this page being reachable.
       //
       // Unlike Transfer Fees there is no agent tool, no MCP tool and no
       // /api/v1 endpoint for wallets, so the surface list is shorter: this nav
@@ -187,6 +186,10 @@ export const MODULES: SuiteModule[] = [
       // /api/v1/transfer/routes returns 503 with a reason.
       // TO RESTORE: put this entry and the routePrefixes line back, delete the
       // redirect, and un-comment the two tool blocks + the v1 guard.
+      // Promoted out of the hidden Wallets page (2026-08-22). Same reasoning as
+      // the scanners in items 6/7: a surface reachable only as a tab inside
+      // another page is one rollout decision away from disappearing with it.
+      { href: '/pump-report', label: 'Pump Report', icon: ShieldAlert },
       { href: '/staking', label: 'Staking', icon: Coins },
       { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
       { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },

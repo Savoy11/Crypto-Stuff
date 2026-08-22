@@ -4,10 +4,8 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
 import { useState, useEffect, useCallback } from 'react'
 import {
   Eye, Wallet, Plus, Trash2, RefreshCw,
-  AlertTriangle, CheckCircle2, XCircle, Loader2, Copy, TrendingDown,
+  AlertTriangle, CheckCircle2, XCircle, Loader2, Copy,
 } from 'lucide-react'
-import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
-import type { ScanTarget } from '@/app/live-data/pump-report/scan/route'
 import { clsx } from 'clsx'
 import { SourceLine } from '@/components/ui/SourceLine'
 import {
@@ -42,10 +40,13 @@ function ChainBadge({ chain }: { chain: ChainId }) {
 
 // ─── Tab bar ────────────────────────────────────────────────────────────────────
 
+// The Pump Report tab was REMOVED 2026-08-22 when the report got its own page
+// at /pump-report. Two copies of the same scan would be two places to keep in
+// step, and the tab is the copy that disappears whenever this page is held out
+// of a rollout — which is exactly what happened. The page owns it now.
 const TABS = [
-  { id: 'watch',       label: 'Watch Addresses', icon: Eye         },
-  { id: 'connect',     label: 'Browser Wallets',  icon: Wallet      },
-  { id: 'pump-report', label: 'Pump Report',      icon: TrendingDown },
+  { id: 'watch',       label: 'Watch Addresses', icon: Eye    },
+  { id: 'connect',     label: 'Browser Wallets',  icon: Wallet },
 ] as const
 type TabId = typeof TABS[number]['id']
 
@@ -325,16 +326,9 @@ function WalletsPageInner() {
   useEffect(() => { void hydrateWallets() }, [])
 
   const counts: Record<TabId, number> = {
-    watch:        watched.length,
-    connect:      connected.length,
-    'pump-report': 0,
+    watch:   watched.length,
+    connect: connected.length,
   }
-
-  // Build scan targets from all linked wallets
-  const walletTargets: ScanTarget[] = [
-    ...watched.map(w => ({ type: 'wallet' as const, id: w.address, label: w.label || w.address })),
-    ...connected.map(w => ({ type: 'wallet' as const, id: w.address, label: `${w.provider} ${w.address.slice(0, 8)}…` })),
-  ]
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -378,14 +372,8 @@ function WalletsPageInner() {
         ))}
       </div>
 
-      {tab === 'watch'       && <WatchTab />}
-      {tab === 'connect'     && <ConnectTab />}
-      {tab === 'pump-report' && (
-        <PumpReportTab
-          targets={walletTargets.length > 0 ? walletTargets : [{ type: 'wallet', id: 'example', label: 'Add a wallet above to scan' }]}
-          agentIntro="I'm your Pump Report AI Agent. I can search the web for fraud intelligence on your linked wallets — rug pulls, flagged addresses, scam sites. Add wallets in the other tabs then scan them here."
-        />
-      )}
+      {tab === 'watch'   && <WatchTab />}
+      {tab === 'connect' && <ConnectTab />}
     </div>
   )
 }
