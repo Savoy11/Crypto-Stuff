@@ -24,7 +24,7 @@
  * exact dishonesty the provenance machinery exists to prevent.
  */
 
-import { writeFileSync } from 'node:fs'
+import { writeFileSync, readFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   EXCHANGES,
@@ -35,6 +35,45 @@ import {
   SPOT_TRADING_FEES,
   TRADING_FEES_COMPILED,
 } from '../src/lib/data/transferFees'
+
+// ─── What the machine already did ────────────────────────────────────────────
+//
+// `npm run fee-reconcile` verifies every row a live exchange API covers. Asking
+// a person to re-check those by hand wastes the scarcest resource in this job —
+// their patience — so they are excluded here and reported as already done.
+const RECONCILE_FILE = join(process.cwd(), 'transfer-fee-reconcile.json')
+const reconciledKeys = new Set<string>()
+let reconcileDate: string | null = null
+if (existsSync(RECONCILE_FILE)) {
+  try {
+    const r = JSON.parse(readFileSync(RECONCILE_FILE, 'utf8'))
+    reconcileDate = r.runDate ?? null
+    for (const k of r.confirmedRows ?? []) reconciledKeys.add(k)
+    for (const p of r.proposals ?? []) reconciledKeys.add(`${p.exchangeId}:${p.coinId}:${p.networkId}`)
+  } catch { /* a malformed artifact just means nothing is excluded */ }
+}
+
+// ─── Impact ranking ──────────────────────────────────────────────────────────
+//
+// 428 rows reads as hopeless and gets abandoned; "check these and you have
+// covered most real transfers" gets finished. This orders the work by how
+// likely a row is to sit on a route someone actually takes.
+//
+// ⚠ This is a JUDGEMENT about usage, not measured data and not a fee value.
+// Getting the order wrong costs some wasted effort; it cannot make the table
+// wrong. Re-rank it freely.
+const COIN_WEIGHT: Record<string, number> = {
+  usdt: 10, usdc: 9, btc: 8, eth: 8,
+  sol: 4, xrp: 3, bnb: 3, doge: 2, ltc: 2, trx: 2, ada: 2, matic: 2, avax: 2,
+}
+const NETWORK_WEIGHT: Record<string, number> = {
+  trc20: 10, erc20: 9, bep20: 7, solana: 6, polygon: 5, arbitrum: 5, bitcoin: 5,
+  base: 3, optimism: 3, avalanche: 3, xrpl: 3,
+}
+function impactScore(tier: number, coinId: string, networkId: string): number {
+  const t = tier === 1 ? 3 : 1
+  return t * (COIN_WEIGHT[coinId] ?? 1) * (NETWORK_WEIGHT[networkId] ?? 1)
+}
 
 // Withdrawal-fee pages, best known at time of writing. These are a starting point,
 // NOT verified links — exchanges move these pages and several require a login to
@@ -87,6 +126,9 @@ interface Row {
   depositEnabled: boolean
   note: string
   recentlyChecked: boolean
+  /** Verified by machine against the exchange's own API — no human check needed. */
+  reconciled: boolean
+  impact: number
 }
 
 const rows: Row[] = []
@@ -112,26 +154,37 @@ for (const ex of EXCHANGES) {
         // The 2026-07-20 partial pass left this marker on the entries it checked.
         // Those are the only rows in the table with a verification date attached.
         recentlyChecked: /re-verified 2026-07/i.test(note),
+        reconciled: reconciledKeys.has(`${ex.id}:${coinId}:${n.networkId}`),
+        impact: impactScore(ex.tier, coinId, n.networkId),
       })
     }
   }
 }
 
-// Tier 1 first (highest traffic = highest cost of being wrong), then alphabetical
-// by exchange so the file is stable across runs and diffs cleanly.
+// Outstanding work first, highest-impact first within that — then everything
+// else, so the top of the file is the part actually worth someone's afternoon.
+// Ties break alphabetically so the file is stable across runs and diffs cleanly.
 rows.sort(
   (a, b) =>
+    Number(a.reconciled) - Number(b.reconciled) ||
+    b.impact - a.impact ||
     a.tier - b.tier ||
     a.exchange.localeCompare(b.exchange) ||
     a.coin.localeCompare(b.coin) ||
     a.network.localeCompare(b.network)
 )
 
+const outstanding = rows.filter((r) => !r.reconciled)
+// The 80/20 line: enough of the highest-impact rows to cover the routes people
+// actually take, small enough that someone will finish it in one sitting.
+const CORE_N = 45
+const core = outstanding.slice(0, CORE_N)
+
 // ─── CSV ─────────────────────────────────────────────────────────────────────
 const header = [
   'Tier', 'Exchange', 'Coin', 'Network',
   'Current fee', 'Current min', 'Withdraw on?', 'Deposit on?',
-  'Existing note', 'Checked 2026-07?',
+  'Existing note', 'Checked 2026-07?', 'Machine-verified?', 'Impact',
   // Blank columns for the person doing the work.
   'ACTUAL fee', 'ACTUAL min', 'Status (ok/changed/delisted/unavailable)', 'Date checked', 'Comment',
 ]
@@ -143,6 +196,7 @@ const csv = [
       r.tier, r.exchange, r.coin, r.network,
       r.fee, r.minWithdraw, r.withdrawEnabled ? 'yes' : 'NO', r.depositEnabled ? 'yes' : 'NO',
       r.note, r.recentlyChecked ? 'yes' : '',
+      r.reconciled ? 'yes — skip' : '', r.impact,
       '', '', '', '', '',
     ].map(csvCell).join(',')
   ),
@@ -163,13 +217,29 @@ const md: string[] = [
   `Generated from \`src/lib/data/transferFees.ts\`. **Do not edit this file** — it is`,
   `regenerated by \`npm run fee-worksheet\`. Record findings in the CSV.`,
   '',
-  `- **Entries to verify:** ${rows.length}`,
+  `- **Entries still needing a human:** ${outstanding.length} of ${rows.length}`,
+  reconciledKeys.size
+    ? `- **Already machine-verified against exchange APIs${reconcileDate ? ` on ${reconcileDate}` : ''}:** ${rows.length - outstanding.length} — skip these`
+    : `- **No reconcile artifact found** — run \`npm run fee-reconcile\` first and regenerate; it removes ~115 rows from this job`,
   `- **Exchanges:** ${byExchange.size}`,
   `- **Table last fully verified:** ${TRANSFER_FEES_LAST_VERIFIED} (**${age} days ago**)`,
   `- **Already checked in the 2026-07-20 partial pass:** ${rows.filter((r) => r.recentlyChecked).length}`,
   '',
+  '## Start here: the core ' + CORE_N + '',
+  '',
+  'These are the highest-impact outstanding rows — high-traffic exchanges crossed',
+  'with the coins and networks people actually move. Doing just these covers most',
+  'real routes. The ranking is a **judgement about usage, not measured data**; it',
+  'affects only the order of work, never a fee value.',
+  '',
+  '| ✔ | Exchange | Coin | Network | Current fee | Fee page |',
+  '|---|----------|------|---------|-------------|----------|',
+  ...core.map((r) => `| [ ] | ${r.exchange} | ${r.coin} | ${r.network} | ${r.fee} | ${FEE_PAGES[r.exchangeId] ?? '—'} |`),
+  '',
   '## How to use this',
   '',
+  '0. Rows marked **machine-verified** were checked against the exchange\'s own API',
+  '   by `npm run fee-reconcile` — skip them, they are already done.',
   '1. Work **one exchange at a time** — open its fee page once, check every row it covers.',
   '2. Fill the ACTUAL columns in the CSV. Leave a row blank if you did not check it;',
   '   blank means unknown, which is honest. Do not copy the current value across.',
@@ -236,7 +306,9 @@ writeFileSync(join(root, 'transfer-fee-worksheet.csv'), csv + '\n', 'utf8')
 writeFileSync(join(root, 'transfer-fee-worksheet.md'), md.join('\n'), 'utf8')
 
 console.log(`transfer-fee worksheet written`)
-console.log(`  ${rows.length} entries across ${byExchange.size} exchanges`)
+console.log(`  ${outstanding.length} entries still needing a human (of ${rows.length}) across ${byExchange.size} exchanges`)
+console.log(`  ${rows.length - outstanding.length} already machine-verified — excluded from the job`)
+console.log(`  core list: the top ${Math.min(CORE_N, outstanding.length)} by impact are called out first`)
 console.log(`  table last fully verified ${TRANSFER_FEES_LAST_VERIFIED} (${age} days ago)`)
 console.log(`  ${rows.filter((r) => r.recentlyChecked).length} already checked in the 2026-07 partial pass`)
 console.log(`  → transfer-fee-worksheet.csv (fill this in)`)

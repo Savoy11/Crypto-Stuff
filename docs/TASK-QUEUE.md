@@ -1854,6 +1854,20 @@ of totals that are being corrected means doing the reconciliation twice.
 > Kraken, OKX, Bybit — none expose a keyless fee endpoint) and remain the
 > worksheet job.
 >
+> **Worksheet pass (2026-08-22) — scoped to what a person can actually finish.**
+> The remaining 428 rows are on exchanges with no keyless endpoint, so they need
+> a human reading fee pages; Claude cannot do them (egress-blocked, and writing
+> fee values from memory is forbidden). What changed is the shape of the job:
+> `npm run fee-worksheet` now reads `transfer-fee-reconcile.json` and **excludes
+> the rows the machine already verified**, so nobody re-checks 115 done rows;
+> and it ranks the rest by **impact** — exchange tier x coin x network — putting
+> a **core 45** at the top. That list opens with USDT/TRC-20 across Binance,
+> Coinbase, Kraken, OKX, Bybit and the rest: the most-taken route in the app.
+> Doing only the core 45 covers most real routes. The ranking is explicitly
+> labelled a judgement about usage, not measured data — a wrong order costs
+> effort, it cannot make a fee wrong. `TRANSFER_FEES_LAST_VERIFIED` still moves
+> only when **every** exchange is done.
+>
 > **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
 > user-supplied basis/holding period/rate on the TEY pattern (store no bracket
 > table, so nothing goes stale) and is the piece that touches the owner's
