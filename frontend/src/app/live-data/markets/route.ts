@@ -44,6 +44,7 @@ async function fetchCoinGecko(): Promise<Record<string, unknown>> {
   const rows = await res.json() as Array<{
     id: string; current_price: number | null; market_cap: number | null
     total_volume: number | null; price_change_percentage_24h: number | null; circulating_supply: number | null
+    fully_diluted_valuation: number | null
   }>
   const quotes: Record<string, unknown> = {}
   for (const row of rows) {
@@ -53,6 +54,11 @@ async function fetchCoinGecko(): Promise<Record<string, unknown>> {
       price: row.current_price ?? null, marketCap: row.market_cap ?? null,
       volume24h: row.total_volume ?? null, priceChange24h: row.price_change_percentage_24h ?? null,
       circulatingSupply: row.circulating_supply ?? null,
+      // FDV is CoinGecko-only. The Binance and CMC fallback legs below do not
+      // carry it, so it stays absent there rather than being derived — a
+      // computed FDV from a partial supply figure would be a fabricated number
+      // on a field users filter by.
+      fdv: row.fully_diluted_valuation ?? null,
     }
   }
   return quotes

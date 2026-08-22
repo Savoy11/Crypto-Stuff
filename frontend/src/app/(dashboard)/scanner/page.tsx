@@ -2,6 +2,10 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import {
+  applyScannerFilters, hasActiveFilters, UNSUPPORTED_FILTERS,
+  type ScannerFilters,
+} from '@/lib/data/scannerFilters'
 import { clsx } from 'clsx'
 import { RefreshCw, Filter, Activity, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { ModuleGate } from '@/components/layout/ModuleGate'
@@ -119,6 +123,11 @@ function ScannerPanel() {
   const [search, setSearch] = useState('')
   const [signalFilter, setSignalFilter] = useState<Signal | 'all'>('all')
   const [showAll, setShowAll] = useState(false)
+  // Screener-style universe filters (CoinMarketCap-shaped). Applied BEFORE the
+  // scan: fewer coins means fewer OHLCV requests, so this makes a scan faster
+  // rather than merely shortening the table.
+  const [filters, setFilters] = useState<ScannerFilters>({})
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [rows, setRows] = useState<ScanRow[]>(
     () => SUPPORTED_IDS.map(id => ({ assetId: id, setups: [], signal: null, rsi14: null, vsSma50Pct: null, status: 'loading' as ScanStatus })),
   )
@@ -134,14 +143,46 @@ function ScannerPanel() {
     refetchInterval: 60_000,
   })
 
+  // The universe the scan will actually sweep. Filters need market data, so if
+  // it has not loaded the full universe is scanned and the UI says why — a
+  // filter that silently matched nothing would read as "no results".
+  const filterResult = useMemo(() => {
+    const quotes = marketsData?.quotes ?? {}
+    return applyScannerFilters(
+      SUPPORTED_IDS,
+      filters,
+      (id: string) => {
+        const q = quotes[id] ?? {}
+        return {
+          rank: metaById.get(id)?.rank ?? null,
+          marketCap: q.marketCap ?? null,
+          fdv: q.fdv ?? null,
+          priceChange24h: q.priceChange24h ?? null,
+          volume24h: q.volume24h ?? null,
+        }
+      },
+    )
+  }, [filters, marketsData, metaById])
+
+  const scanUniverse = filterResult.matched
+  const filtersActive = hasActiveFilters(filters)
+
+  // runScan reads the universe through a ref rather than closing over it.
+  // Otherwise its identity changes on every filter keystroke, and the
+  // `useEffect(() => runScan(), [runScan])` below would fire a full OHLCV sweep
+  // per character typed into a min/max box.
+  const scanUniverseRef = useRef<string[]>(scanUniverse)
+  scanUniverseRef.current = scanUniverse
+
   const runScan = useCallback(async () => {
     const myScan = ++scanIdRef.current
     const tf = SCAN_TIMEFRAMES.find(t => t.key === timeframe) ?? SCAN_TIMEFRAMES[1]
     setScanning(true)
     setDone(0)
-    setRows(SUPPORTED_IDS.map(id => ({ assetId: id, setups: [], signal: null, rsi14: null, vsSma50Pct: null, status: 'loading' as ScanStatus })))
+    const sweep = scanUniverseRef.current
+    setRows(sweep.map(id => ({ assetId: id, setups: [], signal: null, rsi14: null, vsSma50Pct: null, status: 'loading' as ScanStatus })))
 
-    await runPool(SUPPORTED_IDS, SCAN_CONCURRENCY, async (id) => {
+    await runPool(sweep, SCAN_CONCURRENCY, async (id) => {
       let patch: Partial<ScanRow>
       try {
         const res = await fetch(`/live-data/ohlcv?id=${id}&range=${tf.range}`)
@@ -195,7 +236,15 @@ function ScannerPanel() {
   const failed = rows.filter(r => r.status === 'error').length
 
   const q = search.trim().toLowerCase()
+  // Filters apply to the table immediately, so narrowing feels instant. Coins a
+  // widened filter newly ADMITS have no scan data yet — counted below and
+  // surfaced as a prompt rather than shown as empty rows.
+  const matchedIds = useMemo(() => new Set(scanUniverse), [scanUniverse])
+  const scannedIds = useMemo(() => new Set(rows.map(r => r.assetId)), [rows])
+  const unscannedCount = scanUniverse.filter(id => !scannedIds.has(id)).length
+
   const filtered = rows
+    .filter(r => !filtersActive || matchedIds.has(r.assetId))
     .filter(r => showAll || (activeScan === 'all' ? r.setups.length > 0 : r.setups.some(s => s.key === activeScan)))
     .filter(r => !showAll || activeScan === 'all' || r.setups.some(s => s.key === activeScan))
     .filter(r => signalFilter === 'all' || r.signal?.overall === signalFilter)
@@ -268,6 +317,15 @@ function ScannerPanel() {
         </button>
 
         <button
+          onClick={() => setFiltersOpen(o => !o)}
+          className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
+            filtersActive ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
+          title="Narrow the universe before scanning — fewer coins means a faster scan"
+        >
+          Filters{filtersActive ? ` · ${scanUniverse.length}/${SUPPORTED_IDS.length}` : ''}
+        </button>
+
+        <button
           onClick={() => setAutoRefresh(a => !a)}
           className={clsx('px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors',
             autoRefresh ? 'bg-accent-blue/20 text-accent-blue border-accent-blue/30' : 'text-text-muted border-border hover:text-text-secondary hover:bg-bg-elevated')}
@@ -292,6 +350,93 @@ function ScannerPanel() {
               : null}
         </div>
       </div>
+
+      {filtersOpen && (
+        <div className="rounded-xl border border-border bg-bg-card p-4 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <label className="space-y-1">
+              <span className="block text-[11px] font-medium text-text-secondary">Visible coin range</span>
+              <select
+                value={filters.topN ?? ''}
+                onChange={(e) => setFilters(f => ({ ...f, topN: e.target.value ? Number(e.target.value) : null }))}
+                className="w-full bg-bg-elevated border border-border rounded-lg px-2 py-1.5 text-xs text-text-primary focus:outline-none focus:border-accent-blue/40"
+              >
+                <option value="">All {SUPPORTED_IDS.length}</option>
+                {[10, 25, 50].map(n => <option key={n} value={n}>Top {n} by rank</option>)}
+              </select>
+            </label>
+
+            {([
+              { key: 'marketCap', label: 'Market cap', unit: '$' },
+              { key: 'fdv', label: 'FDV', unit: '$' },
+              { key: 'volume24h', label: 'Volume (24h)', unit: '$' },
+              { key: 'priceChange24h', label: 'Price change (24h)', unit: '%' },
+            ] as const).map(({ key, label, unit }) => (
+              <div key={key} className="space-y-1">
+                <span className="block text-[11px] font-medium text-text-secondary">{label}</span>
+                <div className="flex items-center gap-1.5">
+                  {(['min', 'max'] as const).map(bound => (
+                    <div key={bound} className="relative flex-1">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={filters[key]?.[bound] ?? ''}
+                        onChange={(e) => setFilters(f => ({
+                          ...f,
+                          // '' clears the bound back to unset — NOT to 0, which
+                          // would silently become a real constraint.
+                          [key]: { ...f[key], [bound]: e.target.value === '' ? null : Number(e.target.value) },
+                        }))}
+                        placeholder={bound === 'min' ? 'Min' : 'Max'}
+                        aria-label={`${label} ${bound}`}
+                        className="w-full rounded-lg border border-border bg-bg-elevated px-2 py-1.5 pr-6 text-xs text-text-primary placeholder:text-text-muted/60 focus:border-accent-blue/40 focus:outline-none"
+                      />
+                      <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-text-muted">{unit}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3 text-[11px]">
+            <button
+              onClick={() => setFilters({})}
+              className="rounded-lg border border-border px-2.5 py-1 font-medium text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary"
+            >
+              Reset
+            </button>
+            <span className="text-text-secondary">
+              <strong className="text-text-primary">{scanUniverse.length}</strong> of {SUPPORTED_IDS.length} coins match
+            </span>
+            {/* Never folded into the excluded count: nobody ran the test on these. */}
+            {filterResult.unknown.length > 0 && (
+              <span className="text-amber-400">
+                {filterResult.unknown.length} not tested — no market data loaded for them
+              </span>
+            )}
+            {unscannedCount > 0 && !scanning && (
+              <button onClick={() => runScan()} className="text-accent-blue underline underline-offset-2">
+                {unscannedCount} newly included — rescan to include them
+              </button>
+            )}
+          </div>
+
+          {/* Present-and-inert controls would tell a user they narrowed the set
+              when they had not, so the ones we cannot support are named with the
+              reason instead of rendered dead. */}
+          <p className="text-[10px] leading-relaxed text-text-muted">
+            Not offered here, and why:{' '}
+            {UNSUPPORTED_FILTERS.map((f, i) => (
+              <span key={f.label}>
+                {i > 0 && ' · '}<strong className="text-text-secondary">{f.label}</strong> — {f.needs}
+              </span>
+            ))}
+            . This scanner sweeps a curated {SUPPORTED_IDS.length}-coin universe rather than the whole market,
+            so those filters would have little to sift even with the data.
+          </p>
+        </div>
+      )}
 
       {/* Progress bar */}
       {scanning && (
