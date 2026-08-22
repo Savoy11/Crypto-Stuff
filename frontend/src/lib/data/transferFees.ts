@@ -346,6 +346,15 @@ export interface NetworkConfig {
   note?: string
   /** True when this row's fee was overlaid from a live exchange API this session. */
   liveFee?: boolean
+  /**
+   * True when `withdrawEnabled` on this row came from a live exchange API.
+   *
+   * Separate from `liveFee` on purpose: an adapter can report a fee without
+   * reporting availability (Bitfinex's fee map has no status field at all), so
+   * "we know the price" and "we know the door is open" are different claims.
+   * Absent ⇒ the flag is the 2025-06-01 snapshot's ASSUMPTION, not a check.
+   */
+  liveAvailability?: boolean
 }
 
 // ─── Live withdrawal-fee overlay (S3 Tier-1) ──────────────────────────────────
@@ -360,7 +369,12 @@ export interface NetworkConfig {
 //      and static rows keep the staleness warning. The two are never blended
 //      silently.
 export interface LiveFeeOverride {
-  withdrawFee: number
+  /**
+   * Optional: a source can report a STATUS without a usable fee. When absent the
+   * stored fee stands and keeps its stored labelling — a live suspension must
+   * not silently promote a 2025 fee to "live".
+   */
+  withdrawFee?: number
   minWithdraw?: number
   withdrawEnabled?: boolean
 }
@@ -1809,6 +1823,13 @@ export interface TransferHop {
   note?: string
   /** True when the withdrawal fee on this hop came from a live exchange API. */
   feeLive?: boolean
+  /**
+   * True when this hop's withdrawal STATUS was live-reported. Separate from
+   * `feeLive`: coverage is per (exchange, coin, network) row, so an exchange
+   * can be a live source while this specific route's status was never reported
+   * — claiming otherwise presents a stored "open" as a checked one.
+   */
+  availabilityLive?: boolean
 }
 
 export interface TransferPath {
@@ -1825,6 +1846,13 @@ export interface TransferPath {
   warnings: TransferWarning[]
   isViable: boolean
   isRecommended: boolean
+  /**
+   * Why a non-viable path is blocked. `isViable: false` used to mean exactly
+   * one thing (amount below the exchange minimum), so the UI hard-coded that
+   * label; a suspended withdrawal is a second, materially different reason and
+   * must not be reported as "amount too low".
+   */
+  blockedReason?: 'below-minimum' | 'withdrawals-suspended'
 }
 
 export interface NetworkFeeEntry {
@@ -1906,7 +1934,14 @@ export function findTransferPaths(
   amount: number,
   networkFees: NetworkFeeMap,
   coinPrices: CoinPriceMap,
-  liveOverrides?: LiveFeeOverrideMap
+  liveOverrides?: LiveFeeOverrideMap,
+  /**
+   * When the live overlay was fetched, pre-formatted for display. Passed in
+   * rather than read from the clock so this stays a pure function (same
+   * reasoning as the injectable `now` on the provenance helpers). Only used to
+   * timestamp a live suspension claim, which a user may act on directly.
+   */
+  liveAsOf?: string
 ): TransferPath[] {
   if (fromId === toId) return []
 
@@ -1976,15 +2011,19 @@ export function findTransferPaths(
     ? {
         networks: rawFromCoin.networks.map(n => {
           const o = coinOverrides[n.networkId]
-          return o
-            ? {
-                ...n,
-                withdrawFee: o.withdrawFee,
-                minWithdraw: o.minWithdraw ?? n.minWithdraw,
-                withdrawEnabled: o.withdrawEnabled ?? n.withdrawEnabled,
-                liveFee: true,
-              }
-            : n
+          if (!o) return n
+          // The two halves overlay independently: a source may report a fee, a
+          // status, or both, and each carries its own "live" label. Coupling
+          // them would either promote a stored fee to live off the back of a
+          // status, or discard a known status because the fee was unparseable.
+          return {
+            ...n,
+            withdrawFee: o.withdrawFee ?? n.withdrawFee,
+            minWithdraw: o.minWithdraw ?? n.minWithdraw,
+            withdrawEnabled: o.withdrawEnabled ?? n.withdrawEnabled,
+            liveFee: o.withdrawFee !== undefined ? true : n.liveFee,
+            liveAvailability: o.withdrawEnabled !== undefined ? true : n.liveAvailability,
+          }
         }),
       }
     : rawFromCoin
@@ -1998,6 +2037,14 @@ export function findTransferPaths(
     return [{ id: 'no-dest', type: 'no-path', networkId: null, hops: [], exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0, estimatedTime: 'N/A', warnings: [{ type: 'danger', title: 'Not supported at destination', message: `${toEx.name} does not support ${coinId.toUpperCase()} deposits.` }], isViable: false, isRecommended: false }]
   }
 
+  // ⚠ KNOWN GAP (the mirror of the withdrawal-suspension work below): a closed
+  // DEPOSIT silently removes the route here, and no live source reports deposit
+  // status, so all 543 catalogued rows assert depositEnabled: true from the
+  // stored snapshot. A suspended deposit strands funds just as a suspended
+  // withdrawal does — the coin leaves the source and the destination will not
+  // credit it. Closing this needs a deposit-status source; until then the
+  // page-level notice covers availability generally rather than implying only
+  // withdrawals are uncertain.
   const depositNetworkIds = toEx
     ? new Set(toCoin!.networks.filter(n => n.depositEnabled).map(n => n.networkId))
     : null
@@ -2005,11 +2052,38 @@ export function findTransferPaths(
   const paths: TransferPath[] = []
 
   for (const wNet of fromCoin.networks) {
-    if (!wNet.withdrawEnabled) continue
     if (depositNetworkIds && !depositNetworkIds.has(wNet.networkId)) continue
 
     const nFee = networkFees[wNet.networkId]
     if (!nFee) continue
+
+    // A closed withdrawal used to `continue` here, so the route simply vanished
+    // from the list — the user saw fewer options and no reason why, which is
+    // worse than knowing. Surface it as a blocked route instead, and say who
+    // says so: a live API report is a fact with a timestamp, while the static
+    // table's flag is a 2025-06-01 assumption.
+    if (!wNet.withdrawEnabled) {
+      const netName = NETWORKS[wNet.networkId].shortName
+      paths.push({
+        id: `suspended-${wNet.networkId}`,
+        type: 'direct',
+        networkId: wNet.networkId,
+        hops: [],
+        exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0,
+        estimatedTime: 'N/A',
+        warnings: [{
+          type: 'danger',
+          title: 'Withdrawals suspended',
+          message: wNet.liveAvailability
+            ? `${fromEx.name} reports ${coinId.toUpperCase()} withdrawals on ${netName} as suspended in its public API${liveAsOf ? ` (checked ${liveAsOf})` : ''}. Suspensions are usually temporary — check the exchange's status page before planning around this.`
+            : `The withdrawal-fee table records ${coinId.toUpperCase()} withdrawals on ${netName} at ${fromEx.name} as disabled — a stored value from ${TRANSFER_FEES_LAST_VERIFIED}, not a live check. Confirm on the exchange.`,
+        }],
+        isViable: false,
+        isRecommended: false,
+        blockedReason: 'withdrawals-suspended',
+      })
+      continue
+    }
 
     const network = NETWORKS[wNet.networkId]
     const exchangeFeeUsd = wNet.withdrawFee * coinPriceUsd
@@ -2031,18 +2105,23 @@ export function findTransferPaths(
         exchangeFee: wNet.withdrawFee, exchangeFeeUsd,
         networkFee: nFee.feeNative, networkFeeUsd: nFee.feeUsd,
         nativeGasToken: nFee.nativeToken, gasCoveredByFee: true, note: wNet.note,
-        feeLive: wNet.liveFee,
+        feeLive: wNet.liveFee, availabilityLive: wNet.liveAvailability,
       }],
       exchangeFeeCoin: wNet.withdrawFee, exchangeFeeUsd, networkFeeUsd,
       totalFeeUsd, feePercent,
       estimatedTime: network.estimatedTime,
       warnings: buildWarnings(wNet.networkId, amount, wNet.minWithdraw, coinId, totalFeeUsd, amountUsd, fromEx.name, wNet.note),
       isViable, isRecommended: false,
+      ...(isViable ? {} : { blockedReason: 'below-minimum' as const }),
     })
   }
 
-  // No shared network → multi-hop via wallet
-  if (paths.length === 0 && toEx) {
+  // No shared network → multi-hop via wallet.
+  // Suspended routes are pushed above but must NOT count as "we found a route",
+  // or a closed direct network would suppress the wallet alternative — which is
+  // exactly the case where the user most needs it.
+  const hasDirectRoute = paths.some(p => p.blockedReason !== 'withdrawals-suspended')
+  if (!hasDirectRoute && toEx) {
     // Prefer a network both legs support so no bridge/swap is implied
     const sharedNet = fromCoin.networks.find(n =>
       n.withdrawEnabled && networkFees[n.networkId] &&
@@ -2066,7 +2145,7 @@ export function findTransferPaths(
         type: 'multi-hop',
         networkId: srcNet.networkId,
         hops: [
-          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken, gasCoveredByFee: true, feeLive: srcNet.liveFee },
+          { step: 1, from: fromEx.name, to: 'Personal Wallet', networkId: srcNet.networkId, exchangeFee: srcNet.withdrawFee, exchangeFeeUsd, networkFee: 0, networkFeeUsd: 0, nativeGasToken: NETWORKS[srcNet.networkId].nativeToken, gasCoveredByFee: true, feeLive: srcNet.liveFee, availabilityLive: srcNet.liveAvailability },
           { step: 2, from: 'Personal Wallet', to: toEx.name, networkId: dstNet.networkId, exchangeFee: 0, exchangeFeeUsd: 0, networkFee: dstNFee.feeNative, networkFeeUsd: dstNFee.feeUsd, nativeGasToken: dstNFee.nativeToken, gasCoveredByFee: false },
         ],
         exchangeFeeCoin: srcNet.withdrawFee, exchangeFeeUsd, networkFeeUsd, totalFeeUsd,
@@ -2078,9 +2157,23 @@ export function findTransferPaths(
         ],
         isViable: amount >= srcNet.minWithdraw,
         isRecommended: false,
+        ...(amount >= srcNet.minWithdraw ? {} : { blockedReason: 'below-minimum' as const }),
       })
     } else {
-      paths.push({ id: 'no-path', type: 'no-path', networkId: null, hops: [], exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0, estimatedTime: 'N/A', warnings: [{ type: 'danger', title: 'No transfer path found', message: `No compatible network found between ${fromEx.name} and ${toEx.name} for ${coinId.toUpperCase()}.` }], isViable: false, isRecommended: false })
+      // State the real cause. When every candidate network is SUSPENDED the
+      // networks are perfectly compatible — saying otherwise sends the user
+      // hunting for a different exchange when they should be waiting out a
+      // temporary halt (or checking the status page).
+      const suspendedCount = paths.filter(p => p.blockedReason === 'withdrawals-suspended').length
+      paths.push({
+        id: 'no-path', type: 'no-path', networkId: null, hops: [],
+        exchangeFeeCoin: 0, exchangeFeeUsd: 0, networkFeeUsd: 0, totalFeeUsd: 0, feePercent: 0,
+        estimatedTime: 'N/A',
+        warnings: [suspendedCount > 0
+          ? { type: 'danger' as const, title: 'No route available — withdrawals suspended', message: `${fromEx.name} and ${toEx.name} do share a network for ${coinId.toUpperCase()}, but every route out of ${fromEx.name} is currently reported as suspended. This is usually temporary — check ${fromEx.name}'s status page rather than switching exchanges.` }
+          : { type: 'danger' as const, title: 'No transfer path found', message: `No compatible network found between ${fromEx.name} and ${toEx.name} for ${coinId.toUpperCase()}.` }],
+        isViable: false, isRecommended: false,
+      })
     }
   }
 

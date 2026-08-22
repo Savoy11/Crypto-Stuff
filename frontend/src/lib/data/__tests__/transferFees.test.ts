@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   EXCHANGES, NETWORKS, EVM_NETWORKS, COIN_INFO,
-  findTransferPaths, PERSONAL_WALLET_ID,
-  type NetworkId, type NetworkFeeMap, type CoinPriceMap,
+  findTransferPaths, PERSONAL_WALLET_ID, TRANSFER_FEES_LAST_VERIFIED,
+  type NetworkId, type NetworkFeeMap, type CoinPriceMap, type LiveFeeOverrideMap,
 } from '../transferFees'
 
 // A fee map covering every network (all 'estimate') so path-finding isn't
@@ -138,5 +138,80 @@ describe('findTransferPaths', () => {
         expect(hopSum, `${from}→${to} ${p.id}`).toBeCloseTo(p.totalFeeUsd, 9)
       }
     }
+  })
+})
+
+// A withdrawal the exchange has closed is the one stale value that can strand
+// funds rather than merely misprice them, so these guard how it is reported.
+describe('findTransferPaths — withdrawal suspensions', () => {
+  /** Suspend every network the source lists for a coin, as a live report would. */
+  function suspendAll(exchangeId: string, coin: 'usdt'): LiveFeeOverrideMap {
+    const ex = EXCHANGES.find(e => e.id === exchangeId)!
+    const byNet: Record<string, { withdrawFee: number; withdrawEnabled: boolean }> = {}
+    for (const n of ex.coins[coin]!.networks) {
+      byNet[n.networkId] = { withdrawFee: n.withdrawFee, withdrawEnabled: false }
+    }
+    return { [exchangeId]: { [coin]: byNet } } as LiveFeeOverrideMap
+  }
+
+  it('still searches for a wallet alternative when every direct network is suspended', () => {
+    const paths = findTransferPaths(
+      'binance', 'coinbase', 'usdt', 1000, ALL_FEES, PRICES, suspendAll('binance', 'usdt'),
+    )
+    // Every direct route is reported blocked...
+    const suspended = paths.filter(p => p.blockedReason === 'withdrawals-suspended')
+    expect(suspended.length).toBeGreaterThan(0)
+    // ...and the fallback still ran rather than being suppressed by them. Before
+    // suspensions were pushed as paths, `paths.length === 0` gated this branch;
+    // counting a blocked route as "found a route" would silently hide the
+    // alternative in exactly the case the user most needs it.
+    expect(paths.some(p => p.blockedReason !== 'withdrawals-suspended')).toBe(true)
+  })
+
+  it('never recommends or prices a suspended route', () => {
+    const paths = findTransferPaths(
+      'binance', 'coinbase', 'usdt', 1000, ALL_FEES, PRICES, suspendAll('binance', 'usdt'),
+    )
+    for (const p of paths.filter(p => p.blockedReason === 'withdrawals-suspended')) {
+      expect(p.isViable).toBe(false)
+      expect(p.isRecommended).toBe(false)
+      expect(p.totalFeeUsd).toBe(0)
+      expect(p.hops).toEqual([])
+    }
+  })
+
+  it('a live fee carrying no status flag blocks nothing', () => {
+    // An adapter can report a price while saying nothing about availability
+    // (Bitfinex's fee map has no status field). That must not be read as a
+    // suspension — absent is unknown, not closed.
+    const overrides = { binance: { usdt: { trc20: { withdrawFee: 1 } } } } as LiveFeeOverrideMap
+    const paths = findTransferPaths('binance', 'coinbase', 'usdt', 1000, ALL_FEES, PRICES, overrides)
+    expect(paths.some(p => p.blockedReason === 'withdrawals-suspended')).toBe(false)
+    const trc = paths.find(p => p.networkId === 'trc20')
+    expect(trc?.isViable).toBe(true)
+  })
+
+  it('a live suspension is attributed to the exchange, never to the stored table', () => {
+    const overrides = {
+      binance: { usdt: { trc20: { withdrawFee: 1, withdrawEnabled: false } } },
+    } as LiveFeeOverrideMap
+    const paths = findTransferPaths('binance', 'coinbase', 'usdt', 1000, ALL_FEES, PRICES, overrides, '3:04 PM')
+    const msg = paths.find(p => p.blockedReason === 'withdrawals-suspended')!
+      .warnings.find(w => w.title === 'Withdrawals suspended')!.message
+    expect(msg).toContain('public API')
+    expect(msg).toContain('3:04 PM')
+    // must NOT blame the stored snapshot for something an exchange reported live
+    expect(msg).not.toContain(TRANSFER_FEES_LAST_VERIFIED)
+  })
+
+  // The other branch of that message — "the stored table records this as
+  // disabled" — is unreachable while every catalogued row is enabled. This
+  // guard documents that, and fires the day a refresh writes the first
+  // disabled row, which is when that copy starts rendering to users.
+  it('every catalogued row is withdrawEnabled: true (stored-suspension copy is unreachable)', () => {
+    const disabled = EXCHANGES.flatMap(ex =>
+      Object.entries(ex.coins).flatMap(([coinId, coin]) =>
+        coin!.networks.filter(n => !n.withdrawEnabled).map(n => `${ex.id}/${coinId}/${n.networkId}`)))
+    expect(disabled).toEqual([])
   })
 })

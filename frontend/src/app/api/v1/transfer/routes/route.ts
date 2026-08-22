@@ -5,6 +5,8 @@ import {
   type CoinId,
 } from '@/lib/data/transferFees'
 import { computeNetworkFees, FALLBACK_PRICES_AS_OF } from '@/lib/data/networkFees'
+import { fetchLiveFeeOverlay, OVERLAY_EXCHANGE_IDS } from '@/lib/server/withdrawFeeOverlay'
+import { TRANSFER_FEES_LAST_VERIFIED } from '@/lib/data/transferFees'
 
 export const dynamic = 'force-dynamic'
 export { options as OPTIONS }
@@ -37,7 +39,27 @@ export async function GET(req: NextRequest) {
   if (!Object.keys(COIN_INFO).includes(coin)) return NextResponse.json({ error: `Unknown coin: "${coin}". Supported: ${Object.keys(COIN_INFO).join(', ')}` }, { status: 400, headers: CORS })
   if (from === to) return NextResponse.json({ error: 'from and to must be different.' }, { status: 400, headers: CORS })
 
-  const { fees: networkFees, prices: coinPrices, priceSource } = await computeNetworkFees()
+  // Independent fetches → allSettled. The live overlay must never be able to
+  // fail the route: without it the response is the static table, exactly as
+  // before, and `liveOverlay` below reports that honestly.
+  const [feesSettled, overlaySettled] = await Promise.allSettled([
+    computeNetworkFees(),
+    fetchLiveFeeOverlay(),
+  ])
+  if (feesSettled.status === 'rejected') {
+    return NextResponse.json({ error: 'Network fee data unavailable.' }, { status: 503, headers: CORS })
+  }
+  const { fees: networkFees, prices: coinPrices, priceSource } = feesSettled.value
+  const overlay = overlaySettled.status === 'fulfilled' ? overlaySettled.value : null
+  const liveExchangeIds = (overlay?.sources ?? []).filter(s => s.status === 'live').map(s => s.exchangeId)
+  // Deliberately NOT overlay.availabilityExchangeIds: that is exchange-level,
+  // and status coverage is per row. The disclosure below is scoped to the routes
+  // this response actually returns, computed after the paths are built.
+  // `liveAsOf` is embedded in a human-readable warning sentence, so it must be
+  // a display string, not a raw ISO timestamp.
+  const liveAsOfDisplay = overlay?.updatedAt
+    ? `${new Date(overlay.updatedAt).toISOString().slice(11, 16)} UTC`
+    : undefined
   const coinInfo    = COIN_INFO[coin]
   const transferAmount = amount > 0 ? amount : coinInfo.defaultAmount
 
@@ -49,10 +71,17 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `No price available for ${coin}.` }, { status: 500, headers: CORS })
   }
 
-  const paths = findTransferPaths(from, to, coin, transferAmount, networkFees, coinPrices)
+  const paths = findTransferPaths(
+    from, to, coin, transferAmount, networkFees, coinPrices,
+    overlay?.ok ? overlay.overrides : undefined,
+    liveAsOfDisplay,
+  )
 
   const routes = paths.map(p => ({
     viable:          p.isViable,
+    // Why a blocked route is blocked. 'withdrawals-suspended' is reported by an
+    // exchange's live API; 'below-minimum' is arithmetic on the amount asked for.
+    blockedReason:   p.blockedReason ?? null,
     recommended:     p.isRecommended ?? false,
     network:         p.networkId ?? null,
     totalFeeUsd:     p.totalFeeUsd,
@@ -70,6 +99,14 @@ export async function GET(req: NextRequest) {
       nativeToken:   h.nativeGasToken,
       networkName:   h.networkId ? (NETWORKS[h.networkId]?.name ?? h.networkId) : null,
       note:          h.note ?? null,
+      // True when this hop's withdrawal fee came from the exchange's live API
+      // rather than the hand-maintained table. Consumers should not present a
+      // static fee with the same confidence as a live one.
+      feeLive:       h.feeLive ?? false,
+      // Whether THIS route's withdrawal status was live-reported. Coverage is
+      // per (exchange, coin, network) row, so an exchange-level claim would
+      // present a stored "open" as a checked one.
+      availabilityLive: h.availabilityLive ?? false,
     })),
     warnings: p.warnings.map(w => ({
       severity: w.type,
@@ -77,6 +114,11 @@ export async function GET(req: NextRequest) {
       message:  w.message,
     })),
   }))
+
+  // Networks whose status was live-reported in THIS response.
+  const routesWithLiveStatus = [...new Set(
+    paths.flatMap(p => p.hops.filter(h => h.availabilityLive).map(h => h.networkId)),
+  )]
 
   const viable   = routes.filter(r => r.viable)
   const blocked  = routes.filter(r => !r.viable)
@@ -96,6 +138,24 @@ export async function GET(req: NextRequest) {
       cheapestFeePercent: best?.feePercent ?? null,
     },
     routes,
+    // Which exchanges' fees/availability in this response are live vs stored.
+    liveOverlay: {
+      liveExchanges: liveExchangeIds,
+      candidateExchanges: OVERLAY_EXCHANGE_IDS,
+      rowsApplied: overlay?.applied ?? 0,
+      asOf: overlay?.updatedAt ?? null,
+    },
+    // The most dangerous assumption this endpoint makes, stated rather than
+    // implied: a route being listed does NOT mean the withdrawal is open. Only
+    // `checkedFor` below had availability checked — that is narrower than
+    // liveOverlay.liveExchanges, since a source can report a fee and no status.
+    // Every other route's open/closed flag is the stored snapshot's assumption.
+    withdrawalAvailability: {
+      // Per-ROUTE, because that is the granularity at which we actually know.
+      checkedForNetworks: routesWithLiveStatus,
+      assumedOpenFrom: TRANSFER_FEES_LAST_VERIFIED,
+      note: `Withdrawal status was live-reported for ${routesWithLiveStatus.length ? `these networks only: ${routesWithLiveStatus.join(', ')}` : 'none of the routes in this response'} (see each hop's availabilityLive). For every other route the open/closed state is a stored value from ${TRANSFER_FEES_LAST_VERIFIED}, not a current check — exchanges suspend withdrawals on a network without notice, and coverage is per coin and network, not per exchange. A route appearing here is NOT a confirmation that the withdrawal will go through; do not tell a user a transfer will succeed on the strength of this response.`,
+    },
     priceSource,
     // Every USD figure above is derived from `priceSource`. On 'fallback' the
     // coin prices are stale constants, so amountUsd/feeUsd/feePercent are

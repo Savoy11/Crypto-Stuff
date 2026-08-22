@@ -22,6 +22,10 @@ import {
   type CoinId, type TransferPath, type TransferWarning,
   type NetworkFeeMap, type CoinPriceMap, type LiveFeeOverrideMap,
 } from '@/lib/data/transferFees'
+import {
+  getTransferTaxNotes, getTaxGuidanceProvenance,
+  type TaxNote, type TaxConfidence,
+} from '@/lib/data/taxCharacter'
 import type { NetworkFeesResponse } from '@/app/live-data/network-fees/route'
 import type { WithdrawFeesResponse } from '@/app/live-data/withdraw-fees/route'
 import type { CoinListResponse, CoinListEntry } from '@/lib/types/coinList'
@@ -149,6 +153,14 @@ function HopRow({ hop, coinId, coinPrices }: {
               ? <span className="text-emerald-500/80"> · covered by fee</span>
               : <span className="text-amber-400/80"> · paid from wallet</span>}
           </p>
+          {/* Status coverage is per (exchange, coin, network) row, so it is
+              stated on the row. Only the positive case is shown, and only when
+              the exchange actually reported it — silence means assumed. */}
+          {hop.availabilityLive && (
+            <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-emerald-400">
+              withdrawal open · reported live
+            </p>
+          )}
         </div>
         <div>
           <p className="text-slate-500 mb-0.5">Deposit fee</p>
@@ -167,6 +179,99 @@ function HopRow({ hop, coinId, coinPrices }: {
           Address: <span style={{ color: network.color }}>{network.addressFormat === '0x' ? '0x…' : network.addressFormat === 'tron' ? 'T…' : network.addressFormat === 'base58_sol' ? 'base58' : 'bc1…'}</span>
         </span>
       </div>
+    </div>
+  )
+}
+
+
+// ─── Tax character panel ───────────────────────────────────────────────────────
+//
+// Part 1 of the tax work: it says what KIND of event each leg is, with the
+// authority named, and computes nothing. The reassuring settled fact (a
+// self-transfer is not a disposition) leads; the uncertain one is visibly
+// labelled so it cannot be read as equally solid.
+
+const TAX_CONFIDENCE_STYLE: Record<TaxConfidence, { label: string; cls: string }> = {
+  settled:            { label: 'settled law',      cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' },
+  'recently-changed': { label: 'changed recently', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/25' },
+  uncertain:          { label: 'unsettled',        cls: 'bg-orange-500/10 text-orange-400 border-orange-500/25' },
+}
+
+const TAX_CHARACTER_STYLE: Record<TaxNote['character'], { label: string; cls: string }> = {
+  'not-taxable':         { label: 'Not taxable',    cls: 'text-emerald-400' },
+  'taxable-disposition': { label: 'Taxable event',  cls: 'text-amber-300' },
+  'basis-adjustment':    { label: 'Affects gain',   cls: 'text-blue-300' },
+  'record-keeping':      { label: 'Record-keeping', cls: 'text-slate-300' },
+}
+
+function TaxCharacterPanel({ notes }: { notes: TaxNote[] }) {
+  const [open, setOpen] = useState(false)
+  const prov = getTaxGuidanceProvenance()
+  const hasDisposition = notes.some(n => n.character === 'taxable-disposition')
+
+  return (
+    <div className="rounded-lg border border-border bg-bg-card overflow-hidden">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="w-full text-left px-3 py-2.5 flex items-center gap-2"
+      >
+        <Info size={13} className="shrink-0 text-accent-blue" />
+        <span className="text-xs font-medium text-text-secondary flex-1 min-w-0">
+          US federal tax character of this route
+          {/* Tracks the note set, not notes[0]. The reassuring line must not
+              stay on screen once the route contains a sale — collapsed, it
+              would be the only tax statement the user reads. */}
+          {hasDisposition ? (
+            <span className="ml-2 text-[11px] font-normal text-amber-300">
+              the move isn&rsquo;t taxable — the sale is
+            </span>
+          ) : (
+            <span className="ml-2 text-[11px] font-normal text-emerald-400">
+              the transfer itself is not a taxable event
+            </span>
+          )}
+        </span>
+        <span className="text-[10px] text-text-muted">{notes.length} point{notes.length === 1 ? '' : 's'}</span>
+        {open ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+      </button>
+
+      {open && (
+        <div className="px-3 pb-3 pt-1 space-y-2 border-t border-border">
+          {notes.map(n => {
+            const c = TAX_CHARACTER_STYLE[n.character]
+            const conf = TAX_CONFIDENCE_STYLE[n.confidence]
+            return (
+              <div key={n.id} className="rounded-md bg-bg-elevated border border-border/60 px-3 py-2.5">
+                <div className="flex items-start gap-2 flex-wrap">
+                  <span className={clsx('text-[10px] font-bold uppercase tracking-wide', c.cls)}>{c.label}</span>
+                  <span className={clsx('rounded px-1.5 py-px text-[9px] font-semibold uppercase tracking-wide border', conf.cls)}>
+                    {conf.label}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs font-medium text-text-primary">{n.title}</p>
+                <p className="mt-1 text-[11px] text-text-muted leading-relaxed">{n.detail}</p>
+                <p className="mt-1.5 text-[10px] text-slate-600">{n.authority}</p>
+              </div>
+            )
+          })}
+
+          {prov.review === 'seeded' && (
+            <p className="text-[10px] text-amber-400/90 leading-relaxed">
+              <strong className="font-semibold">Not yet checked against the primary documents.</strong>{' '}
+              These notes were written from the regulations and IRS guidance as reproduced in
+              research, not read in the original — the same seeded-vs-verified distinction this
+              app applies to its data sources. Treat them as a starting point for a conversation
+              with a preparer, not as a citation.
+            </p>
+          )}
+          <p className="text-[10px] text-text-muted leading-relaxed">
+            {prov.scope} Compiled {prov.compiledAt}
+            {prov.stale && <span className="text-amber-400"> · {prov.ageDays} days old — tax rules may have changed since</span>}
+            . This describes how the Code treats these transaction types; it cannot know your lots,
+            basis, residency or filing position. Check anything material with a preparer.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
@@ -220,8 +325,18 @@ function PathCard({ path, coinId, amount, coinPrices }: {
               Alternative
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-700 border border-slate-600 text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-              Not viable
+            // A suspended withdrawal and an amount below the minimum are both
+            // "not viable", but only one of them is about the user's input. A
+            // shared grey label buried the distinction behind an accordion.
+            <span className={clsx(
+              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide',
+              path.blockedReason === 'withdrawals-suspended'
+                ? 'bg-red-500/15 border border-red-500/30 text-red-400'
+                : 'bg-slate-700 border border-slate-600 text-slate-400',
+            )}>
+              {path.blockedReason === 'withdrawals-suspended'
+                ? 'Withdrawals suspended'
+                : path.blockedReason === 'below-minimum' ? 'Amount too low' : 'Not viable'}
             </span>
           )}
         </div>
@@ -458,6 +573,17 @@ function TransferFeesPageInner() {
   const liveExchangeIds = (liveFeesData?.sources ?? [])
     .filter(s => s.status === 'live')
     .map(s => s.exchangeId)
+  // NOTE: deliberately NOT derived from availabilityExchangeIds. Status coverage
+  // is per (exchange, coin, network) row — an exchange can be a live source
+  // while this particular route's status was never reported (HTX quotes some
+  // chains on a ratio basis; a chain name may not map). Naming the exchange
+  // would tell the user their route was checked when it was not, on the one
+  // dimension where a stored value is dangerous. So the claim is made on the
+  // rows actually on screen, and computed below once segmentPaths exists.
+  // Formatted here (not in the engine) so findTransferPaths stays clock-free.
+  const liveAsOf = liveFeesData?.updatedAt
+    ? new Date(liveFeesData.updatedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : undefined
 
   const [coinListData, setCoinListData] = useState<CoinListResponse | null>(null)
   const [coinListLoading, setCoinListLoading] = useState(true)
@@ -471,6 +597,18 @@ function TransferFeesPageInner() {
   }, [])
 
   const networkFees = useMemo<NetworkFeeMap>(() => data?.networkFees ?? STATIC_FEES, [data])
+  // Derived, never hardcoded: the previous copy said "BTC live · other gas
+  // estimated" and silently became wrong the moment a second live provider was
+  // registered. Counting the actual per-network `source` keeps it true.
+  const liveGasNetworks = useMemo(
+    () => (Object.entries(networkFees) as [string, NetworkFeeMap[keyof NetworkFeeMap]][])
+      .filter(([, f]) => f?.source === 'live')
+      .map(([id]) => NETWORKS[id as keyof typeof NETWORKS]?.shortName ?? id),
+    [networkFees],
+  )
+  const gasSourceLabel = liveGasNetworks.length > 0
+    ? `${liveGasNetworks.join(', ')} gas live · other networks estimated`
+    : 'all gas estimated'
   const coinPrices  = useMemo<CoinPriceMap>(() => data?.coinPrices  ?? STATIC_PRICES, [data])
 
   // Determine if selected coin has fee data in our database
@@ -490,9 +628,9 @@ function TransferFeesPageInner() {
     return stops.slice(0, -1).map((from, i) => {
       const to = stops[i + 1]
       if (from === to) return []
-      return findTransferPaths(from, to, coinId as CoinId, numAmount, networkFees, coinPrices, liveOverrides)
+      return findTransferPaths(from, to, coinId as CoinId, numAmount, networkFees, coinPrices, liveOverrides, liveAsOf)
     })
-  }, [isSupportedCoin, stops, coinId, numAmount, networkFees, coinPrices, liveOverrides])
+  }, [isSupportedCoin, stops, coinId, numAmount, networkFees, coinPrices, liveOverrides, liveAsOf])
 
   // Cumulative cost: best viable path from each leg. Legs with no viable path
   // contribute nothing — count them so the total isn't presented as complete.
@@ -516,6 +654,30 @@ function TransferFeesPageInner() {
     : null
   const saleFeesUncatalogued = includeSale && fromId !== PERSONAL_WALLET_ID && !SPOT_TRADING_FEES[fromId]
 
+  // Tax CHARACTER of the route the user actually built — what kind of event each
+  // leg is, never a number. Gas paid from the user's own wallet is the only
+  // trigger for the uncertain fee-units note, so it keys off the real hop flag.
+  // Both halves of "a fee is paid in crypto": gas the user signs for, and the
+  // fee a venue withholds out of the coin being sent. The second was previously
+  // missed, which hid the note on exactly the case the IRS names in terms.
+  const paysGasFromWallet = segmentPaths.some(seg =>
+    seg.some(p => p.isViable && p.hops.some(h => !h.gasCoveredByFee && h.networkFee > 0)))
+  const feeWithheldInCoin = segmentPaths.some(seg =>
+    seg.some(p => p.isViable && p.hops.some(h => h.exchangeFee > 0)))
+  // True only when a route ON SCREEN carries a live status report.
+  const routesWithLiveStatus = segmentPaths.some(seg =>
+    seg.some(p => p.hops.some(h => h.availabilityLive)))
+
+  const taxNotes = getTransferTaxNotes({
+    sellingFirst: includeSale,
+    paysGasFromWallet,
+    feeWithheldInCoin,
+    // The calculator does not capture what a sale is settled INTO, and swapping
+    // to a stablecoin is the case people most often assume is untaxed — so the
+    // clarification is shown rather than withheld.
+    saleMayBeIntoCrypto: includeSale,
+  })
+
   // Price: live route price first, then live coin quote, then 1 as a last
   // resort. (Never coinInfo.defaultAmount — that's a transfer quantity.)
   const coinPriceUsd = coinPrices[coinId] ?? liveCoin?.price ?? 1
@@ -538,7 +700,7 @@ function TransferFeesPageInner() {
               subtitle="Find the cheapest route to move crypto between exchanges and wallets"
               description="The Transfer Fee Calculator compares withdrawal costs across 30 exchanges and 18 networks. It accounts for network gas fees, exchange withdrawal minimums, and multi-hop routes (e.g. sending to an intermediate wallet to avoid unsupported direct transfers)."
               details={[
-                { label: 'Live gas prices', text: 'BTC fees use live mempool data. EVM gas is estimated from current CoinGecko ETH price × typical gas units. Other networks use static estimates.' },
+                { label: 'Live gas prices', text: 'Bitcoin uses live mempool sat/vByte; Ethereum, BNB Chain, Polygon and Avalanche use live eth_gasPrice from a public RPC. Both are a live rate multiplied by an assumed transaction size, so the size is still an estimate. Arbitrum, Optimism and Base are deliberately NOT live — their cost is dominated by an L1 data fee that eth_gasPrice does not report, so a live-looking number would understate it. Remaining networks use static gas amounts at live token prices.' },
                 { label: 'Multi-hop routes', text: 'When a direct exchange-to-exchange path is unavailable, the calculator finds the best two-leg route via your personal wallet.' },
                 { label: 'EVM address collision', text: 'Transferring between EVM networks (ETH, Polygon, Arbitrum, etc.) uses the same address — verify the destination network before sending.' },
               ]}
@@ -556,7 +718,7 @@ function TransferFeesPageInner() {
               Refresh fees
             </button>
           )}
-          <DataBadge status="estimate" source="BTC live (mempool.space) · other gas estimated" />
+          <DataBadge status="estimate" source={gasSourceLabel} />
           {dataUpdatedAt && (
             <span className="text-[10px] text-slate-500">
               Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
@@ -772,8 +934,12 @@ function TransferFeesPageInner() {
               {data ? (
                 <>
                   <div className="flex items-center gap-1.5">
-                    <span className={clsx('size-1.5 rounded-full', data.btcFeeSource === 'live' ? 'bg-emerald-400' : 'bg-amber-400')} />
-                    <span>BTC: {data.btcFeeSource === 'live' ? 'live (mempool.space)' : 'estimated'}</span>
+                    <span className={clsx('size-1.5 rounded-full', liveGasNetworks.length > 0 ? 'bg-emerald-400' : 'bg-amber-400')} />
+                    <span>
+                      {liveGasNetworks.length > 0
+                        ? `Live gas: ${liveGasNetworks.join(', ')}`
+                        : 'Gas: all estimated'}
+                    </span>
                   </div>
                   <span className="text-slate-600">·</span>
                   <span>Other networks: estimated (price-adjusted)</span>
@@ -845,6 +1011,36 @@ function TransferFeesPageInner() {
                 </div>
               )}
 
+              {/* Availability is a SEPARATE claim from fee freshness, and this
+                  notice is deliberately NOT gated on staleness: re-verifying the
+                  fee table would not make withdrawal status checked, and a notice
+                  that disappears past a threshold teaches readers to treat its
+                  absence as "live" (the ProvenanceNotice lesson). It is also keyed
+                  on availabilityExchangeIds, not the live-fee sources — a source
+                  can send us a fee while saying nothing about whether the door is
+                  open (Bitfinex), and claiming otherwise advertises a check that
+                  never happened. */}
+              <div className="flex items-start gap-2 rounded-lg border border-border bg-bg-card px-3 py-2 text-xs text-text-muted">
+                <AlertTriangle size={13} className="shrink-0 mt-0.5 text-amber-400/80" />
+                <span>
+                  <strong className="font-semibold text-text-secondary">
+                    Whether a withdrawal is open right now is assumed, not checked
+                  </strong>
+                  {routesWithLiveStatus ? (
+                    <> — except the routes tagged{' '}
+                      <span className="text-emerald-400">withdrawal open · reported live</span>
+                      {liveAsOf ? <> (checked {liveAsOf})</> : null}.</>
+                  ) : (
+                    <> — no route shown here has a live status report.</>
+                  )}
+                  {' '}The same applies to the receiving side: no source reports whether an
+                  exchange is currently accepting <em>deposits</em> on a network. Exchanges
+                  suspend both without notice, so a route listed here is not a guarantee it
+                  will go through — check both exchanges&rsquo; status pages before a large or
+                  time-sensitive transfer.
+                </span>
+              </div>
+
               {/* S3 — all-in sale cost */}
               <div className="rounded-lg border border-border bg-bg-card px-3 py-2.5 space-y-2">
                 <label className="flex items-start gap-2 text-xs text-text-muted">
@@ -895,10 +1091,19 @@ function TransferFeesPageInner() {
                       {saleCost.note ? ` (${saleCost.note})` : ''}, seeded from the published schedule on {TRADING_FEES_COMPILED} —
                       an estimate ({getTradingFeeProvenance().confidence} confidence), not a quote. Volume tiers, token discounts
                       and spread are not modelled; verify on the exchange before trading.
+                      {' '}This all-in figure is an execution cost, not a single tax number — the trading fee
+                      and the transfer fees it adds together are treated differently for tax (see the tax
+                      character panel below).</p>
+                    <p className="text-[10px] text-text-muted leading-relaxed">
                     </p>
                   </div>
                 )}
               </div>
+
+              {/* S3 — tax character (part 1: what KIND of event, never a number).
+                  Collapsed by default: it is reference material, not a per-route
+                  alert, and expanding the accordion is the user asking for it. */}
+              <TaxCharacterPanel notes={taxNotes} />
 
               {/* Multi-leg cumulative summary */}
               {stops.length > 2 && (
@@ -968,7 +1173,18 @@ function TransferFeesPageInner() {
 
                     {nonViable.length > 0 && (
                       <div className="space-y-2">
-                        <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wide">Blocked routes (amount too low)</p>
+                        <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wide">
+                          {(() => {
+                            // "amount too low" was hard-coded when that was the
+                            // only way to be blocked. A suspended withdrawal is
+                            // a second reason and must not wear the first's label.
+                            const low = nonViable.some(p => p.blockedReason === 'below-minimum')
+                            const susp = nonViable.some(p => p.blockedReason === 'withdrawals-suspended')
+                            if (low && susp) return 'Blocked routes (amount too low · withdrawals suspended)'
+                            if (susp) return 'Blocked routes (withdrawals suspended)'
+                            return 'Blocked routes (amount too low)'
+                          })()}
+                        </p>
                         {nonViable.map(p => <PathCard key={p.id} path={p} coinId={coinId} amount={numAmount} coinPrices={coinPrices} />)}
                       </div>
                     )}

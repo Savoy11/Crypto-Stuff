@@ -1716,6 +1716,105 @@ of totals that are being corrected means doing the reconciliation twice.
 > per the Bybit precedent, any that 403s on the owner probe gets removed, not
 > worked around. Ceiling reached after this batch: every remaining exchange is
 > authed-only, no-API, or undocumented.
+>
+> **Withdrawal-availability honesty (2026-08-21):** the table asserted
+> `withdrawEnabled: true` on all 543 rows from the 2025-06-01 snapshot, and a
+> closed withdrawal silently `continue`d out of `findTransferPaths` — the route
+> just vanished. A suspended withdrawal is the one stale value that strands
+> funds rather than mispricing them. Now: suspensions render as visible blocked
+> routes carrying `blockedReason`, attributed to whoever said so (live API +
+> timestamp vs stored snapshot + date); the "no compatible network" copy no
+> longer fires when the real cause is suspension; the availability notice is
+> **deliberately not gated on staleness** (re-verifying fees would not make
+> status checked) and is keyed on `availabilityExchangeIds` — strictly narrower
+> than the live-fee sources, since Bitfinex reports a fee and no status.
+> `/api/v1/transfer/routes` shares the overlay via
+> `lib/server/withdrawFeeOverlay.ts` and carries a `withdrawalAvailability`
+> disclosure that the MCP tool relays verbatim, so an agent cannot tell a user a
+> transfer will go through.
+>
+> **Still open — deposit status.** The mirror gap: `depositEnabled` is also
+> all-true from the snapshot, a closed deposit still silently removes a route,
+> and no keyless source reports deposit status. A suspended deposit strands
+> funds the same way. The page copy covers availability on both sides rather
+> than implying only withdrawals are uncertain; closing it needs a
+> deposit-status source.
+>
+> **Tax character, part 1 (2026-08-21):** `lib/data/taxCharacter.ts` — pure +
+> 14 tests — tags the route the user built with what KIND of event each leg is:
+> a self-transfer is **not** a disposition (basis and holding period carry
+> over), but it does create a per-wallet basis / 1099-DA noncovered-basis
+> record-keeping obligation; selling is a disposition; converting to another
+> coin *including a stablecoin* is too (§1031 unavailable post-TCJA); the page's
+> fees adjust basis/proceeds rather than being a separate deduction. Every note
+> names its authority and carries a confidence tag — `settled` /
+> `recently-changed` (the 2025 per-wallet rule, the 1099-DA phase-in) /
+> `unsettled` (whether paying gas in crypto is itself a micro-disposition —
+> practitioner consensus only). **Computes nothing and asks for nothing**: tests
+> assert no rate, bracket or dollar figure appears in the copy and that no note
+> reads as an instruction to transact. Dated + staleness-windowed (180d) because
+> an Act of Congress can invalidate a note overnight.
+>
+> **Corrected after adversarial + legal review (2026-08-21, same day).** The
+> first cut shipped two wrong claims, both understating tax: (a) it said a
+> **withdrawal** fee reduces a taxable gain — only costs effecting a sale,
+> disposition or acquisition do, and the panel's own first note says a
+> self-transfer is none of those, so it contradicted itself under a "settled
+> law" badge; (b) it stated the not-taxable rule without the IRS's own
+> "used, or are withheld, to pay for transaction services" carve-out, and gated
+> the fee-disposition note on wallet gas alone — hiding it on the ordinary
+> exchange withdrawal fee, the case the IRS names in terms, while showing it on
+> the case it does not. A test pinned that inversion in place. Also corrected:
+> the per-wallet basis rule is imposed by Treas. Reg. §1.1012-1(j); Rev. Proc.
+> 2024-28 is its ELECTIVE transition safe harbor, not the source.
+>
+> The note set is now: not-taxable **with** its carve-out → fee paid in crypto
+> is a disposition of the units spent → those transfer fees are stranded (not
+> netted, not capitalised, not deductible) → record-keeping → sale/crypto-to-
+> crypto/trading-fee notes when selling. The all-in-cost tile now says it is an
+> execution cost, not a single tax number.
+>
+> **`TAX_GUIDANCE_REVIEW = 'seeded'`, surfaced in the UI.** Two of three
+> independent legal reviewers reported every primary host (irs.gov, eCFR,
+> congress.gov, Cornell) blocked from this environment and labelled their own
+> work seeded — one warned that two of its searches returned the **superseded
+> proposed** 50/50 cost-allocation rule as though it were current law. Same
+> doctrine as the source-terms registry: couldn't-read-it is not verification.
+> **Owner action:** read §1.1001-7, §1.1012-1(h) and (j), Rev. Proc. 2024-28 and
+> the current §67 text in the original, then flip to `'verified'`. Two cites to
+> check first: the §1.1001-7(b)(2)(ii) subparagraph letter, and whether OBBBA
+> redesignated §67(g) as §67(h) for 2026 (reviewers disagreed, so no pinpoint
+> subsection is cited in the shipped copy).
+>
+> **Live EVM gas (2026-08-22).** A competitor scan found ChainCost pulling
+> real-time chain gas while we had live fees on 1 of 18 networks. Now 5 of 18:
+> Bitcoin plus the four EVM **L1s** (Ethereum, BNB Chain, Polygon, Avalanche)
+> via keyless `eth_gasPrice` on public RPC, priced at an assumed 65k-gas token
+> transfer — live RATE x assumed SIZE, the same shape as BTC's live sat/vByte x
+> assumed 250 vBytes, and labelled `live` on the same basis.
+>
+> **Arbitrum, Optimism and Base are deliberately excluded.** On OP-stack chains
+> the L1 data fee usually dominates and `eth_gasPrice` reports only L2
+> execution, so a live-looking number would UNDERSTATE the fee — the dangerous
+> direction, since the user underfunds and the withdrawal fails. Arbitrum
+> charges its L1 component through extra gas units, which a fixed limit misses
+> too. Making those live needs the GasPriceOracle predeploy (0x420…0F) and the
+> Fjord size model; until then the honest estimate stands. A test pins the
+> exclusion so a later "completeness" pass cannot quietly add them.
+>
+> The page's live/estimate copy is now DERIVED from the per-network `source`
+> field — it previously hardcoded "BTC live · other gas estimated" and would
+> have silently gone wrong the moment a second provider was registered.
+> **Owner action: `npm run gas-probe`** — the endpoints are egress-blocked from
+> the build environment, so availability is an owner-machine verdict, and the
+> probe prints each live fee beside the static estimate it replaces so an
+> order-of-magnitude error is obvious.
+>
+> **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
+> user-supplied basis/holding period/rate on the TEY pattern (store no bracket
+> table, so nothing goes stale) and is the piece that touches the owner's
+> advice-adjacent caution in the S5 charter: surface the legality question
+> before building it.
 
 **State:** the strongest data asset in the app — 30 exchanges × 22 coins × 18
 networks, hand-maintained with provenance, path-finding (`findTransferPaths`),
