@@ -13,13 +13,6 @@ import 'server-only'
 // Availability is IP-dependent; `npm run fee-probe` is the owner-machine verdict.
 
 import {
-  parseKucoinCurrencies,
-  parseHtxCurrencies,
-  parseBitgetCoins,
-  parsePoloniexCurrencies,
-  parseLbankWithdrawConfigs,
-  parseBitfinexTxFees,
-  parseXtSupportCurrency,
   buildFeeOverrideMap,
   WITHDRAW_FEE_SOURCES,
   type ParsedFeeRow,
