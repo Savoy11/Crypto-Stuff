@@ -31,7 +31,7 @@ export type FilterGroup = 'valuation' | 'momentum' | 'liquidity' | 'supply'
 
 export type Operator = 'gte' | 'lte'
 
-export interface FieldDef {
+export interface FieldDef<T = Asset> {
   key: string
   label: string
   group: FilterGroup
@@ -39,14 +39,14 @@ export interface FieldDef {
   unit: 'usd' | 'percent' | 'ratio' | 'count'
   /** Short line explaining what the number means, shown at the point of choice. */
   hint: string
-  /** Null when the asset lacks the inputs — never a substituted zero. */
-  valueOf: (a: Asset) => number | null
+  /** Null when the row lacks the inputs — never a substituted zero. */
+  valueOf: (a: T) => number | null
 }
 
 const ratio = (num: number | null | undefined, den: number | null | undefined): number | null =>
   num == null || den == null || den === 0 ? null : num / den
 
-export const FILTER_FIELDS: FieldDef[] = [
+export const FILTER_FIELDS: FieldDef<Asset>[] = [
   // ── Valuation ──────────────────────────────────────────────────────────────
   { key: 'price', label: 'Price', group: 'valuation', unit: 'usd',
     hint: 'Last traded price in USD.',
@@ -132,29 +132,43 @@ export interface StackResult<T> {
   missingByField: Record<string, number>
 }
 
-/** Rules that are complete enough to evaluate. */
-export function activeRules(rules: FilterRule[]): FilterRule[] {
-  return rules.filter(r => FIELD_BY_KEY.has(r.field) && Number.isFinite(r.value))
+/** Rules that are complete enough to evaluate, against a given field set. */
+export function activeRules<T>(
+  rules: FilterRule[],
+  fields: Map<string, FieldDef<T>> = FIELD_BY_KEY as unknown as Map<string, FieldDef<T>>,
+): FilterRule[] {
+  return rules.filter(r => fields.has(r.field) && Number.isFinite(r.value))
 }
 
-export function applyFilterStack(assets: Asset[], rules: FilterRule[]): StackResult<Asset> {
-  const active = activeRules(rules)
+/**
+ * The screener engine, generic over the row type so a page with a different
+ * shape (Coin Discovery's candidates carry no FDV or supply figures) reuses the
+ * SAME semantics rather than growing a second, subtly different one. What each
+ * page varies is its field table; unknown-is-not-zero and
+ * definite-failure-beats-missing are decided once, here.
+ */
+export function applyRules<T>(
+  items: T[],
+  rules: FilterRule[],
+  fields: Map<string, FieldDef<T>>,
+): StackResult<T> {
+  const active = activeRules(rules, fields)
   if (active.length === 0) {
-    return { matched: [...assets], excluded: [], untested: [], missingByField: {} }
+    return { matched: [...items], excluded: [], untested: [], missingByField: {} }
   }
 
-  const matched: Asset[] = []
-  const excluded: Asset[] = []
-  const untested: Asset[] = []
+  const matched: T[] = []
+  const excluded: T[] = []
+  const untested: T[] = []
   const missingByField: Record<string, number> = {}
 
-  for (const asset of assets) {
+  for (const item of items) {
     let failed = false
     let missing: string | null = null
 
     for (const rule of active) {
-      const def = FIELD_BY_KEY.get(rule.field)!
-      const value = def.valueOf(asset)
+      const def = fields.get(rule.field)!
+      const value = def.valueOf(item)
       if (value === null || !Number.isFinite(value)) {
         // Record the FIRST field we could not evaluate, so the caption can name
         // a concrete reason rather than a vague "some data missing".
@@ -169,13 +183,68 @@ export function applyFilterStack(assets: Asset[], rules: FilterRule[]): StackRes
 
     // A definite failure beats a missing value: if a coin fails a rule we COULD
     // test, it is genuinely excluded regardless of what else was unknown.
-    if (failed) excluded.push(asset)
+    if (failed) excluded.push(item)
     else if (missing !== null) {
-      untested.push(asset)
+      untested.push(item)
       missingByField[missing] = (missingByField[missing] ?? 0) + 1
     }
-    else matched.push(asset)
+    else matched.push(item)
   }
 
   return { matched, excluded, untested, missingByField }
 }
+
+/** The Coins page's stack — `applyRules` bound to the Asset field table. */
+export function applyFilterStack(assets: Asset[], rules: FilterRule[]): StackResult<Asset> {
+  return applyRules(assets, rules, FIELD_BY_KEY)
+}
+
+// ─── Coin Discovery's field table ────────────────────────────────────────────
+//
+// A DELIBERATELY SHORTER LIST than the Coins page's. Discovery candidates come
+// from a leaner projection of the CoinGecko markets feed: there is no FDV, no
+// max supply and no 30d change on a CandidateCoin, so those four fields are
+// absent rather than offered and silently sending every row to `untested`. If
+// the discovery route later carries them, add them here — do not fake them.
+
+export interface DiscoveryRow {
+  price: number
+  marketCap: number
+  marketCapRank: number
+  volume24h: number
+  priceChange24h: number
+  priceChange7d: number | null
+  athChangePercent: number
+  liquidityRatio: number
+}
+
+export const DISCOVERY_FILTER_FIELDS: FieldDef<DiscoveryRow>[] = [
+  { key: 'price', label: 'Price', group: 'valuation', unit: 'usd',
+    hint: 'Last traded price in USD.',
+    valueOf: c => c.price ?? null },
+  { key: 'marketCap', label: 'Market cap', group: 'valuation', unit: 'usd',
+    hint: 'Circulating supply × price.',
+    valueOf: c => c.marketCap ?? null },
+  { key: 'marketCapRank', label: 'Market-cap rank', group: 'valuation', unit: 'count',
+    hint: 'Position by market cap — 1 is the largest.',
+    valueOf: c => c.marketCapRank ?? null },
+
+  { key: 'priceChange24h', label: '24h change', group: 'momentum', unit: 'percent',
+    hint: 'Percent price change over 24 hours.',
+    valueOf: c => c.priceChange24h ?? null },
+  { key: 'priceChange7d', label: '7d change', group: 'momentum', unit: 'percent',
+    hint: 'Percent price change over 7 days.',
+    valueOf: c => c.priceChange7d ?? null },
+  { key: 'athChangePercent', label: 'From all-time high', group: 'momentum', unit: 'percent',
+    hint: 'Percent below the all-time high — negative or zero. −90 means the coin trades at a tenth of its peak.',
+    valueOf: c => c.athChangePercent ?? null },
+
+  { key: 'volume24h', label: '24h volume', group: 'liquidity', unit: 'usd',
+    hint: 'Traded value over 24 hours.',
+    valueOf: c => c.volume24h ?? null },
+  { key: 'liquidityPct', label: 'Volume ÷ market cap', group: 'liquidity', unit: 'percent',
+    hint: 'Daily turnover as a percent of market cap — how easily a position can be moved.',
+    valueOf: c => c.liquidityRatio == null ? null : c.liquidityRatio * 100 },
+]
+
+export const DISCOVERY_FIELD_BY_KEY = new Map(DISCOVERY_FILTER_FIELDS.map(f => [f.key, f]))

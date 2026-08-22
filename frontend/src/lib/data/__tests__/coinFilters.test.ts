@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import {
-  applyFilterStack, activeRules, FILTER_FIELDS, FIELD_BY_KEY, UNAVAILABLE_FACTORS,
-  type FilterRule,
+  applyFilterStack, applyRules, activeRules, FILTER_FIELDS, FIELD_BY_KEY, UNAVAILABLE_FACTORS,
+  DISCOVERY_FILTER_FIELDS, DISCOVERY_FIELD_BY_KEY,
+  type FilterRule, type DiscoveryRow,
 } from '../coinFilters'
 import type { Asset } from '@/types/asset'
 
@@ -139,5 +140,72 @@ describe('field registry integrity', () => {
   it('records what it cannot offer, and why', () => {
     expect(UNAVAILABLE_FACTORS.length).toBeGreaterThan(0)
     for (const f of UNAVAILABLE_FACTORS) expect(f.needs.length).toBeGreaterThan(15)
+  })
+})
+
+describe('applyRules over the Coin Discovery field table', () => {
+  const row = (over: Partial<DiscoveryRow> = {}): DiscoveryRow => ({
+    price: 10, marketCap: 1e9, marketCapRank: 50, volume24h: 1e8,
+    priceChange24h: 1, priceChange7d: 5, athChangePercent: -40,
+    liquidityRatio: 0.1, ...over,
+  })
+
+  it('reproduces the retired "High liquidity" band as an at-least rule', () => {
+    const rows = [row({ liquidityRatio: 0.2 }), row({ liquidityRatio: 0.1 })]
+    const r = applyRules(rows, [
+      { id: '1', field: 'liquidityPct', operator: 'gte', value: 15 },
+    ], DISCOVERY_FIELD_BY_KEY)
+    expect(r.matched).toHaveLength(1)
+    expect(r.matched[0].liquidityRatio).toBe(0.2)
+  })
+
+  it('supports the opposite direction the bands could not express', () => {
+    const rows = [row({ liquidityRatio: 0.2 }), row({ liquidityRatio: 0.01 })]
+    const r = applyRules(rows, [
+      { id: '1', field: 'liquidityPct', operator: 'lte', value: 5 },
+    ], DISCOVERY_FIELD_BY_KEY)
+    expect(r.matched).toHaveLength(1)
+    expect(r.matched[0].liquidityRatio).toBe(0.01)
+  })
+
+  it('stacks a floor and a ceiling on different fields', () => {
+    const rows = [
+      row({ marketCap: 5e9, athChangePercent: -80 }),   // both hold
+      row({ marketCap: 5e9, athChangePercent: -10 }),   // not far enough off its high
+      row({ marketCap: 1e6, athChangePercent: -80 }),   // too small
+    ]
+    const r = applyRules(rows, [
+      { id: '1', field: 'marketCap', operator: 'gte', value: 1e9 },
+      { id: '2', field: 'athChangePercent', operator: 'lte', value: -50 },
+    ], DISCOVERY_FIELD_BY_KEY)
+    expect(r.matched).toHaveLength(1)
+    expect(r.excluded).toHaveLength(2)
+  })
+
+  it('sends a null 7d change to untested, never to excluded', () => {
+    const r = applyRules([row({ priceChange7d: null })], [
+      { id: '1', field: 'priceChange7d', operator: 'gte', value: 0 },
+    ], DISCOVERY_FIELD_BY_KEY)
+    expect(r.untested).toHaveLength(1)
+    expect(r.excluded).toHaveLength(0)
+    expect(r.missingByField.priceChange7d).toBe(1)
+  })
+
+  it('excludes a row that definitely fails one rule even when another is unknown', () => {
+    const r = applyRules([row({ marketCap: 1, priceChange7d: null })], [
+      { id: '1', field: 'marketCap', operator: 'gte', value: 1e9 },
+      { id: '2', field: 'priceChange7d', operator: 'gte', value: 0 },
+    ], DISCOVERY_FIELD_BY_KEY)
+    expect(r.excluded).toHaveLength(1)
+    expect(r.untested).toHaveLength(0)
+  })
+
+  it('offers only fields a discovery candidate actually carries', () => {
+    // Guards the guard: FDV and supply are on the Coins page's table and must
+    // NOT appear here, or every row would land in untested.
+    const keys = DISCOVERY_FILTER_FIELDS.map(f => f.key)
+    expect(keys).not.toContain('fdv')
+    expect(keys).not.toContain('circulatingPct')
+    expect(keys).toContain('liquidityPct')
   })
 })

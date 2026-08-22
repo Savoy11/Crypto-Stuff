@@ -17,6 +17,11 @@ import { DerivedNote } from '@/components/ui/DerivedNote'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import { CATEGORY_INFO } from '@/lib/data/coinCatalog'
 import type { CandidateCoin, CoinDiscoveryResponse } from '@/app/live-data/coin-discovery/route'
+import { FilterStack } from '@/components/ui/FilterStack'
+import {
+  DISCOVERY_FILTER_FIELDS, DISCOVERY_FIELD_BY_KEY, UNAVAILABLE_FACTORS,
+  applyRules, type FilterRule,
+} from '@/lib/data/coinFilters'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -339,14 +344,12 @@ const TAB_LABELS: Record<Tab, string> = {
   added:           'Added Coins',
 }
 
-// W3-1: liquidity replaces the score bands as the primary filter — it is the
-// dimension the owner asked to search by, and it is a fact from the feed.
-const LIQUIDITY_FILTER_OPTIONS = [
-  { value: 'all',  label: 'Any liquidity' },
-  { value: 'high', label: 'High (>15%/day)' },
-  { value: 'mid',  label: 'Moderate (5–15%)' },
-  { value: 'low',  label: 'Thin (<5%)' },
-] as const
+// W3-1 put three fixed liquidity bands here — Any / High / Moderate / Thin —
+// and you could hold exactly one of them. They are gone in favour of the same
+// stackable screener the Coins registry uses (FilterStack): "volume ÷ market
+// cap at least 15" reproduces the High band exactly, and unlike the band it
+// combines with a cap floor and a drawdown bound in one query. Every threshold
+// the bands hard-coded is now the user's to set in either direction.
 
 // Coin type is `category` on every candidate (CATEGORY_INFO in coinCatalog.ts),
 // already computed server-side and already rendered as the badge on each card —
@@ -374,9 +377,13 @@ const LIMIT_OPTIONS = [
 
 function CoinDiscoveryPageInner() {
   const [tab, setTab]             = useState<Tab>('candidates')
-  const [recoFilter, setRecoFilter] = useState('all')
+  const [rules, setRules] = useState<FilterRule[]>([])
+  const [screenerOpen, setScreenerOpen] = useState(false)
   const [typeFilter, setTypeFilter] = useState('all')
   const [sortBy, setSortBy]       = useState<SortKey>('market-cap')
+  // Every sort used to be hard-wired descending, so "lowest price first" or
+  // "least far off its high" were unaskable. Direction is now the reader's.
+  const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('desc')
   const [search, setSearch]       = useState('')
   const [limit, setLimit]         = useState(250)
   const [sourceOpen, setSourceOpen] = useState(false)
@@ -398,14 +405,16 @@ function CoinDiscoveryPageInner() {
 
   const candidates = data?.candidates ?? []
 
-  const filtered = candidates.filter(c => {
-    if (recoFilter === 'high' && c.liquidityRatio <= 0.15) return false
-    if (recoFilter === 'mid' && (c.liquidityRatio <= 0.05 || c.liquidityRatio > 0.15)) return false
-    if (recoFilter === 'low' && c.liquidityRatio > 0.05) return false
+  // Type and name narrowing first (both are exact facts, never unknown), then
+  // the numeric stack — so the not-tested count below describes only the rows
+  // the user is actually looking at.
+  const preFiltered = candidates.filter(c => {
     if (typeFilter !== 'all' && c.category !== typeFilter) return false
     if (search && !c.name.toLowerCase().includes(search.toLowerCase()) && !c.symbol.toLowerCase().includes(search.toLowerCase())) return false
     return true
   })
+  const stack = applyRules(preFiltered, rules, DISCOVERY_FIELD_BY_KEY)
+  const filtered = stack.matched
 
   // Identity of the current result set, so the sort memo re-runs when the
   // filters change without depending on a freshly-allocated array each render.
@@ -414,17 +423,28 @@ function CoinDiscoveryPageInner() {
   // Every sort is over a FACT from the feed (W3-1). The route's own order is
   // market cap, so that one is a pass-through.
   const sorted = useMemo(() => {
-    if (sortBy === 'market-cap') return filtered
+    // ONE direction convention, applied at the end: each comparator below is
+    // written descending and `dir` flips it. Per-comparator direction handling
+    // is how a sort silently inverts on one column and not the others.
+    const dir = sortDir === 'asc' ? -1 : 1
     const rows = [...filtered]
-    if (sortBy === 'price') return rows.sort((a, b) => b.price - a.price)
-    if (sortBy === 'growth-24h') return rows.sort((a, b) => b.priceChange24h - a.priceChange24h)
-    if (sortBy === 'growth-7d') return rows.sort((a, b) => (b.priceChange7d ?? -Infinity) - (a.priceChange7d ?? -Infinity))
-    if (sortBy === 'liquidity') return rows.sort((a, b) => b.liquidityRatio - a.liquidityRatio)
+    if (sortBy === 'market-cap') return rows.sort((a, b) => dir * (b.marketCap - a.marketCap))
+    if (sortBy === 'price') return rows.sort((a, b) => dir * (b.price - a.price))
+    if (sortBy === 'growth-24h') return rows.sort((a, b) => dir * (b.priceChange24h - a.priceChange24h))
+    // Coins with no 7d figure sort to the END in BOTH directions — a missing
+    // value is not "the smallest", and floating it to the top on ascending
+    // would present absent data as an extreme result.
+    if (sortBy === 'growth-7d') return rows.sort((a, b) => {
+      if (a.priceChange7d == null) return b.priceChange7d == null ? 0 : 1
+      if (b.priceChange7d == null) return -1
+      return dir * (b.priceChange7d - a.priceChange7d)
+    })
+    if (sortBy === 'liquidity') return rows.sort((a, b) => dir * (b.liquidityRatio - a.liquidityRatio))
     return rows.sort((a, b) =>
-      a.categoryLabel.localeCompare(b.categoryLabel) || b.marketCap - a.marketCap,
+      dir * (a.categoryLabel.localeCompare(b.categoryLabel) || b.marketCap - a.marketCap),
     )
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredKey, sortBy])
+  }, [filteredKey, sortBy, sortDir])
 
   const liquidCount = candidates.filter(c => c.liquidityRatio > 0.15).length
   const risingCount = candidates.filter(c => (c.priceChange7d ?? 0) > 0).length
@@ -552,21 +572,16 @@ function CoinDiscoveryPageInner() {
         <>
           {/* Filters */}
           <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex gap-1">
-              {LIQUIDITY_FILTER_OPTIONS.map(opt => (
-                <button
-                  key={opt.value}
-                  onClick={() => setRecoFilter(opt.value)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
-                    recoFilter === opt.value
-                      ? 'bg-accent-blue border-accent-blue text-white'
-                      : 'border-border text-text-muted hover:text-text-secondary'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            <button
+              onClick={() => setScreenerOpen(o => !o)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors border ${
+                screenerOpen || rules.length
+                  ? 'border-accent-blue/30 bg-accent-blue/15 text-accent-blue'
+                  : 'border-border text-text-muted hover:text-text-secondary'
+              }`}
+            >
+              Screener{rules.length ? ` · ${rules.length}` : ''}
+            </button>
             <label className="flex items-center gap-1.5 text-xs text-text-muted">
               Type
               <select
@@ -591,6 +606,15 @@ function CoinDiscoveryPageInner() {
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
+              <button
+                onClick={() => setSortDir(d => (d === 'desc' ? 'asc' : 'desc'))}
+                aria-label={`Sort ${sortDir === 'desc' ? 'ascending' : 'descending'}`}
+                title={sortDir === 'desc' ? 'Highest first — click for lowest first' : 'Lowest first — click for highest first'}
+                className="flex items-center gap-1 rounded-lg border border-border bg-bg-elevated px-2 py-1.5 text-xs text-text-primary transition-colors hover:border-accent-blue"
+              >
+                {sortDir === 'desc' ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
+                {sortDir === 'desc' ? 'High → low' : 'Low → high'}
+              </button>
             </label>
 
             <div className="relative flex-1 max-w-xs">
@@ -630,6 +654,19 @@ function CoinDiscoveryPageInner() {
             </div>
           </div>
 
+          {screenerOpen && (
+            <FilterStack
+              fields={DISCOVERY_FILTER_FIELDS}
+              fieldByKey={DISCOVERY_FIELD_BY_KEY}
+              rules={rules}
+              onChange={setRules}
+              matchCount={filtered.length}
+              untested={stack.untested.length}
+              missingByField={stack.missingByField}
+              unavailable={UNAVAILABLE_FACTORS}
+            />
+          )}
+
           {isLoading && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, i) => (
@@ -666,7 +703,14 @@ function CoinDiscoveryPageInner() {
 
           {data && (
             <p className="text-xs text-text-muted text-center">
-              Showing {sorted.length} of {candidates.length} candidates{typeFilter !== 'all' ? ` · ${TYPE_OPTIONS.find(o => o.value === typeFilter)?.label}` : ''} from CoinGecko {LIMIT_OPTIONS.find(o => o.value === limit)?.label.toLowerCase()} · Updated {new Date(data.updatedAt).toLocaleTimeString()}
+              Showing {sorted.length} of {candidates.length} candidates{typeFilter !== 'all' ? ` · ${TYPE_OPTIONS.find(o => o.value === typeFilter)?.label}` : ''} from CoinGecko {LIMIT_OPTIONS.find(o => o.value === limit)?.label.toLowerCase()}
+              {/* Reported here as well as in the screener panel, because the
+                  panel can be collapsed and a shortfall with no stated reason
+                  reads as a smaller universe rather than an untested one. */}
+              {stack.untested.length > 0 && (
+                <span className="text-amber-400"> · {stack.untested.length} not tested (missing data)</span>
+              )}
+              {' '}· Updated {new Date(data.updatedAt).toLocaleTimeString()}
             </p>
           )}
         </>

@@ -17,9 +17,10 @@ import { ReserveMonitorPanel } from '@/components/analytics/reserves'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { useAssetsWithStore } from '@/hooks/useAssets'
 import {
-  FILTER_FIELDS, FIELD_BY_KEY, GROUP_LABELS, UNAVAILABLE_FACTORS,
-  type FilterRule, type FilterGroup,
+  FILTER_FIELDS, FIELD_BY_KEY, UNAVAILABLE_FACTORS,
+  type FilterRule,
 } from '@/lib/data/coinFilters'
+import { FilterStack } from '@/components/ui/FilterStack'
 import { useAssetStore } from '@/store/useAssetStore'
 import { assetsApi } from '@/lib/api/assets'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
@@ -69,13 +70,6 @@ export function AssetRegistryClient() {
   // filtering a page instead of the dataset would screen only what is on screen.
   const [rules, setRules] = useState<FilterRule[]>([])
   const [screenerOpen, setScreenerOpen] = useState(false)
-  const addRule = (field: string) => setRules(r => [
-    ...r,
-    { id: `${field}-${Date.now()}-${r.length}`, field, operator: 'gte', value: 0 },
-  ])
-  const updateRule = (id: string, patch: Partial<FilterRule>) =>
-    setRules(r => r.map(x => (x.id === id ? { ...x, ...patch } : x)))
-  const removeRule = (id: string) => setRules(r => r.filter(x => x.id !== id))
 
   const { data, isLoading, isError, refetch } = useAssetsWithStore(rules)
   const { filters, setFilters } = useAssetStore()
@@ -255,105 +249,16 @@ export function AssetRegistryClient() {
           </div>
 
           {screenerOpen && (
-            <div className="space-y-3 rounded-card border border-border bg-bg-card p-4">
-              {rules.length === 0 && (
-                <p className="text-xs text-text-muted">
-                  Add conditions below. They <strong className="text-text-secondary">stack</strong> — every
-                  condition must hold, so you can ask for a large cap that is also far off its high and
-                  still mostly unissued.
-                </p>
-              )}
-
-              {rules.map(r => {
-                const def = FIELD_BY_KEY.get(r.field)
-                if (!def) return null
-                return (
-                  <div key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg bg-bg-elevated px-3 py-2">
-                    <span className="min-w-36 text-xs font-medium text-text-primary">{def.label}</span>
-                    <select
-                      value={r.operator}
-                      onChange={(e) => updateRule(r.id, { operator: e.target.value as 'gte' | 'lte' })}
-                      aria-label={`${def.label} comparison`}
-                      className="rounded border border-border bg-bg-card px-2 py-1 text-xs text-text-primary focus:border-accent-blue/40 focus:outline-none"
-                    >
-                      <option value="gte">at least</option>
-                      <option value="lte">at most</option>
-                    </select>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={Number.isFinite(r.value) ? r.value : ''}
-                      onChange={(e) => updateRule(r.id, { value: e.target.value === '' ? NaN : Number(e.target.value) })}
-                      aria-label={`${def.label} value`}
-                      className="w-32 rounded border border-border bg-bg-card px-2 py-1 font-mono text-xs text-text-primary focus:border-accent-blue/40 focus:outline-none"
-                    />
-                    <span className="text-[10px] text-text-muted">
-                      {def.unit === 'usd' ? 'USD' : def.unit === 'percent' ? '%' : def.unit === 'ratio' ? '×' : ''}
-                    </span>
-                    <span className="flex-1 text-[10px] leading-relaxed text-text-muted">{def.hint}</span>
-                    <button
-                      onClick={() => removeRule(r.id)}
-                      aria-label={`Remove ${def.label} condition`}
-                      className="text-text-muted transition-colors hover:text-red-400"
-                    >
-                      <X size={13} />
-                    </button>
-                  </div>
-                )
-              })}
-
-              <div className="flex flex-wrap items-start gap-4 border-t border-border pt-3">
-                {(Object.keys(GROUP_LABELS) as FilterGroup[]).map(group => (
-                  <div key={group} className="space-y-1">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted">{GROUP_LABELS[group]}</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {FILTER_FIELDS.filter(f => f.group === group).map(f => (
-                        <button
-                          key={f.key}
-                          onClick={() => addRule(f.key)}
-                          title={f.hint}
-                          className="rounded border border-border px-2 py-0.5 text-[11px] text-text-secondary transition-colors hover:border-accent-blue/40 hover:text-accent-blue"
-                        >
-                          + {f.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3 text-[11px]">
-                {rules.length > 0 && (
-                  <button onClick={() => setRules([])} className="rounded border border-border px-2 py-1 text-text-muted transition-colors hover:bg-bg-elevated hover:text-text-secondary">
-                    Clear conditions
-                  </button>
-                )}
-                <span className="text-text-secondary">
-                  <strong className="text-text-primary">{(data?.total ?? 0).toLocaleString()}</strong> match
-                </span>
-                {/* Counted apart from non-matches on purpose: nobody ran the
-                    test on these, so reporting them as excluded would be a
-                    result we did not compute. */}
-                {!!data?.untested && (
-                  <span className="text-amber-400">
-                    {data.untested} not tested —{' '}
-                    {Object.entries(data.missingByField ?? {})
-                      .map(([k, n]) => `${n} missing ${FIELD_BY_KEY.get(k)?.label ?? k}`)
-                      .join(', ')}
-                  </span>
-                )}
-              </div>
-
-              <p className="text-[10px] leading-relaxed text-text-muted">
-                Not available here:{' '}
-                {UNAVAILABLE_FACTORS.map((f, i) => (
-                  <span key={f.label}>
-                    {i > 0 && ' · '}<strong className="text-text-secondary">{f.label}</strong> — {f.needs}
-                  </span>
-                ))}
-                . Every field above is a figure the feed reports, or arithmetic over two of them — nothing here is scored or graded.
-              </p>
-            </div>
+            <FilterStack
+              fields={FILTER_FIELDS}
+              fieldByKey={FIELD_BY_KEY}
+              rules={rules}
+              onChange={setRules}
+              matchCount={data?.total ?? 0}
+              untested={data?.untested}
+              missingByField={data?.missingByField}
+              unavailable={UNAVAILABLE_FACTORS}
+            />
           )}
 
 
