@@ -51,6 +51,11 @@ const nextConfig = {
       // Risk Case Studies removed (2026-07): static educational replay with no
       // clear user value — page deleted, deep links land on Headlines.
       { source: '/backtests', destination: '/headlines', permanent: false },
+      // Transfer Fees hidden from the initial rollout 2026-08-22 (owner). Kept,
+      // not deleted — see the note in lib/modules/registry.ts for the full list
+      // of surfaces and how to restore. `permanent: false` on purpose: this is a
+      // rollout decision, not a dead page.
+      { source: '/transfer-fees', destination: '/headlines', permanent: false },
       // Reserve Transparency Monitor folded into the Coins page (2026-07-29).
       // It duplicated /assets' "Reserve Monitor" tab — same route, same table,
       // same detail panel — while being the only copy that carried the

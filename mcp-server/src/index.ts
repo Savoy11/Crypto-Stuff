@@ -96,7 +96,7 @@ server.tool(
 
 server.tool(
   'list_exchanges',
-  'List all cryptocurrency exchanges supported by the Finance Now transfer fee calculator. Returns exchange ids (needed for find_transfer_routes), names, tiers, and supported coins.',
+  'List cryptocurrency exchanges known to Finance Now, with names, tiers and the coins/networks each supports. Returns no fee data.',
   {
     tier: z.enum(['1', '2']).optional().describe('Filter by tier: 1 = major regulated exchanges (Binance, Coinbase, Kraken…), 2 = smaller regional exchanges.'),
   },
@@ -109,102 +109,111 @@ server.tool(
     return {
       content: [{
         type: 'text',
-        text: `**Supported Exchanges** (${data.total} total)\n\nUse these \`id\` values in the \`find_transfer_routes\` tool.\n\n${lines}`,
+        text: `**Supported Exchanges** (${data.total} total)\n\n${lines}`,
       }],
     }
   }
 )
 
-// ─── Tool: find_transfer_routes ───────────────────────────────────────────────
+// ─── Tool: find_transfer_routes — HIDDEN 2026-08-22 ──────────────────────────
+//
+// The Transfer Fee tool is withheld from the initial rollout (owner decision);
+// it is kept, not deleted. This tool is dark with the other three surfaces
+// because an agent relaying a 447-day-old withdrawal fee to a user is the same
+// harm as the app's own page showing it — and /api/v1/transfer/routes now
+// answers 503, so leaving the tool registered would only produce a confusing
+// failure mid-conversation. Un-comment to restore.
 
-server.tool(
-  'find_transfer_routes',
-  'Find the cheapest routes to transfer a cryptocurrency between two exchanges or wallets. Returns all viable routes sorted by cost, with per-hop fee breakdown and safety warnings. Use "wallet" as from/to for a personal self-custody wallet.',
-  {
-    from:   z.string().describe('Source exchange id (from list_exchanges) or "wallet". E.g. "binance"'),
-    to:     z.string().describe('Destination exchange id or "wallet". E.g. "coinbase"'),
-    coin:   z.string().describe('Coin to transfer. E.g. "usdt", "btc", "eth", "sol"'),
-    amount: z.number().optional().describe('Amount in coin units. Uses a sensible default if omitted.'),
-  },
-  async ({ from, to, coin, amount }) => {
-    const params = new URLSearchParams({ from, to, coin })
-    if (amount) params.set('amount', String(amount))
-    const data = await get<{
-      from: string; to: string; coin: string; amount: number; amountUsd: number
-      summary: { viableRoutes: number; blockedRoutes: number; cheapestFeeUsd: number | null; cheapestNetwork: string | null; cheapestFeePercent: number | null }
-      routes: Array<{
-        viable: boolean; recommended: boolean; network: string | null
-        totalFeeUsd: number; feePercent: number; estimatedTime: string | null
-        hops: Array<{ from: string; to: string; network: string | null; exchangeFee: number; networkFee: number; totalFeeUsd: number; networkName: string | null; note: string | null; feeLive?: boolean; availabilityLive?: boolean }>
-        warnings: Array<{ severity: string; title: string; message: string }>
-        blockedReason?: string | null
-      }>
-      withdrawalAvailability?: { checkedForNetworks: string[]; assumedOpenFrom: string; note: string }
-    }>(`/transfer/routes?${params}`)
+// // ─── Tool: find_transfer_routes ───────────────────────────────────────────────
 
-    const { summary, routes } = data
-    const viable  = routes.filter(r => r.viable)
-    const blocked = routes.filter(r => !r.viable)
+// server.tool(
+//   'find_transfer_routes',
+//   'Find the cheapest routes to transfer a cryptocurrency between two exchanges or wallets. Returns all viable routes sorted by cost, with per-hop fee breakdown and safety warnings. Use "wallet" as from/to for a personal self-custody wallet.',
+//   {
+//     from:   z.string().describe('Source exchange id (from list_exchanges) or "wallet". E.g. "binance"'),
+//     to:     z.string().describe('Destination exchange id or "wallet". E.g. "coinbase"'),
+//     coin:   z.string().describe('Coin to transfer. E.g. "usdt", "btc", "eth", "sol"'),
+//     amount: z.number().optional().describe('Amount in coin units. Uses a sensible default if omitted.'),
+//   },
+//   async ({ from, to, coin, amount }) => {
+//     const params = new URLSearchParams({ from, to, coin })
+//     if (amount) params.set('amount', String(amount))
+//     const data = await get<{
+//       from: string; to: string; coin: string; amount: number; amountUsd: number
+//       summary: { viableRoutes: number; blockedRoutes: number; cheapestFeeUsd: number | null; cheapestNetwork: string | null; cheapestFeePercent: number | null }
+//       routes: Array<{
+//         viable: boolean; recommended: boolean; network: string | null
+//         totalFeeUsd: number; feePercent: number; estimatedTime: string | null
+//         hops: Array<{ from: string; to: string; network: string | null; exchangeFee: number; networkFee: number; totalFeeUsd: number; networkName: string | null; note: string | null; feeLive?: boolean; availabilityLive?: boolean }>
+//         warnings: Array<{ severity: string; title: string; message: string }>
+//         blockedReason?: string | null
+//       }>
+//       withdrawalAvailability?: { checkedForNetworks: string[]; assumedOpenFrom: string; note: string }
+//     }>(`/transfer/routes?${params}`)
 
-    let text = `**Transfer Routes: ${data.from} → ${data.to} | ${data.amount} ${data.coin} (~$${data.amountUsd.toLocaleString()})**\n\n`
-    text += `${summary.viableRoutes} viable route${summary.viableRoutes !== 1 ? 's' : ''}, ${summary.blockedRoutes} blocked\n`
-    if (summary.cheapestFeeUsd != null) {
-      text += `Best: **$${summary.cheapestFeeUsd.toFixed(4)}** via ${summary.cheapestNetwork} (${summary.cheapestFeePercent?.toFixed(3)}% of transfer)\n`
-    }
+//     const { summary, routes } = data
+//     const viable  = routes.filter(r => r.viable)
+//     const blocked = routes.filter(r => !r.viable)
 
-    if (viable.length > 0) {
-      // Field names below are the v1 contract exactly (hop.totalFeeUsd,
-      // route.estimatedTime, warning.severity — the OpenAPI spec explicitly
-      // warns about severity-vs-level). This formatter used to read feeUsd /
-      // estimatedTimeMin / warning.level, none of which the API serves, and
-      // threw a TypeError on virtually any successful lookup (review D-3).
-      text += '\n**Viable Routes:**\n'
-      for (const route of viable) {
-        text += `\n${route.recommended ? '⭐ ' : ''}**${route.network ?? 'multi-hop'}** — $${route.totalFeeUsd.toFixed(4)} (${route.feePercent.toFixed(3)}%)`
-        if (route.estimatedTime) text += ` | ${route.estimatedTime}`
-        text += '\n'
-        for (const hop of route.hops) {
-          text += `  ${hop.from} → ${hop.to}`
-          if (hop.networkName) text += ` via ${hop.networkName}`
-          text += ` | fee $${hop.totalFeeUsd.toFixed(4)}`
-          // Provenance the UI always shows: a stored fee must not be quoted with
-          // the confidence of a live one, and status coverage is per route.
-          text += hop.feeLive ? ' (live fee)' : ' (stored fee)'
-          if (hop.availabilityLive) text += ' (withdrawal open, reported live)'
-          if (hop.note) text += ` | ${hop.note}`
-          text += '\n'
-        }
-        if (route.warnings.length > 0) {
-          for (const w of route.warnings) {
-            const icon = w.severity === 'danger' ? '🚨' : w.severity === 'warning' ? '⚠️' : 'ℹ️'
-            text += `  ${icon} ${w.message}\n`
-          }
-        }
-      }
-    }
+//     let text = `**Transfer Routes: ${data.from} → ${data.to} | ${data.amount} ${data.coin} (~$${data.amountUsd.toLocaleString()})**\n\n`
+//     text += `${summary.viableRoutes} viable route${summary.viableRoutes !== 1 ? 's' : ''}, ${summary.blockedRoutes} blocked\n`
+//     if (summary.cheapestFeeUsd != null) {
+//       text += `Best: **$${summary.cheapestFeeUsd.toFixed(4)}** via ${summary.cheapestNetwork} (${summary.cheapestFeePercent?.toFixed(3)}% of transfer)\n`
+//     }
 
-    if (blocked.length > 0) {
-      text += `\n**Blocked Routes (${blocked.length}):**\n`
-      for (const route of blocked) {
-        // Name the reason: a suspended withdrawal and an amount below the
-        // exchange minimum are different problems with different remedies.
-        const why = route.blockedReason === 'withdrawals-suspended' ? ' [withdrawals suspended]'
-          : route.blockedReason === 'below-minimum' ? ' [amount below minimum]' : ''
-        text += `• ${route.network ?? 'multi-hop'}${why}: ${route.warnings.map(w => w.message).join('; ')}\n`
-      }
-    }
+//     if (viable.length > 0) {
+//       // Field names below are the v1 contract exactly (hop.totalFeeUsd,
+//       // route.estimatedTime, warning.severity — the OpenAPI spec explicitly
+//       // warns about severity-vs-level). This formatter used to read feeUsd /
+//       // estimatedTimeMin / warning.level, none of which the API serves, and
+//       // threw a TypeError on virtually any successful lookup (review D-3).
+//       text += '\n**Viable Routes:**\n'
+//       for (const route of viable) {
+//         text += `\n${route.recommended ? '⭐ ' : ''}**${route.network ?? 'multi-hop'}** — $${route.totalFeeUsd.toFixed(4)} (${route.feePercent.toFixed(3)}%)`
+//         if (route.estimatedTime) text += ` | ${route.estimatedTime}`
+//         text += '\n'
+//         for (const hop of route.hops) {
+//           text += `  ${hop.from} → ${hop.to}`
+//           if (hop.networkName) text += ` via ${hop.networkName}`
+//           text += ` | fee $${hop.totalFeeUsd.toFixed(4)}`
+//           // Provenance the UI always shows: a stored fee must not be quoted with
+//           // the confidence of a live one, and status coverage is per route.
+//           text += hop.feeLive ? ' (live fee)' : ' (stored fee)'
+//           if (hop.availabilityLive) text += ' (withdrawal open, reported live)'
+//           if (hop.note) text += ` | ${hop.note}`
+//           text += '\n'
+//         }
+//         if (route.warnings.length > 0) {
+//           for (const w of route.warnings) {
+//             const icon = w.severity === 'danger' ? '🚨' : w.severity === 'warning' ? '⚠️' : 'ℹ️'
+//             text += `  ${icon} ${w.message}\n`
+//           }
+//         }
+//       }
+//     }
 
-    // The response's most important caveat, relayed verbatim so it reaches the
-    // model rather than dying in the JSON: a listed route is NOT a confirmation
-    // that the withdrawal is open. Without this an agent will happily tell a
-    // user their transfer will go through on the strength of a 2025 snapshot.
-    if (data.withdrawalAvailability) {
-      text += `\n**Withdrawal availability:** ${data.withdrawalAvailability.note}\n`
-    }
+//     if (blocked.length > 0) {
+//       text += `\n**Blocked Routes (${blocked.length}):**\n`
+//       for (const route of blocked) {
+//         // Name the reason: a suspended withdrawal and an amount below the
+//         // exchange minimum are different problems with different remedies.
+//         const why = route.blockedReason === 'withdrawals-suspended' ? ' [withdrawals suspended]'
+//           : route.blockedReason === 'below-minimum' ? ' [amount below minimum]' : ''
+//         text += `• ${route.network ?? 'multi-hop'}${why}: ${route.warnings.map(w => w.message).join('; ')}\n`
+//       }
+//     }
 
-    return { content: [{ type: 'text', text }] }
-  }
-)
+//     // The response's most important caveat, relayed verbatim so it reaches the
+//     // model rather than dying in the JSON: a listed route is NOT a confirmation
+//     // that the withdrawal is open. Without this an agent will happily tell a
+//     // user their transfer will go through on the strength of a 2025 snapshot.
+//     if (data.withdrawalAvailability) {
+//       text += `\n**Withdrawal availability:** ${data.withdrawalAvailability.note}\n`
+//     }
+
+//     return { content: [{ type: 'text', text }] }
+//   }
+// )
 
 // ─── Tool: get_network_fees ───────────────────────────────────────────────────
 

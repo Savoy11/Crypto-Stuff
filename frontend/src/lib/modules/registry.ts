@@ -134,7 +134,8 @@ export const MODULES: SuiteModule[] = [
     label: 'Crypto',
     routePrefixes: [
       '/assets', '/news', '/social', '/wallets',
-      '/transfer-fees', '/staking', '/coin-discovery',
+      // '/transfer-fees' — HIDDEN, see the nav note below
+      '/staking', '/coin-discovery',
       '/technical-analysis', '/scanner',
       // De-routed but retained page (T5): unreachable via the next.config
       // redirect, gated here so removing that redirect can't re-expose it
@@ -155,7 +156,17 @@ export const MODULES: SuiteModule[] = [
       { href: '/news', label: 'News', icon: Newspaper },
       { href: '/social', label: 'Social', icon: MessageSquare },
       { href: '/wallets', label: 'Wallets', icon: Wallet },
-      { href: '/transfer-fees', label: 'Transfer Fees', icon: ArrowLeftRight },
+      // Transfer Fees HIDDEN 2026-08-22 (owner: keep it, but out of the initial
+      // rollout — "I don't want it to be a part of the larger suite"). Nothing is
+      // deleted: the page, lib/data/transferFees.ts, the live overlay, the
+      // reconcile/worksheet/apply tooling and every test stay in place, and the
+      // S3 charter stays open. All FOUR surfaces are dark, because an agent
+      // quoting a 447-day-old fee to a user is the same harm as the page doing
+      // it: this nav entry, the /transfer-fees redirect in next.config.mjs, the
+      // find_transfer_routes agent tool (lib/agents/tools.ts), and the MCP tool.
+      // /api/v1/transfer/routes returns 503 with a reason.
+      // TO RESTORE: put this entry and the routePrefixes line back, delete the
+      // redirect, and un-comment the two tool blocks + the v1 guard.
       { href: '/staking', label: 'Staking', icon: Coins },
       { href: '/coin-discovery', label: 'Coin Discovery', icon: Search },
       { href: '/technical-analysis', label: 'Technical Analysis', icon: CandlestickChart },

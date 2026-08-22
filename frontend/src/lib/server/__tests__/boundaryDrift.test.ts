@@ -86,10 +86,29 @@ describe('NT12 — MCP server metadata matches what it ships', () => {
   it('the README documents no tool the server does not register', () => {
     // The reverse direction: a removed tool leaves its documentation behind,
     // which reads as a capability the agent can call and cannot.
+    //
+    // WITHHELD is a legitimate third state, distinct from both shipped and
+    // deleted: a tool kept in the tree but held out of a rollout should be
+    // written down as withheld, or the next maintainer restores it blind. A
+    // README line naming a tool as withheld therefore satisfies this guard —
+    // but ONLY that line, so a genuinely stale mention still fails.
     const readme = read(MCP_README)
+    const withheld = new Set(
+      Array.from(readme.matchAll(/`([a-z]+_[a-z_]+)`\s+is withheld/g)).map(m => m[1]),
+    )
     const documented = Array.from(readme.matchAll(/`([a-z]+_[a-z_]+)`/g)).map(m => m[1])
-    const phantom = Array.from(new Set(documented)).filter(t => !registeredTools.includes(t))
+    const phantom = Array.from(new Set(documented))
+      .filter(t => !registeredTools.includes(t) && !withheld.has(t))
     expect(phantom, `documented in the MCP README but not registered: ${phantom.join(', ')}`).toEqual([])
+  })
+
+  it('a withheld tool is genuinely absent from the server (guards the guard)', () => {
+    // The escape hatch above must not become a way to mark a SHIPPED tool as
+    // withheld and have the docs disagree with the code.
+    const readme = read(MCP_README)
+    const withheld = Array.from(readme.matchAll(/`([a-z]+_[a-z_]+)`\s+is withheld/g)).map(m => m[1])
+    const stillShipped = withheld.filter(t => registeredTools.includes(t))
+    expect(stillShipped, `README calls these withheld but the server registers them: ${stillShipped.join(', ')}`).toEqual([])
   })
 
   it('no MCP tool description hardcodes a coin list that has fallen behind the catalog', () => {

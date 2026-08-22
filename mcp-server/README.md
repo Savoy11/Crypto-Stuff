@@ -44,13 +44,20 @@ One environment variable:
 claude mcp add finance-now node /absolute/path/to/mcp-server/dist/index.js
 ```
 
-## Tools (13)
+## Tools (12)
 
-Market data — crypto: `get_coin_prices`, `list_exchanges`, `find_transfer_routes`,
+Market data — crypto: `get_coin_prices`, `list_exchanges`,
 `get_network_fees`, `get_staking_opportunities`, `compare_staking_risk`,
 `get_crypto_news`. Securities & macro: `get_security_quotes`, `get_security_history`,
 `get_yield_curve`, `get_fx_rates`. Analysis: `score_options_trade` (computes from
 caller-supplied figures — there is no options chain feed, by decision).
+
+⚠ **`find_transfer_routes` is withheld** (2026-08-22, owner decision): the Transfer
+Fee Calculator is kept but held out of the initial rollout while its fee table
+completes verification, so the tool is commented out in `src/index.ts` and
+`/api/v1/transfer/routes` answers 503. An agent relaying a 447-day-old withdrawal
+fee to a user is the same harm as the app's own page showing it. Un-comment the
+tool block to restore.
 
 ⚠ **`run_audit`** is a dev/maintenance tool, not market data: it shells out
 (`npx tsc`), probes live-data routes, and walks the frontend source tree. Whether it

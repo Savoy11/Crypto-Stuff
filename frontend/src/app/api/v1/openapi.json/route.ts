@@ -74,8 +74,8 @@ const SPEC = {
     '/transfer/routes': {
       get: {
         tags: ['transfer'],
-        summary: 'Find cheapest transfer routes between two exchanges',
-        description: 'Calculates all possible routes (direct and multi-hop via personal wallet) to move a coin from one exchange to another. Returns routes sorted by total USD cost, with safety warnings for high-risk actions like EVM address collision.',
+        summary: 'Find cheapest transfer routes between two exchanges — WITHHELD',
+        description: 'NOT AVAILABLE IN THIS BUILD: answers 503. The Transfer Fee Calculator is withheld from the initial rollout while its fee table completes verification. Documented here so a caller understands the endpoint exists and is deliberately withheld rather than moved. Do not substitute another fee source and present it as this response.',
         parameters: [
           { name: 'from',   in: 'query', required: true,  description: 'Source exchange id (from /exchanges) or "wallet"', schema: { type: 'string', example: 'binance' } },
           { name: 'to',     in: 'query', required: true,  description: 'Destination exchange id or "wallet"',              schema: { type: 'string', example: 'coinbase' } },
@@ -83,8 +83,9 @@ const SPEC = {
           { name: 'amount', in: 'query', required: false, description: 'Amount in coin units (uses coin default if omitted)', schema: { type: 'number', example: 1000 } },
         ],
         responses: {
+          '503': { description: 'Withheld from this build — see the endpoint description.', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
           '200': {
-            description: 'Transfer routes',
+            description: 'Transfer routes (shape retained for when the endpoint is restored)',
             content: { 'application/json': { schema: { $ref: '#/components/schemas/TransferRoutesResponse' } } },
           },
           '400': { description: 'Invalid from/to/coin parameter', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },

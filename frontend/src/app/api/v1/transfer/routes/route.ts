@@ -22,7 +22,26 @@ export { options as OPTIONS }
 
 export type PriceSource = 'live' | 'fallback'
 
+// ─── HIDDEN FROM THE INITIAL ROLLOUT (2026-08-22, owner decision) ────────────
+//
+// The Transfer Fee tool is kept but not shipped — see lib/modules/registry.ts
+// for the full surface list and how to restore. This endpoint is dark for the
+// same reason the page is: an agent relaying a 447-day-old withdrawal fee to a
+// user is the same harm as the UI showing it.
+//
+// It answers 503 with a reason rather than 404, so a caller learns the endpoint
+// exists and is withheld, instead of assuming a bad path. Everything below the
+// guard is intact — delete the guard to restore.
+const HIDDEN_FROM_ROLLOUT = true
+
 export async function GET(req: NextRequest) {
+  if (HIDDEN_FROM_ROLLOUT) {
+    return NextResponse.json({
+      error: 'Transfer route lookup is not available in this build.',
+      reason: 'The Transfer Fee Calculator is withheld from the initial rollout while its fee table completes verification. Do not substitute another source and present it as this API\'s answer.',
+    }, { status: 503, headers: CORS })
+  }
+
   const { searchParams } = req.nextUrl
   const from   = searchParams.get('from')?.toLowerCase()
   const to     = searchParams.get('to')?.toLowerCase()

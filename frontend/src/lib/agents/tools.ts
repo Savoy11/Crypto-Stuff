@@ -65,23 +65,28 @@ const TOOL_REGISTRY: RegisteredTool[] = [
       input_schema: { type: 'object', properties: {} },
     },
   },
-  {
-    market: 'crypto',
-    tool: {
-      name: 'find_transfer_routes',
-      description: 'Find the cheapest way to move a coin between two exchanges (or a wallet), including multi-hop routes.',
-      input_schema: {
-        type: 'object',
-        properties: {
-          from: { type: 'string', description: 'Source exchange id (e.g. "binance") or "wallet"' },
-          to: { type: 'string', description: 'Destination exchange id or "wallet"' },
-          coin: { type: 'string', description: 'Coin symbol, e.g. "usdt"' },
-          amount: { type: 'number', description: 'Amount to transfer in coin units' },
-        },
-        required: ['from', 'to', 'coin'],
-      },
-    },
-  },
+  // find_transfer_routes HIDDEN 2026-08-22 (owner: Transfer Fees out of the
+  // initial rollout). Commented rather than deleted so restoring is one edit.
+  // The agent surface is dark for the same reason the page is: an assistant
+  // quoting a 447-day-old withdrawal fee to a user is the same harm as the UI
+  // showing it. See lib/modules/registry.ts for the full surface list.
+  // {
+  //   market: 'crypto',
+  //   tool: {
+  //     name: 'find_transfer_routes',
+  //     description: 'Find the cheapest way to move a coin between two exchanges (or a wallet), including multi-hop routes.',
+  //     input_schema: {
+  //       type: 'object',
+  //       properties: {
+  //         from: { type: 'string', description: 'Source exchange id (e.g. "binance") or "wallet"' },
+  //         to: { type: 'string', description: 'Destination exchange id or "wallet"' },
+  //         coin: { type: 'string', description: 'Coin symbol, e.g. "usdt"' },
+  //         amount: { type: 'number', description: 'Amount to transfer in coin units' },
+  //       },
+  //       required: ['from', 'to', 'coin'],
+  //     },
+  //   },
+  // },
   {
     market: 'crypto',
     tool: {
@@ -496,15 +501,16 @@ export async function runTool(
       }
       case 'get_network_fees':
         return await getJson(origin, `/api/v1/network-fees`)
-      case 'find_transfer_routes': {
-        const p = new URLSearchParams({
-          from: String(input.from ?? ''),
-          to: String(input.to ?? ''),
-          coin: String(input.coin ?? ''),
-        })
-        if (input.amount != null) p.set('amount', String(input.amount))
-        return await getJson(origin, `/api/v1/transfer/routes?${p.toString()}`)
-      }
+      // find_transfer_routes handler — hidden with its tool definition above.
+      // case 'find_transfer_routes': {
+      //   const p = new URLSearchParams({
+      //     from: String(input.from ?? ''),
+      //     to: String(input.to ?? ''),
+      //     coin: String(input.coin ?? ''),
+      //   })
+      //   if (input.amount != null) p.set('amount', String(input.amount))
+      //   return await getJson(origin, `/api/v1/transfer/routes?${p.toString()}`)
+      // }
       case 'get_staking_opportunities': {
         const p = new URLSearchParams({ coin: String(input.coin ?? '') })
         if (input.category) p.set('category', String(input.category))

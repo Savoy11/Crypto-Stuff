@@ -23,7 +23,9 @@ export async function GET() {
       { method: 'GET', path: '/api/v1/prices',                   description: 'Live prices for one or more coins', params: ['coins (csv, default: all)'] },
       { method: 'GET', path: '/api/v1/exchanges',                description: 'List all supported exchanges with coins and networks', params: ['tier (1|2)'] },
       { method: 'GET', path: '/api/v1/network-fees',             description: `Current gas/network fees for all ${SUPPORTED_NETWORKS.length} supported blockchains`, params: [] },
-      { method: 'GET', path: '/api/v1/transfer/routes',          description: 'Find cheapest transfer routes between two exchanges for a coin', params: ['from (required)', 'to (required)', 'coin (required)', 'amount (default: coin default)'] },
+      // Listed, not hidden: a caller should learn this endpoint exists and is
+      // deliberately withheld rather than guess it moved. It answers 503.
+      { method: 'GET', path: '/api/v1/transfer/routes',          description: 'WITHHELD from this build (503) — the Transfer Fee Calculator is out of the initial rollout while its fee table completes verification.', params: [] },
       { method: 'GET', path: '/api/v1/staking/opportunities',    description: 'Staking options for a coin with APY, lock-up, and a safetyScore (0–100, higher = safer)', params: ['coin', 'category (cefi|wallet|liquid)', 'min_safety (0-100 floor)', 'max_risk (1-10, deprecated)', 'yield_type', 'include_adjacent (default false — excludes lending & governance-token yield)'] },
       { method: 'GET', path: '/api/v1/news',                     description: 'Recent news articles for a coin with sentiment analysis', params: ['coin', 'limit (default: 20)', 'sentiment (positive|negative|neutral)', 'watchlist (comma-separated terms to widen coverage)'] },
       { method: 'GET', path: '/api/v1/securities/quotes',        description: 'Quotes for stocks, ETFs, mutual funds, and macro instruments (futures, FX pairs, yield indices). Every provider is keyed — see /data-sources', params: ['symbols (csv, required, max 25 — e.g. AAPL,VOO,GC=F,^TNX)'] },

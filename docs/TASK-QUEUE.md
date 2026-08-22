@@ -1665,7 +1665,38 @@ of totals that are being corrected means doing the reconciliation twice.
 > the subproject must make before code. **None is active until the owner says
 > so** — and the first-decision rows are owner decisions, not agent ones.
 
-#### S3 — Transfer Fees — **ACTIVE (owner, 2026-08-20)**
+#### S3 — Transfer Fees — **BUILT, WITHHELD FROM ROLLOUT (owner, 2026-08-22)**
+
+> **Owner: keep it, but out of the initial rollout — "I don't want it deleted but
+> I don't want it to be a part of the larger suite."** Nothing is deleted and the
+> charter stays open; this is a shipping decision, not a cancellation.
+>
+> **All FOUR surfaces are dark**, because an agent quoting a 447-day-old
+> withdrawal fee to a user is the same harm as the page showing it:
+> 1. Nav entry + `routePrefixes` removed; `/transfer-fees` redirects to
+>    `/headlines` (`permanent: false` — this is a rollout state, not a dead page).
+> 2. `find_transfer_routes` agent tool commented out in `lib/agents/tools.ts`.
+> 3. `/api/v1/transfer/routes` answers **503 with a reason** — deliberately not
+>    404, so a caller learns the endpoint exists and is withheld rather than
+>    assuming a bad path. Still listed in discovery and OpenAPI, marked withheld.
+> 4. MCP `find_transfer_routes` commented out; README count 13 → 12.
+>
+> **Deliberately still live:** `/api/v1/exchanges` (coin/network catalog, no fee
+> claims) and `/api/v1/network-fees` (gas, now live for 5 of 18 networks and
+> accurate). Neither makes a stale fee claim.
+>
+> **Retained in full:** the page, `lib/data/transferFees.ts`, the live overlay and
+> its seven adapters, the tax-character panel, and the reconcile / worksheet /
+> apply tooling. **To restore:** put the nav entry + routePrefixes line back,
+> delete the redirect, un-comment the two tool blocks, and drop the
+> `HIDDEN_FROM_ROLLOUT` guard in the v1 route. Each site says so in place.
+>
+> The NT12 drift guard caught this change mid-flight (stale MCP README count and
+> a discovery/route mismatch) and now models **withheld** as a third state
+> distinct from shipped and deleted — with a guards-the-guard test so the marker
+> cannot be used on a tool the server still registers.
+
+#### S3 — Transfer Fees — build record (**ACTIVE** work below is paused, not cancelled)
 
 > Owner's brief on activation: concerns are **accuracy** and that **all types
 > of transfers and exchanges are considered** — "the idea with this tool is
