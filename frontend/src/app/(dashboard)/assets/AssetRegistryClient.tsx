@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  LayoutGrid, List, Vault, Search, X, Coins as CoinsIcon,
+  LayoutGrid, List, Vault, Search, Coins as CoinsIcon,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useQuery } from '@tanstack/react-query'
@@ -22,7 +22,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { formatCompact } from '@/lib/utils/format'
-import { LIVE_DATA, STALE_TIME_SHORT, BLOCKCHAIN_LABELS } from '@/lib/constants'
+import { LIVE_DATA, STALE_TIME_SHORT } from '@/lib/constants'
 import type { AssetType, Blockchain } from '@/types/asset'
 
 type ViewMode = 'table' | 'grid'
@@ -46,18 +46,6 @@ const TYPE_CHIPS: Array<{ value: AssetType | 'all'; label: string; color: string
 // the owner drew as advice-shaped. Per-coin risk explanation on /assets/[id]
 // is unaffected — that scores a coin the reader chose to open.
 
-function NumInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
-  return (
-    <input
-      type="number"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      className="w-16 rounded border border-border bg-bg-elevated px-2 py-1 text-xs font-mono text-text-primary placeholder:text-text-muted/60 focus:border-accent-blue/50 focus:outline-none"
-    />
-  )
-}
-
 // ─── Main client ──────────────────────────────────────────────────────────────
 
 export function AssetRegistryClient() {
@@ -73,7 +61,7 @@ export function AssetRegistryClient() {
   )
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   const { data, isLoading, isError, refetch } = useAssetsWithStore()
-  const { filters, setFilters, resetFilters } = useAssetStore()
+  const { filters, setFilters } = useAssetStore()
 
   // Full monitored universe (unfiltered) for the market-breadth KPIs — bounded
   // to the tracked catalog, so a large pageSize returns everything in one page.
@@ -94,11 +82,13 @@ export function AssetRegistryClient() {
     return { totalMcap, stablecoins, layer1, advancers, decliners, breadthKnown: withChange.length }
   }, [universe])
 
+  // Only the reachable filters: the type chips and the search box. The screener
+  // bar was removed (2026-08-22), so blockchain / minMarketCap / minLiquidityPct
+  // can no longer be set from this page and would make this permanently false.
+  // The store fields and the API params behind them are left in place at their
+  // no-op defaults, so restoring the screener is a UI change only.
   const anyFilter =
     filters.assetType !== 'all' ||
-    filters.blockchain !== 'all' ||
-    filters.minMarketCap > 0 ||
-    filters.minLiquidityPct > 0 ||
     !!filters.search
 
   return (
@@ -237,54 +227,6 @@ export function AssetRegistryClient() {
             ))}
           </div>
 
-          {/* Screener — inline range + select filters */}
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-card border border-border bg-bg-card px-4 py-3">
-            <span className="text-xs font-medium uppercase tracking-wider text-text-muted">Screener</span>
-
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Min mkt cap $B
-              <NumInput
-                value={filters.minMarketCap > 0 ? String(filters.minMarketCap / 1e9) : ''}
-                onChange={(v) => setFilters({ minMarketCap: v === '' ? 0 : Number(v) * 1e9 })}
-                placeholder="1"
-              />
-            </label>
-
-            <label className="flex items-center gap-1.5 text-xs text-text-muted" title="24h volume ÷ market cap, in percent — a fact from the feed">
-              Min liquidity %/day
-              <NumInput
-                value={filters.minLiquidityPct > 0 ? String(filters.minLiquidityPct) : ''}
-                onChange={(v) => setFilters({ minLiquidityPct: v === '' ? 0 : Number(v) })}
-                placeholder="5"
-              />
-            </label>
-
-            <label className="flex items-center gap-1.5 text-xs text-text-muted">
-              Chain
-              <select
-                value={filters.blockchain}
-                onChange={(e) => setFilters({ blockchain: e.target.value as Blockchain | 'all' })}
-                className="rounded border border-border bg-bg-elevated px-2 py-1 text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
-              >
-                <option value="all">All chains</option>
-                {Object.entries(BLOCKCHAIN_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>{label}</option>
-                ))}
-              </select>
-            </label>
-
-            {anyFilter && (
-              <button
-                onClick={resetFilters}
-                className="flex items-center gap-1 text-xs text-accent-blue hover:underline"
-              >
-                <X size={11} aria-hidden /> Clear all
-              </button>
-            )}
-            <span className="ml-auto text-[11px] text-text-muted">
-              {(data?.total ?? 0).toLocaleString()} match{(data?.total ?? 0) !== 1 ? 'es' : ''}
-            </span>
-          </div>
 
           {/* Results */}
           {isError ? (

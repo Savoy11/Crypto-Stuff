@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { assetsApi, type GetAssetsParams } from '@/lib/api/assets'
+import { assetsApi, compareValues, type GetAssetsParams } from '@/lib/api/assets'
 import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import { STALE_TIME_SHORT, STALE_TIME_MEDIUM, GC_TIME } from '@/lib/constants'
@@ -157,12 +157,23 @@ export function useAssetsWithStore() {
 
     if (newCoins.length === 0) return mainQuery.data
 
+    // Discovered coins are merged into the ORDER, not stapled to the front.
+    // Prepending them meant OP and USDS sat above Bitcoin no matter which
+    // column you sorted by — which reads as "sorting is broken" rather than
+    // "these two rows are special", and it broke every column, not just price.
+    // Filters are still deliberately not applied to them (see above): the
+    // discovery store lacks the metadata to evaluate assetType/riskBand
+    // honestly. Sorting needs no such metadata — a price is a price.
+    const dir = sort.direction === 'asc' ? -1 : 1
+    const merged = [...newCoins, ...mainQuery.data.data]
+      .sort((a, b) => compareValues(a[sort.key as keyof Asset], b[sort.key as keyof Asset], dir))
+
     return {
       ...mainQuery.data,
-      data:  [...newCoins, ...mainQuery.data.data],
+      data:  merged,
       total: mainQuery.data.total + newCoins.length,
     }
-  }, [mainQuery.data, addedCoins, filters.search])
+  }, [mainQuery.data, addedCoins, filters.search, sort.key, sort.direction])
 
   // R2 Phase 2: the registry rows arrive already enriched (getAssets joins the
   // composite pre-filter). This second join only matters for discovery-store

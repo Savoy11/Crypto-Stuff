@@ -22,7 +22,12 @@ export interface GetAssetsParams extends QueryParams {
 
 // Null-safe comparison: missing values always sort to the end regardless of
 // direction, so "N/A" rows don't masquerade as the smallest/largest value.
-function compareValues(av: unknown, bv: unknown, dir: number): number {
+/**
+ * Null-safe comparison used by every sort on this surface. Exported so the
+ * discovery-store merge in useAssetsWithStore orders its rows the same way,
+ * instead of inventing a second comparator that disagrees at the edges.
+ */
+export function compareValues(av: unknown, bv: unknown, dir: number): number {
   const aMissing = av === null || av === undefined
   const bMissing = bv === null || bv === undefined
   if (aMissing && bMissing) return 0
