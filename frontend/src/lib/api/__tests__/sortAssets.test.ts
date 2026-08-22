@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sortAssets, compareValues } from '../assets'
+import { sortAssets, compareValues, applyParams } from '../assets'
 import type { Asset } from '@/types/asset'
 
 const a = (id: string, price: number | null, extra: Partial<Asset> = {}) =>
@@ -57,5 +57,36 @@ describe('compareValues', () => {
     // opposite sign.
     expect(compareValues(1, 2, 1)).toBeLessThan(0)
     expect(compareValues(1, 2, -1)).toBeGreaterThan(0)
+  })
+})
+
+const mkAsset = (id: string) => a(id, 1)
+
+describe('applyParams merges technicals before filtering', () => {
+  it('applies a technical rule against swept values, not undefined', () => {
+    // The R2 lesson repeated: the risk composite had to be joined BEFORE
+    // filtering or every rule ran against null and silently emptied the table.
+    // Technicals arrive from a separate query, so they have the same hazard.
+    const assets = [mkAsset('btc'), mkAsset('eth')]
+    const technicals = new Map([
+      ['btc', { rsi14: 25, vsSma50Pct: -5, vsSma200Pct: -10 }],
+      ['eth', { rsi14: 80, vsSma50Pct: 5, vsSma200Pct: 10 }],
+    ])
+    const res = applyParams(assets, {
+      technicals,
+      filterRules: [{ id: '1', field: 'rsi14', operator: 'lte', value: 30 }],
+    })
+    expect(res.data.map(a => a.id)).toEqual(['btc'])
+    expect(res.total).toBe(1)
+  })
+
+  it('counts every coin as untested when the sweep has not landed yet', () => {
+    // In-flight is NOT a reason to show the unfiltered table: that would
+    // present coins which may not match as though they did.
+    const res = applyParams([mkAsset('btc'), mkAsset('eth')], {
+      filterRules: [{ id: '1', field: 'rsi14', operator: 'lte', value: 30 }],
+    })
+    expect(res.total).toBe(0)
+    expect(res.untested).toBe(2)
   })
 })

@@ -27,7 +27,7 @@
 
 import type { Asset } from '@/types/asset'
 
-export type FilterGroup = 'valuation' | 'momentum' | 'liquidity' | 'supply'
+export type FilterGroup = 'valuation' | 'momentum' | 'liquidity' | 'supply' | 'technical'
 
 export type Operator = 'gte' | 'lte'
 
@@ -90,7 +90,31 @@ export const FILTER_FIELDS: FieldDef<Asset>[] = [
   { key: 'marketCapRank', label: 'Market-cap rank', group: 'supply', unit: 'count',
     hint: 'Position by market cap — 1 is the largest.',
     valueOf: a => a.marketCapRank ?? null },
+
+  // ── Technical ──────────────────────────────────────────────────────────────
+  // Unlike every field above, these are NOT in the markets feed. They are
+  // computed from a per-coin candle sweep (lib/technicals/sweep.ts) that runs
+  // only when one of these rules is active — which is why they are grouped
+  // apart and carry the cost in their hints. A coin the sweep could not reach
+  // is absent, so it lands in `untested` exactly like any other missing value.
+  { key: 'rsi14', label: 'RSI (14)', group: 'technical', unit: 'count',
+    hint: 'Relative Strength Index over 14 daily candles, 0–100. Conventionally read as stretched below 30 or above 70 — a description of recent price behaviour, not a signal to act on.',
+    valueOf: a => a.rsi14 ?? null },
+  { key: 'vsSma50Pct', label: 'Price vs 50-day average', group: 'technical', unit: 'percent',
+    hint: 'Percent above or below the 50-day simple moving average. −10 means the price sits a tenth below it.',
+    valueOf: a => a.vsSma50Pct ?? null },
+  { key: 'vsSma200Pct', label: 'Price vs 200-day average', group: 'technical', unit: 'percent',
+    hint: 'Percent above or below the 200-day simple moving average. Blank for coins with under 200 days of history.',
+    valueOf: a => a.vsSma200Pct ?? null },
 ]
+
+/** Fields that require the per-coin candle sweep rather than the markets feed. */
+export const TECHNICAL_FIELD_KEYS = FILTER_FIELDS.filter(f => f.group === 'technical').map(f => f.key)
+
+/** True when a rule set needs the sweep — the sweep runs on nothing else. */
+export function needsTechnicalSweep(rules: FilterRule[]): boolean {
+  return rules.some(r => TECHNICAL_FIELD_KEYS.includes(r.field) && Number.isFinite(r.value))
+}
 
 export const FIELD_BY_KEY = new Map(FILTER_FIELDS.map(f => [f.key, f]))
 
@@ -99,6 +123,7 @@ export const GROUP_LABELS: Record<FilterGroup, string> = {
   momentum: 'Momentum',
   liquidity: 'Liquidity',
   supply: 'Supply',
+  technical: 'Technical (sweeps candles)',
 }
 
 /**
@@ -108,9 +133,11 @@ export const GROUP_LABELS: Record<FilterGroup, string> = {
  * them here would either hang the page or quietly compute them from nothing.
  */
 export const UNAVAILABLE_FACTORS: { label: string; needs: string }[] = [
-  { label: 'RSI', needs: 'per-coin candles — use the Scanner, which sweeps for exactly this' },
-  { label: 'Moving averages', needs: 'per-coin candles (price vs SMA/EMA)' },
-  { label: 'Volatility', needs: 'a price history per coin' },
+  // RSI and the moving averages moved OUT of this list when the shared sweep
+  // shipped — they are real fields in the Technical group now. What is left
+  // here is what still has no source, and the list must shrink honestly rather
+  // than keep warning about something the page can do.
+  { label: 'Volatility', needs: 'a realised-volatility calculation over the candle sweep — not yet built' },
   { label: 'On-chain metrics', needs: 'a chain-data provider this app does not carry' },
 ]
 

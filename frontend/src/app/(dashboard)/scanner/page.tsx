@@ -13,7 +13,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { computeSignalSummary, type OhlcvCandle, type Signal, type SignalSummary } from '@/lib/utils/indicators'
 import { detectSetups, type SetupKey, type DetectedSetup } from '@/lib/utils/scanSetups'
-import { rsi, sma } from '@/lib/utils/indicators'
+import { computeTechnicals } from '@/lib/technicals/sweep'
 import { formatAdaptivePrice } from '@/lib/utils/format'
 import { runPool } from '@/lib/utils/runPool'
 import { SignalBadge } from '@/components/charts/SignalBadge'
@@ -192,16 +192,16 @@ function ScannerPanel() {
         if (!json.ok || candles.length === 0) {
           patch = { status: 'error' }
         } else {
-          const closes = candles.map(c => c.close)
-          const rsiSeries = rsi(closes, 14)
-          const sma50 = sma(closes, 50)
-          const last = closes[closes.length - 1]
-          const lastSma = sma50[sma50.length - 1]
+          // Shared with the Coins screener (lib/technicals/sweep.ts) so the two
+          // surfaces cannot disagree about what RSI 30 means. The scanner keeps
+          // its own loop because it also detects setups and streams each row in
+          // as it lands; only the indicator maths is common.
+          const t = computeTechnicals(candles)
           patch = {
             setups: detectSetups(candles),
             signal: candles.length >= 50 ? computeSignalSummary(candles) : null,
-            rsi14: rsiSeries[rsiSeries.length - 1] ?? null,
-            vsSma50Pct: lastSma ? ((last - lastSma) / lastSma) * 100 : null,
+            rsi14: t.rsi14,
+            vsSma50Pct: t.vsSma50Pct,
             status: 'ok',
           }
         }

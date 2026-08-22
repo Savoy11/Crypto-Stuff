@@ -35,6 +35,12 @@ export interface Asset {
   totalSupply?: number | null
   maxSupply?: number | null
   marketCapRank?: number | null
+  // Technical factors, attached by the shared OHLCV sweep (lib/technicals) and
+  // ONLY when a screener rule asks for them. Absent — not zero — for a coin the
+  // sweep could not fetch, so the screener counts it as not tested.
+  rsi14?: number | null
+  vsSma50Pct?: number | null
+  vsSma200Pct?: number | null
   // Derived metrics have no free live source — strict N/A (always null in live mode).
   pegDeviation: number | null // fractional, e.g. 0.0001 = 1 bps
   pegDeviationBps?: number | null // alias in basis points

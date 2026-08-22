@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   applyFilterStack, applyRules, activeRules, FILTER_FIELDS, FIELD_BY_KEY, UNAVAILABLE_FACTORS,
   DISCOVERY_FILTER_FIELDS, DISCOVERY_FIELD_BY_KEY,
+  needsTechnicalSweep, TECHNICAL_FIELD_KEYS,
   type FilterRule, type DiscoveryRow,
 } from '../coinFilters'
 import type { Asset } from '@/types/asset'
@@ -207,5 +208,56 @@ describe('applyRules over the Coin Discovery field table', () => {
     expect(keys).not.toContain('fdv')
     expect(keys).not.toContain('circulatingPct')
     expect(keys).toContain('liquidityPct')
+  })
+})
+
+describe('technical fields and the sweep gate', () => {
+  it('runs the sweep only for a complete technical rule', () => {
+    // The sweep is ~80 upstream requests. It must not fire for a rule the user
+    // has added but not yet typed a number into, nor for any feed-backed field.
+    expect(needsTechnicalSweep([])).toBe(false)
+    expect(needsTechnicalSweep([{ id: '1', field: 'marketCap', operator: 'gte', value: 1e9 }])).toBe(false)
+    expect(needsTechnicalSweep([{ id: '1', field: 'rsi14', operator: 'lte', value: NaN }])).toBe(false)
+    expect(needsTechnicalSweep([{ id: '1', field: 'rsi14', operator: 'lte', value: 30 }])).toBe(true)
+    expect(needsTechnicalSweep([{ id: '1', field: 'vsSma200Pct', operator: 'gte', value: 0 }])).toBe(true)
+  })
+
+  it('lists exactly the fields that need the sweep', () => {
+    // Guards the guard: a technical field added to FILTER_FIELDS without the
+    // 'technical' group would never trigger a sweep, so every row would be
+    // untested and the filter would look broken rather than expensive.
+    expect(TECHNICAL_FIELD_KEYS.sort()).toEqual(['rsi14', 'vsSma200Pct', 'vsSma50Pct'])
+  })
+
+  it('screens on a swept RSI and counts an unswept coin as untested', () => {
+    const rows = [
+      asset('btc', { rsi14: 25 }),
+      asset('eth', { rsi14: 70 }),
+      asset('sol'),                 // the sweep never reached it
+    ]
+    const r = applyFilterStack(rows, [{ id: '1', field: 'rsi14', operator: 'lte', value: 30 }])
+    expect(r.matched.map(a => a.id)).toEqual(['btc'])
+    expect(r.excluded.map(a => a.id)).toEqual(['eth'])
+    expect(r.untested.map(a => a.id)).toEqual(['sol'])
+  })
+
+  it('stacks a technical rule with a feed-backed one', () => {
+    const rows = [
+      asset('btc', { marketCap: 5e11, rsi14: 25 }),
+      asset('tiny', { marketCap: 1e6, rsi14: 25 }),
+    ]
+    const r = applyFilterStack(rows, [
+      { id: '1', field: 'marketCap', operator: 'gte', value: 1e9 },
+      { id: '2', field: 'rsi14', operator: 'lte', value: 30 },
+    ])
+    expect(r.matched.map(a => a.id)).toEqual(['btc'])
+  })
+
+  it('no longer warns that RSI and moving averages are unavailable', () => {
+    // They shipped. A stale "not available" note is worse than none — it tells
+    // the reader the page cannot do something it now does.
+    const labels = UNAVAILABLE_FACTORS.map(f => f.label)
+    expect(labels).not.toContain('RSI')
+    expect(labels).not.toContain('Moving averages')
   })
 })

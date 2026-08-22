@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { assetsApi, sortAssets, type GetAssetsParams } from '@/lib/api/assets'
+import { COINGECKO_IDS } from '@/lib/api/live/coingeckoIds'
+import { needsTechnicalSweep } from '@/lib/data/coinFilters'
+import { useTechnicalSweep } from '@/hooks/useTechnicalSweep'
 import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import type { FilterRule } from '@/lib/data/coinFilters'
@@ -112,6 +115,14 @@ export function useAssetsWithStore(filterRules: FilterRule[] = []) {
   const { filters, sort, page, pageSize } = useAssetStore()
   const { addedCoins } = useCoinDiscoveryStore()
 
+  // The candle sweep (option B). It runs ONLY when a technical rule is active,
+  // and over the WHOLE tracked universe rather than the visible page — the
+  // screener's invariant is that filters see the dataset, and sweeping one page
+  // would filter as though it had seen every coin.
+  const sweepIds = useMemo(() => Object.keys(COINGECKO_IDS), [])
+  const sweepNeeded = needsTechnicalSweep(filterRules)
+  const sweep = useTechnicalSweep(sweepIds, sweepNeeded)
+
   const params: GetAssetsParams = {
     assetType: filters.assetType !== 'all' ? filters.assetType : undefined,
     blockchain: filters.blockchain !== 'all' ? filters.blockchain : undefined,
@@ -125,6 +136,11 @@ export function useAssetsWithStore(filterRules: FilterRule[] = []) {
     minLiquidityPct: filters.minLiquidityPct > 0 ? filters.minLiquidityPct : undefined,
     search: filters.search || undefined,
     filterRules: filterRules.length ? filterRules : undefined,
+    // Deliberately NOT stripped while the sweep is in flight. With no values
+    // yet every coin is `untested`, which is exactly true — showing the
+    // unfiltered table instead would present coins that may not match as
+    // though they did. The UI shows the sweep's progress over the top.
+    technicals: sweep.data,
     sortBy: sort.key,
     sortDirection: sort.direction,
     page,
@@ -186,5 +202,19 @@ export function useAssetsWithStore(filterRules: FilterRule[] = []) {
     return { ...mergedData, data: mergedData.data.map((a) => applyRiskComposite(a, idx)) }
   }, [mergedData, riskIndexQuery.data])
 
-  return { ...mainQuery, data: enrichedData }
+  return {
+    ...mainQuery,
+    data: enrichedData,
+    // Surfaced so the screener can say what it is doing. `active` distinguishes
+    // "no technical rule, nothing to sweep" from "swept and found nothing" —
+    // an absent sweep and an empty one are not the same state.
+    technicalSweep: {
+      active: sweepNeeded,
+      isLoading: sweepNeeded && sweep.isLoading,
+      progress: sweep.progress,
+      /** Coins the sweep returned values for. The rest read as not tested. */
+      covered: sweep.data?.size ?? 0,
+      universe: sweepIds.length,
+    },
+  }
 }

@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  LayoutGrid, List, Vault, Search, X, Coins as CoinsIcon,
+  LayoutGrid, List, Vault, Search, X, Coins as CoinsIcon, Loader2,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useQuery } from '@tanstack/react-query'
@@ -71,7 +71,7 @@ export function AssetRegistryClient() {
   const [rules, setRules] = useState<FilterRule[]>([])
   const [screenerOpen, setScreenerOpen] = useState(false)
 
-  const { data, isLoading, isError, refetch } = useAssetsWithStore(rules)
+  const { data, isLoading, isError, refetch, technicalSweep } = useAssetsWithStore(rules)
   const { filters, setFilters } = useAssetStore()
 
   // Full monitored universe (unfiltered) for the market-breadth KPIs — bounded
@@ -247,6 +247,36 @@ export function AssetRegistryClient() {
               Screener{rules.length ? ` · ${rules.length}` : ''}
             </button>
           </div>
+
+          {screenerOpen && technicalSweep.active && (
+            <div className={clsx(
+              'flex flex-wrap items-center gap-2 rounded-card border px-4 py-2 text-xs',
+              technicalSweep.isLoading
+                ? 'border-accent-blue/30 bg-accent-blue/10 text-accent-blue'
+                : 'border-border bg-bg-card text-text-secondary',
+            )}>
+              {technicalSweep.isLoading ? (
+                <>
+                  <Loader2 size={13} className="animate-spin" />
+                  Sweeping candles — {technicalSweep.progress.done} of{' '}
+                  {technicalSweep.progress.total || technicalSweep.universe} coins. One
+                  request each, so this runs only while a technical condition is set.
+                </>
+              ) : (
+                <>
+                  Technical values swept for{' '}
+                  <strong className="text-text-primary">{technicalSweep.covered}</strong> of{' '}
+                  {technicalSweep.universe} coins.
+                  {technicalSweep.covered < technicalSweep.universe && (
+                    <span className="text-amber-400">
+                      The rest had no candles available and are counted as not tested, never as
+                      non-matches.
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {screenerOpen && (
             <FilterStack

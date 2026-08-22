@@ -1,4 +1,5 @@
 import { applyFilterStack, type FilterRule } from '@/lib/data/coinFilters'
+import type { TechnicalRow } from '@/lib/technicals/sweep'
 import type { Asset, AssetDetail, AssetFilters, AssetSortConfig } from '@/types/asset'
 import type { PaginatedResponse } from '@/types/api'
 import { fetchLiveMarkets } from './live/liveClient'
@@ -25,6 +26,14 @@ export interface GetAssetsParams {
    * screen only the rows already on screen.
    */
   filterRules?: FilterRule[]
+  /**
+   * Per-coin technical values from the shared OHLCV sweep, keyed by asset id.
+   * Merged onto each asset HERE — before the filter stack — so a technical rule
+   * is just another field to `applyFilterStack` and inherits its
+   * unknown-is-not-zero handling for free. A coin absent from the map keeps its
+   * undefined technicals and lands in `untested`.
+   */
+  technicals?: Map<string, TechnicalRow>
   sortBy?: string
   sortDirection?: 'asc' | 'desc'
   page?: number
@@ -79,7 +88,15 @@ export function sortAssets(assets: Asset[], sortBy: string, direction: 'asc' | '
 // risk (live composite only), so filtering pre-enrichment silently empties the
 // result and sorting is a no-op. getAssets() enriches BEFORE calling this.
 export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedResponse<Asset> {
-  let assets = [...all]
+  // Same reasoning as the risk-composite join above: the technical values have
+  // to be on the asset BEFORE anything filters or sorts on them, or a rule runs
+  // against undefined and empties the table silently.
+  let assets = params.technicals
+    ? all.map(a => {
+        const t = params.technicals!.get(a.id)
+        return t ? { ...a, ...t } : a
+      })
+    : [...all]
 
   if (params.search) {
     const q = params.search.toLowerCase()
