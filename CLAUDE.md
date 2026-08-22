@@ -94,7 +94,9 @@ frontend/src/
 │       ├── alerts/route.ts
 │       ├── chart/route.ts
 │       ├── config/route.ts
-│       ├── network-fees/route.ts   # Live BTC fees + all 16-network gas prices
+│       ├── network-fees/route.ts   # Live BTC (mempool.space) + live EVM-L1 gas (eth_gasPrice,
+│       │                           #   keyless publicnode) for ETH/BNB/Polygon/AVAX; L2s stay
+│       │                           #   estimates — eth_gasPrice omits their L1 data fee
 │       ├── withdraw-fees/route.ts  # Live exchange withdrawal fees (KuCoin/HTX keyless; Bybit probed 403 — authed) — overlay-only, per-row live tags
 │       ├── staking-rates/route.ts  # Live APR from Lido, Marinade, Jito
 │       ├── security-quotes/route.ts # Stock/ETF/fund quotes (FMP→…→Alpha Vantage→reference; ALL KEYED)

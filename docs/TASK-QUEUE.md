@@ -1786,6 +1786,30 @@ of totals that are being corrected means doing the reconciliation twice.
 > redesignated §67(g) as §67(h) for 2026 (reviewers disagreed, so no pinpoint
 > subsection is cited in the shipped copy).
 >
+> **Live EVM gas (2026-08-22).** A competitor scan found ChainCost pulling
+> real-time chain gas while we had live fees on 1 of 18 networks. Now 5 of 18:
+> Bitcoin plus the four EVM **L1s** (Ethereum, BNB Chain, Polygon, Avalanche)
+> via keyless `eth_gasPrice` on public RPC, priced at an assumed 65k-gas token
+> transfer — live RATE x assumed SIZE, the same shape as BTC's live sat/vByte x
+> assumed 250 vBytes, and labelled `live` on the same basis.
+>
+> **Arbitrum, Optimism and Base are deliberately excluded.** On OP-stack chains
+> the L1 data fee usually dominates and `eth_gasPrice` reports only L2
+> execution, so a live-looking number would UNDERSTATE the fee — the dangerous
+> direction, since the user underfunds and the withdrawal fails. Arbitrum
+> charges its L1 component through extra gas units, which a fixed limit misses
+> too. Making those live needs the GasPriceOracle predeploy (0x420…0F) and the
+> Fjord size model; until then the honest estimate stands. A test pins the
+> exclusion so a later "completeness" pass cannot quietly add them.
+>
+> The page's live/estimate copy is now DERIVED from the per-network `source`
+> field — it previously hardcoded "BTC live · other gas estimated" and would
+> have silently gone wrong the moment a second provider was registered.
+> **Owner action: `npm run gas-probe`** — the endpoints are egress-blocked from
+> the build environment, so availability is an owner-machine verdict, and the
+> probe prints each live fee beside the static estimate it replaces so an
+> order-of-magnitude error is obvious.
+>
 > **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
 > user-supplied basis/holding period/rate on the TEY pattern (store no bracket
 > table, so nothing goes stale) and is the piece that touches the owner's

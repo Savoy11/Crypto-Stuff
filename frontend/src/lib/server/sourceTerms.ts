@@ -489,6 +489,22 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     confidence: 'low',
   },
   {
+    domain: 'publicnode.com',
+    name: 'PublicNode (Allnodes) — free public RPC gateways',
+    verdict: 'conditional',
+    termsUrl: 'https://www.publicnode.com/',
+    finding:
+      'Operates free, keyless public JSON-RPC gateways for ~75 chains, advertised for open public use with no signup or API key. Used here for a single eth_gasPrice read per chain per revalidate window — far inside any reasonable public-endpoint budget. Seeded from the service\'s publicly advertised posture; the terms document has not been read for this project, and the endpoints themselves are unprobed from this environment.',
+    conditions: [
+      'Read-only public JSON-RPC methods only',
+      'One request per chain per revalidate window — do not poll',
+      'Degrade to the static estimate rather than retrying on failure',
+    ],
+    reviewedAt: '2026-08-22',
+    review: 'seeded',
+    confidence: 'low',
+  },
+  {
     domain: 'kucoin.com',
     name: 'KuCoin (public market-data API)',
     verdict: 'conditional',

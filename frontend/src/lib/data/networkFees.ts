@@ -113,6 +113,108 @@ export interface FeeProvider {
   fetchFee(): Promise<FeeProviderResult | null>
 }
 
+// ── EVM live gas (public JSON-RPC, keyless) ──────────────────────────────────
+//
+// `eth_gasPrice` gives the current gas PRICE; the gas LIMIT for a token
+// transfer stays an assumption, so a live EVM fee is "live price x assumed
+// limit" — exactly the shape of the Bitcoin provider (live sat/vByte x assumed
+// 250 vBytes), and labelled `live` on the same basis. The volatile half is the
+// price, which is the half that made the static estimates wrong.
+//
+// ⚠ L1s ONLY — Arbitrum, Optimism and Base are deliberately NOT here.
+// On OP-stack chains a transaction pays L2 execution gas PLUS an L1 data fee
+// for posting the transaction to Ethereum, and the L1 component usually
+// dominates. `eth_gasPrice` returns only the L2 execution price, so multiplying
+// it by a gas limit understates the true cost — and understating a fee is the
+// dangerous direction, since the user budgets too little and the withdrawal
+// fails. A correct L2 number needs the GasPriceOracle predeploy
+// (0x420...0F) and the Fjord FastLZ size model; until that is built, the honest
+// static estimate stands. Arbitrum charges its L1 component through extra gas
+// units rather than the price, so a fixed limit misses it there too.
+//
+// Rate limits are irrelevant at our cadence: one call per chain per revalidate
+// window, server-side.
+
+/** Typical gas units for an ERC-20-style token transfer. Still an assumption. */
+export const EVM_TOKEN_TRANSFER_GAS = 65_000
+
+interface EvmLiveGas {
+  /** Tried in order; first success wins. */
+  rpcUrls: string[]
+  gasLimit: number
+}
+
+export const EVM_LIVE_GAS: Partial<Record<NetworkKey, EvmLiveGas>> = {
+  erc20: {
+    rpcUrls: ['https://ethereum-rpc.publicnode.com', 'https://ethereum.publicnode.com'],
+    gasLimit: EVM_TOKEN_TRANSFER_GAS,
+  },
+  bep20: {
+    rpcUrls: ['https://bsc-rpc.publicnode.com', 'https://bsc.publicnode.com'],
+    gasLimit: EVM_TOKEN_TRANSFER_GAS,
+  },
+  polygon: {
+    rpcUrls: ['https://polygon-bor-rpc.publicnode.com', 'https://polygon.publicnode.com'],
+    gasLimit: EVM_TOKEN_TRANSFER_GAS,
+  },
+  avalanche: {
+    rpcUrls: ['https://avalanche-c-chain-rpc.publicnode.com', 'https://avalanche.publicnode.com'],
+    gasLimit: EVM_TOKEN_TRANSFER_GAS,
+  },
+}
+
+/**
+ * Hex wei gas price + gas limit -> fee in native token units. Pure so the
+ * unit-conversion (the part that silently produces a fee 1e9x wrong) is tested
+ * without a network.
+ *
+ * Returns null on anything malformed rather than a number — a gas price we
+ * could not read must fall back to the static estimate, never to zero.
+ */
+export function feeFromGasPriceHex(hex: unknown, gasLimit: number): number | null {
+  if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]+$/.test(hex)) return null
+  // Number, not BigInt: the project targets ES2017, and a realistic gas price
+  // is many orders of magnitude below MAX_SAFE_INTEGER (100 gwei = 1e11 wei),
+  // so precision is not at risk. An implausibly large reading is caught by the
+  // sanity bound below rather than by the parse.
+  const wei = Number(hex)
+  if (!Number.isFinite(wei) || wei <= 0) return null
+  const fee = (wei * gasLimit) / 1e18
+  // Guard against an absurd reading (a malfunctioning node, or a chain whose
+  // units we have wrong) turning into a headline dollar figure.
+  if (!Number.isFinite(fee) || fee <= 0 || fee > 10) return null
+  return fee
+}
+
+function evmGasProvider(network: NetworkKey, label: string): FeeProvider {
+  const cfg = EVM_LIVE_GAS[network]!
+  return {
+    network,
+    label,
+    async fetchFee() {
+      for (const url of cfg.rpcUrls) {
+        try {
+          const r = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+            body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'eth_gasPrice', params: [] }),
+            // Gas is the most volatile input on the page; 2 min keeps it current
+            // while staying one request per chain per window.
+            next: { revalidate: 120 },
+          })
+          if (!r.ok) continue
+          const d = (await r.json()) as { result?: unknown }
+          const fee = feeFromGasPriceHex(d?.result, cfg.gasLimit)
+          if (fee !== null) return { network, feeNative: fee }
+        } catch {
+          // try the next endpoint
+        }
+      }
+      return null
+    },
+  }
+}
+
 const bitcoinProvider: FeeProvider = {
   network: 'bitcoin',
   label: 'mempool.space',
@@ -134,9 +236,14 @@ const bitcoinProvider: FeeProvider = {
   },
 }
 
-// Registered live fee providers. Add EVM gas-oracle providers here to upgrade
-// erc20/arbitrum/base/optimism/bep20/polygon/avalanche from estimate to live.
-export const FEE_PROVIDERS: FeeProvider[] = [bitcoinProvider]
+// Registered live fee providers. Networks with no provider stay `estimate`.
+export const FEE_PROVIDERS: FeeProvider[] = [
+  bitcoinProvider,
+  evmGasProvider('erc20', 'publicnode eth_gasPrice'),
+  evmGasProvider('bep20', 'publicnode eth_gasPrice'),
+  evmGasProvider('polygon', 'publicnode eth_gasPrice'),
+  evmGasProvider('avalanche', 'publicnode eth_gasPrice'),
+]
 
 async function fetchLivePrices(): Promise<{ prices: Record<string, number>; source: 'live' | 'fallback' }> {
   const prices = { ...FALLBACK_PRICES }

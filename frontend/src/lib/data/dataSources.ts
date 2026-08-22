@@ -128,9 +128,13 @@ export const DATA_SOURCES: DataSourceEntry[] = [
   {
     id: 'network-fees', surface: 'Network / gas fees (16 chains)', module: 'crypto',
     route: '/live-data/network-fees', status: 'partial',
-    providers: [{ name: 'mempool.space', host: 'mempool.space', role: 'primary', auth: 'none' }, COINGECKO],
-    staticData: ['lib/data/networkFees.ts (gas amounts)'],
-    notes: 'Only Bitcoin’s sat/vByte fee is live. Every other chain is a static gas amount × live token price, labeled `estimate` per network.',
+    providers: [
+      { name: 'mempool.space', host: 'mempool.space', role: 'primary', auth: 'none' },
+      { name: 'PublicNode (eth_gasPrice)', host: 'publicnode.com', url: 'https://www.publicnode.com/', role: 'primary', auth: 'none' },
+      COINGECKO,
+    ],
+    staticData: ['lib/data/networkFees.ts (gas limits + fallback amounts)'],
+    notes: 'Live: Bitcoin (mempool.space sat/vByte) and the four EVM L1s — Ethereum, BNB Chain, Polygon, Avalanche — via keyless eth_gasPrice, priced at an assumed 65k-gas token transfer (live PRICE × assumed LIMIT, same shape as BTC’s live rate × assumed 250 vBytes). Arbitrum/Optimism/Base are deliberately NOT live: on OP-stack chains the L1 data fee usually dominates and eth_gasPrice reports only L2 execution, so a live-looking number would understate the true cost — they stay honest estimates. The remaining chains are a static gas amount × live token price, labeled `estimate` per network.',
   },
   {
     id: 'withdraw-fees', surface: 'Live exchange withdrawal fees (Transfer Fee Calculator overlay)', module: 'crypto',

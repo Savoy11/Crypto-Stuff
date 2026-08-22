@@ -597,6 +597,18 @@ function TransferFeesPageInner() {
   }, [])
 
   const networkFees = useMemo<NetworkFeeMap>(() => data?.networkFees ?? STATIC_FEES, [data])
+  // Derived, never hardcoded: the previous copy said "BTC live · other gas
+  // estimated" and silently became wrong the moment a second live provider was
+  // registered. Counting the actual per-network `source` keeps it true.
+  const liveGasNetworks = useMemo(
+    () => (Object.entries(networkFees) as [string, NetworkFeeMap[keyof NetworkFeeMap]][])
+      .filter(([, f]) => f?.source === 'live')
+      .map(([id]) => NETWORKS[id as keyof typeof NETWORKS]?.shortName ?? id),
+    [networkFees],
+  )
+  const gasSourceLabel = liveGasNetworks.length > 0
+    ? `${liveGasNetworks.join(', ')} gas live · other networks estimated`
+    : 'all gas estimated'
   const coinPrices  = useMemo<CoinPriceMap>(() => data?.coinPrices  ?? STATIC_PRICES, [data])
 
   // Determine if selected coin has fee data in our database
@@ -688,7 +700,7 @@ function TransferFeesPageInner() {
               subtitle="Find the cheapest route to move crypto between exchanges and wallets"
               description="The Transfer Fee Calculator compares withdrawal costs across 30 exchanges and 18 networks. It accounts for network gas fees, exchange withdrawal minimums, and multi-hop routes (e.g. sending to an intermediate wallet to avoid unsupported direct transfers)."
               details={[
-                { label: 'Live gas prices', text: 'BTC fees use live mempool data. EVM gas is estimated from current CoinGecko ETH price × typical gas units. Other networks use static estimates.' },
+                { label: 'Live gas prices', text: 'Bitcoin uses live mempool sat/vByte; Ethereum, BNB Chain, Polygon and Avalanche use live eth_gasPrice from a public RPC. Both are a live rate multiplied by an assumed transaction size, so the size is still an estimate. Arbitrum, Optimism and Base are deliberately NOT live — their cost is dominated by an L1 data fee that eth_gasPrice does not report, so a live-looking number would understate it. Remaining networks use static gas amounts at live token prices.' },
                 { label: 'Multi-hop routes', text: 'When a direct exchange-to-exchange path is unavailable, the calculator finds the best two-leg route via your personal wallet.' },
                 { label: 'EVM address collision', text: 'Transferring between EVM networks (ETH, Polygon, Arbitrum, etc.) uses the same address — verify the destination network before sending.' },
               ]}
@@ -706,7 +718,7 @@ function TransferFeesPageInner() {
               Refresh fees
             </button>
           )}
-          <DataBadge status="estimate" source="BTC live (mempool.space) · other gas estimated" />
+          <DataBadge status="estimate" source={gasSourceLabel} />
           {dataUpdatedAt && (
             <span className="text-[10px] text-slate-500">
               Updated {new Date(dataUpdatedAt).toLocaleTimeString()}
@@ -922,8 +934,12 @@ function TransferFeesPageInner() {
               {data ? (
                 <>
                   <div className="flex items-center gap-1.5">
-                    <span className={clsx('size-1.5 rounded-full', data.btcFeeSource === 'live' ? 'bg-emerald-400' : 'bg-amber-400')} />
-                    <span>BTC: {data.btcFeeSource === 'live' ? 'live (mempool.space)' : 'estimated'}</span>
+                    <span className={clsx('size-1.5 rounded-full', liveGasNetworks.length > 0 ? 'bg-emerald-400' : 'bg-amber-400')} />
+                    <span>
+                      {liveGasNetworks.length > 0
+                        ? `Live gas: ${liveGasNetworks.join(', ')}`
+                        : 'Gas: all estimated'}
+                    </span>
                   </div>
                   <span className="text-slate-600">·</span>
                   <span>Other networks: estimated (price-adjusted)</span>
