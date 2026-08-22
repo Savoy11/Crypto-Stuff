@@ -1810,6 +1810,33 @@ of totals that are being corrected means doing the reconciliation twice.
 > probe prints each live fee beside the static estimate it replaces so an
 > order-of-magnitude error is obvious.
 >
+> **Owner probes, 2026-08-22 — all green.** `gas-probe`: all four EVM L1 RPCs
+> answered HTTP 200. `fee-probe`: **all seven** exchange sources answered —
+> kucoin 48, htx 53, bitget 42, poloniex 31, lbank 51, bitfinex 14, xtcom 41 =
+> 280 live rows, **123 matching a curated route** (up from 54). The five batch-2
+> adapters are confirmed and flagged `probed: true`.
+>
+> **Finding: the static gas estimates overstate ETH by ~200x.** The probe read
+> Ethereum at 0.152 gwei — corroborated by Etherscan (0.773), ChainGate (0.11)
+> and an Aug-22 snapshot (0.14) — so a real ERC-20 transfer is ~0.00001 ETH
+> against the 0.002 in NETWORK_GAS. The live provider now supersedes it, and the
+> static value is **deliberately left high**: it applies only when the live fetch
+> fails, and under-stating gas during the congestion that broke the fetch would
+> have the user underfund a withdrawal. Erring high costs an over-estimate;
+> erring low costs a stuck transaction. Rationale recorded in the file so nobody
+> "fixes" it downward.
+>
+> **`npm run fee-reconcile` (new).** The verification pass was never done because
+> it meant checking 543 rows by hand. The live adapters now read real fees from
+> the exchanges' own APIs, so ~23% of the table can be machine-verified — better
+> evidence than a human reading a marketing page. It diffs live vs stored and
+> writes a report plus a JSON of proposed corrections. Three rules keep it
+> honest: a **suspension is a state, not a schedule** (never proposed as an
+> edit); a **dynamic fee has no correct value** (reported, never proposed); and
+> it **cannot bump TRANSFER_FEES_LAST_VERIFIED**, because reconciling a fifth of
+> the table does not make "the whole table was checked today" true. The
+> remaining ~420 rows stay the `fee-worksheet` job.
+>
 > **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
 > user-supplied basis/holding period/rate on the TEY pattern (store no bracket
 > table, so nothing goes stale) and is the piece that touches the owner's

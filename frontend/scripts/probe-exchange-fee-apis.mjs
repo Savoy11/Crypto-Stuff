@@ -15,27 +15,13 @@
 // exchange's own withdrawal page.
 
 import {
-  parseKucoinCurrencies,
-  parseHtxCurrencies,
-  parseBitgetCoins,
-  parsePoloniexCurrencies,
-  parseLbankWithdrawConfigs,
-  parseBitfinexTxFees,
-  parseXtSupportCurrency,
+  WITHDRAW_FEE_SOURCES,
   buildFeeOverrideMap,
 } from '../src/lib/server/withdrawFeeAdapters.ts'
 
-const SOURCES = [
-  // bybit removed 2026-08-21: probe returned 403 — authenticated endpoint, not public
-  { id: 'kucoin', url: 'https://api.kucoin.com/api/v3/currencies', parse: parseKucoinCurrencies },
-  { id: 'htx', url: 'https://api.huobi.pro/v2/reference/currencies', parse: parseHtxCurrencies },
-  // Batch 2 — unprobed candidates. USABLE = HTTP 200 with parsed rows > 0.
-  { id: 'bitget', url: 'https://api.bitget.com/api/v2/spot/public/coins', parse: parseBitgetCoins },
-  { id: 'poloniex', url: 'https://api.poloniex.com/currencies?includeMultiChainCurrencies=true', parse: parsePoloniexCurrencies },
-  { id: 'lbank', url: 'https://api.lbkex.com/v2/withdrawConfigs.do', parse: parseLbankWithdrawConfigs },
-  { id: 'bitfinex', url: 'https://api-pub.bitfinex.com/v2/conf/pub:map:currency:tx:fee', parse: parseBitfinexTxFees },
-  { id: 'xtcom', url: 'https://sapi.xt.com/v4/public/wallet/support/currency', parse: parseXtSupportCurrency },
-]
+// Single source of truth — shared with the overlay and the reconcile tool, so
+// an endpoint change lands in one place.
+const SOURCES = WITHDRAW_FEE_SOURCES.map(s => ({ id: s.exchangeId, url: s.url, parse: s.parse }))
 
 const allRows = []
 for (const s of SOURCES) {

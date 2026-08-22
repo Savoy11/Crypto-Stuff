@@ -45,7 +45,12 @@ for (const [network, cfg] of Object.entries(EVM_LIVE_GAS)) {
       )
       const ratio = fee / info.native
       if (ratio > 10 || ratio < 0.1) {
-        process.stdout.write(`   ⚠ ${ratio.toFixed(1)}x the static estimate — check the gas-limit assumption before trusting this\n`)
+        process.stdout.write(
+          `   ⚠ ${ratio.toFixed(2)}x the static fallback. Two possible causes — check which:\n` +
+          `     (a) the fallback is stale/conservative (expected: it is deliberately high), or\n` +
+          `     (b) our gas-limit or units are wrong. Compare the gwei reading above to a\n` +
+          `         public gas tracker for this chain; if the gwei matches, it is (a).\n`
+        )
       }
       anyLive = true
       done = true

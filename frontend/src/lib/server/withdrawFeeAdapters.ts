@@ -277,6 +277,38 @@ export function parseXtSupportCurrency(json: any): ParsedFeeRow[] {
   return rows
 }
 
+
+// ─── The keyless source list ──────────────────────────────────────────────────
+//
+// Lives here (not in withdrawFeeOverlay.ts) because that module is `server-only`
+// and three callers need this list: the overlay, the owner probe, and the
+// reconcile tool. It was duplicated across two of them, which is how endpoint
+// lists drift.
+//
+// Bybit was probed 2026-08-21 and returned 403 — /v5/asset/coin/query-info is in
+// its authenticated Asset API group, not public. Keyless-only ⇒ no Bybit.
+
+export interface WithdrawFeeSource {
+  exchangeId: string
+  url: string
+  parse: (json: any) => ParsedFeeRow[]
+  /** False until the owner probe confirms it answers keyless from a real IP. */
+  probed: boolean
+}
+
+export const WITHDRAW_FEE_SOURCES: WithdrawFeeSource[] = [
+  { exchangeId: 'kucoin', url: 'https://api.kucoin.com/api/v3/currencies', parse: parseKucoinCurrencies, probed: true },
+  { exchangeId: 'htx', url: 'https://api.huobi.pro/v2/reference/currencies', parse: parseHtxCurrencies, probed: true },
+  // Batch 2 all confirmed on the owner probe 2026-08-22 (HTTP 200, rows parsed):
+  // bitget 42, poloniex 31, lbank 51, bitfinex 14, xtcom 41. Combined with
+  // kucoin+htx that is 280 live rows, 123 of which match a curated route.
+  { exchangeId: 'bitget', url: 'https://api.bitget.com/api/v2/spot/public/coins', parse: parseBitgetCoins, probed: true },
+  { exchangeId: 'poloniex', url: 'https://api.poloniex.com/currencies?includeMultiChainCurrencies=true', parse: parsePoloniexCurrencies, probed: true },
+  { exchangeId: 'lbank', url: 'https://api.lbkex.com/v2/withdrawConfigs.do', parse: parseLbankWithdrawConfigs, probed: true },
+  { exchangeId: 'bitfinex', url: 'https://api-pub.bitfinex.com/v2/conf/pub:map:currency:tx:fee', parse: parseBitfinexTxFees, probed: true },
+  { exchangeId: 'xtcom', url: 'https://sapi.xt.com/v4/public/wallet/support/currency', parse: parseXtSupportCurrency, probed: true },
+]
+
 // ─── Overlay filter ───────────────────────────────────────────────────────────
 
 /**
