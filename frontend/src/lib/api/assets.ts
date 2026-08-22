@@ -38,6 +38,31 @@ export function compareValues(av: unknown, bv: unknown, dir: number): number {
   return 0
 }
 
+/**
+ * THE one asset sort. Every surface that orders this table must call this
+ * rather than re-deriving the direction, because the direction convention is
+ * easy to get backwards and a backwards copy is invisible in code review — it
+ * looks like a sort, it just returns the wrong order.
+ *
+ * That is not hypothetical: a second copy in useAssetsWithStore computed
+ * `dir = asc ? -1 : 1`, the exact inverse of the original here, and silently
+ * reversed the rows after the API had already sorted and paginated them.
+ */
+export function sortAssets(assets: Asset[], sortBy: string, direction: 'asc' | 'desc'): Asset[] {
+  const dir = direction === 'asc' ? 1 : -1
+  if (sortBy === 'liquidityRatio') {
+    // Derived sort key (W3-2): vol/mcap is not a stored column. Null-safe like
+    // every other sort — rows missing either figure go to the end.
+    const ratio = (a: Asset) =>
+      a.volume24h !== null && a.marketCap !== null && a.marketCap > 0
+        ? a.volume24h / a.marketCap : null
+    return [...assets].sort((a, b) => compareValues(ratio(a), ratio(b), dir))
+  }
+  const key = sortBy as keyof Asset
+  return [...assets].sort((a, b) => compareValues(a[key], b[key], dir))
+}
+
+
 // Exported for tests: the R2 session review confirmed risk band/score filters
 // and the riskScore sort MUST run on enriched assets — the catalog carries null
 // risk (live composite only), so filtering pre-enrichment silently empties the
@@ -80,18 +105,7 @@ export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedRes
   }
 
   if (params.sortBy) {
-    const dir = params.sortDirection === 'asc' ? 1 : -1
-    if (params.sortBy === 'liquidityRatio') {
-      // Derived sort key (W3-2): vol/mcap is not a stored column. Null-safe
-      // like every other sort — rows missing either figure go to the end.
-      const ratio = (a: Asset) =>
-        a.volume24h !== null && a.marketCap !== null && a.marketCap > 0
-          ? a.volume24h / a.marketCap : null
-      assets = assets.sort((a, b) => compareValues(ratio(a), ratio(b), dir))
-    } else {
-      const key = params.sortBy as keyof Asset
-      assets = assets.sort((a, b) => compareValues(a[key], b[key], dir))
-    }
+    assets = sortAssets(assets, params.sortBy, params.sortDirection ?? 'desc')
   }
 
   const page = params.page ?? 1

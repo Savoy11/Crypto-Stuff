@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
-import { assetsApi, compareValues, type GetAssetsParams } from '@/lib/api/assets'
+import { assetsApi, sortAssets, type GetAssetsParams } from '@/lib/api/assets'
 import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import { STALE_TIME_SHORT, STALE_TIME_MEDIUM, GC_TIME } from '@/lib/constants'
@@ -164,9 +164,7 @@ export function useAssetsWithStore() {
     // Filters are still deliberately not applied to them (see above): the
     // discovery store lacks the metadata to evaluate assetType/riskBand
     // honestly. Sorting needs no such metadata — a price is a price.
-    const dir = sort.direction === 'asc' ? -1 : 1
-    const merged = [...newCoins, ...mainQuery.data.data]
-      .sort((a, b) => compareValues(a[sort.key as keyof Asset], b[sort.key as keyof Asset], dir))
+    const merged = sortAssets([...newCoins, ...mainQuery.data.data], sort.key, sort.direction)
 
     return {
       ...mainQuery.data,
