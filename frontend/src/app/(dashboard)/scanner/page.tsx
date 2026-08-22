@@ -80,6 +80,7 @@ const SCAN_REFRESH_MS = 120_000
 
 const SORT_OPTIONS = [
   { key: 'rank',    label: 'Market cap' },
+  { key: 'price',   label: 'Price' },
   { key: 'setups',  label: 'Most setups' },
   { key: 'signal',  label: 'Signal' },
   { key: 'rsi',     label: 'RSI (low→high)' },
@@ -251,6 +252,17 @@ function ScannerPanel() {
     .map(r => ({ ...r, meta: metaById.get(r.assetId) }))
     .filter(r => !q || r.assetId.toLowerCase().includes(q) || (r.meta?.label ?? '').toLowerCase().includes(q) || (r.meta?.symbol ?? '').toLowerCase().includes(q))
     .sort((a, b) => {
+      // Price comes from the same markets quotes the table already renders.
+      // Coins with no quote sort last rather than as 0 — an unknown price is
+      // not a cheap one.
+      if (sortKey === 'price') {
+        const pa = marketsData?.quotes?.[a.assetId]?.price ?? null
+        const pb = marketsData?.quotes?.[b.assetId]?.price ?? null
+        if (pa === null && pb === null) return 0
+        if (pa === null) return 1
+        if (pb === null) return -1
+        return pb - pa
+      }
       if (sortKey === 'setups') return b.setups.length - a.setups.length
       if (sortKey === 'signal') return signalRank(b.signal) - signalRank(a.signal)
       if (sortKey === 'rsi') return (a.rsi14 ?? 999) - (b.rsi14 ?? 999)

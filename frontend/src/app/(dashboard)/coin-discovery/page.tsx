@@ -358,6 +358,7 @@ const TYPE_OPTIONS = [
 
 const SORT_OPTIONS = [
   { value: 'market-cap', label: 'Market cap' },
+  { value: 'price', label: 'Price' },
   { value: 'growth-24h', label: '24h growth' },
   { value: 'growth-7d', label: '7d growth' },
   { value: 'liquidity', label: 'Liquidity' },
@@ -415,6 +416,7 @@ function CoinDiscoveryPageInner() {
   const sorted = useMemo(() => {
     if (sortBy === 'market-cap') return filtered
     const rows = [...filtered]
+    if (sortBy === 'price') return rows.sort((a, b) => b.price - a.price)
     if (sortBy === 'growth-24h') return rows.sort((a, b) => b.priceChange24h - a.priceChange24h)
     if (sortBy === 'growth-7d') return rows.sort((a, b) => (b.priceChange7d ?? -Infinity) - (a.priceChange7d ?? -Infinity))
     if (sortBy === 'liquidity') return rows.sort((a, b) => b.liquidityRatio - a.liquidityRatio)

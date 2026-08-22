@@ -6,7 +6,7 @@ import { ExternalLink, Copy, CheckCircle } from 'lucide-react'
 import { useState } from 'react'
 import type { Asset } from '@/types/asset'
 import { DataTable, type Column } from '@/components/ui/DataTable'
-import { formatCompact, formatBps, formatPercent, formatScore, formatAddress, formatOrNA, NA_LABEL } from '@/lib/utils/format'
+import { formatCompact, formatBps, formatPercent, formatScore, formatAddress, formatOrNA, formatCurrency, NA_LABEL } from '@/lib/utils/format'
 import { Sparkline } from '@/components/charts/Sparkline'
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { useAssetStore } from '@/store/useAssetStore'
@@ -93,6 +93,22 @@ export function AssetTable({ assets, loading, total }: AssetTableProps) {
         accessor: (row) => (
           <span className="text-xs text-text-muted font-mono capitalize">
             {BLOCKCHAIN_LABELS[row.blockchain] ?? row.blockchain}
+          </span>
+        ),
+      },
+      {
+        // Price was missing entirely from this table — market cap, 24h change
+        // and volume were all sortable, but the most basic figure about an
+        // asset was neither shown nor sortable. Sub-dollar coins are common in
+        // this universe, so the precision follows the magnitude rather than a
+        // flat 2dp that would render SHIB and similar as "$0.00".
+        key: 'price',
+        header: 'Price',
+        sortable: true,
+        align: 'right',
+        accessor: (row) => (
+          <span className="font-mono text-xs text-text-primary">
+            {formatOrNA(row.price, (v) => formatCurrency(v, v >= 1 ? 2 : v >= 0.01 ? 4 : 8))}
           </span>
         ),
       },

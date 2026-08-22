@@ -85,6 +85,7 @@ const SIGNAL_SCORE: Record<Signal, number> = {
 const signalRank = (s: SignalSummary | null) => (s ? SIGNAL_SCORE[s.overall] : -99)
 
 const SORT_OPTIONS = [
+  { key: 'price' as const, label: 'Price' },
   { key: 'setups' as const, label: 'Most setups' },
   { key: 'signal' as const, label: 'Signal' },
   { key: 'rsi' as const, label: 'RSI (low→high)' },
@@ -178,7 +179,15 @@ function ScannerPanel() {
     const q = search.trim().toLowerCase()
     if (q) out = out.filter((r) => r.symbol.toLowerCase().includes(q) || r.name.toLowerCase().includes(q))
     const sorted = [...out]
-    if (sortKey === 'setups') sorted.sort((a, b) => b.setups.length - a.setups.length || a.symbol.localeCompare(b.symbol))
+    // A row with no price sorts last rather than as 0 — an unscanned or
+    // unavailable symbol is not the cheapest stock on the board.
+    if (sortKey === 'price') sorted.sort((a, b) => {
+      if (a.price == null && b.price == null) return a.symbol.localeCompare(b.symbol)
+      if (a.price == null) return 1
+      if (b.price == null) return -1
+      return b.price - a.price
+    })
+    else if (sortKey === 'setups') sorted.sort((a, b) => b.setups.length - a.setups.length || a.symbol.localeCompare(b.symbol))
     else if (sortKey === 'signal') sorted.sort((a, b) => signalRank(b.signal) - signalRank(a.signal))
     else if (sortKey === 'rsi') sorted.sort((a, b) => (a.rsi14 ?? 999) - (b.rsi14 ?? 999))
     else sorted.sort((a, b) => a.symbol.localeCompare(b.symbol))
