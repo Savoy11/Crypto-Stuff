@@ -818,10 +818,10 @@ export const EXCHANGES: Exchange[] = [
     id: 'bitfinex', name: 'Bitfinex', tier: 2,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0004,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.00006,  minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.00135, minWithdraw: 0.1,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.001, minWithdraw: 0.1,   withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
         { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
@@ -829,16 +829,16 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'bep20',    withdrawFee: 2.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 2.1484,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
       ]},
       xrp:  { networks: [
-        { networkId: 'xrpl',     withdrawFee: 0.02, minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
+        { networkId: 'xrpl',     withdrawFee: 0.1, minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
       ]},
       trx:  { networks: [
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       ada:  { networks: [
-        { networkId: 'cardano',  withdrawFee: 0.5,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'cardano',  withdrawFee: 0.3,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true },
       ]},
       dot:  { networks: [
         { networkId: 'polkadot', withdrawFee: 0.1,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true },
@@ -923,78 +923,78 @@ export const EXCHANGES: Exchange[] = [
     id: 'kucoin', name: 'KuCoin', tier: 2,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0005, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.00009, minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0049, minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'arbitrum', withdrawFee: 0.0001, minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0015, minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'arbitrum', withdrawFee: 0.0002, minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 4.0,  minWithdraw: 8,   withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 0.45, minWithdraw: 0.9, withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'polygon',  withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 5.5,  minWithdraw: 8,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'trc20',    withdrawFee: 1.99,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 1, minWithdraw: 0.9, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'solana',   withdrawFee: 1.5,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'polygon',  withdrawFee: 0.8,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 4.0,  minWithdraw: 8,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 5.5,  minWithdraw: 8,   withdrawEnabled: true, depositEnabled: true },
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.45, minWithdraw: 0.9, withdrawEnabled: true, depositEnabled: true },
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
       ]},
       sol:  { networks: [
-        { networkId: 'solana',   withdrawFee: 0.01, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'solana',   withdrawFee: 0.008, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
       ]},
       dai:  { networks: [
         { networkId: 'erc20',    withdrawFee: 4.0,  minWithdraw: 8,   withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.45, minWithdraw: 0.9, withdrawEnabled: true, depositEnabled: true },
       ]},
       xrp:  { networks: [
-        { networkId: 'xrpl',     withdrawFee: 0.25, minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
+        { networkId: 'xrpl',     withdrawFee: 0.3, minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
       ]},
       ltc:  { networks: [
-        { networkId: 'litecoin', withdrawFee: 0.001, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'litecoin', withdrawFee: 0.006, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
       ]},
       trx:  { networks: [
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       doge: { networks: [
-        { networkId: 'dogecoin', withdrawFee: 5.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'dogecoin', withdrawFee: 4,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       matic:{ networks: [
-        { networkId: 'polygon',  withdrawFee: 0.1,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'erc20',    withdrawFee: 0.8,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'polygon',  withdrawFee: 3,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 25,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       avax: { networks: [
-        { networkId: 'avalanche',withdrawFee: 0.01, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'avalanche',withdrawFee: 0.06, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
       ]},
       ada:  { networks: [
-        { networkId: 'cardano',  withdrawFee: 1.0,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'cardano',  withdrawFee: 2,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
       ]},
       dot:  { networks: [
         { networkId: 'polkadot', withdrawFee: 0.1,  minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true },
       ]},
       atom: { networks: [
-        { networkId: 'cosmos',   withdrawFee: 0.005, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true, note: 'Memo required' },
+        { networkId: 'cosmos',   withdrawFee: 0.35, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true, note: 'Memo required' },
       ]},
       link: { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.3,   minWithdraw: 0.5, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.32,   minWithdraw: 0.5, withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.02,  minWithdraw: 0.2, withdrawEnabled: true, depositEnabled: true },
       ]},
       ton:  { networks: [
         { networkId: 'ton_network', withdrawFee: 0.02, minWithdraw: 1, withdrawEnabled: true, depositEnabled: true },
       ]},
       shib: { networks: [
-        { networkId: 'erc20',    withdrawFee: 220_000, minWithdraw: 500_000, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 420000, minWithdraw: 500_000, withdrawEnabled: true, depositEnabled: true },
       ]},
       uni:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.2,   minWithdraw: 0.3, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.8,   minWithdraw: 0.3, withdrawEnabled: true, depositEnabled: true },
       ]},
       near: { networks: [
-        { networkId: 'near_network', withdrawFee: 0.05, minWithdraw: 1, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'near_network', withdrawFee: 0.23, minWithdraw: 1, withdrawEnabled: true, depositEnabled: true },
       ]},
       arb:  { networks: [
-        { networkId: 'arbitrum', withdrawFee: 0.5,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'arbitrum', withdrawFee: 4,  minWithdraw: 2,   withdrawEnabled: true, depositEnabled: true },
       ]},
     },
   },
@@ -1004,58 +1004,58 @@ export const EXCHANGES: Exchange[] = [
     id: 'bitget', name: 'Bitget', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0002,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 0.000017, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.00003,   minWithdraw: 0.001,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.00000192, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.0006,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'arbitrum', withdrawFee: 0.0001,  minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 0.0003,  minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0002,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'arbitrum', withdrawFee: 0.00004,  minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.00005933,  minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.8,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'trc20',    withdrawFee: 1.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.15,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'arbitrum', withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'arbitrum', withdrawFee: 0.15,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.799921,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'arbitrum', withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'arbitrum', withdrawFee: 0.149986,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
       ]},
       sol:  { networks: [
-        { networkId: 'solana',   withdrawFee: 0.01, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'solana',   withdrawFee: 0.006, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
       ]},
       xrp:  { networks: [
-        { networkId: 'xrpl',     withdrawFee: 0.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
+        { networkId: 'xrpl',     withdrawFee: 0.2,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
       ]},
       ltc:  { networks: [
         { networkId: 'litecoin', withdrawFee: 0.001, minWithdraw: 0.01, withdrawEnabled: true, depositEnabled: true },
       ]},
       trx:  { networks: [
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'trc20',    withdrawFee: 1.1,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       doge: { networks: [
-        { networkId: 'dogecoin', withdrawFee: 5.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'dogecoin', withdrawFee: 4,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       matic:{ networks: [
-        { networkId: 'polygon',  withdrawFee: 0.1,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'erc20',    withdrawFee: 0.8,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'polygon',  withdrawFee: 0.2,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 8.607704,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
       ]},
       avax: { networks: [
-        { networkId: 'avalanche',withdrawFee: 0.01, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'avalanche',withdrawFee: 0.0064, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
       ]},
       ada:  { networks: [
-        { networkId: 'cardano',  withdrawFee: 1.0,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'cardano',  withdrawFee: 0.8,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true },
       ]},
       dot:  { networks: [
         { networkId: 'polkadot', withdrawFee: 0.1,  minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true },
       ]},
       atom: { networks: [
-        { networkId: 'cosmos',   withdrawFee: 0.005, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true, note: 'Memo required' },
+        { networkId: 'cosmos',   withdrawFee: 0.01, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true, note: 'Memo required' },
       ]},
     },
   },
@@ -1191,48 +1191,48 @@ export const EXCHANGES: Exchange[] = [
     id: 'htx', name: 'HTX (Huobi)', tier: 1,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0004, minWithdraw: 0.005, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.00005, minWithdraw: 0.005, withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.000017, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.004,  minWithdraw: 0.02,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'arbitrum', withdrawFee: 0.001,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0005,  minWithdraw: 0.02,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'arbitrum', withdrawFee: 0.0002,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'bep20',    withdrawFee: 0.0003, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 1.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 0.8,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.765913,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
+        { networkId: 'trc20',    withdrawFee: 0.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'arbitrum', withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'polygon',  withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'avalanche',withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 1.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 1.177832,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.45360565,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
       ]},
       sol:  { networks: [
-        { networkId: 'solana',   withdrawFee: 0.01, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'solana',   withdrawFee: 0.001, minWithdraw: 0.1,  withdrawEnabled: true, depositEnabled: true },
       ]},
       xrp:  { networks: [
-        { networkId: 'xrpl',     withdrawFee: 0.1,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
+        { networkId: 'xrpl',     withdrawFee: 0.25,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
       ]},
       ltc:  { networks: [
         { networkId: 'litecoin', withdrawFee: 0.001, minWithdraw: 0.01, withdrawEnabled: true, depositEnabled: true },
       ]},
       trx:  { networks: [
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'trc20',    withdrawFee: 1.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       doge: { networks: [
         { networkId: 'dogecoin', withdrawFee: 5.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       matic:{ networks: [
         { networkId: 'polygon',  withdrawFee: 0.1,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'erc20',    withdrawFee: 0.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 20.899661,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
       ]},
       avax: { networks: [
-        { networkId: 'avalanche',withdrawFee: 0.01, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'avalanche',withdrawFee: 0.06, minWithdraw: 0.1, withdrawEnabled: true, depositEnabled: true },
       ]},
       ada:  { networks: [
         { networkId: 'cardano',  withdrawFee: 1.0,  minWithdraw: 5,   withdrawEnabled: true, depositEnabled: true },
@@ -1325,29 +1325,29 @@ export const EXCHANGES: Exchange[] = [
     id: 'lbank', name: 'LBank', tier: 2,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0005, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.00005, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
         { networkId: 'erc20',    withdrawFee: 0.01,   minWithdraw: 0.02,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 0.001,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.0001,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'trc20',    withdrawFee: 2.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 1,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'trc20',    withdrawFee: 1.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.2,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 1,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.1999,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       xrp:  { networks: [
-        { networkId: 'xrpl',     withdrawFee: 0.25, minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
+        { networkId: 'xrpl',     withdrawFee: 0.6872, minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
       ]},
       trx:  { networks: [
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'trc20',    withdrawFee: 1.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       doge: { networks: [
-        { networkId: 'dogecoin', withdrawFee: 5.0,  minWithdraw: 50,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'dogecoin', withdrawFee: 10.9217,  minWithdraw: 50,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
       ]},
     },
   },
@@ -1418,34 +1418,34 @@ export const EXCHANGES: Exchange[] = [
     id: 'xtcom', name: 'XT.com', tier: 2,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0005, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 0.000017, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.0001, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.00001, minWithdraw: 0.0001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.005,  minWithdraw: 0.02,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'arbitrum', withdrawFee: 0.0001, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 0.001,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.0028,  minWithdraw: 0.02,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'arbitrum', withdrawFee: 0.0008, minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.0002,  minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 4,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.5,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'solana',   withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'polygon',  withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'polygon',  withdrawFee: 0.02,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 4,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'bep20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bep20',    withdrawFee: 0.001,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       xrp:  { networks: [
         { networkId: 'xrpl',     withdrawFee: 0.25, minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
       ]},
       trx:  { networks: [
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'trc20',    withdrawFee: 4,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       doge: { networks: [
-        { networkId: 'dogecoin', withdrawFee: 5.0,  minWithdraw: 50,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'dogecoin', withdrawFee: 11,  minWithdraw: 50,  withdrawEnabled: true, depositEnabled: true },
       ]},
     },
   },
@@ -1567,20 +1567,20 @@ export const EXCHANGES: Exchange[] = [
     id: 'poloniex', name: 'Poloniex', tier: 2,
     coins: {
       btc:  { networks: [
-        { networkId: 'bitcoin',  withdrawFee: 0.0005,  minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'bitcoin',  withdrawFee: 0.000021,  minWithdraw: 0.001, withdrawEnabled: true, depositEnabled: true },
       ]},
       eth:  { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.003,   minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.00029903,   minWithdraw: 0.01,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdt: { networks: [
-        { networkId: 'erc20',    withdrawFee: 10.0, minWithdraw: 50,  withdrawEnabled: true, depositEnabled: true },
-        { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.754371, minWithdraw: 50,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
+        { networkId: 'trc20',    withdrawFee: 1.2,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       usdc: { networks: [
-        { networkId: 'erc20',    withdrawFee: 5.0,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.753542,  minWithdraw: 20,  withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
       ]},
       xrp:  { networks: [
-        { networkId: 'xrpl',     withdrawFee: 0.25, minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
+        { networkId: 'xrpl',     withdrawFee: 0.2, minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Destination tag required' },
       ]},
       trx:  { networks: [
         { networkId: 'trc20',    withdrawFee: 1.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
@@ -1589,7 +1589,7 @@ export const EXCHANGES: Exchange[] = [
         { networkId: 'dogecoin', withdrawFee: 5.0,  minWithdraw: 10,  withdrawEnabled: true, depositEnabled: true },
       ]},
       link: { networks: [
-        { networkId: 'erc20',    withdrawFee: 0.5,  minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true },
+        { networkId: 'erc20',    withdrawFee: 0.06241486,  minWithdraw: 1,   withdrawEnabled: true, depositEnabled: true, note: 'Exchange quotes this fee dynamically — the stored value is a 2026-08-22 reading, not a fixed schedule' },
       ]},
     },
   },

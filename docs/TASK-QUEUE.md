@@ -1837,6 +1837,23 @@ of totals that are being corrected means doing the reconciliation twice.
 > the table does not make "the whole table was checked today" true. The
 > remaining ~420 rows stay the `fee-worksheet` job.
 >
+> **First reconcile run (2026-08-22, owner machine):** 115 of 543 rows machine-
+> verified — 15 already correct, **90 corrections applied**, 8 live suspensions,
+> 2 held. Full record: `docs/audits/fee-reconcile-2026-08-22.md`. The 80%
+> mismatch rate was interrogated before any edit: mixed increases and decreases
+> across all seven exchanges with factors in 0.1x–8x is the signature of a stale
+> table, not of a units bug (which would show one exchange off by a constant).
+> **Held back:** two rows proposing a fee of exactly zero (Bitfinex DOT, Bitget
+> USDC/BEP-20) — a zero renders as "Free", the costliest value to get wrong, and
+> Bitfinex's `[deposit, withdrawal]` array shape makes a spurious 0 plausible.
+> **Eleven rows marked dynamic:** readings like `0.45360565` are computed
+> USD-pegged fees, not posted schedules; the reconcile now detects this by shape
+> (≥6 significant figures) as well as by note, since the first run reported 0
+> dynamic by only checking notes. `TRANSFER_FEES_LAST_VERIFIED` is unchanged —
+> the 428 uncovered rows include every high-traffic venue (Binance, Coinbase,
+> Kraken, OKX, Bybit — none expose a keyless fee endpoint) and remain the
+> worksheet job.
+>
 > **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
 > user-supplied basis/holding period/rate on the TEY pattern (store no bracket
 > table, so nothing goes stale) and is the piece that touches the owner's

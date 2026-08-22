@@ -63,6 +63,18 @@ interface Finding {
   note?: string
 }
 
+/**
+ * Significant figures in a number as written. A posted fee schedule is a round
+ * number (0.35, 1.5, 25); a value carrying six or more significant figures is
+ * computed — typically a USD-denominated fee converted to coin units at the
+ * moment of the read, so it will be different tomorrow.
+ */
+export function significantFigures(n: number | undefined): number {
+  if (n === undefined || !Number.isFinite(n)) return 0
+  const digits = String(n).replace(/^-/, '').replace(/[.]/g, '').replace(/e[+-]?\d+$/i, '')
+  return digits.replace(/^0+/, '').replace(/0+$/, '').length
+}
+
 function differs(a: number, b: number): boolean {
   if (a === b) return false
   const scale = Math.max(Math.abs(a), Math.abs(b))
@@ -129,7 +141,12 @@ async function main() {
           continue
         }
         // Rule 2 — a floating fee has no single right answer.
-        if (n.note && /dynamic|gas-dependent|varies/i.test(n.note)) {
+        // Two signals: our own note, OR the shape of the reading itself. The
+        // first run reported 0 dynamic because it only checked notes, while
+        // values like 0.45360565 were plainly computed (usually USD-pegged)
+        // rather than posted — freezing those pretends a moving number is fixed.
+        const looksComputed = significantFigures(hit.withdrawFee) >= 6
+        if (looksComputed || (n.note && /dynamic|gas-dependent|varies/i.test(n.note))) {
           findings.push({ ...base, verdict: 'dynamic' })
           continue
         }
