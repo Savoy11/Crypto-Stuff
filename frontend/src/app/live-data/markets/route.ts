@@ -33,7 +33,7 @@ async function fetchCoinGecko(): Promise<Record<string, unknown>> {
   const params = new URLSearchParams({
     vs_currency: 'usd', ids: ALL_COINGECKO_IDS.join(','),
     order: 'market_cap_desc', per_page: '250', page: '1',
-    sparkline: 'false', price_change_percentage: '24h',
+    sparkline: 'false', price_change_percentage: '24h,7d,30d',
   })
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (CG_KEY) headers['x-cg-demo-api-key'] = CG_KEY
@@ -45,6 +45,12 @@ async function fetchCoinGecko(): Promise<Record<string, unknown>> {
     id: string; current_price: number | null; market_cap: number | null
     total_volume: number | null; price_change_percentage_24h: number | null; circulating_supply: number | null
     fully_diluted_valuation: number | null
+    // All returned by the same /coins/markets call — no extra request.
+    price_change_percentage_7d_in_currency: number | null
+    price_change_percentage_30d_in_currency: number | null
+    ath_change_percentage: number | null
+    total_supply: number | null; max_supply: number | null
+    market_cap_rank: number | null
   }>
   const quotes: Record<string, unknown> = {}
   for (const row of rows) {
@@ -59,6 +65,14 @@ async function fetchCoinGecko(): Promise<Record<string, unknown>> {
       // computed FDV from a partial supply figure would be a fabricated number
       // on a field users filter by.
       fdv: row.fully_diluted_valuation ?? null,
+      priceChange7d: row.price_change_percentage_7d_in_currency ?? null,
+      priceChange30d: row.price_change_percentage_30d_in_currency ?? null,
+      // Negative: how far BELOW the all-time high the coin trades. The closest
+      // thing to a technical factor available without per-coin OHLCV.
+      athChangePct: row.ath_change_percentage ?? null,
+      totalSupply: row.total_supply ?? null,
+      maxSupply: row.max_supply ?? null,
+      marketCapRank: row.market_cap_rank ?? null,
     }
   }
   return quotes

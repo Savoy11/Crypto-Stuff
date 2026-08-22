@@ -1,10 +1,15 @@
+import { applyFilterStack, type FilterRule } from '@/lib/data/coinFilters'
 import type { Asset, AssetDetail, AssetFilters, AssetSortConfig } from '@/types/asset'
-import type { PaginatedResponse, QueryParams } from '@/types/api'
+import type { PaginatedResponse } from '@/types/api'
 import { fetchLiveMarkets } from './live/liveClient'
 import { buildLiveAssets, buildLiveAssetDetail } from './live/overlay'
 import { applyRiskComposite, type RiskScoreIndex } from './live/riskScores'
 
-export interface GetAssetsParams extends QueryParams {
+// Deliberately NOT `extends QueryParams`: that interface carries an index
+// signature (`[key: string]: string | number | boolean | undefined`) which no
+// consumer of this type ever used, and which makes an array-valued field like
+// `filterRules` unrepresentable. Every field below is declared explicitly.
+export interface GetAssetsParams {
   assetType?: string
   blockchain?: string
   riskBand?: string
@@ -14,6 +19,12 @@ export interface GetAssetsParams extends QueryParams {
   /** Minimum 24h-volume / market-cap, in percent (W3-2). */
   minLiquidityPct?: number
   search?: string
+  /**
+   * Stackable screener rules, ANDed together. Applied HERE — before sorting and
+   * pagination — because filtering a page instead of the dataset would silently
+   * screen only the rows already on screen.
+   */
+  filterRules?: FilterRule[]
   sortBy?: string
   sortDirection?: 'asc' | 'desc'
   page?: number
@@ -104,6 +115,16 @@ export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedRes
       (a.volume24h / a.marketCap) * 100 >= (params.minLiquidityPct ?? 0))
   }
 
+  // Stack first, then sort, then paginate.
+  let untested = 0
+  let missingByField: Record<string, number> = {}
+  if (params.filterRules?.length) {
+    const stack = applyFilterStack(assets, params.filterRules)
+    assets = stack.matched
+    untested = stack.untested.length
+    missingByField = stack.missingByField
+  }
+
   if (params.sortBy) {
     assets = sortAssets(assets, params.sortBy, params.sortDirection ?? 'desc')
   }
@@ -121,6 +142,10 @@ export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedRes
     totalPages: Math.ceil(assets.length / pageSize),
     hasNext: start + pageSize < assets.length,
     hasPrev: page > 1,
+    // Reported so the UI can say "9 not tested: no FDV" rather than letting
+    // those coins vanish into an unexplained smaller total.
+    untested,
+    missingByField,
   }
 }
 

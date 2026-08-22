@@ -24,6 +24,17 @@ export interface Asset {
   volume24h: number | null
   priceChange24h?: number | null
   priceChangePercent24h?: number | null
+  // Valuation / technical fields used by the Coins screener. Null whenever the
+  // serving provider did not carry them — never derived from partial data.
+  fdv?: number | null
+  priceChange7d?: number | null
+  priceChange30d?: number | null
+  /** Negative: percent below the all-time high. */
+  athChangePct?: number | null
+  circulatingSupply?: number | null
+  totalSupply?: number | null
+  maxSupply?: number | null
+  marketCapRank?: number | null
   // Derived metrics have no free live source — strict N/A (always null in live mode).
   pegDeviation: number | null // fractional, e.g. 0.0001 = 1 bps
   pegDeviationBps?: number | null // alias in basis points

@@ -13,6 +13,20 @@ export interface LiveQuote {
   volume24h: number | null
   priceChange24h: number | null
   circulatingSupply: number | null
+  /**
+   * Valuation/technical extras. CoinGecko-only — the Binance and CMC fallback
+   * legs do not carry them, so they stay null there rather than being derived.
+   * A screener filtering on a fabricated figure is worse than one that reports
+   * the coin as untested.
+   */
+  fdv?: number | null
+  priceChange7d?: number | null
+  priceChange30d?: number | null
+  /** Negative: percent below the all-time high. */
+  athChangePct?: number | null
+  totalSupply?: number | null
+  maxSupply?: number | null
+  marketCapRank?: number | null
 }
 
 export interface LiveMarketsResult {

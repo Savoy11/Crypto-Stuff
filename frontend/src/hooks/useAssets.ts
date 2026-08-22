@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { assetsApi, sortAssets, type GetAssetsParams } from '@/lib/api/assets'
 import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
+import type { FilterRule } from '@/lib/data/coinFilters'
 import { STALE_TIME_SHORT, STALE_TIME_MEDIUM, GC_TIME } from '@/lib/constants'
 import { fetchRiskScoreIndex, RISK_SCORES_QUERY_KEY, applyRiskComposite, type RiskScoreIndex } from '@/lib/api/live/riskScores'
 import type { Asset, AssetType } from '@/types/asset'
@@ -107,7 +108,7 @@ function discoveredCoinToAsset(coin: AddedCoin): Asset {
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
-export function useAssetsWithStore() {
+export function useAssetsWithStore(filterRules: FilterRule[] = []) {
   const { filters, sort, page, pageSize } = useAssetStore()
   const { addedCoins } = useCoinDiscoveryStore()
 
@@ -123,6 +124,7 @@ export function useAssetsWithStore() {
     minMarketCap: filters.minMarketCap > 0 ? filters.minMarketCap : undefined,
     minLiquidityPct: filters.minLiquidityPct > 0 ? filters.minLiquidityPct : undefined,
     search: filters.search || undefined,
+    filterRules: filterRules.length ? filterRules : undefined,
     sortBy: sort.key,
     sortDirection: sort.direction,
     page,

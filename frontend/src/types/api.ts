@@ -13,6 +13,13 @@ export interface PaginatedResponse<T> {
   totalPages: number
   hasNext: boolean
   hasPrev: boolean
+  /**
+   * Rows a screener could not evaluate because the feed lacked a value it
+   * needed. Never folded into the excluded count — nobody ran the test on them.
+   */
+  untested?: number
+  /** field key → how many rows lacked it, so the caption can name a reason. */
+  missingByField?: Record<string, number>
 }
 
 export interface ApiError {

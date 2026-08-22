@@ -42,6 +42,14 @@ function overlayQuote(meta: Asset, quote: LiveQuote | undefined): Asset {
     volume24h: quote.volume24h,
     priceChange24h: quote.priceChange24h,
     priceChangePercent24h: quote.priceChange24h,
+    fdv: quote.fdv ?? null,
+    priceChange7d: quote.priceChange7d ?? null,
+    priceChange30d: quote.priceChange30d ?? null,
+    athChangePct: quote.athChangePct ?? null,
+    circulatingSupply: quote.circulatingSupply ?? null,
+    totalSupply: quote.totalSupply ?? null,
+    maxSupply: quote.maxSupply ?? null,
+    marketCapRank: quote.marketCapRank ?? null,
   }
 }
 
