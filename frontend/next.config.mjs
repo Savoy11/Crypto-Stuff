@@ -56,6 +56,12 @@ const nextConfig = {
       // of surfaces and how to restore. `permanent: false` on purpose: this is a
       // rollout decision, not a dead page.
       { source: '/transfer-fees', destination: '/headlines', permanent: false },
+      // Wallets hidden from the initial rollout 2026-08-22 (owner), same
+      // posture and same reasoning as Transfer Fees above. Kept, not deleted.
+      // This also darkens the Pump Report, which is a tab on that page and has
+      // no route of its own — see the note in lib/modules/registry.ts.
+      // `permanent: false`: a rollout decision, not a dead page.
+      { source: '/wallets', destination: '/headlines', permanent: false },
       // Reserve Transparency Monitor folded into the Coins page (2026-07-29).
       // It duplicated /assets' "Reserve Monitor" tab — same route, same table,
       // same detail panel — while being the only copy that carried the

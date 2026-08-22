@@ -15,7 +15,6 @@ import {
   Settings,
   Bot,
   Microscope,
-  Wallet,
   LineChart,
   Landmark,
   Compass,
@@ -133,8 +132,11 @@ export const MODULES: SuiteModule[] = [
     id: 'crypto',
     label: 'Crypto',
     routePrefixes: [
-      '/assets', '/news', '/social', '/wallets',
-      // '/transfer-fees' — HIDDEN, see the nav note below
+      '/assets', '/news', '/social',
+      // '/wallets' and '/transfer-fees' — HIDDEN, see the nav notes below.
+      // Both prefixes stay OUT so the entitlement gate can't be the thing
+      // holding them shut; the next.config redirects are what make them dark,
+      // and a prefix here would only matter if a redirect were removed.
       '/staking', '/coin-discovery',
       '/technical-analysis', '/scanner',
       // De-routed but retained page (T5): unreachable via the next.config
@@ -155,7 +157,25 @@ export const MODULES: SuiteModule[] = [
       { href: '/assets', label: 'Coins', icon: Database },
       { href: '/news', label: 'News', icon: Newspaper },
       { href: '/social', label: 'Social', icon: MessageSquare },
-      { href: '/wallets', label: 'Wallets', icon: Wallet },
+      // Wallets HIDDEN 2026-08-22 (owner: hold it out of the initial rollout,
+      // same posture as Transfer Fees). Nothing is deleted: the page, the five
+      // /live-data/wallet/* chain routes, /api/user/wallets, useWalletStore and
+      // every test stay in place.
+      //
+      // ⚠ THE PUMP REPORT GOES DARK WITH IT. PumpReportTab is a tab on this
+      // page and has no other route, so hiding /wallets hides the pump-report
+      // scan and chat too. Its own /live-data/pump-report/* routes still run —
+      // nothing user-facing reaches them. If the Pump Report is wanted in the
+      // rollout it needs a page of its own; that is a separate decision, not
+      // something to fix by quietly re-exposing this one.
+      //
+      // Unlike Transfer Fees there is no agent tool, no MCP tool and no
+      // /api/v1 endpoint for wallets, so the surface list is shorter: this nav
+      // entry, the routePrefixes line above, and the /wallets redirect in
+      // next.config.mjs. /api/user/wallets is deliberately left up — it is
+      // user-data CRUD, not a data claim, so it carries no staleness harm and
+      // an account's saved addresses survive the hide.
+      // TO RESTORE: put this entry and the routePrefix back, delete the redirect.
       // Transfer Fees HIDDEN 2026-08-22 (owner: keep it, but out of the initial
       // rollout — "I don't want it to be a part of the larger suite"). Nothing is
       // deleted: the page, lib/data/transferFees.ts, the live overlay, the

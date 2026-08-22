@@ -76,4 +76,33 @@ describe('module registry', () => {
       expect(scanners.length, `${id} must have exactly one Scanner nav entry`).toBe(1)
     }
   })
+
+  it('never navigates to a route that next.config redirects away', () => {
+    // The withheld-page failure mode, in both directions. Hiding a page means
+    // TWO edits — drop the nav entry, add the redirect — and restoring it means
+    // undoing both. Do one and not the other and you get either a nav item that
+    // bounces the reader to Headlines, or a page reachable by URL that the
+    // rollout decision said to hold back. Neither fails a build.
+    //
+    // Only redirects whose destination is a DIFFERENT page count. /reserves ->
+    // /assets?tab=reserves is content-preserving: it moves a surface rather
+    // than withdrawing one, and its destination is legitimately in the nav.
+    const config = fs.readFileSync(path.join(process.cwd(), 'next.config.mjs'), 'utf8')
+    const withdrawn = Array.from(
+      config.matchAll(/source:\s*'([^']+)'\s*,\s*destination:\s*'\/headlines'/g),
+    ).map((m) => m[1])
+
+    // Guards the guard: if the regex stops matching, this test would pass
+    // vacuously while every hidden page silently returned to the nav.
+    expect(withdrawn.length, 'no /headlines redirects parsed from next.config.mjs').toBeGreaterThan(0)
+    expect(withdrawn).toContain('/wallets')
+    expect(withdrawn).toContain('/transfer-fees')
+
+    const navHrefs = MODULES.flatMap((m) => flattenNavItems(m.navItems)).map((i) => i.href)
+    const contradictions = withdrawn.filter((href) => navHrefs.includes(href))
+    expect(
+      contradictions,
+      `these routes redirect to /headlines but are still in the sidebar: ${contradictions.join(', ')}`,
+    ).toEqual([])
+  })
 })
