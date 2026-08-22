@@ -13,14 +13,8 @@ import 'server-only'
 // Availability is IP-dependent; `npm run fee-probe` is the owner-machine verdict.
 
 import {
-  parseKucoinCurrencies,
-  parseHtxCurrencies,
-  parseBitgetCoins,
-  parsePoloniexCurrencies,
-  parseLbankWithdrawConfigs,
-  parseBitfinexTxFees,
-  parseXtSupportCurrency,
   buildFeeOverrideMap,
+  WITHDRAW_FEE_SOURCES,
   type ParsedFeeRow,
 } from '@/lib/server/withdrawFeeAdapters'
 import type { LiveFeeOverrideMap } from '@/lib/data/transferFees'
@@ -59,27 +53,12 @@ export interface LiveFeeOverlay {
   availabilityRows: string[]
 }
 
-// Bybit was probed 2026-08-21 and returned 403: /v5/asset/coin/query-info is in
-// Bybit's authenticated Asset API group, not public. Keyless-only ⇒ no Bybit.
-const SOURCES: { exchangeId: string; url: string; parse: (json: any) => ParsedFeeRow[] }[] = [
-  { exchangeId: 'kucoin', url: 'https://api.kucoin.com/api/v3/currencies', parse: parseKucoinCurrencies },
-  { exchangeId: 'htx', url: 'https://api.huobi.pro/v2/reference/currencies', parse: parseHtxCurrencies },
-  // Batch 2 (2026-08-21) — documented-public, awaiting the owner probe. A source
-  // that turns out to be authenticated just reports `error`; per-source failure
-  // never costs the confirmed ones (that is why this is allSettled).
-  { exchangeId: 'bitget', url: 'https://api.bitget.com/api/v2/spot/public/coins', parse: parseBitgetCoins },
-  { exchangeId: 'poloniex', url: 'https://api.poloniex.com/currencies?includeMultiChainCurrencies=true', parse: parsePoloniexCurrencies },
-  { exchangeId: 'lbank', url: 'https://api.lbkex.com/v2/withdrawConfigs.do', parse: parseLbankWithdrawConfigs },
-  { exchangeId: 'bitfinex', url: 'https://api-pub.bitfinex.com/v2/conf/pub:map:currency:tx:fee', parse: parseBitfinexTxFees },
-  { exchangeId: 'xtcom', url: 'https://sapi.xt.com/v4/public/wallet/support/currency', parse: parseXtSupportCurrency },
-]
-
 /** Exchange ids the overlay can ever cover — used to describe coverage honestly. */
-export const OVERLAY_EXCHANGE_IDS = SOURCES.map(s => s.exchangeId)
+export const OVERLAY_EXCHANGE_IDS = WITHDRAW_FEE_SOURCES.map(s => s.exchangeId)
 
 export async function fetchLiveFeeOverlay(): Promise<LiveFeeOverlay> {
   const settled = await Promise.allSettled(
-    SOURCES.map(async s => {
+    WITHDRAW_FEE_SOURCES.map(async s => {
       const res = await fetch(s.url, {
         headers: { Accept: 'application/json' },
         next: { revalidate: WITHDRAW_FEE_REVALIDATE },
@@ -92,7 +71,7 @@ export async function fetchLiveFeeOverlay(): Promise<LiveFeeOverlay> {
   const sources: OverlaySourceResult[] = []
   const allRows: ParsedFeeRow[] = []
   settled.forEach((r, i) => {
-    const { exchangeId } = SOURCES[i]
+    const { exchangeId } = WITHDRAW_FEE_SOURCES[i]
     if (r.status === 'fulfilled') {
       allRows.push(...r.value)
       sources.push({ exchangeId, status: r.value.length > 0 ? 'live' : 'empty', rows: r.value.length })

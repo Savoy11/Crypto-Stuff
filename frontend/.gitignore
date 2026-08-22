@@ -1,3 +1,7 @@
 
 # ESLint SARIF report (generated in CI for code scanning upload)
 eslint-results.sarif
+
+# Fee reconcile outputs (owner-machine artifacts, not source)
+transfer-fee-reconcile.md
+transfer-fee-reconcile.json

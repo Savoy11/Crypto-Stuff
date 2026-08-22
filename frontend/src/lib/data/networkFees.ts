@@ -32,6 +32,18 @@ interface NetworkGasInfo {
 }
 
 // Static typical gas amounts (native token units) + how to price them.
+//
+// ⚠ THESE ARE DELIBERATELY CONSERVATIVE (high), and they are the FALLBACK — for
+// the four EVM L1s a live eth_gasPrice provider normally supersedes them.
+//
+// The owner gas probe on 2026-08-22 read Ethereum at 0.152 gwei, making a real
+// ERC-20 transfer ~0.00001 ETH against the 0.002 here — roughly 200x lower.
+// That gap is not an error to "fix" downward. This value only applies when the
+// live fetch FAILS, and a fallback that under-states gas during exactly the
+// congestion that broke the fetch would have the user underfund a withdrawal.
+// Erring high costs a user an over-estimate; erring low costs them a stuck
+// transaction. Keep the safe direction, and let the live provider do the
+// precision.
 export const NETWORK_GAS: Record<NetworkKey, NetworkGasInfo> = {
   erc20:        { native: 0.002,    token: 'ETH',  priceKey: 'eth',   coingeckoId: 'ethereum' },
   arbitrum:     { native: 0.00005,  token: 'ETH',  priceKey: 'eth',   coingeckoId: 'ethereum' },
