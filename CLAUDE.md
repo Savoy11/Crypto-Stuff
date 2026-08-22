@@ -215,6 +215,22 @@ frontend/src/
 
 ---
 
+## How Changes Land
+
+**Branch and PR by default** (owner, 2026-08-22). Work goes on a feature branch
+and lands through a draft pull request — not straight onto `main`.
+
+The reason is review, not ceremony. A run of changes went directly to `main`
+during P3-W3, including two that altered what ships in the initial rollout
+(hiding Transfer Fees and Wallets). Those are exactly the changes that deserve a
+diff someone can read before they land, and a commit message is not a substitute
+for one: it explains what the author *meant*, not what the patch *does*.
+
+Direct-to-`main` is for when the owner asks for it in the moment, and it stays
+the exception.
+
+---
+
 ## Adding a New Page — Checklist
 
 1. **Create the page:** `src/app/(dashboard)/your-page/page.tsx`
