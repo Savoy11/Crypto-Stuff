@@ -1868,6 +1868,20 @@ of totals that are being corrected means doing the reconciliation twice.
 > effort, it cannot make a fee wrong. `TRANSFER_FEES_LAST_VERIFIED` still moves
 > only when **every** exchange is done.
 >
+> **`npm run fee-apply` (2026-08-22).** The reconcile's corrections were applied
+> by a throwaway script; that logic is now a committed tool taking EITHER the
+> reconcile JSON or a filled worksheet CSV. Rows are keyed on
+> (exchange, coin, network) resolved from the app's own catalogs — never on
+> matching a number, which is how a correct value lands on the wrong row in a
+> table where values repeat. Three guards, aborting whole rather than partially:
+> every row must resolve to exactly one entry; the current value must match what
+> the input says it was (this caught SHIB stored as `220_000`, where a naive
+> parse read `220`); and it never touches `TRANSFER_FEES_LAST_VERIFIED`. Blank,
+> `ok`, `unavailable` and `delisted` rows are skipped, not guessed — blank means
+> unknown, and unknown is not zero. `--dry-run` shows the diff without writing.
+> Verified against five cases incl. stale-input abort and a real CSV parser
+> (the first cut used a regex split that silently produced short rows).
+>
 > **Part 2 — the federal sale-tax estimator — is NOT built.** It takes
 > user-supplied basis/holding period/rate on the TEY pattern (store no bracket
 > table, so nothing goes stale) and is the piece that touches the owner's
