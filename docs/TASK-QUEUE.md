@@ -1594,6 +1594,13 @@ conditions are checkable at a glance.
 ```
 </details>
 
+> **Note (2026-08-24):** the "recoverable from git history" phrase in this prompt (and
+> the /backtests precedent it cites) predates the **2026-08-05 re-root of `main`**.
+> Anything CUT before that date is recoverable via the `archive/pre-reset-main` branch,
+> not from `main`'s own log — see CLAUDE.md "How Changes Land" (History and archives)
+> and `docs/audits/git-repo-audit-2026-08-23.md`. The prompt text above stays verbatim
+> per steward policy.
+
 ### W3 intake — owner review deck, 2026-08-20 ("Changes to apply to Wave 2 changes")
 
 > 13-slide screenshot deck reviewed with the owner on 2026-08-20. Two decisions were
