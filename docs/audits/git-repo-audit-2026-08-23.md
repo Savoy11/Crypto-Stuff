@@ -257,11 +257,12 @@ asset-class-connectors-lqfbnu}`.
 pre-reset record is reachable from `archive/*` + `main`, so the originals are now safe to
 delete.
 
-**Still open — the recording half:** add three sentences to the docs recording that `main` was
-re-rooted on 2026-08-05 at #71 and that pre-reset history lives under the `archive/pre-reset*`
-branches; repoint the two broken "recoverable from git history" claims (CLAUDE.md `/backtests`
-row, `TASK-QUEUE.md:1580`) at `archive/pre-reset-main`; and add the standing rule from F1.
-Those are `main` changes and belong in their own small PR.
+**✅ Recording half EXECUTED 2026-08-24 — PR #111** (`claude/pre-reset-record-j1gr50`):
+CLAUDE.md's "How Changes Land" gains a History-and-archives paragraph and the standing rule
+from F1; the `/backtests` row now points at `archive/pre-reset-main`; the equivalent claims in
+`TASK-QUEUE.md` and the T5 assessment are corrected as **dated annotations** (the historical
+prompt and assessment text stay verbatim, per the checklist-steward charter). Merging #111
+closes F1's open items.
 
 **2. Delete branches — unblocked now that step 1's archive refs exist.** The 34 orphaned
 branches are safe to delete wholesale; the ~9 squash-merged session branches after a glance at
