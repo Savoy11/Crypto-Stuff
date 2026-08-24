@@ -139,7 +139,7 @@ merge-base-with-main over all 61 non-main heads:
 
 | Category | Count | Branches (abridged) | Disposition |
 |---|---|---|---|
-| Orphaned pre-reset lineage | **34** | `claude/finance-now-7j8i2u` (264 commits — the anchor), `feat/auth-phase0` (123), `claude/t2…t12-*` audit-wave set, `chore/improvement-agents`, `docs/risk-scale-spec`, `feat/live-data-audit`, 2 old dependabot heads | **Tag first, then delete** (commands below) |
+| Orphaned pre-reset lineage | **34** | `claude/finance-now-7j8i2u` (264 commits — the anchor), `feat/auth-phase0` (123), `claude/t2…t12-*` audit-wave set, `chore/improvement-agents`, `docs/risk-scale-spec`, `feat/live-data-audit`, 2 old dependabot heads | **Archive first, then delete** — ✅ archived 2026-08-24 under `archive/pre-reset*` (step 1); deletion unblocked |
 | Connected, content already squash-merged | ~9 | `claude/branch-and-pr-default` (= #109), `wave-2-changes`, `wave-3-changes`, `claude/finance-wave-two-62esqa`, `claude/finance-alternatives-cost-zrft0z`, the Aug 7–16 `*-ojm76t`/`*-i0rsak` session branches | Delete after confirming each PR shows merged/closed |
 | Dependabot, connected | 12 | current open dependency PRs | Leave — dependabot manages them; they auto-delete on close |
 | Deliberate archive | 1 | `archive/wave-two-pre-reset` (7 unique commits incl. the first retirement build) | **Keep** — this is the pattern F1 should have followed |
@@ -159,8 +159,8 @@ the objects, but nothing in the repo would point at them and no clone would fetc
 because all work happens in ephemeral session containers, **there is no developer machine
 anywhere holding an accidental clone of the old history** — the usual last-resort backup a
 team repo has by accident, this repo does not have at all. The GitHub remote is the single
-durable copy of the entire project, which is why step 1 (archive tags) and step 7 (offline
-mirror) exist.
+durable copy of the entire project, which is why step 1 (archive refs — created 2026-08-24)
+and step 7 (offline mirror) exist.
 
 ### F3 · P2 — 15 open PRs are idling, in exactly the way dependabot.yml predicted would be fatal
 
@@ -227,35 +227,49 @@ Owner actions, in order — well under an hour, and the order is the point: **1 
 Steps 1–3 can each be handed to a session verbatim; steps 2's setting, 4, and 7 are things only
 the owner can do (GitHub settings and the local machine sit outside any session's reach).
 
-**1. Record and archive the reset (before any branch is deleted).**
+**1. Record and archive the reset (before any branch is deleted).
+✅ Archiving half EXECUTED 2026-08-24 — as `archive/*` branches.**
 
-```bash
-# Anchor the pre-reset mainline under a tag (tags don't clutter the branch list):
-git fetch origin
-git tag archive/pre-reset-main origin/claude/finance-now-7j8i2u
+Two corrections against this report's first draft, both from doing it for real:
 
-# The nine tips holding commits the anchor lacks (1–8 commits each):
-for b in claude/responsive-usability claude/crypto-analytics-platform-cZIf6 \
-         claude/blockchain-discussion-2meymb claude/caep-profitability-feedback-dw7e8x \
-         claude/caep-staking-page-listings-o6z6x0 feat/live-data-audit \
-         claude/asset-class-connectors-lqfbnu claude/website-work-tg4ggg \
-         docs/risk-scale-spec; do
-  git tag "archive/pre-reset/${b##*/}" "origin/$b"
-done
-git push origin --tags
-```
+- **The unique-tip census was incomplete.** Run over all 33 non-anchor orphans (the draft had
+  sampled 21), **13** tips hold commits the anchor lacks — and the two largest holders were
+  outside the sample: `claude/caep-app-audit-hvze9s` (**16** unique commits) and
+  `claude/locate-improvement-agents-2f56to` (**12**). The two orphaned dependabot tips were
+  also included so the preservation guarantee is absolute rather than "everything that
+  matters."
+- **Branches, not tags.** This session's git credential can push only its own designated
+  branch — a tag push returns a policy 403 — so the archive refs were created through the
+  GitHub API as *branches*, which also matches the repo's existing
+  `archive/wave-two-pre-reset` convention. (The `v*`-tag CD trigger caution is moot for
+  branches; CI was checked anyway and fires only on PRs and pushes to `develop`/`main`.)
 
-Then add three sentences to the docs recording that `main` was re-rooted on 2026-08-05 at #71
-and that pre-reset history lives under `archive/pre-reset-*` tags — and repoint the two broken
-"recoverable from git history" claims (CLAUDE.md `/backtests` row, `TASK-QUEUE.md:1580`) at the
-tag. While in CLAUDE.md, add the standing rule from F1: history-shaping operations land with a
-dated note in `docs/`, in the same commit. Caution: pushing the first tag matching `v[0-9]+.*`
-would trigger `cd-production.yml` — the `archive/…` names above deliberately don't.
+Created, each at its source branch's exact head: **`archive/pre-reset-main`**
+(= `claude/finance-now-7j8i2u`, `3542beb`, the 264-commit anchor) and
+`archive/pre-reset/{caep-app-audit-hvze9s, locate-improvement-agents-2f56to,
+responsive-usability, crypto-analytics-platform-cZIf6, blockchain-discussion-2meymb,
+live-data-audit, caep-staking-page-listings-o6z6x0, caep-profitability-feedback-dw7e8x,
+risk-scale-spec, recharts-3.10.1, node-26-alpine, website-work-tg4ggg,
+asset-class-connectors-lqfbnu}`.
 
-**2. Delete branches — only after step 1's tags are pushed.** The 34 orphaned branches are then
-safe to delete wholesale; the ~9 squash-merged session branches after a glance at each PR's
-merged/closed state; keep `archive/wave-two-pre-reset`, `main`, dependabot's heads, and #89's
-branch until that PR is decided. Then stop the regrowth at the source: enable **Settings →
+**Verified after creation:** for every one of the 34 orphaned branches,
+`git rev-list --count origin/<branch> --not <archive refs> origin/main` = **0** — the entire
+pre-reset record is reachable from `archive/*` + `main`, so the originals are now safe to
+delete.
+
+**Still open — the recording half:** add three sentences to the docs recording that `main` was
+re-rooted on 2026-08-05 at #71 and that pre-reset history lives under the `archive/pre-reset*`
+branches; repoint the two broken "recoverable from git history" claims (CLAUDE.md `/backtests`
+row, `TASK-QUEUE.md:1580`) at `archive/pre-reset-main`; and add the standing rule from F1.
+Those are `main` changes and belong in their own small PR.
+
+**2. Delete branches — unblocked now that step 1's archive refs exist.** The 34 orphaned
+branches are safe to delete wholesale; the ~9 squash-merged session branches after a glance at
+each PR's merged/closed state; keep **every `archive/*` branch**, `main`, dependabot's heads,
+and #89's branch until that PR is decided. Note the same session limitation applies to
+deletions as to tags — a session's git can only write its own branch, and the GitHub tooling
+available in-session creates refs but does not delete them — so this pass is the owner's:
+GitHub → Branches page (each row has a delete button), or any full-credential context. Then stop the regrowth at the source: enable **Settings →
 General → "Automatically delete head branches"**, so every future session branch is removed the
 moment its PR merges. The setting only ever deletes a just-merged PR's head — it cannot touch
 the orphaned pre-reset branches (no merged PRs), so it composes safely with the archive-first
