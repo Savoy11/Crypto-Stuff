@@ -1,0 +1,5 @@
+# Normalize line endings on commit. Repository content is uniformly LF (verified
+# in the 2026-08-23 git-repo audit); this locks that in against any clone with a
+# misconfigured core.autocrlf, instead of relying on every writer's local config.
+# Working-tree checkout endings still follow each machine's own settings.
+* text=auto
