@@ -1452,7 +1452,7 @@ tool reads exactly what the UI reads — one source of truth, no agent-only data
 > that document's §10 table.)
 
 **How this differs from what already exists.** The 2026-06-14 production-readiness
-scorecard (`docs/audit/production-readiness-scorecard.md`) is stack-level — auth, infra,
+scorecard (`docs/audits/production-readiness-scorecard.md`) is stack-level — auth, infra,
 pipelines. The code-auditor charter hunts defects. This phase is neither: it decides,
 feature by feature, what the initial rollout ships, what gets fixed first, and what gets
 hidden or cut. Defects found along the way are filed the normal way (W1's defect

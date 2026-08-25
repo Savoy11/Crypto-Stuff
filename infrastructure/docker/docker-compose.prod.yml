@@ -108,7 +108,7 @@ services:
         # volatile and the two policies pick from an identical candidate set.
         # Kept for dev/prod parity and so a future TTL-less key is exempt by
         # default. The real exposure is unchanged and tracked in
-        # docs/audit/production-readiness-scorecard.md: LRU can drop a
+        # docs/audits/production-readiness-scorecard.md: LRU can drop a
         # blocklist:{jti} before it expires, un-revoking a logged-out token.
         # noeviction would prevent that but `rate_limit_dependency` has no
         # error handling, so a full instance would 500 every limited endpoint.

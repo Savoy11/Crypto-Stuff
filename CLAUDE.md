@@ -9,7 +9,10 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus seven optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, wallets) persists to Postgres through `/api/user/*`; module entitlements are **localStorage-only** (`useEntitlementStore` — the `entitlements` table exists in the schema but no route serves it yet, which is the Phase 6 rollout-posture question); an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
-**Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
+**Working directory:** the repo root is the `Finance-Now` monorepo (`frontend/`, `backend/`,
+`mcp-server/`, `infrastructure/`, `docs/`); **the Next.js app and all its npm commands live in
+`frontend/`**. (Older docs reference a local `Crypto-Stuff\frontend` checkout path — same app,
+pre-monorepo naming.)
 
 **Agent charters:** four maintenance agents are deployed, split along two boundaries
 (full table: `docs/IMPROVEMENT-AGENT-SETUP.md`). By scope: `code-checker`
