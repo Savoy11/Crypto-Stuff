@@ -283,6 +283,18 @@ close draft #89. And note the structural half: in this workflow, dependency PRs 
 a session is asked to move them — so make the ask recurring (a periodic "triage dependabot"
 session, weekly to match the config's cadence), or the queue re-forms exactly as it did.
 
+**⏳ Step 3 IN PROGRESS 2026-08-25 — and it surfaced F4 materializing.** Executing the triage
+found every dependabot PR red on the **Frontend Check**, including the backend-only (#94) and
+mcp-only (#90) diffs — meaning the failure is `main`'s own. Root cause from the job log: the
+`DATA-SOURCES.md` drift gate fails (generator says 50 surfaces, committed file says 49). The
+Aug-22 work added the withdraw-fees surface and live EVM-L1 gas without regenerating the file,
+and nothing caught it because `ci.yml` runs on pull requests and `develop` pushes only —
+**direct-to-`main` commits bypass CI entirely**, which is F4's mechanism demonstrated on real
+damage. Executed so far: the one-file regen fix at **PR #112** (unblocks the merges;
+owner merges it, then the three patch/minor PRs get rebased and merged on green);
+`@dependabot recreate` posted on #45 and #52; #89 reviewed — its provenance note is complete,
+owner-requested content worth merging, not closing. Majors remain owner decisions.
+
 **4. Turn the policy into a setting.** Branch protection on `main`: require a pull request
 before merging (a solo owner can still self-approve; the gate is against the accidental case),
 optionally require the `ci-success` check. While in Settings, enable secret-scanning **push
