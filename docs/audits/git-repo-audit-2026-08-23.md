@@ -289,10 +289,13 @@ optionally require the `ci-success` check. While in Settings, enable secret-scan
 protection** — this audit found nothing in history; push protection keeps it that way at zero
 ongoing cost.
 
-**5. Fold `docs/audit/` into `docs/audits/`** (two `git mv`s) and fix the CLAUDE.md
-working-directory line.
+**5. Fold `docs/audit/` into `docs/audits/` and fix the CLAUDE.md working-directory line.
+✅ EXECUTED 2026-08-24 — PR #111.** Both files moved as pure renames; the four live path
+references (checklist-steward inventory ×2, TASK-QUEUE prose, docker-compose.prod.yml
+comment) updated; the working-directory line now describes the monorepo layout.
 
-**6. Add `.gitattributes`** with `* text=auto`.
+**6. Add `.gitattributes` with `* text=auto`. ✅ EXECUTED 2026-08-24 — PR #111.** Verified a
+no-op against existing content: `git add --renormalize .` changes nothing.
 
 **7. Keep one copy that isn't GitHub.** Because all work happens in ephemeral sessions, the
 GitHub remote is currently the project's only durable copy (F2). Once — and occasionally
