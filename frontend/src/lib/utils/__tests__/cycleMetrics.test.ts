@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { halvingPosition, drawdownComparison, rotationRead, CYCLE_COPY } from '../cycleMetrics'
+import { halvingPosition, drawdownComparison, rotationRead, piCycleState, CYCLE_COPY } from '../cycleMetrics'
 import {
   CYCLE_HISTORY, cycleHistoryAgeDays, cycleHistoryIsStale, getCycleHistoryProvenance,
 } from '@/lib/data/cycleHistory'
@@ -125,5 +125,35 @@ describe('rotationRead (30-day variant)', () => {
   it('ties do not count as outperformance', () => {
     const rows = [row('btc', { marketCapRank: 1, priceChange30d: 5 }), ...Array.from({ length: 12 }, (_, i) => row(`alt${i}`, { marketCapRank: i + 2, priceChange30d: 5 }))]
     expect(rotationRead(rows)!.pctOutperformingBtc).toBe(0)
+  })
+})
+
+describe('piCycleState', () => {
+  it('returns null under 350 daily closes — no padded-tail average', () => {
+    expect(piCycleState(Array(349).fill(100))).toBeNull()
+    expect(piCycleState(Array(350).fill(100))).not.toBeNull()
+  })
+
+  it('reads uncrossed on a flat series (111DMA = half of 2×350DMA)', () => {
+    const s = piCycleState(Array(400).fill(100))!
+    expect(s.ma111).toBeCloseTo(100)
+    expect(s.ma350x2).toBeCloseTo(200)
+    expect(s.crossed).toBe(false)
+    expect(s.gapPct).toBe(-50)
+  })
+
+  it('detects the cross when recent price runs far enough above the long base', () => {
+    // 350 days at 100, then 111 days at 250: ma111=250, 2*ma350≈2*(147.6)=295 → not crossed.
+    // Push recent to 350: ma111=350, 2*ma350≈2*(179.3)=358.6 → still short. At 400: 2*195.2=390.4 < 400 → crossed.
+    const series = (recent: number) => [...Array(350).fill(100), ...Array(111).fill(recent)]
+    expect(piCycleState(series(250))!.crossed).toBe(false)
+    expect(piCycleState(series(400))!.crossed).toBe(true)
+  })
+
+  it('ignores non-finite and non-positive closes rather than averaging them', () => {
+    const dirty = [...Array(360).fill(100), NaN, 0, -5, Infinity]
+    const s = piCycleState(dirty)!
+    expect(s.daysOfHistory).toBe(360)
+    expect(s.ma111).toBeCloseTo(100)
   })
 })

@@ -9,10 +9,10 @@
 
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Clock, TrendingDown, PieChart, Gauge, Shuffle } from 'lucide-react'
+import { Clock, TrendingDown, PieChart, Gauge, Shuffle, Waves } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
-import { halvingPosition, drawdownComparison, rotationRead, CYCLE_COPY } from '@/lib/utils/cycleMetrics'
+import { halvingPosition, drawdownComparison, rotationRead, piCycleState, CYCLE_COPY } from '@/lib/utils/cycleMetrics'
 import { ASSET_CATALOG } from '@/lib/data/assetCatalog'
 import { CYCLE_HISTORY, getCycleHistoryProvenance } from '@/lib/data/cycleHistory'
 import { STALE_TIME_LONG } from '@/lib/constants'
@@ -62,6 +62,19 @@ export function CycleContext() {
   const athChangePct = btcQuote?.quotes?.btc?.athChangePct ?? null
   const drawdowns = useMemo(() => drawdownComparison(athChangePct), [athChangePct])
   const provenance = useMemo(() => getCycleHistoryProvenance(), [])
+
+  // BTC daily closes for the Pi Cycle averages (Phase 3). range=BT is the
+  // backtest range: ~2.7y of daily candles, comfortably past the 350 the long
+  // average needs. Keyless (Binance primary, CoinGecko fallback).
+  const { data: btcDaily } = useQuery<{ ok: boolean; candles?: { close: number }[] }>({
+    queryKey: ['ohlcv', 'btc', 'BT'],
+    queryFn: () => fetch('/live-data/ohlcv?id=btc&range=BT').then(r => r.json()),
+    staleTime: STALE_TIME_LONG,
+  })
+  const piCycle = useMemo(
+    () => (btcDaily?.ok && btcDaily.candles ? piCycleState(btcDaily.candles.map(c => c.close)) : null),
+    [btcDaily],
+  )
 
   // Rotation read (Phase 2). Stablecoin flags come from the catalog — the raw
   // quote rows carry no category, and a pegged asset in the denominator would
@@ -238,6 +251,40 @@ export function CycleContext() {
             </p>
           )}
           <p className="text-[11px] leading-relaxed text-text-muted">{CYCLE_COPY.rotationCaveat}</p>
+        </Card>
+
+        {/* ── Pi Cycle Top (Phase 3) ── */}
+        <Card icon={Waves} title="Pi Cycle Top — state">
+          {piCycle ? (
+            <>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div>
+                  <div className="text-xl font-bold font-mono text-text-primary">${(piCycle.ma111 / 1000).toFixed(1)}k</div>
+                  <div className="text-[10px] text-text-muted mt-0.5">111-day average</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold font-mono text-text-primary">${(piCycle.ma350x2 / 1000).toFixed(1)}k</div>
+                  <div className="text-[10px] text-text-muted mt-0.5">2 × 350-day average</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold font-mono text-text-primary">
+                    {piCycle.gapPct >= 0 ? '+' : ''}{piCycle.gapPct.toFixed(1)}%
+                  </div>
+                  <div className="text-[10px] text-text-muted mt-0.5">
+                    {piCycle.crossed ? 'lines crossed' : 'gap between the lines'}
+                  </div>
+                </div>
+              </div>
+              <p className="text-[10px] font-mono text-text-muted">
+                computed from {piCycle.daysOfHistory.toLocaleString()} daily closes
+              </p>
+            </>
+          ) : (
+            <p className="text-[11px] text-amber-400">
+              Needs 350 daily closes of BTC history and the candle feed didn&rsquo;t provide them right now.
+            </p>
+          )}
+          <p className="text-[11px] leading-relaxed text-text-muted">{CYCLE_COPY.piCycleCaveat}</p>
         </Card>
       </div>
 

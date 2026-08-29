@@ -87,6 +87,8 @@ export const CYCLE_COPY = {
     'Bitcoin’s share of total crypto market value. Rising dominance means capital concentrating in BTC; in prior cycles it fell as rotation into altcoins began.',
   rotationCaveat:
     'A 30-day variant computed over this app’s tracked coins (rank ≤ 50, stablecoins excluded) — NOT the standard Altcoin Season Index, which uses 90 days over CoinGecko’s top 50. In prior cycles a majority of large coins outperforming BTC marked late-cycle rotation; in this cycle that rotation has not arrived.',
+  piCycleCaveat:
+    'The 111-day average crossing 2× the 350-day average marked the 2013, 2017 and 2021 tops within days — and did not fire before the October 2025 peak and the ~50% decline that followed. It is shown here as a famous indicator with a documented recent miss, not as a signal.',
   fearGreedCaveat:
     'A sentiment composite (volatility, volume, social activity, dominance) from alternative.me — a mood reading, not a valuation.',
 } as const
@@ -143,5 +145,43 @@ export function rotationRead(rows: RotationInput[], maxRank = 50): RotationRead 
     eligible: eligible.length,
     untested,
     btcChange30d: btc.priceChange30d,
+  }
+}
+
+// ─── Pi Cycle Top state (Phase 3) ─────────────────────────────────────────────
+
+export interface PiCycleState {
+  ma111: number
+  ma350x2: number
+  /** How far the 111DMA sits below (negative) or above (positive) 2×350DMA, %. */
+  gapPct: number
+  /** True when the 111DMA is at or above 2×350DMA — the historical "cross". */
+  crossed: boolean
+  daysOfHistory: number
+}
+
+/**
+ * Pi Cycle Top: the 111-day moving average against 2× the 350-day moving
+ * average of BTC's daily closes. The cross marked the 2013, 2017 and 2021
+ * tops within days — and DID NOT FIRE before the October 2025 peak. That miss
+ * is the reason this renders at all: the caller's copy
+ * (CYCLE_COPY.piCycleCaveat) must present the state as "where a famous,
+ * recently-wrong indicator reads", never as a signal.
+ *
+ * Returns null under 350 closes — a 350-day average over less history would
+ * be a padded tail value wearing an indicator's name.
+ */
+export function piCycleState(dailyCloses: number[]): PiCycleState | null {
+  const closes = dailyCloses.filter((c) => Number.isFinite(c) && c > 0)
+  if (closes.length < 350) return null
+  const avg = (n: number) => closes.slice(-n).reduce((a, b) => a + b, 0) / n
+  const ma111 = avg(111)
+  const ma350x2 = avg(350) * 2
+  return {
+    ma111,
+    ma350x2,
+    gapPct: Math.round(((ma111 - ma350x2) / ma350x2) * 1000) / 10,
+    crossed: ma111 >= ma350x2,
+    daysOfHistory: closes.length,
   }
 }
