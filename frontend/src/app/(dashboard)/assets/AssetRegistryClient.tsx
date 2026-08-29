@@ -3,11 +3,12 @@
 import { useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import {
-  LayoutGrid, List, Vault, Search, X, Coins as CoinsIcon, Loader2,
+  LayoutGrid, List, Vault, Search, X, Coins as CoinsIcon, Loader2, RefreshCw,
 } from 'lucide-react'
 import { clsx } from 'clsx'
 import { useQuery } from '@tanstack/react-query'
 import { AssetTable } from '@/components/assets/AssetTable'
+import { CycleContext } from '@/components/assets/CycleContext'
 import { AssetCard } from '@/components/assets/AssetCard'
 // The reserve UI lives in one shared module. It used to be a local copy here
 // that never received the accuracy fixes applied to the standalone /reserves
@@ -31,7 +32,7 @@ import { LIVE_DATA, STALE_TIME_SHORT } from '@/lib/constants'
 import type { AssetType, Blockchain } from '@/types/asset'
 
 type ViewMode = 'table' | 'grid'
-type Tab = 'coins' | 'reserves'
+type Tab = 'coins' | 'reserves' | 'cycle'
 
 // ─── Coin registry: filter primitives ──────────────────────────────────────────
 
@@ -61,9 +62,10 @@ export function AssetRegistryClient() {
   // state after first paint, and rewriting it on every URL change would fight
   // the user's clicks.
   const searchParams = useSearchParams()
-  const [tab, setTab] = useState<Tab>(
-    searchParams.get('tab') === 'reserves' ? 'reserves' : 'coins',
-  )
+  const [tab, setTab] = useState<Tab>(() => {
+    const t = searchParams.get('tab')
+    return t === 'reserves' || t === 'cycle' ? t : 'coins'
+  })
   const [viewMode, setViewMode] = useState<ViewMode>('table')
   // Stackable screener rules. Held here (not in the asset store) because they
   // are page state, and threaded into the query so they run BEFORE pagination —
@@ -110,7 +112,7 @@ export function AssetRegistryClient() {
           title="Coins"
           subtitle={isLoading ? 'Loading…' : `${data?.total ?? 0} coins monitored · live prices via CoinGecko`}
           icon={<CoinsIcon size={20} aria-hidden />}
-          description="The Coin Registry tracks every monitored crypto asset with live prices and market data. The Reserve Monitor tab shows collateralization ratios, attestation records, and composition breakdowns for stablecoins."
+          description="The Coin Registry tracks every monitored crypto asset with live prices and market data. The Reserve Monitor tab shows stablecoin collateralization; the Cycle Context tab shows where past-cycle metrics currently read — descriptive history, not a signal."
           details={[
             { label: 'Data source', text: 'Prices refresh via CoinGecko every 30 seconds; reserve data pulls from DefiLlama.' },
             { label: 'Coin types', text: 'Fiat-backed & algorithmic stablecoins, Layer-1 networks, DeFi and tokenized assets, and CBDCs.' },
@@ -163,6 +165,7 @@ export function AssetRegistryClient() {
         {([
           { id: 'coins',    label: 'Coins' },
           { id: 'reserves', label: 'Reserve Monitor', icon: Vault },
+          { id: 'cycle', label: 'Cycle Context', icon: RefreshCw },
         ] as { id: Tab; label: string; icon?: React.ElementType }[]).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -330,6 +333,15 @@ export function AssetRegistryClient() {
       {tab === 'reserves' && (
         <ErrorBoundary>
           <ReserveMonitorPanel />
+        </ErrorBoundary>
+      )}
+
+      {/* Cycle Context — deep-linkable as /assets?tab=cycle. Descriptive
+          past-cycle metrics; scope and the no-composite rule are documented in
+          docs/assessments/cycle-gauge-scope.md. */}
+      {tab === 'cycle' && (
+        <ErrorBoundary>
+          <CycleContext />
         </ErrorBoundary>
       )}
     </div>
