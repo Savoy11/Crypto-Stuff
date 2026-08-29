@@ -430,7 +430,21 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 > /data-sources, and carry the caveat in `decision.reason` so every surface that
 > renders it inherits the warning.
 >
-> **To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
+> > **First real probe run: 2026-08-29** (owner's machine — the first environment
+> that could reach these hosts). Results and decisions:
+> `docs/audits/terms-review-2026-08-29.md`. One finding was acted on —
+> **Reddit's robots.txt disallows this app's agent**, so reddit.com is now gated
+> off unless `REDDIT_CLIENT_ID` is set, enforced in `pinnedFetch` so a new call
+> site inherits it. `SourceTermsEntry.robotsDisallowed` records that as a dated
+> **first-hand** observation kept deliberately separate from the terms `review`
+> state: robots.txt is an instruction we either honour or don't, while a terms
+> verdict is an interpretation — and recording one must not launder the other
+> into looking reviewed. Two items are open: **CoinGecko's probe read the site
+> ToU, not the API terms** (the wrong document — its API terms are the highest-
+> value read left), and the **personal-vs-commercial question**, which decides
+> eight sources at once and is the owner's to answer.
+
+**To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
 > that can reach these sites writes a review worksheet — current verdict, what the
 > probe saw, a link to the document, and a conclusion box per host. Read the
 > documents, then flip `review` to `'verified'`. The open queue for the news
