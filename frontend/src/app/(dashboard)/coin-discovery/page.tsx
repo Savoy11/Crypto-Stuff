@@ -10,18 +10,39 @@ import { ModuleGate } from '@/components/layout/ModuleGate'
 
 import { useState, useCallback, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, Star, X, ChevronDown, ChevronUp, Coins, Trash2, TrendingUp, AlertTriangle, Eye, ExternalLink, Database, LayoutGrid, Rows3 } from 'lucide-react'
+import { Search, Plus, Star, X, ChevronDown, ChevronUp, Coins, Trash2, TrendingUp, AlertTriangle, Eye, ExternalLink, Database, LayoutGrid, Rows3, Globe, FileText, Loader2 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { DerivedNote } from '@/components/ui/DerivedNote'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import { CATEGORY_INFO } from '@/lib/data/coinCatalog'
 import type { CandidateCoin, CoinDiscoveryResponse } from '@/app/live-data/coin-discovery/route'
+import type { CoinProfileResponse } from '@/app/live-data/coin-profile/route'
 import { FilterStack } from '@/components/ui/FilterStack'
 import {
   DISCOVERY_FILTER_FIELDS, DISCOVERY_FIELD_BY_KEY, UNAVAILABLE_FACTORS,
   applyRules, type FilterRule,
 } from '@/lib/data/coinFilters'
+
+// ─── Project profile (website + description) ──────────────────────────────────
+//
+// The markets feed behind this page carries neither a homepage nor a
+// description — only CoinGecko's per-coin endpoint does, one request each
+// against a ~30/min keyless limit, and this page lists up to 750 candidates.
+// So a card asks for its own profile when the reader opens it, which is also
+// the only moment a project description is worth anything. React Query caches
+// per coin, so reopening a card costs nothing.
+
+function useCoinProfile(cgId: string, enabled: boolean) {
+  return useQuery<CoinProfileResponse>({
+    queryKey: ['coin-profile', cgId],
+    queryFn: () => fetch(`/live-data/coin-profile?id=${encodeURIComponent(cgId)}`).then(r => r.json()),
+    enabled,
+    staleTime: 24 * 60 * 60 * 1000,
+    gcTime: 24 * 60 * 60 * 1000,
+    retry: false,
+  })
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -54,6 +75,12 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
   const { addCoin, dismissCandidate, isAdded, isDismissed } = useCoinDiscoveryStore()
   const added     = isAdded(coin.cgId)
   const dismissed = isDismissed(coin.cgId)
+  // Fetched only once the reader opens the card — see useCoinProfile.
+  const { data: profile, isLoading: profileLoading } = useCoinProfile(coin.cgId, expanded)
+  // Where the coin's name points. The project's own site once we know it;
+  // until then the name opens the card rather than navigating away, so a click
+  // never lands on a third-party page the reader didn't ask for.
+  const homepage = profile?.homepage ?? null
 
   if (dismissed) return null
 
@@ -74,10 +101,16 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
     return (
       <div className="bg-bg-card border border-border rounded-lg flex items-center gap-3 px-3 py-2">
         <img src={coin.image} alt={coin.name} className="w-7 h-7 rounded-full flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+        {/* Compact rows have no room for an About panel, so the name links
+            straight to the project site. The profile request fires on hover —
+            one request, only for a row the reader is actually pointing at. */}
         <a
-          href={`https://www.coingecko.com/en/coins/${coin.cgId}`}
+          href={homepage ?? `https://www.coingecko.com/en/coins/${coin.cgId}`}
           target="_blank"
           rel="noopener noreferrer"
+          onMouseEnter={() => setExpanded(true)}
+          onFocus={() => setExpanded(true)}
+          title={homepage ? `Official site — ${homepage}` : 'Official site (resolving…)'}
           className="font-semibold text-sm text-text-primary hover:text-accent-blue transition-colors truncate min-w-0 max-w-[160px]"
         >
           {coin.name}
@@ -119,15 +152,30 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
         <img src={coin.image} alt={coin.name} className="w-9 h-9 rounded-full flex-shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <a
-              href={`https://www.coingecko.com/en/coins/${coin.cgId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-text-primary hover:text-accent-blue transition-colors flex items-center gap-1 group"
-            >
-              {coin.name}
-              <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue shrink-0" />
-            </a>
+            {homepage ? (
+              <a
+                href={homepage}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Official site — ${homepage}`}
+                className="font-semibold text-text-primary hover:text-accent-blue transition-colors flex items-center gap-1 group"
+              >
+                {coin.name}
+                <ExternalLink size={11} className="text-text-muted group-hover:text-accent-blue shrink-0" />
+              </a>
+            ) : (
+              /* Before the profile resolves we do not know the project's site,
+                 and this link used to go to CoinGecko — a data aggregator, not
+                 the project. Opening the card instead resolves the real one. */
+              <button
+                onClick={() => setExpanded(true)}
+                className="font-semibold text-text-primary hover:text-accent-blue transition-colors flex items-center gap-1 group"
+                title="Show what this project is, and its official site"
+              >
+                {coin.name}
+                <ChevronDown size={12} className="text-text-muted group-hover:text-accent-blue shrink-0" />
+              </button>
+            )}
             <span className="text-xs text-text-muted">{coin.symbol}</span>
             {coin.marketCapRank && <span className="text-xs text-text-muted">#{coin.marketCapRank}</span>}
           </div>
@@ -166,6 +214,94 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
       {coin.utilityNote && (
         <div className="px-4 pb-3 text-xs text-text-secondary">{coin.utilityNote}</div>
       )}
+
+      {/* About the project — what it is and where it lives. Loaded on demand;
+          see useCoinProfile for why it is not part of the list response. */}
+      <div className="px-4 pb-3">
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="flex items-center gap-1 text-xs text-text-muted hover:text-accent-blue transition-colors"
+        >
+          {expanded ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          About this project
+        </button>
+
+        {expanded && (
+          <div className="mt-2 space-y-2">
+            {profileLoading && (
+              <p className="flex items-center gap-1.5 text-xs text-text-muted">
+                <Loader2 size={12} className="animate-spin" /> Loading project details…
+              </p>
+            )}
+
+            {!profileLoading && profile?.description && (
+              <p className="text-xs leading-relaxed text-text-secondary">{profile.description}</p>
+            )}
+
+            {/* An absent description is stated, not left as blank space — the
+                reader should know the project published none, not wonder
+                whether the panel failed. */}
+            {!profileLoading && profile?.ok && !profile.description && (
+              <p className="text-xs text-text-muted">No project description published for this coin.</p>
+            )}
+
+            {!profileLoading && profile && !profile.ok && (
+              <p className="text-xs text-amber-400">
+                Project details unavailable right now{profile.error ? ` (${profile.error})` : ''}.
+              </p>
+            )}
+
+            {!!profile?.categories.length && (
+              <div className="flex flex-wrap gap-1">
+                {profile.categories.map((c) => (
+                  <span key={c} className="px-1.5 py-0.5 rounded bg-bg-elevated border border-border text-[10px] text-text-muted">
+                    {c}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-3 pt-0.5">
+              {profile?.homepage && (
+                <a
+                  href={profile.homepage}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-accent-blue hover:underline"
+                >
+                  <Globe size={12} /> Official site
+                </a>
+              )}
+              {profile?.whitepaper && (
+                <a
+                  href={profile.whitepaper}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-xs text-accent-blue hover:underline"
+                >
+                  <FileText size={12} /> Whitepaper
+                </a>
+              )}
+              {!profileLoading && profile?.ok && !profile.homepage && (
+                <span className="text-xs text-text-muted">No official site listed.</span>
+              )}
+              {/* CoinGecko stays reachable and is LABELLED as the data source
+                  rather than posing as the project's own page — which is what
+                  the coin name used to link to. Attribution is a condition of
+                  the free tier (lib/server/sourceTerms.ts). */}
+              <a
+                href={`https://www.coingecko.com/en/coins/${coin.cgId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-xs text-text-muted hover:text-text-secondary"
+              >
+                <Database size={11} /> Market data on CoinGecko
+              </a>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Actions */}
       <div className="px-4 pb-4 border-t border-border pt-3 flex items-center gap-2">
