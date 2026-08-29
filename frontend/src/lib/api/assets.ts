@@ -4,7 +4,6 @@ import type { Asset, AssetDetail, AssetFilters, AssetSortConfig } from '@/types/
 import type { PaginatedResponse } from '@/types/api'
 import { fetchLiveMarkets } from './live/liveClient'
 import { buildLiveAssets, buildLiveAssetDetail } from './live/overlay'
-import { applyRiskComposite, type RiskScoreIndex } from './live/riskScores'
 
 // Deliberately NOT `extends QueryParams`: that interface carries an index
 // signature (`[key: string]: string | number | boolean | undefined`) which no
@@ -13,9 +12,6 @@ import { applyRiskComposite, type RiskScoreIndex } from './live/riskScores'
 export interface GetAssetsParams {
   assetType?: string
   blockchain?: string
-  riskBand?: string
-  minRiskScore?: number
-  maxRiskScore?: number
   minMarketCap?: number
   /** Minimum 24h-volume / market-cap, in percent (W3-2). */
   minLiquidityPct?: number
@@ -83,12 +79,13 @@ export function sortAssets(assets: Asset[], sortBy: string, direction: 'asc' | '
 }
 
 
-// Exported for tests: the R2 session review confirmed risk band/score filters
-// and the riskScore sort MUST run on enriched assets — the catalog carries null
-// risk (live composite only), so filtering pre-enrichment silently empties the
-// result and sorting is a no-op. getAssets() enriches BEFORE calling this.
+// Exported for tests. The R2 note that used to sit here described joining a
+// live risk composite before filtering; per-coin risk scoring was removed
+// entirely on 2026-08-29 (RP-6), so there is no composite to join and no risk
+// filter left to run. The enrich-before-filter PRINCIPLE still applies to the
+// technical sweep below — see the comment inside applyParams.
 export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedResponse<Asset> {
-  // Same reasoning as the risk-composite join above: the technical values have
+  // Enrich BEFORE filtering or sorting: the technical values have
   // to be on the asset BEFORE anything filters or sorts on them, or a rule runs
   // against undefined and empties the table silently.
   let assets = params.technicals
@@ -109,15 +106,6 @@ export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedRes
   }
   if (params.blockchain && params.blockchain !== 'all') {
     assets = assets.filter((a) => a.blockchain === params.blockchain)
-  }
-  if (params.riskBand && params.riskBand !== 'all') {
-    assets = assets.filter((a) => a.riskBand === params.riskBand)
-  }
-  if (params.minRiskScore !== undefined) {
-    assets = assets.filter((a) => a.riskScore !== null && a.riskScore >= (params.minRiskScore ?? 0))
-  }
-  if (params.maxRiskScore !== undefined) {
-    assets = assets.filter((a) => a.riskScore !== null && a.riskScore <= (params.maxRiskScore ?? 100))
   }
   if (params.minMarketCap !== undefined) {
     assets = assets.filter((a) => a.marketCap !== null && a.marketCap >= (params.minMarketCap ?? 0))
@@ -175,24 +163,15 @@ export function applyParams(all: Asset[], params: GetAssetsParams): PaginatedRes
 // watchlists. These three were a parallel, never-wired implementation whose
 // live path returned "the first 5 assets" as if it were a saved list.
 export const assetsApi = {
-  /**
-   * List assets. Pass the live risk-composite index (from useRiskScoreIndex /
-   * fetchRiskScoreIndex) so scores are joined BEFORE filtering, sorting, and
-   * pagination — otherwise the risk band/score filters run against the
-   * catalog's null risk and return nothing, and the Safety Score sort no-ops
-   * (R2 Phase 2 review finding H1).
-   */
-  getAssets: async (params: GetAssetsParams = {}, riskIndex?: RiskScoreIndex): Promise<PaginatedResponse<Asset>> => {
+  /** List assets: live quotes, optional screener rules, then sort and paginate. */
+  getAssets: async (params: GetAssetsParams = {}): Promise<PaginatedResponse<Asset>> => {
     const result = await fetchLiveMarkets()
     // CR-note-1 fix: fetchLiveMarkets swallows failures into {ok:false,
     // quotes:{}}, and building the catalog from empty quotes rendered a full
     // table of N/A prices — a dead upstream disguised as a quiet market.
     // Throwing lets React Query's isError branch show the error card + retry.
     if (!result.ok) throw new Error('Market data is unreachable — no live prices are available right now.')
-    let assets = buildLiveAssets(result.quotes)
-    if (riskIndex && riskIndex.size > 0) {
-      assets = assets.map((a) => applyRiskComposite(a, riskIndex))
-    }
+    const assets = buildLiveAssets(result.quotes)
     return applyParams(assets, params)
   },
 

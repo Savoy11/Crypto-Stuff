@@ -8,7 +8,6 @@ import { useAssetStore } from '@/store/useAssetStore'
 import { useCoinDiscoveryStore, type AddedCoin } from '@/store/useCoinDiscoveryStore'
 import type { FilterRule } from '@/lib/data/coinFilters'
 import { STALE_TIME_SHORT, STALE_TIME_MEDIUM, GC_TIME } from '@/lib/constants'
-import { fetchRiskScoreIndex, RISK_SCORES_QUERY_KEY, applyRiskComposite, type RiskScoreIndex } from '@/lib/api/live/riskScores'
 import type { Asset, AssetType } from '@/types/asset'
 
 export const ASSET_KEYS = {
@@ -26,10 +25,10 @@ export const ASSET_KEYS = {
  * filters and sort operate on real scores. `riskIndexVersion` must change when
  * the index does (use the index query's dataUpdatedAt) so results recompute.
  */
-export function useAssets(params: GetAssetsParams = {}, riskIndex?: RiskScoreIndex, riskIndexVersion = 0) {
+export function useAssets(params: GetAssetsParams = {}) {
   return useQuery({
-    queryKey: [...ASSET_KEYS.list(params), riskIndexVersion],
-    queryFn: () => assetsApi.getAssets(params, riskIndex),
+    queryKey: ASSET_KEYS.list(params),
+    queryFn: () => assetsApi.getAssets(params),
     staleTime: STALE_TIME_SHORT,
     gcTime: GC_TIME,
     placeholderData: (prev) => prev,
@@ -54,15 +53,6 @@ export function useAsset(id: string) {
  * The live risk composite for every scored asset, indexed by id. Shared query
  * key so registry / detail / heatmap dedupe to a single request (R2 Phase 2).
  */
-export function useRiskScoreIndex() {
-  return useQuery({
-    queryKey: RISK_SCORES_QUERY_KEY,
-    queryFn: fetchRiskScoreIndex,
-    staleTime: STALE_TIME_MEDIUM,
-    gcTime: GC_TIME,
-  })
-}
-
 export function useAssetSearch(query: string) {
   return useQuery({
     queryKey: ASSET_KEYS.search(query),
@@ -99,8 +89,6 @@ function discoveredCoinToAsset(coin: AddedCoin): Asset {
     priceChange24h: null,
     priceChangePercent24h: null,
     pegDeviation:   null,
-    riskScore:      null,
-    riskBand:       null,
     reserveRatio:   null,
     createdAt:      coin.addedAt,
     updatedAt:      coin.addedAt,
@@ -126,9 +114,6 @@ export function useAssetsWithStore(filterRules: FilterRule[] = []) {
   const params: GetAssetsParams = {
     assetType: filters.assetType !== 'all' ? filters.assetType : undefined,
     blockchain: filters.blockchain !== 'all' ? filters.blockchain : undefined,
-    riskBand: filters.riskBand !== 'all' ? filters.riskBand : undefined,
-    minRiskScore: filters.minRiskScore > 0 ? filters.minRiskScore : undefined,
-    maxRiskScore: filters.maxRiskScore < 100 ? filters.maxRiskScore : undefined,
     // Review fix: this store field was never threaded into the query params, so
     // any UI bound to it (the Coins screener's "Min mkt cap") silently did
     // nothing. applyParams has supported it all along.
@@ -147,14 +132,10 @@ export function useAssetsWithStore(filterRules: FilterRule[] = []) {
     pageSize,
   }
 
-  const riskIndexQuery = useRiskScoreIndex()
-  // Pass the live composite into the list query so risk filters/sort see real
-  // scores (enrich-before-filter). dataUpdatedAt keys the recompute when the
-  // index lands or refreshes.
-  const mainQuery = useAssets(params, riskIndexQuery.data, riskIndexQuery.dataUpdatedAt)
+  const mainQuery = useAssets(params)
 
   // Convert discovered coins and filter them by the active search term.
-  // Other filters (assetType, riskBand, etc.) are intentionally skipped — the
+  // Other filters (assetType, blockchain, etc.) are intentionally skipped — the
   // discovery store doesn't carry enough metadata to evaluate them reliably.
   const mergedData = useMemo(() => {
     if (!mainQuery.data) return mainQuery.data
@@ -180,7 +161,7 @@ export function useAssetsWithStore(filterRules: FilterRule[] = []) {
     // column you sorted by — which reads as "sorting is broken" rather than
     // "these two rows are special", and it broke every column, not just price.
     // Filters are still deliberately not applied to them (see above): the
-    // discovery store lacks the metadata to evaluate assetType/riskBand
+    // discovery store lacks the metadata to evaluate assetType/blockchain
     // honestly. Sorting needs no such metadata — a price is a price.
     const merged = sortAssets([...newCoins, ...mainQuery.data.data], sort.key, sort.direction)
 
@@ -191,20 +172,9 @@ export function useAssetsWithStore(filterRules: FilterRule[] = []) {
     }
   }, [mainQuery.data, addedCoins, filters.search, sort.key, sort.direction])
 
-  // R2 Phase 2: the registry rows arrive already enriched (getAssets joins the
-  // composite pre-filter). This second join only matters for discovery-store
-  // coins merged in above; it is idempotent for everything else. Unscored
-  // assets keep riskScore/riskBand null → "N/A" (never fabricated).
-  const enrichedData = useMemo(() => {
-    if (!mergedData) return mergedData
-    const idx = riskIndexQuery.data
-    if (!idx || idx.size === 0) return mergedData
-    return { ...mergedData, data: mergedData.data.map((a) => applyRiskComposite(a, idx)) }
-  }, [mergedData, riskIndexQuery.data])
-
   return {
     ...mainQuery,
-    data: enrichedData,
+    data: mergedData,
     // Surfaced so the screener can say what it is doing. `active` distinguishes
     // "no technical rule, nothing to sweep" from "swept and found nothing" —
     // an absent sweep and an empty one are not the same state.

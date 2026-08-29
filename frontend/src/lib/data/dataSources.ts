@@ -115,12 +115,6 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     notes: 'Supply is live; composition breakdown is approximate / derived from chain distribution, not issuer attestation.',
   },
   {
-    id: 'risk-scores', surface: 'Risk scores', module: 'crypto',
-    route: '/live-data/risk-scores', status: 'derived',
-    providers: [DEFILLAMA('stablecoins.llama.fi'), COINGECKO, { name: 'Curated disclosures + news', role: 'derived', auth: 'none' }],
-    cadence: 'on demand', notes: 'Live-computed composites via src/lib/risk. Pillars without data show N/A and drop coverage/confidence.',
-  },
-  {
     id: 'alerts', surface: 'Alerts (depegs, large moves)', module: 'crypto',
     route: '/live-data/alerts', status: 'derived', providers: [COINGECKO],
     notes: 'Generated from live price/peg movement thresholds, not a stored backend.',

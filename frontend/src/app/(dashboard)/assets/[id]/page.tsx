@@ -38,8 +38,7 @@ const EMBED_CHART_TYPES: { type: ChartType; label: string; desc: string; Icon: L
   { type: 'baseline',    label: 'Baseline',      desc: 'Green/red vs. first period close',          Icon: Layers },
 ]
 import { clsx } from 'clsx'
-import { useAsset, useRiskScoreIndex } from '@/hooks/useAssets'
-import { applyRiskComposite } from '@/lib/api/live/riskScores'
+import { useAsset } from '@/hooks/useAssets'
 import { PegDeviationChart } from '@/components/analytics/PegDeviationChart'
 import { ReserveComposition } from '@/components/analytics/ReserveComposition'
 import { ReserveProvenance, normalisePegMechanism } from '@/components/analytics/reserves'
@@ -55,7 +54,6 @@ import { formatCompact, formatAddress, formatBps, formatDate, formatAssetPrice, 
 import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS, LIVE_DATA } from '@/lib/constants'
 import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
-import type { RiskScoresResponse } from '@/app/live-data/risk-scores/route'
 import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import { useQuery } from '@tanstack/react-query'
 import { NEWS_CATEGORIES } from '@/lib/data/newsCategories'
@@ -71,11 +69,11 @@ const TABS: Array<{ id: Tab; label: string }> = [
   { id: 'news', label: 'News' },
   { id: 'technical-analysis', label: 'Technical Analysis' },
   { id: 'reserves', label: 'Reserves' },
-  // No Risk History tab: its API is a hardcoded [] (lib/api/risk-scores.ts) and
-  // the chart rendered empty axes captioned "Avg: 0.0 / Latest: 0.0" —
-  // fabricated-looking zeros on a product that never fabricates values (review
-  // defect D-6, NOT-FOR-ROLLOUT). Making it real needs score-history
-  // persistence (Appendix B NT10); re-add the tab when that lands.
+  // No Risk History tab. It was cut as review defect D-6 (its API returned a
+  // hardcoded [] and the chart drew "Avg: 0.0 / Latest: 0.0"), and RP-4 then
+  // declined the score-history persistence that would have made it real. Both
+  // are now moot: per-coin risk scoring was removed entirely on 2026-08-29
+  // (RP-6), so there is no score whose history could be charted.
   { id: 'pump-report', label: 'Pump Report' },
 ]
 
@@ -620,194 +618,31 @@ function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
         </div>
       )}
 
-      {/* Risk components — live composite from /live-data/risk-scores */}
-      <LiveRiskPanel assetId={asset.id} />
     </div>
   )
 }
 
-// ─── Live composite risk panel ────────────────────────────────────────────────
-// Wired to lib/risk: stablecoins get the 5-pillar Reserve/Peg/Structure/
-// Adoption/News profile (with fatal-flaw slashing); every other asset gets
-// Volatility/Liquidity/Scale/Trend/News. (The leaderboard this line used to
-// reference was deleted in item 4, 2026-08-18.)
+// Per-coin risk scoring was REMOVED ENTIRELY on 2026-08-29 (owner, RP-6).
+// What stood here was the Composite Risk panel — score, band, confidence,
+// coverage and a weighted pillar breakdown, computed by lib/risk from live
+// market data. It was the last per-coin risk surface, and the most defensible
+// one; it goes because publishing any risk figure for an asset a reader is
+// looking at may read as a recommendation, and that is a regulated activity.
 //
-// THIS IS NOW THE ONLY PLACE A PER-COIN RISK FIGURE RENDERS. The header gauge,
-// the identity band pill and the search-result score were removed 2026-08-29:
-// a score without its derivation beside it is a rating. Anything added here
-// must keep showing pillars, weights, coverage, confidence and evidence —
-// lib/risk/__tests__/methodologyDisclosure.test.ts enforces it.
-
-const RISK_BAND_UI: Record<string, { label: string; text: string; chip: string; bar: string }> = {
-  low:      { label: 'Low Risk',  text: 'text-emerald-400', chip: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20', bar: 'bg-emerald-500' },
-  moderate: { label: 'Moderate',  text: 'text-blue-400',    chip: 'text-blue-400 bg-blue-400/10 border-blue-400/20',          bar: 'bg-blue-500' },
-  elevated: { label: 'Elevated',  text: 'text-amber-400',   chip: 'text-amber-400 bg-amber-400/10 border-amber-400/20',       bar: 'bg-amber-500' },
-  high:     { label: 'High Risk', text: 'text-orange-400',  chip: 'text-orange-400 bg-orange-400/10 border-orange-400/20',    bar: 'bg-orange-500' },
-  critical: { label: 'Critical',  text: 'text-red-400',     chip: 'text-red-400 bg-red-400/10 border-red-500/20',             bar: 'bg-red-500' },
-}
-
-function LiveRiskPanel({ assetId }: { assetId: string }) {
-  const { data, isLoading } = useQuery<RiskScoresResponse>({
-    queryKey: ['risk-scores'],
-    queryFn: () => fetch('/live-data/risk-scores').then((r) => r.json()),
-    staleTime: 1000 * 60 * 5,
-  })
-
-  if (isLoading) {
-    return <div className="h-40 animate-pulse rounded-card bg-bg-elevated/60" />
-  }
-
-  const entry = [...(data?.stablecoins ?? []), ...(data?.majors ?? [])].find((a) => a.assetId === assetId)
-
-  if (!entry) {
-    return (
-      <div>
-        <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Composite Risk</h3>
-        <div className="rounded-card border border-border bg-bg-card p-8 text-center">
-          <Shield size={24} className="mx-auto text-text-muted" aria-hidden />
-          <p className="mt-3 text-sm font-medium text-text-secondary">Safety score not available for this asset</p>
-          <p className="mt-1 text-xs text-text-muted max-w-md mx-auto">
-            {data && !data.ok
-              ? 'Market data sources (DefiLlama / CoinGecko) are unreachable right now — no scores were computed rather than showing stale or fabricated values.'
-              : 'This asset has no verified market-data mapping yet, so no composite is computed rather than fabricating one.'}
-          </p>
-        </div>
-      </div>
-    )
-  }
-
-  const ui = RISK_BAND_UI[entry.risk.band]
-  return (
-    <div>
-      <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">Composite Risk</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="rounded-card border border-border bg-bg-card p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-baseline gap-3">
-              <span className={clsx('font-mono text-4xl font-bold tabular-nums', ui.text)}>{entry.risk.score.toFixed(0)}</span>
-              {entry.risk.slashed.length > 0 && (
-                <span className="font-mono text-sm text-text-muted line-through">{entry.risk.baseScore.toFixed(0)}</span>
-              )}
-              <span className="text-xs text-text-muted">/ 100 — higher is safer</span>
-            </div>
-            <span className={clsx('px-2 py-0.5 rounded text-[10px] font-bold border', ui.chip)}>{ui.label}</span>
-          </div>
-
-          {entry.risk.slashed.map((s, i) => (
-            <p key={i} className="mt-2 text-[11px] text-red-400">⚠ {s.reason} — composite slashed ×{s.multiplier}</p>
-          ))}
-
-          <div className="mt-4 space-y-3">
-            <div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-text-secondary">Confidence</span>
-                <span className="font-mono text-text-primary">{(entry.risk.confidence * 100).toFixed(0)}%</span>
-              </div>
-              <div className="h-2 bg-bg-elevated rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-accent-blue" style={{ width: `${entry.risk.confidence * 100}%` }} />
-              </div>
-            </div>
-            <div>
-              <div className="flex justify-between text-xs mb-1.5">
-                <span className="text-text-secondary">Data Coverage</span>
-                <span className="font-mono text-text-primary">{(entry.risk.coverage * 100).toFixed(0)}%</span>
-              </div>
-              <div className="h-2 bg-bg-elevated rounded-full overflow-hidden">
-                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${entry.risk.coverage * 100}%` }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Methodology, stated where the number renders (2026-08-29).
-              The /risk-scores leaderboard was cut in item 4 because it ranked a
-              universe; this panel scores the coin the reader opened, which is
-              the explanatory side of that line. What makes it explanatory
-              rather than a rating is precisely this block plus the pillar
-              descriptions — a score whose derivation is not on screen is a
-              verdict, however carefully it was computed. */}
-          <details className="mt-4 pt-3 border-t border-border group">
-            <summary className="cursor-pointer text-[11px] text-accent-blue hover:underline list-none flex items-center gap-1">
-              <span className="transition-transform group-open:rotate-90">▸</span>
-              How this number is calculated
-            </summary>
-            <div className="mt-3 space-y-2 text-[11px] leading-relaxed text-text-muted">
-              <p>
-                <strong className="text-text-secondary">Scale.</strong> 0–100, higher is safer. It describes
-                the asset as the market currently prices and trades it — it is not advice, not a forecast,
-                and not a judgment about whether to hold anything.
-              </p>
-              <p>
-                <strong className="text-text-secondary">Composition.</strong> Each pillar opposite is scored
-                0–100 from live market data, then combined using the weights shown. Finance Now computes
-                this itself from public data; no rating agency or provider is behind it.
-              </p>
-              <p>
-                <strong className="text-text-secondary">Missing data.</strong> A pillar with no data scores
-                N/A and leaves the composite entirely — the remaining weights are renormalised, so a gap
-                never silently drags the number down. <strong className="text-text-secondary">Coverage</strong> is
-                the share of profile weight that had data; <strong className="text-text-secondary">confidence</strong> is
-                the weighted per-pillar confidence multiplied by that coverage. Read the score alongside
-                both: 72 at 40% coverage is a far weaker statement than 72 at 100%.
-              </p>
-              {entry.risk.slashed.length > 0 && (
-                <p>
-                  <strong className="text-text-secondary">Overrides.</strong> Certain conditions cap the
-                  composite outright regardless of the pillars — each is named above with its multiplier.
-                </p>
-              )}
-              <p>
-                <strong className="text-text-secondary">Limits.</strong> Every input is market data:
-                price, volume, market cap, sentiment. Nothing here assesses the code, the team, the
-                custody arrangements or the legal standing of an asset, and a high score is not evidence
-                that any of those are sound.
-              </p>
-              <p className="text-text-muted/80">Profile <span className="font-mono">{entry.risk.profileId}</span> v{entry.risk.profileVersion}.</p>
-            </div>
-          </details>
-        </div>
-
-        <div className="rounded-card border border-border bg-bg-card p-5">
-          <h4 className="text-sm font-semibold text-text-primary mb-4">Pillar Breakdown</h4>
-          <div className="space-y-3">
-            {entry.risk.dimensions.map((dim) => {
-              const dimUi = dim.band ? RISK_BAND_UI[dim.band] : null
-              return (
-                <div key={dim.key}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-text-secondary">{dim.label} <span className="text-text-muted/70">· w {(dim.weight * 100).toFixed(0)}%</span></span>
-                    <span className={clsx('font-mono tabular-nums', dimUi?.text ?? 'text-text-muted')}>
-                      {dim.score == null ? 'N/A' : dim.score.toFixed(0)}
-                    </span>
-                  </div>
-                  <div className="h-1.5 bg-bg-elevated rounded-full overflow-hidden">
-                    <div className={clsx('h-full rounded-full', dimUi?.bar ?? 'bg-bg-elevated')} style={{ width: `${dim.score ?? 0}%` }} />
-                  </div>
-                  {/* What this pillar measures, authored in the profile spec
-                      (lib/risk/profiles/*) and — until 2026-08-29 — dropped by
-                      the engine, so no surface could say what it was scoring.
-                      Rendered, not hovered: a tooltip is invisible on touch and
-                      to keyboard users, which is not "clearly stated". */}
-                  <p className="mt-1 text-[10px] leading-relaxed text-text-muted/80">{dim.description}</p>
-                  {dim.evidence.length > 0 && (
-                    <p className="mt-0.5 text-[10px] font-mono text-text-muted/60">
-                      {dim.evidence.map((ev) => `${ev.metric}: ${ev.value ?? '—'}${ev.note ? ` (${ev.note})` : ''}`).join(' · ')}
-                    </p>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-          <p className="mt-4 text-[10px] text-text-muted/80 leading-relaxed">
-            Pillars without data show N/A and are excluded — the composite reweights and coverage drops.
-          </p>
-        </div>
-      </div>
-      {/* House policy: a derived score is Finance Now's own computation and must
-          say so where the number renders — never read as a provider's figure. */}
-      <SourceLine id="risk-scores" asOf={data?.updatedAt} className="mt-3" />
-    </div>
-  )
-}
+// Also deleted with it: /live-data/risk-scores, lib/api/live/riskScores.ts,
+// useRiskScoreIndex, RiskScoreBadge, and Asset.riskScore / Asset.riskBand —
+// nothing populated those but the composite, so leaving them would have left
+// permanently-null fields and three unreachable filters behind.
+//
+// lib/risk/ ITSELF STAYS. It is a general framework, and its other consumers
+// are untouched and were separately decided: the options Trade Risk Scorer
+// (/equities/options), staking provider risk (curated, lib/data/
+// stakingProviders.ts), and the macro/equity profiles. This removal is about
+// publishing a per-coin score, not about the engine that computed it.
+//
+// TO RESTORE: git history at this commit carries the panel, the route and the
+// index join intact — and lib/risk/__tests__/riskScoringRemoved.test.ts
+// enumerates every surface that would have to come back.
 
 const SENTIMENT_STYLES = {
   positive: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
@@ -1218,8 +1053,7 @@ function AssetDetailPageInner() {
   // R2 Phase 2: join the live risk composite so the gauge below reads a real
   // score instead of N/A. Unscored assets stay null. (Same-page live composite
   // panel and this gauge now draw from one source — resolving the old contradiction.)
-  const { data: riskIndex } = useRiskScoreIndex()
-  const asset = rawAsset && riskIndex ? applyRiskComposite(rawAsset, riskIndex) : rawAsset
+  const asset = rawAsset
 
   if (isLoading) {
     return (
