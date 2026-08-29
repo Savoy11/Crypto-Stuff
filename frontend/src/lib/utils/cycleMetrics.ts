@@ -85,6 +85,63 @@ export const CYCLE_COPY = {
     'Each completed cycle’s bar is its final peak-to-trough loss. The open rows can still deepen.',
   dominanceCaveat:
     'Bitcoin’s share of total crypto market value. Rising dominance means capital concentrating in BTC; in prior cycles it fell as rotation into altcoins began.',
+  rotationCaveat:
+    'A 30-day variant computed over this app’s tracked coins (rank ≤ 50, stablecoins excluded) — NOT the standard Altcoin Season Index, which uses 90 days over CoinGecko’s top 50. In prior cycles a majority of large coins outperforming BTC marked late-cycle rotation; in this cycle that rotation has not arrived.',
   fearGreedCaveat:
     'A sentiment composite (volatility, volume, social activity, dominance) from alternative.me — a mood reading, not a valuation.',
 } as const
+
+// ─── Rotation read (30-day variant) ───────────────────────────────────────────
+
+export interface RotationInput {
+  id: string
+  marketCapRank: number | null
+  priceChange30d: number | null
+  /** Stablecoins are excluded — pegged assets neither out- nor underperform. */
+  isStablecoin: boolean
+}
+
+export interface RotationRead {
+  /** Percent of eligible coins outperforming BTC over 30 days, 0–100. */
+  pctOutperformingBtc: number
+  outperforming: number
+  eligible: number
+  /** Coins ranked in-universe but skipped for missing 30d data. Disclosed, never folded into eligible. */
+  untested: number
+  btcChange30d: number
+}
+
+/**
+ * The share of top-ranked coins outperforming BTC over 30 days.
+ *
+ * A VARIANT, NOT THE INDEX. The standard Altcoin Season Index is 90-day over
+ * CoinGecko's top 50; the markets feed carries 30-day changes over the app's
+ * tracked universe. Both differences are surfaced by the caller's copy
+ * (CYCLE_COPY.rotationCaveat) — presenting this number under the standard
+ * name would be a different figure wearing a known label.
+ *
+ * Returns null when BTC's own 30d change is missing (there is nothing to
+ * outperform) or when fewer than 10 coins are eligible — a percentage over a
+ * handful of names would read as a market statistic while describing noise.
+ */
+export function rotationRead(rows: RotationInput[], maxRank = 50): RotationRead | null {
+  const btc = rows.find((r) => r.id === 'btc')
+  if (!btc || btc.priceChange30d === null || !Number.isFinite(btc.priceChange30d)) return null
+
+  const ranked = rows.filter((r) =>
+    r.id !== 'btc' && !r.isStablecoin &&
+    r.marketCapRank !== null && r.marketCapRank <= maxRank,
+  )
+  const eligible = ranked.filter((r) => r.priceChange30d !== null && Number.isFinite(r.priceChange30d))
+  const untested = ranked.length - eligible.length
+  if (eligible.length < 10) return null
+
+  const outperforming = eligible.filter((r) => r.priceChange30d! > btc.priceChange30d!).length
+  return {
+    pctOutperformingBtc: Math.round((outperforming / eligible.length) * 1000) / 10,
+    outperforming,
+    eligible: eligible.length,
+    untested,
+    btcChange30d: btc.priceChange30d,
+  }
+}

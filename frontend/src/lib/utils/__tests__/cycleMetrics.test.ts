@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { halvingPosition, drawdownComparison, CYCLE_COPY } from '../cycleMetrics'
+import { halvingPosition, drawdownComparison, rotationRead, CYCLE_COPY } from '../cycleMetrics'
 import {
   CYCLE_HISTORY, cycleHistoryAgeDays, cycleHistoryIsStale, getCycleHistoryProvenance,
 } from '@/lib/data/cycleHistory'
@@ -75,5 +75,55 @@ describe('cycle history provenance', () => {
     expect(p.verifiedAt).toBe('2026-08-29')
     expect(p.source.toLowerCase()).toContain('hand-compiled')
     expect(p.stale).toBe(false)
+  })
+})
+
+describe('rotationRead (30-day variant)', () => {
+  const row = (id: string, over: Partial<import('../cycleMetrics').RotationInput> = {}) => ({
+    id, marketCapRank: 10, priceChange30d: 5, isStablecoin: false, ...over,
+  })
+  const universe = (n: number, change: number) => [
+    row('btc', { marketCapRank: 1, priceChange30d: 0 }),
+    ...Array.from({ length: n }, (_, i) => row(`alt${i}`, { marketCapRank: i + 2, priceChange30d: change })),
+  ]
+
+  it('reads 100% when every eligible coin beats BTC, 0% when none do', () => {
+    expect(rotationRead(universe(20, 10))!.pctOutperformingBtc).toBe(100)
+    expect(rotationRead(universe(20, -10))!.pctOutperformingBtc).toBe(0)
+  })
+
+  it('returns null without BTC — there is nothing to outperform', () => {
+    const rows = universe(20, 10).filter((r) => r.id !== 'btc')
+    expect(rotationRead(rows)).toBeNull()
+  })
+
+  it('returns null under 10 eligible coins rather than a percentage over noise', () => {
+    expect(rotationRead(universe(9, 10))).toBeNull()
+    expect(rotationRead(universe(10, 10))).not.toBeNull()
+  })
+
+  it('excludes stablecoins and out-of-rank coins from the denominator', () => {
+    const rows = [
+      ...universe(10, 10),
+      row('usdt', { isStablecoin: true, priceChange30d: 0.1 }),
+      row('tiny', { marketCapRank: 300, priceChange30d: 400 }),
+    ]
+    const r = rotationRead(rows)!
+    expect(r.eligible).toBe(10)
+    expect(r.pctOutperformingBtc).toBe(100)
+  })
+
+  it('counts missing 30d data as untested, never as underperformance', () => {
+    const rows = [...universe(12, 10), row('gap1', { priceChange30d: null }), row('gap2', { priceChange30d: null })]
+    const r = rotationRead(rows)!
+    expect(r.eligible).toBe(12)
+    expect(r.untested).toBe(2)
+    // The two gaps did not drag the percentage down.
+    expect(r.pctOutperformingBtc).toBe(100)
+  })
+
+  it('ties do not count as outperformance', () => {
+    const rows = [row('btc', { marketCapRank: 1, priceChange30d: 5 }), ...Array.from({ length: 12 }, (_, i) => row(`alt${i}`, { marketCapRank: i + 2, priceChange30d: 5 }))]
+    expect(rotationRead(rows)!.pctOutperformingBtc).toBe(0)
   })
 })

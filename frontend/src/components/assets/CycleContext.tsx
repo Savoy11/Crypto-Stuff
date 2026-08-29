@@ -9,10 +9,11 @@
 
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Clock, TrendingDown, PieChart, Gauge } from 'lucide-react'
+import { Clock, TrendingDown, PieChart, Gauge, Shuffle } from 'lucide-react'
 import { clsx } from 'clsx'
 import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
-import { halvingPosition, drawdownComparison, CYCLE_COPY } from '@/lib/utils/cycleMetrics'
+import { halvingPosition, drawdownComparison, rotationRead, CYCLE_COPY } from '@/lib/utils/cycleMetrics'
+import { ASSET_CATALOG } from '@/lib/data/assetCatalog'
 import { CYCLE_HISTORY, getCycleHistoryProvenance } from '@/lib/data/cycleHistory'
 import { STALE_TIME_LONG } from '@/lib/constants'
 import type { BtcStatsData } from '@/app/live-data/btc-stats/route'
@@ -51,7 +52,7 @@ export function CycleContext() {
   // The markets route serves the whole tracked universe in one response (it
   // takes no ids filter); we read one field of one coin from it. Keyed the
   // same for any other consumer with the same shape so the cache can share.
-  const { data: btcQuote } = useQuery<{ quotes?: Record<string, { athChangePct?: number | null }> }>({
+  const { data: btcQuote } = useQuery<{ quotes?: Record<string, { athChangePct?: number | null; priceChange30d?: number | null; marketCapRank?: number | null }> }>({
     queryKey: ['live-markets-raw'],
     queryFn: () => fetch('/live-data/markets').then(r => r.json()),
     staleTime: STALE_TIME_LONG,
@@ -61,6 +62,21 @@ export function CycleContext() {
   const athChangePct = btcQuote?.quotes?.btc?.athChangePct ?? null
   const drawdowns = useMemo(() => drawdownComparison(athChangePct), [athChangePct])
   const provenance = useMemo(() => getCycleHistoryProvenance(), [])
+
+  // Rotation read (Phase 2). Stablecoin flags come from the catalog — the raw
+  // quote rows carry no category, and a pegged asset in the denominator would
+  // read as "underperforming BTC" while simply being a peg.
+  const rotation = useMemo(() => {
+    const quotes = btcQuote?.quotes
+    if (!quotes) return null
+    const stable = new Set(ASSET_CATALOG.filter((a) => a.assetType === 'stablecoin').map((a) => a.id))
+    return rotationRead(Object.entries(quotes).map(([id, q]) => ({
+      id,
+      marketCapRank: q.marketCapRank ?? null,
+      priceChange30d: q.priceChange30d ?? null,
+      isStablecoin: stable.has(id),
+    })))
+  }, [btcQuote])
 
   // Sparkline path for the F&G year of history.
   const fgPath = useMemo(() => {
@@ -194,6 +210,34 @@ export function CycleContext() {
             </div>
           )}
           <p className="text-[11px] leading-relaxed text-text-muted">{CYCLE_COPY.fearGreedCaveat}</p>
+        </Card>
+
+        {/* ── Rotation (Phase 2) ── */}
+        <Card icon={Shuffle} title="Rotation — 30-day variant">
+          {rotation ? (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="text-center shrink-0">
+                  <div className="text-3xl font-bold font-mono text-text-primary">{rotation.pctOutperformingBtc.toFixed(0)}%</div>
+                  <div className="text-[10px] text-text-muted mt-0.5">of large coins beat BTC, 30d</div>
+                </div>
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 rounded-full bg-bg-elevated overflow-hidden">
+                    <div className="h-full bg-accent-blue/60 rounded-full" style={{ width: `${rotation.pctOutperformingBtc}%` }} />
+                  </div>
+                  <div className="text-[10px] font-mono text-text-muted">
+                    {rotation.outperforming} of {rotation.eligible} eligible coins · BTC 30d: {rotation.btcChange30d >= 0 ? '+' : ''}{rotation.btcChange30d.toFixed(1)}%
+                    {rotation.untested > 0 && <span className="text-amber-400"> · {rotation.untested} not tested (no 30d data)</span>}
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-[11px] text-amber-400">
+              Not enough data for a rotation read right now — it needs BTC&rsquo;s 30-day change and at least 10 eligible coins from the feed.
+            </p>
+          )}
+          <p className="text-[11px] leading-relaxed text-text-muted">{CYCLE_COPY.rotationCaveat}</p>
         </Card>
       </div>
 

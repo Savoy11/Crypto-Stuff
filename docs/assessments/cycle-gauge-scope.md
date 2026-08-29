@@ -1,6 +1,6 @@
 # Market Cycle Gauge — scope (Coins page)
 
-**Status:** SCOPED, awaiting owner go/no-go · 2026-08-29
+**Status:** Phases 1–2 BUILT (2026-08-29, owner go-ahead) · Phase 3 (Pi Cycle) scoped, awaiting decision
 **Origin:** owner request following the crypto-cycle research briefing (artifact
 `41f5795c`, 2026-08-29). Related history: RP-3 / RP-4 (rejected-proposals.md),
 item 4 (ranking-vs-explanation line), NT11 (fear-greed already feeds the TA
