@@ -1,5 +1,5 @@
 import { CATEGORY_META, type CoinCategory } from './portfolioCoins'
-import { INSTRUMENT_BY_KEY, isSecurityKey, securitySymbol } from './instruments'
+import { CLASS_LABELS, INSTRUMENT_BY_KEY, isSecurityKey, securitySymbol, type InstrumentClass } from './instruments'
 import { getEquity } from './equityCatalog'
 import { getFund } from './fundCatalog'
 
@@ -38,7 +38,18 @@ export interface ComputedHolding {
   pnlPct:          number | null  // % gain/loss vs entry
   pnlUsd:          number | null
   category:        CoinCategory
-  riskTier:        number
+  /**
+   * Which asset class this holding is. Non-catalog additions (a coin from the
+   * CoinGecko search, a ticker from the universe lookup) still classify — the
+   * key shape says which family it is even when no catalog entry exists.
+   */
+  class:           InstrumentClass
+  /**
+   * 1–10, or NULL when no catalog entry carries a vetted tier for this
+   * holding. Never a fabricated middle value: a defaulted 5 read exactly like
+   * an assessed 5 and silently shaped the portfolio's weighted risk.
+   */
+  riskTier:        number | null
   color:           string
   priceSource:     'live' | 'fallback' | 'none'
 }
@@ -48,8 +59,16 @@ export interface PortfolioMetrics {
   totalCurrentValue:  number | null
   totalPnlUsd:        number | null
   totalPnlPct:        number | null
-  weightedRisk:       number          // 1–10
-  riskLabel:          'Conservative' | 'Moderate' | 'Aggressive' | 'Speculative'
+  /**
+   * 1–10 over the allocation whose risk tier is actually known, or null when
+   * no holding carries one. `riskCoveredPct` says how much of the portfolio
+   * that judgment covers — render it next to the number, the same disclosure
+   * contract as pricedPct.
+   */
+  weightedRisk:       number | null
+  riskLabel:          'Conservative' | 'Moderate' | 'Aggressive' | 'Speculative' | null
+  /** Share of target allocation with a known risk tier (0–100). */
+  riskCoveredPct:     number
   categoryBreakdown:  CategorySlice[]
   largestPosition:    ComputedHolding | null
   stablecoinPct:      number
@@ -66,11 +85,27 @@ export interface PortfolioMetrics {
 }
 
 export interface CategorySlice {
-  category:  CoinCategory
+  /** Crypto category id, or an asset-class id for non-crypto slices. */
+  category:  string
   label:     string
   color:     string
   pct:       number           // % of portfolio by target allocation
   value:     number           // USD (target)
+}
+
+/**
+ * Slice colors for the non-crypto classes. Crypto keeps its per-category
+ * palette (that fine grain is meaningful — a stablecoin is not a meme coin);
+ * other classes get one color each, since their internal taxonomy (GICS
+ * sectors, fund categories) is not what this chart is answering.
+ */
+export const CLASS_SLICE_COLORS: Record<Exclude<InstrumentClass, 'crypto'>, string> = {
+  equity:    '#3b82f6',
+  etf:       '#8b5cf6',
+  mutual:    '#a78bfa',
+  commodity: '#f59e0b',
+  currency:  '#10b981',
+  rate:      '#14b8a6',
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -111,7 +146,11 @@ export function computeHoldings(
       pnlPct,
       pnlUsd,
       category:     meta?.category ?? 'unknown',
-      riskTier:     meta?.riskTier ?? 5,
+      // Key shape classifies even without a catalog entry: 'sec:' keys are
+      // securities (default equity — the same default the server's classify()
+      // applies), anything else is a CoinGecko id.
+      class:        meta?.class ?? (isSecurityKey(h.cgId) ? 'equity' : 'crypto'),
+      riskTier:     meta?.riskTier ?? null,
       color:        meta?.color ?? '#64748b',
       priceSource,
     }
@@ -124,12 +163,18 @@ export function computeMetrics(
 ): PortfolioMetrics {
   const totalTarget = portfolio.startingCapital
 
-  // Weighted risk (by target allocation)
-  const weightedRisk = holdings.reduce((acc, h) => {
-    return acc + (h.riskTier * (h.targetAlloc / 100))
-  }, 0)
+  // Weighted risk — over the allocation whose tier is KNOWN, never padded
+  // with a default. Renormalising by coveredAlloc keeps the number a genuine
+  // 1–10 average of what was assessed; riskCoveredPct tells the reader how
+  // much of the portfolio that judgment actually covers.
+  const riskRated = holdings.filter(h => h.riskTier !== null)
+  const coveredAlloc = riskRated.reduce((a, h) => a + h.targetAlloc, 0)
+  const weightedRisk = coveredAlloc > 0
+    ? riskRated.reduce((acc, h) => acc + (h.riskTier! * (h.targetAlloc / coveredAlloc)), 0)
+    : null
+  const riskCoveredPct = parseFloat(Math.min(100, coveredAlloc).toFixed(1))
 
-  const riskLabel =
+  const riskLabel = weightedRisk === null ? null :
     weightedRisk <= 3 ? 'Conservative' :
     weightedRisk <= 5 ? 'Moderate' :
     weightedRisk <= 7 ? 'Aggressive' : 'Speculative'
@@ -169,19 +214,28 @@ export function computeMetrics(
     totalPnlPct = pnlCapital > 0 ? (totalPnlUsd / pnlCapital) * 100 : null
   }
 
-  // Category breakdown
-  const catMap: Map<CoinCategory, number> = new Map()
+  // Breakdown: crypto by its category (the fine grain is real information —
+  // stablecoin vs meme is a risk statement), everything else by asset class.
+  // The old crypto-only map sent every stock to a label-less 'equity' cast and
+  // every macro instrument to 'Unknown', which read as a data problem rather
+  // than a mixed portfolio.
+  const sliceMap: Map<string, { label: string; color: string; pct: number }> = new Map()
   for (const h of holdings) {
-    catMap.set(h.category, (catMap.get(h.category) ?? 0) + h.targetAlloc)
+    const key = h.class === 'crypto' ? `cat:${h.category}` : `class:${h.class}`
+    const slice = sliceMap.get(key) ?? (h.class === 'crypto'
+      ? { label: CATEGORY_META[h.category]?.label ?? h.category, color: CATEGORY_META[h.category]?.color ?? '#64748b', pct: 0 }
+      : { label: CLASS_LABELS[h.class], color: CLASS_SLICE_COLORS[h.class as Exclude<InstrumentClass, 'crypto'>] ?? '#64748b', pct: 0 })
+    slice.pct += h.targetAlloc
+    sliceMap.set(key, slice)
   }
-  const categoryBreakdown: CategorySlice[] = Array.from(catMap.entries())
-    .sort((a, b) => b[1] - a[1])
-    .map(([cat, pct]) => ({
-      category: cat,
-      label:    CATEGORY_META[cat]?.label ?? cat,
-      color:    CATEGORY_META[cat]?.color ?? '#64748b',
-      pct,
-      value:    totalTarget * (pct / 100),
+  const categoryBreakdown: CategorySlice[] = Array.from(sliceMap.entries())
+    .sort((a, b) => b[1].pct - a[1].pct)
+    .map(([key, s]) => ({
+      category: key.slice(key.indexOf(':') + 1),
+      label:    s.label,
+      color:    s.color,
+      pct:      s.pct,
+      value:    totalTarget * (s.pct / 100),
     }))
 
   const largestPosition = holdings.length > 0
@@ -197,8 +251,9 @@ export function computeMetrics(
     totalCurrentValue,
     totalPnlUsd,
     totalPnlPct,
-    weightedRisk:   parseFloat(weightedRisk.toFixed(1)),
+    weightedRisk:   weightedRisk === null ? null : parseFloat(weightedRisk.toFixed(1)),
     riskLabel,
+    riskCoveredPct,
     categoryBreakdown,
     largestPosition,
     stablecoinPct,
@@ -323,8 +378,12 @@ export function getDiversificationWarnings(
   const memeAlloc = holdings.filter(h => h.category === 'meme').reduce((a, h) => a + h.targetAlloc, 0)
   if (memeAlloc > 20) warns.push({ level: 'danger', message: `${memeAlloc.toFixed(0)}% in meme coins — very high speculative risk.` })
 
-  if (metrics.weightedRisk >= 8) warns.push({ level: 'danger', message: 'Portfolio risk score is very high — suitable only for high-risk tolerance.' })
-  else if (metrics.weightedRisk >= 6) warns.push({ level: 'warn', message: 'Portfolio leans aggressive — significant volatility expected.' })
+  // No warning when weightedRisk is null — a warning derived from a number we
+  // refused to fabricate would be fabricating it with extra steps.
+  if (metrics.weightedRisk !== null) {
+    if (metrics.weightedRisk >= 8) warns.push({ level: 'danger', message: 'Portfolio risk score is very high — suitable only for high-risk tolerance.' })
+    else if (metrics.weightedRisk >= 6) warns.push({ level: 'warn', message: 'Portfolio leans aggressive — significant volatility expected.' })
+  }
 
   return warns
 }
