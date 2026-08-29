@@ -181,15 +181,23 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     domain: 'coingecko.com',
     name: 'CoinGecko',
     verdict: 'conditional',
-    termsUrl: 'https://www.coingecko.com/en/terms',
+    // The API Terms — NOT the Website Terms and Conditions. The distinction is
+    // the whole finding: the 2026-08-29 probe read coingecko.com/en/terms and
+    // flagged "personal / non-commercial use only", which governs republishing
+    // SITE content (screenshots) and does not describe API use at all.
+    termsUrl: 'https://www.coingecko.com/en/api_terms',
     finding:
-      'Publishes a public API with a documented free tier intended for third-party applications. Free-tier use is rate-limited and requires attribution to CoinGecko as the price source.',
+      'API Terms clause 4.1.6 read on 2026-08-29 (Scope of Use section, owner\'s machine): "You are entitled to charge for your services and products that incorporate or integrates our CoinGecko API. However, you are not permitted to sell, rent, lease, sub-license, re-distribute or syndicate access to the CoinGecko API or part thereof." Commercial use of a product BUILT ON the API is therefore permitted; what is barred is reselling API access itself, which this app does not do. Clause 4 prescribes the attribution message verbatim. Clause 4.1.2 incorporates the Website Terms by reference, but the API grant is the specific one governing API reads — the site ToU\'s Personal Use clause is about republishing site content. Scope of Use was read in full; the remainder of the document was not.',
     conditions: [
-      'Attribute CoinGecko wherever its prices are displayed',
-      'Respect the free-tier rate limit (~30 calls/min) or supply a paid key',
+      'Display "Powered by CoinGecko" prominently, in a legible font no smaller than 10px (clause 4) — the wording is prescribed, not paraphrasable',
+      'Do not resell, sub-license, redistribute or syndicate API access (clause 4.1.6)',
+      'Stay within the selected plan\'s rate and monthly call limits; do not circumvent them (clause 4.2)',
+      'Never use the data in or to target advertising (clause 4.1.7.3)',
+      'Do not imply CoinGecko endorsement; follow the Brand Attribution Guide (clause 4.5)',
+      'No public statements about CoinGecko or its products without prior written consent (clause 4.1.7.6)',
     ],
-    reviewedAt: '2026-08-06',
-    review: 'seeded',
+    reviewedAt: '2026-08-29',
+    review: 'verified',
     confidence: 'high',
   },
   {
