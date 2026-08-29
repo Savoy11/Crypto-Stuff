@@ -35,11 +35,18 @@ const NAME_MATCHERS: SymbolMatcher[] = EQUITY_CATALOG.map((e) => buildMatcher(e.
  *     force-tagging: an article that never prints the ticker still won't match.
  * Symbol-shape guard so arbitrary query text can't become a regex.
  */
-export function requestedMatcher(symbol: string): SymbolMatcher | null {
+export function requestedMatcher(symbol: string, name?: string | null): SymbolMatcher | null {
   if (NAME_MATCHERS.some((m) => m.symbol === symbol)) return null
   if (!/^[A-Z0-9.\-]{1,6}$/.test(symbol)) return null
   const fund = FUND_CATALOG.find((f) => f.symbol === symbol)
-  return buildMatcher(symbol, fund?.name)
+  // Name preference: the catalog's vetted name, else a caller-supplied one
+  // (the news page passes the official listing-directory name for a fund or
+  // stock outside the catalogs — without it, a mutual fund whose ticker never
+  // appears in headlines could only ever match on that ticker). The name is
+  // used as an escaped literal, and length-capped so a crafted query cannot
+  // turn the matcher into a pathological regex.
+  const callerName = name?.trim() && name.trim().length <= 80 ? name.trim() : undefined
+  return buildMatcher(symbol, fund?.name ?? callerName)
 }
 
 export function detectSymbols(text: string, extra?: SymbolMatcher | null): string[] {

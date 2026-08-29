@@ -163,7 +163,27 @@ async function fetchFmpUniverse(key: string): Promise<UniverseEntry[]> {
 
 export async function GET(req: NextRequest) {
   const symbolParam = req.nextUrl.searchParams.get('symbol')?.trim().toUpperCase()
+  const q = req.nextUrl.searchParams.get('q')?.trim().toLowerCase()
   const key = getProviderKey('fmp')
+
+  // Search mode: substring over symbol+name of the whole universe (top 10).
+  // With an FMP key that is the full screener list (day-cached — this filters
+  // cached data, it does not re-download); keyless it is honestly the curated
+  // catalog, the same coverage the registry itself has without a key.
+  if (q && !symbolParam) {
+    let pool: UniverseEntry[]
+    let source: 'fmp' | 'catalog' = 'catalog'
+    if (key) {
+      try { pool = await fetchFmpUniverse(key); source = 'fmp' }
+      catch { pool = catalogUniverse() }
+    } else {
+      pool = catalogUniverse()
+    }
+    const entries = pool.filter(e =>
+      e.symbol.toLowerCase().includes(q) || e.name.toLowerCase().includes(q)
+    ).slice(0, 10)
+    return NextResponse.json({ ok: true, configured: !!key, source, count: entries.length, entries, updatedAt: new Date().toISOString() } satisfies StockUniverseResponse)
+  }
 
   // Single-symbol lookup (detail page). Try curated first, then FMP profile.
   if (symbolParam) {

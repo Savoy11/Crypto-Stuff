@@ -208,7 +208,7 @@ export async function GET(request: NextRequest) {
   // Off-catalog symbol mode (funds, arbitrary tickers): the requested symbol
   // gets its own matcher, or every such request would return empty forever —
   // the catalog matchers simply don't know it exists.
-  const extraMatcher = symbol ? requestedMatcher(symbol) : null
+  const extraMatcher = symbol ? requestedMatcher(symbol, request.nextUrl.searchParams.get('name')) : null
 
   const seen = new Set<string>()
   const articles: MarketArticle[] = []

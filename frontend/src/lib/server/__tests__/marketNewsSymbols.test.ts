@@ -59,3 +59,29 @@ describe('requestedMatcher (off-catalog symbol mode)', () => {
     expect(detectSymbols(text).length).toBeLessThanOrEqual(6)
   })
 })
+
+describe('requestedMatcher with a caller-supplied name', () => {
+  it('matches an off-catalog fund by the listing-directory name it was picked with', () => {
+    const m = requestedMatcher('QQQM', 'Invesco NASDAQ 100 ETF')!
+    expect(m.name!.test('inflows into the Invesco NASDAQ 100 ETF accelerated')).toBe(true)
+    expect(detectSymbols('the Invesco NASDAQ 100 ETF gained', m)).toContain('QQQM')
+  })
+
+  it('the catalog name wins over a caller-supplied one', () => {
+    // A caller cannot re-aim a catalog fund's matcher at unrelated text.
+    const m = requestedMatcher('VOO', 'Completely Different Name')!
+    expect(m.name!.test('the Vanguard S&P 500 ETF rallied')).toBe(true)
+    expect(m.name!.test('Completely Different Name surged')).toBe(false)
+  })
+
+  it('rejects an over-long caller name instead of building a matcher from it', () => {
+    const m = requestedMatcher('ZZZT', 'x'.repeat(200))!
+    expect(m.name).toBeNull()
+  })
+
+  it('treats the caller name as a literal, not a pattern', () => {
+    const m = requestedMatcher('ZZZT', 'A(.*)B')!
+    expect(m.name!.test('literally printed A(.*)B here')).toBe(true)
+    expect(m.name!.test('AxxxxB')).toBe(false)
+  })
+})

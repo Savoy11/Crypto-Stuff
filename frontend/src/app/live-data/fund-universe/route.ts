@@ -9,6 +9,9 @@ import type { SectorId } from '@/lib/data/equityCatalog'
 // curated catalog. Mirrors /live-data/stock-universe.
 //   GET /live-data/fund-universe
 //   GET /live-data/fund-universe?symbol=QQQM   — single-fund lookup (detail pages)
+//   GET /live-data/fund-universe?q=vanguard    — name/ticker search over the
+//     whole universe (top 10, compact rows) — backs the Market News symbol
+//     search, where a dropdown over the curated catalog was the entire scope
 //
 // Sources (both keyless):
 //   ETFs — NASDAQ Trader's official symbol directory (refreshed daily): every
@@ -243,6 +246,41 @@ export async function GET(request: Request) {
   const catalog = FUND_CATALOG.map(catalogEntry)
   const known = new Set(catalog.map((c) => c.symbol))
   const symbolParam = new URL(request.url).searchParams.get('symbol')?.trim().toUpperCase() || null
+  const q = new URL(request.url).searchParams.get('q')?.trim().toLowerCase() || null
+
+  // Search mode: substring over symbol+name, catalog first (it has the richer
+  // rows and vetted names), then both live directories. The directory fetches
+  // are day-cached, so this is a filter over cached data, not a new download.
+  if (q && !symbolParam) {
+    const out: FundUniverseEntry[] = []
+    const seen = new Set<string>()
+    const push = (e: FundUniverseEntry) => {
+      if (!seen.has(e.symbol) && out.length < 10) { seen.add(e.symbol); out.push(e) }
+    }
+    for (const c of catalog) {
+      if (c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) push(c)
+    }
+    if (out.length < 10) {
+      const [etfRes, mfRes] = await Promise.allSettled([fetchNasdaqEtfs(), fetchSecMutualFunds()])
+      if (etfRes.status === 'fulfilled') {
+        for (const e of etfRes.value) {
+          if (e.symbol.toLowerCase().includes(q) || e.name.toLowerCase().includes(q)) push(skeleton(e, 'etf'))
+        }
+      }
+      if (mfRes.status === 'fulfilled') {
+        for (const e of mfRes.value) {
+          if (e.symbol.toLowerCase().includes(q) || e.name.toLowerCase().includes(q)) push(skeleton(e, 'mutual'))
+        }
+      }
+    }
+    return NextResponse.json({
+      ok: true, ...base, source: 'live',
+      discovered: out.filter((e) => !e.inCatalog).length,
+      discoveredEtfs: out.filter((e) => !e.inCatalog && e.type === 'etf').length,
+      discoveredMutual: out.filter((e) => !e.inCatalog && e.type === 'mutual').length,
+      etfError: null, mutualError: null, entries: out,
+    } satisfies FundUniverseResponse)
+  }
 
   if (symbolParam) {
     const single = (entry: FundUniverseEntry | null, source: 'live' | 'catalog'): NextResponse =>
