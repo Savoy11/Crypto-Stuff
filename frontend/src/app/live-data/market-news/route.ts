@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
+import { detectSymbols, requestedMatcher } from '@/lib/server/marketNewsSymbols'
+import { FUND_CATALOG } from '@/lib/data/fundCatalog'
 import { getEquityProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickDate, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
 import { parseFeedItems } from '@/lib/server/feedParse'
@@ -116,29 +117,9 @@ function classifyCategory(text: string): MarketNewsCategory {
 }
 
 // ─── Related-ticker detection ─────────────────────────────────────────────────
-// Company names match case-insensitively; tickers require $SYM or an exact
-// uppercase word (3+ chars only — short symbols like T or GE false-positive).
-
-// Symbols that are common English words false-positive as bare uppercase
-// matches — require an explicit $cashtag for these.
-const CASHTAG_ONLY = new Set(['NOW', 'LOW', 'CAT', 'COST', 'ALL', 'SO', 'ON'])
-
-const NAME_MATCHERS = EQUITY_CATALOG.map((e) => ({
-  symbol: e.symbol,
-  name: new RegExp(`\\b${e.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'),
-  ticker: e.symbol.length >= 3 && !CASHTAG_ONLY.has(e.symbol)
-    ? new RegExp(`(\\$${e.symbol}\\b|\\b${e.symbol}\\b(?=[^a-z]|$))`)
-    : new RegExp(`\\$${e.symbol}\\b`),
-}))
-
-function detectSymbols(text: string): string[] {
-  const found: string[] = []
-  for (const m of NAME_MATCHERS) {
-    if (m.name.test(text) || m.ticker.test(text)) found.push(m.symbol)
-    if (found.length >= 6) break
-  }
-  return found
-}
+// Extracted to lib/server/marketNewsSymbols.ts (pure, tested) — the regex
+// construction there (escaping, cashtag rules, word boundaries) is exactly the
+// kind of logic that breaks silently inside a route handler.
 
 // ─── Route ────────────────────────────────────────────────────────────────────
 
@@ -224,6 +205,11 @@ export async function GET(request: NextRequest) {
       : { error: result.reason instanceof Error ? result.reason.message : String(result.reason) })
   })
 
+  // Off-catalog symbol mode (funds, arbitrary tickers): the requested symbol
+  // gets its own matcher, or every such request would return empty forever —
+  // the catalog matchers simply don't know it exists.
+  const extraMatcher = symbol ? requestedMatcher(symbol) : null
+
   const seen = new Set<string>()
   const articles: MarketArticle[] = []
   for (const result of results) {
@@ -243,7 +229,7 @@ export async function GET(request: NextRequest) {
         ...article,
         sentiment: scoreSentiment(text),
         category: classifyCategory(text),
-        relatedSymbols: detectSymbols(text),
+        relatedSymbols: detectSymbols(text, extraMatcher),
         isBreaking: Date.now() - new Date(article.publishedAt).getTime() < 60 * 60 * 1000,
       })
     }
