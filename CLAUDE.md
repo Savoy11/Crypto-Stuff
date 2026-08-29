@@ -416,7 +416,7 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 > The fix for any of the key-gated rows is a free API key on the Integrations page — **not
 > a substitute scraper.**
 
-> ⚠ **47 of 48 registry entries are `seeded`, not `verified` — check `review` before
+> ⚠ **54 of 56 registry entries are `seeded`, not `verified` — check `review` before
 > trusting one.** The registry was authored in an environment whose network policy
 > blocked every publisher and provider host at the gateway, so not one terms document
 > could be opened. The entries are honest starting positions drawn from each
@@ -430,7 +430,29 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 > /data-sources, and carry the caveat in `decision.reason` so every surface that
 > renders it inherits the warning.
 >
-> **To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
+> > **First real probe run: 2026-08-29** (owner's machine — the first environment
+> that could reach these hosts). Two findings acted on:
+>
+> - **CoinGecko is now `verified`** against its **API Terms** — not the Website
+>   Terms the probe read by mistake. Clause 4.1.6 permits charging for products
+>   built on the API and bars only reselling API *access*, so the
+>   "non-commercial" alarm the probe raised never applied here. Clause 4.4
+>   prescribes the attribution **message**, so `SourceProvider.attribution`
+>   carries "Powered by CoinGecko" verbatim with a 10px floor and `SourceLine`
+>   renders it — a test parses the rendered class and fails below the floor.
+> - **Reddit's robots.txt disallows this app's agent**, so reddit.com is gated
+>   off unless `REDDIT_CLIENT_ID` is set, enforced in `pinnedFetch` so a new
+>   call site inherits it. `SourceTermsEntry.robotsDisallowed` records that as a
+>   dated **first-hand** observation kept separate from the terms `review`
+>   state: robots.txt is an instruction we either honour or don't, while a terms
+>   verdict is an interpretation — recording one must not launder the other into
+>   looking reviewed.
+>
+> One item stays open: the **personal-vs-commercial question**, which decides
+> seven more sources (Finnhub, Twelve Data, Tiingo, Binance.US, YouTube,
+> OilPrice, Bitget) and is the owner's to answer.
+
+**To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
 > that can reach these sites writes a review worksheet — current verdict, what the
 > probe saw, a link to the document, and a conclusion box per host. Read the
 > documents, then flip `review` to `'verified'`. The open queue for the news
