@@ -212,28 +212,47 @@ interface AddCandidate {
 }
 
 async function searchRemoteCandidates(q: string): Promise<AddCandidate[]> {
-  const [coins, stock] = await Promise.allSettled([
+  const [coins, stocks, funds] = await Promise.allSettled([
     fetch(`/live-data/coin-search?q=${encodeURIComponent(q)}`).then(r => r.json()) as Promise<{
       coins?: { cgId: string; symbol: string; name: string }[]
     }>,
-    // Symbol lookup only makes sense for ticker-shaped input; "bitcoin" is not
-    // a ticker and would burn an FMP request to learn nothing.
-    /^[A-Za-z.\-]{1,6}$/.test(q)
-      ? fetch(`/live-data/stock-universe?symbol=${encodeURIComponent(q.toUpperCase())}`).then(r => r.json()) as Promise<{
-          ok?: boolean; entries?: { symbol: string; name: string }[]
-        }>
-      : Promise.resolve({ ok: false, entries: [] }),
+    // ?q= searches the whole universe by name OR ticker (added for the Market
+    // News search, #115) — this replaced an exact-symbol lookup here, which
+    // could only find a stock you already knew the ticker of. Keyless it
+    // answers from the curated catalog; the local matches already cover that,
+    // so the dedupe below simply drops the echoes.
+    fetch(`/live-data/stock-universe?q=${encodeURIComponent(q)}`).then(r => r.json()) as Promise<{
+      ok?: boolean; entries?: { symbol: string; name: string }[]
+    }>,
+    // Every US-listed ETF + registered mutual fund share class (NASDAQ Trader
+    // + SEC directories, keyless). The type comes from the directory, so an
+    // added fund is labeled ETF / Mutual fund, not lumped in as a stock.
+    fetch(`/live-data/fund-universe?q=${encodeURIComponent(q)}`).then(r => r.json()) as Promise<{
+      ok?: boolean; entries?: { symbol: string; name: string; type: 'etf' | 'mutual' }[]
+    }>,
   ])
 
   const out: AddCandidate[] = []
+  const seen = new Set<string>()
+  const push = (c: AddCandidate) => {
+    if (!seen.has(c.key)) { seen.add(c.key); out.push(c) }
+  }
   if (coins.status === 'fulfilled') {
     for (const c of (coins.value.coins ?? []).slice(0, 8)) {
-      out.push({ key: c.cgId, symbol: c.symbol, name: c.name, class: 'crypto', remote: true })
+      push({ key: c.cgId, symbol: c.symbol, name: c.name, class: 'crypto', remote: true })
     }
   }
-  if (stock.status === 'fulfilled' && stock.value.ok) {
-    for (const e of stock.value.entries ?? []) {
-      out.push({ key: `sec:${e.symbol}`, symbol: e.symbol, name: e.name, class: 'equity', remote: true })
+  // Funds before stocks: an ETF can appear in BOTH directories under the same
+  // 'sec:' key (FMP's screener carries ETF rows too), and first-in wins the
+  // dedupe — it should be labeled ETF, not Stock.
+  if (funds.status === 'fulfilled' && funds.value.ok) {
+    for (const e of funds.value.entries ?? []) {
+      push({ key: `sec:${e.symbol}`, symbol: e.symbol, name: e.name, class: e.type === 'etf' ? 'etf' : 'mutual', remote: true })
+    }
+  }
+  if (stocks.status === 'fulfilled' && stocks.value.ok) {
+    for (const e of stocks.value.entries ?? []) {
+      push({ key: `sec:${e.symbol}`, symbol: e.symbol, name: e.name, class: 'equity', remote: true })
     }
   }
   return out
