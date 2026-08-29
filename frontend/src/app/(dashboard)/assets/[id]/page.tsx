@@ -47,13 +47,12 @@ import { LiquidityDepthChart } from '@/components/analytics/LiquidityDepthChart'
 import { WalletConcentration } from '@/components/analytics/WalletConcentration'
 import { VelocityChart } from '@/components/analytics/VelocityChart'
 import { PriceHistoryChart } from '@/components/analytics/PriceHistoryChart'
-import { RiskScoreBadge, RiskBandPill } from '@/components/assets/RiskScoreBadge'
 import { MetricCard } from '@/components/ui/MetricCard'
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { SourceLine } from '@/components/ui/SourceLine'
-import { formatCompact, formatAddress, formatBps, formatDate, formatScore, formatAssetPrice, formatOrNA, timeAgoCompact, NA_LABEL } from '@/lib/utils/format'
-import { getPegDeviationColorClass, getScoreColor } from '@/lib/utils/risk'
+import { formatCompact, formatAddress, formatBps, formatDate, formatAssetPrice, formatOrNA, timeAgoCompact, NA_LABEL } from '@/lib/utils/format'
+import { getPegDeviationColorClass } from '@/lib/utils/risk'
 import { ASSET_TYPE_LABELS, BLOCKCHAIN_LABELS, LIVE_DATA } from '@/lib/constants'
 import { PumpReportTab } from '@/components/pump-report/PumpReportTab'
 import type { RiskScoresResponse } from '@/app/live-data/risk-scores/route'
@@ -412,7 +411,11 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
         <div className="flex flex-col gap-3">
           <div className="flex items-center gap-3 flex-wrap">
             <h1 className="font-mono font-extrabold text-3xl text-text-primary">{asset.symbol}</h1>
-            <RiskBandPill band={asset.riskBand} size="md" />
+            {/* The risk-band pill went with the score gauge (2026-08-29): a
+                verdict word pinned to the asset's identity is the same rating
+                as the number, just spelled out, and equally uninterrogable
+                here. The band still renders in the Composite Risk panel beside
+                the pillars that produced it. */}
             <span className="px-2.5 py-1 text-xs rounded border border-border bg-bg-elevated text-text-secondary font-mono">
               {ASSET_TYPE_LABELS[asset.assetType] ?? asset.assetType}
             </span>
@@ -481,20 +484,18 @@ function AssetHeader({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
           )}
         </div>
 
-        {/* Right: risk score gauge */}
+        {/* The 5xl "Safety Score" gauge that used to sit here was REMOVED
+            2026-08-29 (owner). A large colour-coded number beside the price,
+            with no pillars, weights, coverage or evidence next to it, is a
+            rating — it states a verdict the reader cannot interrogate. The
+            same figure still renders further down inside the Composite Risk
+            panel, where it arrives with its methodology, its confidence, its
+            data coverage and its evidence; that panel is the explanatory
+            surface item 4 deliberately kept (RP-3: scoring what the reader
+            opened is explanation, publishing a bare rating is not).
+            TO RESTORE: this block and the score row in components/ui/
+            SearchInput.tsx are the two removals. */}
         <div className="flex items-center gap-6 flex-shrink-0">
-          {/* Risk score */}
-          <div className="flex flex-col items-center gap-1">
-            <div className="text-[10px] text-text-muted uppercase tracking-wide">Safety Score</div>
-            <div
-              className="font-mono font-extrabold text-5xl tabular-nums"
-              style={{ color: getScoreColor(asset.riskScore ?? 0) }}
-            >
-              {formatOrNA(asset.riskScore, formatScore)}
-            </div>
-            <RiskScoreBadge score={asset.riskScore} band={asset.riskBand} showLabel size="md" />
-          </div>
-
           {/* Quick stats */}
           <div className="flex flex-col gap-2 min-w-32">
             <div>
@@ -626,9 +627,16 @@ function OverviewTab({ asset }: { asset: NonNullable<ReturnType<typeof useAsset>
 }
 
 // ─── Live composite risk panel ────────────────────────────────────────────────
-// Wired to the same engine as the Safety Score leaderboard: stablecoins get the
-// 5-pillar Reserve/Peg/Structure/Adoption/News profile (with fatal-flaw
-// slashing); every other asset gets Volatility/Liquidity/Scale/Trend/News.
+// Wired to lib/risk: stablecoins get the 5-pillar Reserve/Peg/Structure/
+// Adoption/News profile (with fatal-flaw slashing); every other asset gets
+// Volatility/Liquidity/Scale/Trend/News. (The leaderboard this line used to
+// reference was deleted in item 4, 2026-08-18.)
+//
+// THIS IS NOW THE ONLY PLACE A PER-COIN RISK FIGURE RENDERS. The header gauge,
+// the identity band pill and the search-result score were removed 2026-08-29:
+// a score without its derivation beside it is a rating. Anything added here
+// must keep showing pillars, weights, coverage, confidence and evidence —
+// lib/risk/__tests__/methodologyDisclosure.test.ts enforces it.
 
 const RISK_BAND_UI: Record<string, { label: string; text: string; chip: string; bar: string }> = {
   low:      { label: 'Low Risk',  text: 'text-emerald-400', chip: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20', bar: 'bg-emerald-500' },
@@ -710,15 +718,52 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
             </div>
           </div>
 
-          <p className="mt-4 pt-3 border-t border-border text-[11px] text-text-muted">
-            {/* The "full leaderboard & methodology" link was removed with the
-                /risk-scores page (2026-08-18, item 4): the leaderboard ranked a
-                universe. This panel — scoring the coin the reader opened — is
-                the explanatory surface the decision keeps, so the methodology
-                it needs is stated here rather than linked away. */}
-            Profile v{entry.risk.profileVersion} · composite of the pillars below,
-            reweighted for whatever data is available
-          </p>
+          {/* Methodology, stated where the number renders (2026-08-29).
+              The /risk-scores leaderboard was cut in item 4 because it ranked a
+              universe; this panel scores the coin the reader opened, which is
+              the explanatory side of that line. What makes it explanatory
+              rather than a rating is precisely this block plus the pillar
+              descriptions — a score whose derivation is not on screen is a
+              verdict, however carefully it was computed. */}
+          <details className="mt-4 pt-3 border-t border-border group">
+            <summary className="cursor-pointer text-[11px] text-accent-blue hover:underline list-none flex items-center gap-1">
+              <span className="transition-transform group-open:rotate-90">▸</span>
+              How this number is calculated
+            </summary>
+            <div className="mt-3 space-y-2 text-[11px] leading-relaxed text-text-muted">
+              <p>
+                <strong className="text-text-secondary">Scale.</strong> 0–100, higher is safer. It describes
+                the asset as the market currently prices and trades it — it is not advice, not a forecast,
+                and not a judgment about whether to hold anything.
+              </p>
+              <p>
+                <strong className="text-text-secondary">Composition.</strong> Each pillar opposite is scored
+                0–100 from live market data, then combined using the weights shown. Finance Now computes
+                this itself from public data; no rating agency or provider is behind it.
+              </p>
+              <p>
+                <strong className="text-text-secondary">Missing data.</strong> A pillar with no data scores
+                N/A and leaves the composite entirely — the remaining weights are renormalised, so a gap
+                never silently drags the number down. <strong className="text-text-secondary">Coverage</strong> is
+                the share of profile weight that had data; <strong className="text-text-secondary">confidence</strong> is
+                the weighted per-pillar confidence multiplied by that coverage. Read the score alongside
+                both: 72 at 40% coverage is a far weaker statement than 72 at 100%.
+              </p>
+              {entry.risk.slashed.length > 0 && (
+                <p>
+                  <strong className="text-text-secondary">Overrides.</strong> Certain conditions cap the
+                  composite outright regardless of the pillars — each is named above with its multiplier.
+                </p>
+              )}
+              <p>
+                <strong className="text-text-secondary">Limits.</strong> Every input is market data:
+                price, volume, market cap, sentiment. Nothing here assesses the code, the team, the
+                custody arrangements or the legal standing of an asset, and a high score is not evidence
+                that any of those are sound.
+              </p>
+              <p className="text-text-muted/80">Profile <span className="font-mono">{entry.risk.profileId}</span> v{entry.risk.profileVersion}.</p>
+            </div>
+          </details>
         </div>
 
         <div className="rounded-card border border-border bg-bg-card p-5">
@@ -726,9 +771,8 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
           <div className="space-y-3">
             {entry.risk.dimensions.map((dim) => {
               const dimUi = dim.band ? RISK_BAND_UI[dim.band] : null
-              const tooltip = dim.evidence.map((ev) => `${ev.metric}: ${ev.value ?? '—'}${ev.note ? ` (${ev.note})` : ''}`).join('\n')
               return (
-                <div key={dim.key} title={tooltip || undefined}>
+                <div key={dim.key}>
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-text-secondary">{dim.label} <span className="text-text-muted/70">· w {(dim.weight * 100).toFixed(0)}%</span></span>
                     <span className={clsx('font-mono tabular-nums', dimUi?.text ?? 'text-text-muted')}>
@@ -738,12 +782,23 @@ function LiveRiskPanel({ assetId }: { assetId: string }) {
                   <div className="h-1.5 bg-bg-elevated rounded-full overflow-hidden">
                     <div className={clsx('h-full rounded-full', dimUi?.bar ?? 'bg-bg-elevated')} style={{ width: `${dim.score ?? 0}%` }} />
                   </div>
+                  {/* What this pillar measures, authored in the profile spec
+                      (lib/risk/profiles/*) and — until 2026-08-29 — dropped by
+                      the engine, so no surface could say what it was scoring.
+                      Rendered, not hovered: a tooltip is invisible on touch and
+                      to keyboard users, which is not "clearly stated". */}
+                  <p className="mt-1 text-[10px] leading-relaxed text-text-muted/80">{dim.description}</p>
+                  {dim.evidence.length > 0 && (
+                    <p className="mt-0.5 text-[10px] font-mono text-text-muted/60">
+                      {dim.evidence.map((ev) => `${ev.metric}: ${ev.value ?? '—'}${ev.note ? ` (${ev.note})` : ''}`).join(' · ')}
+                    </p>
+                  )}
                 </div>
               )
             })}
           </div>
           <p className="mt-4 text-[10px] text-text-muted/80 leading-relaxed">
-            Pillars without data show N/A and are excluded — the composite reweights and coverage drops. Hover a pillar for its evidence.
+            Pillars without data show N/A and are excluded — the composite reweights and coverage drops.
           </p>
         </div>
       </div>

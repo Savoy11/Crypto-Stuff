@@ -79,6 +79,13 @@ export interface DimensionScore {
 /** A dimension score joined with its spec, as it appears in a composite. */
 export interface CompositeDimension extends DimensionScore {
   label: string
+  /**
+   * What this pillar measures, in plain language, carried through from the
+   * profile spec. Every profile has always authored one; before 2026-08-29 the
+   * engine dropped it, so no surface could explain what it was scoring. A score
+   * a reader cannot interrogate is a rating, not an explanation.
+   */
+  description: string
   weight: number
   band: RiskBand | null
 }

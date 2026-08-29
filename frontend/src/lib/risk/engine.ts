@@ -79,6 +79,7 @@ export function composeRisk(spec: RiskProfileSpec, scores: DimensionScore[]): Co
       dimensions.push({
         key: dim.key,
         label: dim.label,
+        description: dim.description,
         weight: dim.weight,
         score: null,
         band: null,
@@ -94,6 +95,7 @@ export function composeRisk(spec: RiskProfileSpec, scores: DimensionScore[]): Co
     dimensions.push({
       key: dim.key,
       label: dim.label,
+      description: dim.description,
       weight: dim.weight,
       score: clamped,
       band: bandForScore(clamped),
