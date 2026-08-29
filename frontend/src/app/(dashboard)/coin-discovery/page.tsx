@@ -33,10 +33,20 @@ import {
 // the only moment a project description is worth anything. React Query caches
 // per coin, so reopening a card costs nothing.
 
-function useCoinProfile(cgId: string, enabled: boolean) {
+function useCoinProfile(coin: CandidateCoin, enabled: boolean) {
+  const cgId = coin.cgId
   return useQuery<CoinProfileResponse>({
     queryKey: ['coin-profile', cgId],
-    queryFn: () => fetch(`/live-data/coin-profile?id=${encodeURIComponent(cgId)}`).then(r => r.json()),
+    queryFn: () => {
+      // Symbol, name and market cap travel with the request: the CoinMarketCap
+      // rung needs them to tell this project from another sharing its ticker,
+      // and the caller already holds all three. Re-fetching them server-side
+      // would undo the saving the keyed path exists for.
+      const q = new URLSearchParams({
+        id: cgId, symbols: coin.symbol, names: coin.name, caps: String(coin.marketCap),
+      })
+      return fetch(`/live-data/coin-profile?${q}`).then(r => r.json())
+    },
     enabled,
     staleTime: 24 * 60 * 60 * 1000,
     gcTime: 24 * 60 * 60 * 1000,
@@ -76,7 +86,7 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
   const added     = isAdded(coin.cgId)
   const dismissed = isDismissed(coin.cgId)
   // Fetched only once the reader opens the card — see useCoinProfile.
-  const { data: profile, isLoading: profileLoading } = useCoinProfile(coin.cgId, expanded)
+  const { data: profile, isLoading: profileLoading } = useCoinProfile(coin, expanded)
   // Where the coin's name points. The project's own site once we know it;
   // until then the name opens the card rather than navigating away, so a click
   // never lands on a third-party page the reader didn't ask for.
@@ -242,8 +252,17 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
             {/* An absent description is stated, not left as blank space — the
                 reader should know the project published none, not wonder
                 whether the panel failed. */}
-            {!profileLoading && profile?.ok && !profile.description && (
+            {!profileLoading && profile?.ok && !profile.description && profile.source !== 'none' && (
               <p className="text-xs text-text-muted">No project description published for this coin.</p>
+            )}
+
+            {/* Unresolved is NOT the same as "nothing published", and the card
+                says which. The usual cause is a ticker shared with another
+                project, where guessing would attach the wrong site. */}
+            {!profileLoading && profile?.source === 'none' && profile.unresolvedReason && (
+              <p className="text-xs text-amber-400">
+                Couldn&rsquo;t confirm which project this is: {profile.unresolvedReason}.
+              </p>
             )}
 
             {!profileLoading && profile && !profile.ok && (
@@ -298,6 +317,16 @@ function CandidateCard({ coin, compact = false }: { coin: CandidateCoin; compact
               >
                 <Database size={11} /> Market data on CoinGecko
               </a>
+              {/* Which provider actually answered — the app names its sources
+                  at the point of display, and CMC's licence requires it. */}
+              {profile?.source === 'coinmarketcap' && (
+                <span className="text-[10px] text-text-muted" title={profile.identity}>
+                  Profile via CoinMarketCap
+                </span>
+              )}
+              {profile?.source === 'coingecko' && (
+                <span className="text-[10px] text-text-muted">Profile via CoinGecko</span>
+              )}
             </div>
           </div>
         )}
