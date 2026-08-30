@@ -26,6 +26,8 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 | Crypto prices, market cap, volume, 24h change | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>[Binance](https://binance.com) `api.binance.com`<br>[CoinMarketCap](https://coinmarketcap.com/api) `pro-api.coinmarketcap.com` _(paid)_ | 30s client poll · sequential fallback ladder | `/live-data/markets` |
 | Crypto OHLCV / candlestick charts | Partial | [Binance](https://binance.com) `api.binance.com`<br>[Binance.US](https://binance.us) `api.binance.us`<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | on demand · 60s–15m stale by range | `/live-data/ohlcv` |
 | Coin list / search / discovery | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Binance.US `api.binance.us` | on demand | `/live-data/coin-list` |
+| Coin project profile (website, description) | Live | [CoinMarketCap](https://coinmarketcap.com/api) `pro-api.coinmarketcap.com` _(paid)_<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | on demand · 24h cache | `/live-data/coin-profile` |
+| Global crypto aggregates (BTC dominance, total cap) | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | 10m revalidate | `/live-data/global` |
 | Coin discovery candidates | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | on demand | `/live-data/coin-discovery` |
 | Fear & Greed Index | Live | [alternative.me](https://alternative.me/crypto/fear-and-greed-index/) `api.alternative.me` | — | `/live-data/fear-greed` |
 | Perp funding rates + open interest | Live | [OKX](https://www.okx.com/docs-v5/) `www.okx.com` | — | `/live-data/funding-rates` |
@@ -48,6 +50,8 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 
 - **Crypto prices, market cap, volume, 24h change** — Prices live; coin metadata (name, chain, contract) is static reference data, not fabricated. Reference/fallback data: `lib/data/assetCatalog.ts (metadata)`.
 - **Crypto OHLCV / candlestick charts** — Binance.com is 451 (geo-blocked) from many hosts, so candles come from the US mirror — a different venue. Serving venue recorded in the `venue` field.
+- **Coin project profile (website, description)** — Two-rung ladder: CoinMarketCap when keyed (bulk, 1 credit/100 coins, identity resolved by lib/utils/coinIdentity.ts which declines rather than guesses), else CoinGecko per coin. The keyless rung is switchable off with FN_ALLOW_KEYLESS_COIN_PROFILES=false. Descriptions are sanitized to plain text, never rendered as HTML.
+- **Global crypto aggregates (BTC dominance, total cap)** — Feeds the Cycle Context tab's dominance card. Nullable field by field, so a partial upstream answer serves what it carries.
 - **Perp funding rates + open interest** — Binance futures (fapi) is 451 from many hosts; OKX is the working source.
 - **Stablecoin reserves / collateralization** — Supply is live; composition breakdown is approximate / derived from chain distribution, not issuer attestation.
 - **Risk scores** — Live-computed composites via src/lib/risk. Pillars without data show N/A and drop coverage/confidence.
@@ -141,4 +145,4 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 
 ---
 
-_50 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._
+_52 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._
