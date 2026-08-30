@@ -295,8 +295,9 @@ hypothetical: **nine PRs (#113–#122) merged over a failing check** before the 
 Outcome: the drift was fixed by the owner's **PR #124** (regenerate + register two unregistered
 routes, now 51 surfaces), which superseded this session's one-file fix — **PR #112 was closed
 unmerged, correctly**. With the gate green, all three grouped patch/minor dependency PRs landed:
-**#92, #90 and #94 are merged** (this session updated #94's branch onto the fixed base; the owner
-merged all three). `@dependabot recreate` was posted on #45 and #52 but **dependabot ignores
+**#92, #90 and #94 are merged** — all three by the owner on 2026-08-30, within two minutes of
+each other, once #124 turned the gate green. (This session's branch-update calls came later and
+were no-ops; #90's dependabot branch had already been auto-deleted.) `@dependabot recreate` was posted on #45 and #52 but **dependabot ignores
 app-authored commands** — those two still need the owner to type the command. #89 was reviewed:
 its provenance note is complete, owner-requested content, worth merging rather than closing.
 Majors (typescript 7, recharts 3, zod 4, lucide-react 1, redis 8) remain owner decisions.
