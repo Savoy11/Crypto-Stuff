@@ -4,8 +4,8 @@
 time the probe has run anywhere it could actually reach these hosts). 55 hosts
 probed. This records what came back and what was decided.
 
-**Status:** 1 finding acted on. 1 needs the right document. 1 blocked on an
-owner decision. The other 52 stand as seeded.
+**Status:** 2 findings acted on — Reddit gated, CoinGecko read and verified.
+1 blocked on an owner decision. The other 52 stand as seeded.
 
 ---
 
@@ -42,29 +42,47 @@ That is Reddit's own supported route back in.
 
 ---
 
-## Needs the right document
+## Resolved after the probe
 
-### CoinGecko — the probe read the site ToU, not the API terms
+### CoinGecko — READ AND VERIFIED 2026-08-29 (API Terms, Scope of Use)
 
-The probe found `coingecko.com/terms` and flagged it hard: *prohibits automated
-access*, *prohibits scraping*, *personal / non-commercial use only*, and a
-licence granted *"solely for your Personal Use … and not for any commercial
-purpose."*
+The owner read `coingecko.com/en/api_terms`. It **inverts** the alarm the probe
+raised off the site ToU.
 
-**Read in context, that document governs the WEBSITE.** Its "Personal Use"
-definition is about republishing *screenshots of the site* on a non-commercial
-blog. CoinGecko publishes **separate API terms** for the Demo/free tier, and
-that is the document governing what this app actually does — keyed and keyless
-API reads, not site scraping.
+> **4.1.6** — "You are entitled to charge for your services and products that
+> incorporate or integrates our CoinGecko API. However, you are not permitted to
+> sell, rent, lease, sub-license, re-distribute or syndicate access to the
+> CoinGecko API or part thereof."
 
-So this is neither cleared nor condemned, and the worksheet's own caveat
-applies: *"it may mean the document was not the right one."* Given how much of
-the app rides on CoinGecko, its API terms are the highest-value single document
-left to read.
+Commercial use of a product *built on* the API is expressly permitted. What is
+barred is reselling API **access**, which this app does not do. The site ToU's
+"Personal Use / not for any commercial purpose" clause governs republishing
+*site content* (screenshots) and never described API use — the probe read the
+wrong document, exactly as this worksheet warned it might. **CoinGecko is
+therefore out of the personal-vs-commercial question below.**
 
-Mitigation already in place: `/live-data/coin-profile` runs CoinMarketCap
-(keyed, licensed) as rung 1, with the keyless CoinGecko rung switchable off via
-`FN_ALLOW_KEYLESS_COIN_PROFILES=false`.
+Attribution is **prescriptive**, and the app did not meet it:
+
+> **4.4** — "you shall duly attribute ownership of the CoinGecko API to
+> CoinGecko by displaying prominently the message **"Powered by CoinGecko"** in
+> a legible font … no smaller than font size 10."
+
+"Source: CoinGecko" is not that message. `SourceProvider.attribution` now
+carries the verbatim string, its link and its 10px floor; `SourceLine` renders
+it at 11px, and a test parses the rendered class and fails if it ever drops
+below the licensed floor. A coverage audit found 13 registry entries reading
+CoinGecko: 12 already sat under a page rendering `SourceLine`, and the **alerts
+bell** did not — a dropdown is a surface, and it was showing CoinGecko-derived
+data with no provenance above it. Fixed.
+
+Entry flipped to `review: 'verified'`, `termsUrl` repointed from the site ToU to
+the API Terms, six conditions recorded from the clauses.
+
+**Scope of Use was read in full; the rest of the document was not** — recorded
+in the finding, because the seeded/verified discipline applies to how much of a
+document was read, not merely whether it was opened.
+
+## Checked, no action
 
 ### MarketWatch — flagged, but not the host we fetch
 
@@ -78,9 +96,11 @@ No action; recorded so it is not re-raised.
 
 **Is Finance Now personal/internal, or commercial?**
 
-Personal / non-commercial clauses were flagged on **CoinGecko (site ToU),
-Finnhub, Twelve Data, Tiingo, Binance.US, YouTube, OilPrice and Bitget** — eight
-sources whose verdicts all turn on this one answer. Finnhub's is the bluntest:
+Personal / non-commercial clauses were flagged on **Finnhub, Twelve Data,
+Tiingo, Binance.US, YouTube, OilPrice and Bitget** — seven sources whose
+verdicts all turn on this one answer. (CoinGecko was in this list until its API
+Terms were read; the lesson generalises — **check whether each of these
+publishes separate API terms before treating its site ToU as the verdict.**) Finnhub's is the bluntest:
 
 > "You hereby agree to not redistribute or share access to data or derived
 > results from the data obtained from Finnhub with anyone or any 3rd party

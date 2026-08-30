@@ -30,6 +30,25 @@ export interface SourceProvider {
   url?: string
   role: ProviderRole
   auth: ProviderAuth
+  /**
+   * An attribution the provider's terms REQUIRE, verbatim.
+   *
+   * Distinct from the provenance line's own wording. `describeSource` explains
+   * where a figure came from — our choice, phrased for the reader. This is a
+   * string a licence obliges us to display, and the licence usually specifies
+   * the words, the prominence and sometimes the size. CoinGecko's API Terms
+   * clause 4 is the example that prompted this: "displaying prominently the
+   * message 'Powered by CoinGecko' in a legible font ... no smaller than font
+   * size 10". Paraphrasing that to "Source: CoinGecko" does not satisfy it.
+   */
+  attribution?: {
+    /** The exact words the licence names. Do not reword. */
+    text: string
+    /** Where the licence says to link, when it says to. */
+    href?: string
+    /** Minimum rendered size in CSS px, when the licence sets one. */
+    minFontPx?: number
+  }
 }
 
 export interface DataSourceEntry {
@@ -53,7 +72,13 @@ export interface DataSourceEntry {
 
 // Convenience provider presets (kept inline where one-off).
 const SEC_EDGAR: SourceProvider = { name: 'SEC EDGAR', host: 'data.sec.gov', url: 'https://www.sec.gov/edgar', role: 'primary', auth: 'none' }
-const COINGECKO: SourceProvider = { name: 'CoinGecko', host: 'api.coingecko.com', url: 'https://www.coingecko.com/en/api', role: 'primary', auth: 'none' }
+// Attribution per CoinGecko API Terms clause 4 (read 2026-08-29): the message
+// is prescribed, as is a minimum font size of 10.
+const COINGECKO: SourceProvider = {
+  name: 'CoinGecko', host: 'api.coingecko.com', url: 'https://www.coingecko.com/en/api',
+  role: 'primary', auth: 'none',
+  attribution: { text: 'Powered by CoinGecko', href: 'https://www.coingecko.com/en/api', minFontPx: 10 },
+}
 const DEFILLAMA = (host: string): SourceProvider => ({ name: 'DefiLlama', host, url: 'https://defillama.com/docs/api', role: 'primary', auth: 'none' })
 // Yahoo Finance was the `YAHOO` preset here — the keyless primary on six of the
 // entries below — until 2026-08-06, when it was removed as a data source on
@@ -68,7 +93,7 @@ export const DATA_SOURCES: DataSourceEntry[] = [
   {
     id: 'markets', surface: 'Crypto prices, market cap, volume, 24h change', module: 'crypto',
     route: '/live-data/markets', status: 'live',
-    providers: [COINGECKO, { name: 'Binance', host: 'api.binance.com', url: 'https://binance.com', role: 'fallback', auth: 'none' }, { name: 'CoinMarketCap', host: 'pro-api.coinmarketcap.com', url: 'https://coinmarketcap.com/api', role: 'fallback', auth: 'paid' }],
+    providers: [COINGECKO, { name: 'Binance', host: 'api.binance.com', url: 'https://binance.com', role: 'fallback', auth: 'none' }, { name: 'CoinMarketCap', host: 'pro-api.coinmarketcap.com', url: 'https://coinmarketcap.com/api', role: 'fallback', auth: 'paid', attribution: { text: 'Data by CoinMarketCap', href: 'https://coinmarketcap.com/api' } }],
     cadence: '30s client poll · sequential fallback ladder', staticData: ['lib/data/assetCatalog.ts (metadata)'],
     notes: 'Prices live; coin metadata (name, chain, contract) is static reference data, not fabricated.',
   },
@@ -449,6 +474,24 @@ export interface SourceDescription {
   names: string[]
   /** True when this is our own computation rather than a provider's figure. */
   isDerived: boolean
+}
+
+/**
+ * The attributions this surface is OBLIGED to display, deduplicated by text.
+ *
+ * Returned separately from `describeSource` because they answer different
+ * questions: that one says where the number came from, this one lists what a
+ * licence requires on screen regardless of how we phrase our own provenance.
+ */
+export function requiredAttributions(entry: DataSourceEntry): NonNullable<SourceProvider['attribution']>[] {
+  const seen = new Set<string>()
+  const out: NonNullable<SourceProvider['attribution']>[] = []
+  for (const p of entry.providers) {
+    if (!p.attribution || seen.has(p.attribution.text)) continue
+    seen.add(p.attribution.text)
+    out.push(p.attribution)
+  }
+  return out
 }
 
 export function describeSource(entry: DataSourceEntry): SourceDescription {

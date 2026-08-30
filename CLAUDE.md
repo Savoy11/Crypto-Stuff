@@ -416,7 +416,7 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 > The fix for any of the key-gated rows is a free API key on the Integrations page — **not
 > a substitute scraper.**
 
-> ⚠ **47 of 48 registry entries are `seeded`, not `verified` — check `review` before
+> ⚠ **54 of 56 registry entries are `seeded`, not `verified` — check `review` before
 > trusting one.** The registry was authored in an environment whose network policy
 > blocked every publisher and provider host at the gateway, so not one terms document
 > could be opened. The entries are honest starting positions drawn from each
@@ -432,17 +432,26 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 >
 > > **First real probe run: 2026-08-29** (owner's machine — the first environment
 > that could reach these hosts). Results and decisions:
-> `docs/audits/terms-review-2026-08-29.md`. One finding was acted on —
-> **Reddit's robots.txt disallows this app's agent**, so reddit.com is now gated
-> off unless `REDDIT_CLIENT_ID` is set, enforced in `pinnedFetch` so a new call
-> site inherits it. `SourceTermsEntry.robotsDisallowed` records that as a dated
-> **first-hand** observation kept deliberately separate from the terms `review`
-> state: robots.txt is an instruction we either honour or don't, while a terms
-> verdict is an interpretation — and recording one must not launder the other
-> into looking reviewed. Two items are open: **CoinGecko's probe read the site
-> ToU, not the API terms** (the wrong document — its API terms are the highest-
-> value read left), and the **personal-vs-commercial question**, which decides
-> eight sources at once and is the owner's to answer.
+> `docs/audits/terms-review-2026-08-29.md`. Two findings acted on:
+>
+> - **CoinGecko is now `verified`** against its **API Terms** — not the Website
+>   Terms the probe read by mistake. Clause 4.1.6 permits charging for products
+>   built on the API and bars only reselling API *access*, so the
+>   "non-commercial" alarm the probe raised never applied here. Clause 4.4
+>   prescribes the attribution **message**, so `SourceProvider.attribution`
+>   carries "Powered by CoinGecko" verbatim with a 10px floor and `SourceLine`
+>   renders it — a test parses the rendered class and fails below the floor.
+> - **Reddit's robots.txt disallows this app's agent**, so reddit.com is gated
+>   off unless `REDDIT_CLIENT_ID` is set, enforced in `pinnedFetch` so a new
+>   call site inherits it. `SourceTermsEntry.robotsDisallowed` records that as a
+>   dated **first-hand** observation kept separate from the terms `review`
+>   state: robots.txt is an instruction we either honour or don't, while a terms
+>   verdict is an interpretation — recording one must not launder the other into
+>   looking reviewed.
+>
+> One item stays open: the **personal-vs-commercial question**, which decides
+> seven more sources (Finnhub, Twelve Data, Tiingo, Binance.US, YouTube,
+> OilPrice, Bitget) and is the owner's to answer.
 
 **To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
 > that can reach these sites writes a review worksheet — current verdict, what the
