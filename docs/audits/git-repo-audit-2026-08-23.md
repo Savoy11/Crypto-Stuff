@@ -283,17 +283,27 @@ close draft #89. And note the structural half: in this workflow, dependency PRs 
 a session is asked to move them — so make the ask recurring (a periodic "triage dependabot"
 session, weekly to match the config's cadence), or the queue re-forms exactly as it did.
 
-**⏳ Step 3 IN PROGRESS 2026-08-25 — and it surfaced F4 materializing.** Executing the triage
-found every dependabot PR red on the **Frontend Check**, including the backend-only (#94) and
-mcp-only (#90) diffs — meaning the failure is `main`'s own. Root cause from the job log: the
-`DATA-SOURCES.md` drift gate fails (generator says 50 surfaces, committed file says 49). The
-Aug-22 work added the withdraw-fees surface and live EVM-L1 gas without regenerating the file,
-and nothing caught it because `ci.yml` runs on pull requests and `develop` pushes only —
-**direct-to-`main` commits bypass CI entirely**, which is F4's mechanism demonstrated on real
-damage. Executed so far: the one-file regen fix at **PR #112** (unblocks the merges;
-owner merges it, then the three patch/minor PRs get rebased and merged on green);
-`@dependabot recreate` posted on #45 and #52; #89 reviewed — its provenance note is complete,
-owner-requested content worth merging, not closing. Majors remain owner decisions.
+**✅ Step 3 DONE 2026-08-30 — and it surfaced F4 materializing on real damage.** Executing the
+triage found every dependabot PR red on the **Frontend Check**, including the backend-only (#94)
+and mcp-only (#90) diffs — so the failure was `main`'s own. Root cause from the job log: the
+`DATA-SOURCES.md` drift gate (generator said 50 surfaces, committed file said 49). The Aug-22
+work added the withdraw-fees surface and live EVM-L1 gas without regenerating the file, and
+nothing caught it because `ci.yml` runs on pull requests and `develop` pushes only —
+**direct-to-`main` commits bypass CI entirely**. That is F4's mechanism, and the cost was not
+hypothetical: **nine PRs (#113–#122) merged over a failing check** before the gate was repaired.
+
+Outcome: the drift was fixed by the owner's **PR #124** (regenerate + register two unregistered
+routes, now 51 surfaces), which superseded this session's one-file fix — **PR #112 was closed
+unmerged, correctly**. With the gate green, all three grouped patch/minor dependency PRs landed:
+**#92, #90 and #94 are merged** (this session updated #94's branch onto the fixed base; the owner
+merged all three). `@dependabot recreate` was posted on #45 and #52 but **dependabot ignores
+app-authored commands** — those two still need the owner to type the command. #89 was reviewed:
+its provenance note is complete, owner-requested content, worth merging rather than closing.
+Majors (typescript 7, recharts 3, zod 4, lucide-react 1, redis 8) remain owner decisions.
+
+> **The lesson worth keeping:** the fix here was one regenerated file, but nobody could see it was
+> needed, because a red check on `main` is invisible when `main` is never checked. Step 4's branch
+> protection is what converts this from "someone notices eventually" into "it cannot merge red."
 
 **4. Turn the policy into a setting.** Branch protection on `main`: require a pull request
 before merging (a solo owner can still self-approve; the gate is against the accidental case),
