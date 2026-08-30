@@ -111,6 +111,29 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     cadence: 'on demand',
   },
   {
+    // Added 2026-08-30: this route shipped in #120 with no registry entry, so
+    // the CI drift gate went red and — more to the point — it was fetching
+    // CoinGecko outside the source-terms check, and rendering project
+    // descriptions with none of the attribution CoinGecko's API Terms clause 4
+    // requires. Both follow from being registered.
+    id: 'coin-profile', surface: 'Coin project profile (website, description)', module: 'crypto',
+    route: '/live-data/coin-profile', status: 'live',
+    providers: [
+      { name: 'CoinMarketCap', host: 'pro-api.coinmarketcap.com', url: 'https://coinmarketcap.com/api', role: 'primary', auth: 'paid', attribution: { text: 'Data by CoinMarketCap', href: 'https://coinmarketcap.com/api' } },
+      COINGECKO,
+    ],
+    cadence: 'on demand · 24h cache',
+    notes: 'Two-rung ladder: CoinMarketCap when keyed (bulk, 1 credit/100 coins, identity resolved by lib/utils/coinIdentity.ts which declines rather than guesses), else CoinGecko per coin. The keyless rung is switchable off with FN_ALLOW_KEYLESS_COIN_PROFILES=false. Descriptions are sanitized to plain text, never rendered as HTML.',
+  },
+  {
+    // Added 2026-08-30, same reason as coin-profile: shipped in #118 unregistered.
+    id: 'global', surface: 'Global crypto aggregates (BTC dominance, total cap)', module: 'crypto',
+    route: '/live-data/global', status: 'live',
+    providers: [COINGECKO],
+    cadence: '10m revalidate',
+    notes: 'Feeds the Cycle Context tab\'s dominance card. Nullable field by field, so a partial upstream answer serves what it carries.',
+  },
+  {
     id: 'coin-discovery', surface: 'Coin discovery candidates', module: 'crypto',
     route: '/live-data/coin-discovery', status: 'live', providers: [COINGECKO], cadence: 'on demand',
   },
