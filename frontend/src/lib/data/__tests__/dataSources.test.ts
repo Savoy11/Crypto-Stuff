@@ -96,7 +96,9 @@ describe('the registry itself', () => {
   // actually pass, which is where such a typo would land.
   it('resolves the ids the UI passes to SourceLine', () => {
     const usedByPages = [
-      'macro-quotes', 'options-score', 'futures-curve', 'risk-scores',
+      // 'risk-scores' was removed from this list with the route and the panel
+      // that passed it (RP-6, 2026-08-29) — no page passes that id any more.
+      'macro-quotes', 'options-score', 'futures-curve',
       'compare', 'portfolio-builder', 'brief', 'security-quotes',
     ]
     for (const id of usedByPages) {
@@ -105,7 +107,7 @@ describe('the registry itself', () => {
   })
 
   it('marks the scores users act on as derived, not as provider figures', () => {
-    for (const id of ['risk-scores', 'compare', 'portfolio-builder', 'options-score']) {
+    for (const id of ['compare', 'portfolio-builder', 'options-score']) {
       expect(getSource(id)!.status, `${id} should be derived`).toBe('derived')
     }
   })

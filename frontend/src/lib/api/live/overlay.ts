@@ -87,7 +87,6 @@ export function buildLiveAssetDetail(assetId: string, quote: LiveQuote | undefin
     ...asset,
     latestMarketData: buildLiveMarketData(meta.id, quote),
     // Strict N/A — no free live source for these.
-    latestRiskScore: null,
     latestReserve: null,
     analyticsBundle: null,
   }

@@ -45,8 +45,10 @@ export interface Asset {
   pegDeviation: number | null // fractional, e.g. 0.0001 = 1 bps
   pegDeviationBps?: number | null // alias in basis points
   pegTarget?: number
-  riskScore: number | null
-  riskBand: RiskBand | null
+  // riskScore / riskBand were REMOVED 2026-08-29 (RP-6): per-coin risk scoring
+  // is no longer published anywhere, and the live composite was the only thing
+  // that ever populated them. Keeping permanently-null fields would invite a
+  // future surface to render "N/A" as though a score were merely missing.
   reserveRatio: number | null
   createdAt: string
   updatedAt: string
@@ -73,23 +75,6 @@ export interface ScoreBreakdown {
   networkWeight: number
   securityScore: number
   securityWeight: number
-}
-
-export interface RiskScore {
-  id: string
-  assetId: string
-  overallScore: number
-  reserveScore: number
-  pegScore: number
-  networkScore: number
-  securityScore: number
-  riskBand: RiskBand
-  confidence: number
-  percentileRank: number
-  scoreBreakdown: ScoreBreakdown
-  scoreDate: string
-  previousScore: number | null
-  scoreDelta: number | null
 }
 
 export interface MarketData {
@@ -135,15 +120,8 @@ export interface PegDataPoint {
   volume: number
 }
 
-export interface ScoreDataPoint {
-  date: string
-  score: number
-  riskBand: RiskBand
-}
-
 export interface AnalyticsBundle {
   pegHistory: PegDataPoint[]
-  scoreHistory: ScoreDataPoint[]
   liquidityDepth: LiquidityDepthItem[]
   walletConcentration: WalletConcentrationData
   transferVelocity: VelocityDataPoint[]
@@ -172,7 +150,6 @@ export interface VelocityDataPoint {
 
 export interface AssetDetail extends Asset {
   // Derived bundles are null in live mode — no free live source (strict N/A).
-  latestRiskScore: RiskScore | null
   latestMarketData: MarketData
   latestReserve: ReserveAttestation | null
   analyticsBundle: AnalyticsBundle | null
@@ -181,10 +158,7 @@ export interface AssetDetail extends Asset {
 export interface AssetFilters {
   assetType: AssetType | 'all'
   blockchain: Blockchain | 'all'
-  riskBand: RiskBand | 'all'
   search: string
-  minRiskScore: number
-  maxRiskScore: number
   minMarketCap: number
   /**
    * Minimum 24h-volume/market-cap ratio, in percent (W3-2 — "search by

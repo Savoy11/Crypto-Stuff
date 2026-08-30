@@ -6,8 +6,7 @@ import { clsx } from 'clsx'
 import { useRouter } from 'next/navigation'
 import { useAssetSearch } from '@/hooks/useAssets'
 import type { Asset } from '@/types/asset'
-import { formatCompact, formatOrNA, NA_LABEL } from '@/lib/utils/format'
-import { getRiskTailwindClasses } from '@/lib/utils/risk'
+import { formatCompact, formatOrNA } from '@/lib/utils/format'
 
 interface SearchInputProps {
   className?: string
@@ -98,7 +97,6 @@ export function SearchInput({ className, placeholder = 'Search assets...', onSel
           aria-label="Search results"
         >
           {results.map((asset) => {
-            const riskClasses = asset.riskBand ? getRiskTailwindClasses(asset.riskBand) : null
             return (
               <button
                 key={asset.id}
@@ -111,11 +109,14 @@ export function SearchInput({ className, placeholder = 'Search assets...', onSel
                   <span className="font-mono font-semibold text-sm text-text-primary w-14">{asset.symbol}</span>
                   <span className="text-xs text-text-secondary truncate max-w-32">{asset.name}</span>
                 </div>
+                {/* No risk score here (2026-08-29, owner). A bare number in a
+                    search result is a rating with nowhere to show its working —
+                    the reader cannot see the pillars, weights, coverage or
+                    evidence behind it. The explanatory panel on the coin's own
+                    page is where a risk figure is defensible. Market cap stays:
+                    it is a reported fact, not a computed judgment. */}
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-text-muted font-mono">{formatOrNA(asset.marketCap, formatCompact)}</span>
-                  <span className={clsx('text-xs px-1.5 py-0.5 rounded font-mono', riskClasses?.badge ?? 'bg-slate-500/10 text-slate-400 border border-slate-500/30')}>
-                    {asset.riskScore !== null ? asset.riskScore.toFixed(1) : NA_LABEL}
-                  </span>
                 </div>
               </button>
             )

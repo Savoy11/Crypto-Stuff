@@ -27,10 +27,7 @@ interface AssetActions {
 const DEFAULT_FILTERS: AssetFilters = {
   assetType: 'all',
   blockchain: 'all',
-  riskBand: 'all',
   search: '',
-  minRiskScore: 0,
-  maxRiskScore: 100,
   minMarketCap: 0,
   minLiquidityPct: 0,
 }
