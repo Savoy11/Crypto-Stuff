@@ -3,6 +3,7 @@ import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
 import { getEquityProviders, recordProviderFetch } from '@/lib/api/live/providers'
 import { fetchCustomUrl, findArray, pickDate, pickNumber, pickString, type ActiveCustom } from '@/lib/server/customFeeds'
 import { blendByProvider } from '@/lib/server/socialBlend'
+import { robotsPermits } from '@/lib/server/sourceTerms'
 import { computeSentimentSummaries, type SentimentSummary } from '@/lib/server/socialSentiment'
 
 // Social signals for the equities module. REGISTRY-DRIVEN: Reddit Finance and
@@ -43,6 +44,12 @@ export interface StockSocialResponse {
   signals: StockSocialSignal[]
   summaries: StockSentimentSummary[]
   providers: Array<{ id: string; name: string }>
+  /**
+   * Sources deliberately not read, and why. An absent provider must be
+   * explained rather than inferred from a thinner feed — the reader would
+   * otherwise take a quieter page for a quieter market.
+   */
+  withheld?: Array<{ id: string; name: string; reason: string }>
 }
 
 const SUBREDDITS = ['stocks', 'investing', 'StockMarket', 'wallstreetbets']
@@ -232,7 +239,13 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(parseInt(request.nextUrl.searchParams.get('limit') ?? '40', 10) || 40, 80)
 
   const active = getEquityProviders('social')
-  const redditEnabled = active.some((p) => !p.isCustom && p.id === 'reddit-stocks')
+  // Reddit's robots.txt disallows our agent (observed 2026-08-29). The rung is
+  // off unless OAuth credentials are configured, which move the request off the
+  // anonymous path robots forbids. StockTwits carries the surface meanwhile —
+  // which is what already happened in datacenter environments, where Reddit
+  // 403s; the difference is that this is now a decision rather than a symptom.
+  const redditAllowed = robotsPermits('https://www.reddit.com/')
+  const redditEnabled = redditAllowed && active.some((p) => !p.isCustom && p.id === 'reddit-stocks')
   const stocktwitsEnabled = active.some((p) => !p.isCustom && p.id === 'stocktwits')
   const customs = active.filter((p): p is typeof p & ActiveCustom => !!p.isCustom && p.format === 'json-social')
 
@@ -298,5 +311,12 @@ export async function GET(request: NextRequest) {
     signals: deduped,
     summaries: computeSentimentSummaries(deduped, labelForSymbol, symbol),
     providers,
+    ...(redditAllowed ? {} : {
+      withheld: [{
+        id: 'reddit-stocks',
+        name: 'Reddit',
+        reason: 'Reddit\'s robots.txt disallows this app\'s agent. Configure REDDIT_CLIENT_ID (OAuth) to read it through the supported path.',
+      }],
+    }),
   } satisfies StockSocialResponse)
 }

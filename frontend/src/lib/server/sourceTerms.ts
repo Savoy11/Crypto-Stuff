@@ -112,6 +112,27 @@ export interface SourceTermsEntry {
    */
   reviewedAt: string
   confidence: TermsConfidence
+  /**
+   * A FIRST-HAND observation that this host's robots.txt disallows our agent.
+   *
+   * Deliberately separate from `verdict` and `review`. Those describe the TERMS
+   * document, which is often unreadable from here and is a matter of
+   * interpretation; robots.txt is a machine-readable instruction we either
+   * honour or do not. An entry can therefore be `seeded` on its terms and still
+   * carry a dated, verified robots reading — which is exactly Reddit's
+   * situation after the 2026-08-29 probe.
+   *
+   * When present, `assertRobotsPermits` refuses the fetch unless the named
+   * credential is configured — the credential being the thing that moves the
+   * request out of the disallowed anonymous path.
+   */
+  robotsDisallowed?: {
+    /** ISO date the robots.txt was actually read. */
+    observedAt: string
+    /** Env var whose presence lifts the block, if the operator has one. */
+    liftedBy?: string
+    note: string
+  }
 }
 
 /**
@@ -181,15 +202,23 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     domain: 'coingecko.com',
     name: 'CoinGecko',
     verdict: 'conditional',
-    termsUrl: 'https://www.coingecko.com/en/terms',
+    // The API Terms — NOT the Website Terms and Conditions. The distinction is
+    // the whole finding: the 2026-08-29 probe read coingecko.com/en/terms and
+    // flagged "personal / non-commercial use only", which governs republishing
+    // SITE content (screenshots) and does not describe API use at all.
+    termsUrl: 'https://www.coingecko.com/en/api_terms',
     finding:
-      'Publishes a public API with a documented free tier intended for third-party applications. Free-tier use is rate-limited and requires attribution to CoinGecko as the price source.',
+      'API Terms clause 4.1.6 read on 2026-08-29 (Scope of Use section, owner\'s machine): "You are entitled to charge for your services and products that incorporate or integrates our CoinGecko API. However, you are not permitted to sell, rent, lease, sub-license, re-distribute or syndicate access to the CoinGecko API or part thereof." Commercial use of a product BUILT ON the API is therefore permitted; what is barred is reselling API access itself, which this app does not do. Clause 4 prescribes the attribution message verbatim. Clause 4.1.2 incorporates the Website Terms by reference, but the API grant is the specific one governing API reads — the site ToU\'s Personal Use clause is about republishing site content. Scope of Use was read in full; the remainder of the document was not.',
     conditions: [
-      'Attribute CoinGecko wherever its prices are displayed',
-      'Respect the free-tier rate limit (~30 calls/min) or supply a paid key',
+      'Display "Powered by CoinGecko" prominently, in a legible font no smaller than 10px (clause 4) — the wording is prescribed, not paraphrasable',
+      'Do not resell, sub-license, redistribute or syndicate API access (clause 4.1.6)',
+      'Stay within the selected plan\'s rate and monthly call limits; do not circumvent them (clause 4.2)',
+      'Never use the data in or to target advertising (clause 4.1.7.3)',
+      'Do not imply CoinGecko endorsement; follow the Brand Attribution Guide (clause 4.5)',
+      'No public statements about CoinGecko or its products without prior written consent (clause 4.1.7.6)',
     ],
-    reviewedAt: '2026-08-06',
-    review: 'seeded',
+    reviewedAt: '2026-08-29',
+    review: 'verified',
     confidence: 'high',
   },
   {
@@ -343,6 +372,16 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     reviewedAt: '2026-08-06',
     review: 'seeded',
     confidence: 'low',
+    // Observed first-hand by `npm run terms:report` on the owner's machine,
+    // 2026-08-29: reddit.com/robots.txt disallows / for this app's agent. That
+    // is a direct instruction, and a stronger signal than the 403s the entry's
+    // conditions already anticipated — a 403 is a refusal we might have been
+    // working around; a robots disallow is one we were not honouring at all.
+    robotsDisallowed: {
+      observedAt: '2026-08-29',
+      liftedBy: 'REDDIT_CLIENT_ID',
+      note: 'robots.txt disallows / for our user-agent. Reddit\'s Data API Terms route legitimate programmatic access through registered OAuth credentials, so configuring REDDIT_CLIENT_ID moves the request off the anonymous path robots forbids. Until then Finance Now does not fetch reddit.com.',
+    },
   },
   {
     domain: 'youtube.com',
@@ -984,6 +1023,38 @@ export function assertSourceAllowed(url: string, now: Date = new Date()): Source
  * Collapsing the two would either let a prohibited host through or make the
  * acknowledgement flow a lie. Keep them separate.
  */
+/** Thrown when robots.txt disallows us and no credential lifts it. */
+export class RobotsDisallowedError extends Error {
+  constructor(public readonly host: string, public readonly note: string) {
+    super(`robots.txt disallows ${host}: ${note}`)
+    this.name = 'RobotsDisallowedError'
+  }
+}
+
+/**
+ * Refuse a fetch to a host whose robots.txt disallows our agent, unless the
+ * entry names a credential and that credential is configured.
+ *
+ * Separate from the terms check on purpose: this one is not interpretation.
+ * Either the file says we may not, or it does not.
+ */
+export function assertRobotsPermits(url: string, env: NodeJS.ProcessEnv = process.env): void {
+  let host: string
+  try { host = new URL(url).hostname } catch { return }
+  const entry = SOURCE_TERMS.find(
+    (e) => host === e.domain || host.endsWith(`.${e.domain}`),
+  )
+  const rd = entry?.robotsDisallowed
+  if (!rd) return
+  if (rd.liftedBy && (env[rd.liftedBy] ?? '').trim()) return
+  throw new RobotsDisallowedError(host, rd.note)
+}
+
+/** True when this host may be fetched — the non-throwing form, for callers that degrade. */
+export function robotsPermits(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  try { assertRobotsPermits(url, env); return true } catch { return false }
+}
+
 export function assertSourceNotProhibited(url: string, now: Date = new Date()): SourceTermsDecision {
   const decision = checkSourceTerms(url, now)
   if (decision.status === 'prohibited') throw new SourceTermsError(decision)

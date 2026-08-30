@@ -5,7 +5,7 @@ change the registry and regenerate. This is the "where does the data come from" 
 `DATA-AVAILABILITY.md` (which tracks whether each surface is live). The same registry powers the
 in-app **/data-sources** page and the per-page provenance badges, so the app and the docs never diverge._
 
-_Last generated: **2026-08-08**_
+_Last generated: **2026-08-30**_
 
 ## Legend
 
@@ -26,15 +26,17 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 | Crypto prices, market cap, volume, 24h change | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>[Binance](https://binance.com) `api.binance.com`<br>[CoinMarketCap](https://coinmarketcap.com/api) `pro-api.coinmarketcap.com` _(paid)_ | 30s client poll · sequential fallback ladder | `/live-data/markets` |
 | Crypto OHLCV / candlestick charts | Partial | [Binance](https://binance.com) `api.binance.com`<br>[Binance.US](https://binance.us) `api.binance.us`<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | on demand · 60s–15m stale by range | `/live-data/ohlcv` |
 | Coin list / search / discovery | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Binance.US `api.binance.us` | on demand | `/live-data/coin-list` |
+| Coin project profile (website, description) | Live | [CoinMarketCap](https://coinmarketcap.com/api) `pro-api.coinmarketcap.com` _(paid)_<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | on demand · 24h cache | `/live-data/coin-profile` |
+| Global crypto aggregates (BTC dominance, total cap) | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | 10m revalidate | `/live-data/global` |
 | Coin discovery candidates | Live | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | on demand | `/live-data/coin-discovery` |
 | Fear & Greed Index | Live | [alternative.me](https://alternative.me/crypto/fear-and-greed-index/) `api.alternative.me` | — | `/live-data/fear-greed` |
 | Perp funding rates + open interest | Live | [OKX](https://www.okx.com/docs-v5/) `www.okx.com` | — | `/live-data/funding-rates` |
 | DeFi TVL | Live | [DefiLlama](https://defillama.com/docs/api) `api.llama.fi` | — | `/live-data/defi-tvl` |
 | Bitcoin network stats (height, hashrate, mempool) | Live | [mempool.space](https://mempool.space/docs/api) `mempool.space`<br>blockchain.info `blockchain.info` | — | `/live-data/btc-stats` |
 | Stablecoin reserves / collateralization | Live | [DefiLlama](https://defillama.com/docs/api) `stablecoins.llama.fi` | — | `/live-data/reserves` |
-| Risk scores | Derived | [DefiLlama](https://defillama.com/docs/api) `stablecoins.llama.fi`<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com`<br>Curated disclosures + news | on demand | `/live-data/risk-scores` |
 | Alerts (depegs, large moves) | Derived | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | — | `/live-data/alerts` |
-| Network / gas fees (16 chains) | Partial | mempool.space `mempool.space`<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | — | `/live-data/network-fees` |
+| Network / gas fees (16 chains) | Partial | mempool.space `mempool.space`<br>[PublicNode (eth_gasPrice)](https://www.publicnode.com/) `publicnode.com`<br>[CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | — | `/live-data/network-fees` |
+| Live exchange withdrawal fees (Transfer Fee Calculator overlay) | Partial | [KuCoin](https://www.kucoin.com/docs) `api.kucoin.com`<br>[HTX](https://huobiapi.github.io/docs/spot/v1/en/) `api.huobi.pro`<br>[Bitget](https://www.bitget.com/api-doc/spot/market/Get-Coin-List) `api.bitget.com`<br>[Poloniex](https://api-docs.poloniex.com/) `api.poloniex.com`<br>[LBank](https://www.lbank.com/docs/index.html) `api.lbkex.com`<br>[Bitfinex](https://docs.bitfinex.com/reference/rest-public-conf) `api-pub.bitfinex.com`<br>[XT.com](https://doc.xt.com/) `sapi.xt.com` | 15m revalidate | `/live-data/withdraw-fees` |
 | Staking APR/APY | Partial | [DefiLlama Yields](https://defillama.com/yields) `yields.llama.fi`<br>Lido `eth-api.lido.fi`<br>Rocket Pool `api.rocketpool.net`<br>Marinade `api.marinade.finance`<br>Jito `kobe.mainnet.jito.network`<br>Stride `edge.stride.zone`<br>Cosmostation / Subscan / chain LCDs | 20m client poll · 18 parallel upstreams | `/live-data/staking-rates` |
 | Staking / yield discovery | Live | [DefiLlama](https://defillama.com/docs/api) `yields.llama.fi`<br>Yearn `api.yearn.finance`<br>Pendle `api-v2.pendle.finance`<br>Beefy `api.beefy.finance` | on demand · ~18s (4 upstreams) | `/live-data/staking-discovery` |
 | Crypto price chart (legacy, internal) | Derived | [CoinGecko](https://www.coingecko.com/en/api) `api.coingecko.com` | — | `/live-data/chart` |
@@ -47,11 +49,13 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 
 - **Crypto prices, market cap, volume, 24h change** — Prices live; coin metadata (name, chain, contract) is static reference data, not fabricated. Reference/fallback data: `lib/data/assetCatalog.ts (metadata)`.
 - **Crypto OHLCV / candlestick charts** — Binance.com is 451 (geo-blocked) from many hosts, so candles come from the US mirror — a different venue. Serving venue recorded in the `venue` field.
+- **Coin project profile (website, description)** — Two-rung ladder: CoinMarketCap when keyed (bulk, 1 credit/100 coins, identity resolved by lib/utils/coinIdentity.ts which declines rather than guesses), else CoinGecko per coin. The keyless rung is switchable off with FN_ALLOW_KEYLESS_COIN_PROFILES=false. Descriptions are sanitized to plain text, never rendered as HTML.
+- **Global crypto aggregates (BTC dominance, total cap)** — Feeds the Cycle Context tab's dominance card. Nullable field by field, so a partial upstream answer serves what it carries.
 - **Perp funding rates + open interest** — Binance futures (fapi) is 451 from many hosts; OKX is the working source.
 - **Stablecoin reserves / collateralization** — Supply is live; composition breakdown is approximate / derived from chain distribution, not issuer attestation.
-- **Risk scores** — Live-computed composites via src/lib/risk. Pillars without data show N/A and drop coverage/confidence.
 - **Alerts (depegs, large moves)** — Generated from live price/peg movement thresholds, not a stored backend.
-- **Network / gas fees (16 chains)** — Only Bitcoin’s sat/vByte fee is live. Every other chain is a static gas amount × live token price, labeled `estimate` per network. Reference/fallback data: `lib/data/networkFees.ts (gas amounts)`.
+- **Network / gas fees (16 chains)** — Live: Bitcoin (mempool.space sat/vByte) and the four EVM L1s — Ethereum, BNB Chain, Polygon, Avalanche — via keyless eth_gasPrice, priced at an assumed 65k-gas token transfer (live PRICE × assumed LIMIT, same shape as BTC’s live rate × assumed 250 vBytes). Arbitrum/Optimism/Base are deliberately NOT live: on OP-stack chains the L1 data fee usually dominates and eth_gasPrice reports only L2 execution, so a live-looking number would understate the true cost — they stay honest estimates. The remaining chains are a static gas amount × live token price, labeled `estimate` per network. Reference/fallback data: `lib/data/networkFees.ts (gas limits + fallback amounts)`.
+- **Live exchange withdrawal fees (Transfer Fee Calculator overlay)** — Keyless public endpoints only (RP-5: no exchange API-key custody). Overlay-only — live rows update fees on routes the curated table already carries, never add routes. Rows are labeled live per-hop; the other 28 exchanges stay static with the staleness banner. Owner probe 2026-08-21: KuCoin + HTX confirmed live; Bybit removed (its endpoint 403s — authenticated, not public). Batch 2 (Bitget, Poloniex, LBank, Bitfinex, XT.com) added same day, NOT yet probed — remove any that fail like Bybit did. Also feeds withdrawal AVAILABILITY: a live-reported suspension blocks the route with attribution, while static rows are disclosed as assumed-open (availabilityExchangeIds is narrower than the live-fee source list — Bitfinex reports fees with no status field). Shared with /api/v1/transfer/routes via lib/server/withdrawFeeOverlay.ts. Reference/fallback data: `lib/data/transferFees.ts (the table being overlaid)`.
 - **Staking APR/APY** — Liquid-staking/restaking protocols + native network rates are live (DefiLlama + protocol APIs + chain inflation). CeFi exchange rates are static estimates. Each rate carries sources[key] = "live" | "estimate". Reference/fallback data: `lib/data/stakingProviders.ts (risk profiles, fallback APRs)`.
 - **Crypto price chart (legacy, internal)** — Synthesises zero-range OHLC from a price-only series (marked synthetic:true). No app consumers — /live-data/ohlcv provides real candles.
 - **Crypto news + sentiment** — Multi-provider RSS/JSON merge. Sentiment/category are heuristic classifiers (labeled derived).
@@ -139,4 +143,4 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 
 ---
 
-_49 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._
+_51 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._

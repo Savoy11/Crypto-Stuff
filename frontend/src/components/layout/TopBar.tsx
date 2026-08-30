@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Bell, Settings, RefreshCw, ChevronDown, Menu } from 'lucide-react'
 import { useLiveAlerts }   from '@/hooks/useLiveAlerts'
 import { LiveAlertRow }    from '@/components/alerts/LiveAlertRow'
+import { SourceLine }      from '@/components/ui/SourceLine'
 import { useRefreshStore, INTERVAL_OPTIONS } from '@/store/useRefreshStore'
 import { useGlobalRefresh } from '@/hooks/useGlobalRefresh'
 import { SearchInput }     from '@/components/ui/SearchInput'
@@ -151,10 +152,12 @@ function AlertsBell() {
             </div>
           )}
 
+          {/* The bell was the one CoinGecko-fed surface with no provenance
+              line anywhere above it — every other one sits under a page that
+              renders SourceLine. Attribution is the app's obligation wherever
+              the data shows, and a dropdown is a surface. */}
           <div className="px-4 py-2 border-t border-border">
-            <span className="text-[10px] text-text-muted/70">
-              Live peg &amp; 24h price-move monitoring{checkedAt ? ` · ${new Date(checkedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}
-            </span>
+            <SourceLine id="alerts" asOf={checkedAt ?? undefined} />
           </div>
         </div>
       )}

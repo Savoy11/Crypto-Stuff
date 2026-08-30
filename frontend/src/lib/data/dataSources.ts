@@ -30,6 +30,25 @@ export interface SourceProvider {
   url?: string
   role: ProviderRole
   auth: ProviderAuth
+  /**
+   * An attribution the provider's terms REQUIRE, verbatim.
+   *
+   * Distinct from the provenance line's own wording. `describeSource` explains
+   * where a figure came from — our choice, phrased for the reader. This is a
+   * string a licence obliges us to display, and the licence usually specifies
+   * the words, the prominence and sometimes the size. CoinGecko's API Terms
+   * clause 4 is the example that prompted this: "displaying prominently the
+   * message 'Powered by CoinGecko' in a legible font ... no smaller than font
+   * size 10". Paraphrasing that to "Source: CoinGecko" does not satisfy it.
+   */
+  attribution?: {
+    /** The exact words the licence names. Do not reword. */
+    text: string
+    /** Where the licence says to link, when it says to. */
+    href?: string
+    /** Minimum rendered size in CSS px, when the licence sets one. */
+    minFontPx?: number
+  }
 }
 
 export interface DataSourceEntry {
@@ -53,7 +72,13 @@ export interface DataSourceEntry {
 
 // Convenience provider presets (kept inline where one-off).
 const SEC_EDGAR: SourceProvider = { name: 'SEC EDGAR', host: 'data.sec.gov', url: 'https://www.sec.gov/edgar', role: 'primary', auth: 'none' }
-const COINGECKO: SourceProvider = { name: 'CoinGecko', host: 'api.coingecko.com', url: 'https://www.coingecko.com/en/api', role: 'primary', auth: 'none' }
+// Attribution per CoinGecko API Terms clause 4 (read 2026-08-29): the message
+// is prescribed, as is a minimum font size of 10.
+const COINGECKO: SourceProvider = {
+  name: 'CoinGecko', host: 'api.coingecko.com', url: 'https://www.coingecko.com/en/api',
+  role: 'primary', auth: 'none',
+  attribution: { text: 'Powered by CoinGecko', href: 'https://www.coingecko.com/en/api', minFontPx: 10 },
+}
 const DEFILLAMA = (host: string): SourceProvider => ({ name: 'DefiLlama', host, url: 'https://defillama.com/docs/api', role: 'primary', auth: 'none' })
 // Yahoo Finance was the `YAHOO` preset here — the keyless primary on six of the
 // entries below — until 2026-08-06, when it was removed as a data source on
@@ -68,7 +93,7 @@ export const DATA_SOURCES: DataSourceEntry[] = [
   {
     id: 'markets', surface: 'Crypto prices, market cap, volume, 24h change', module: 'crypto',
     route: '/live-data/markets', status: 'live',
-    providers: [COINGECKO, { name: 'Binance', host: 'api.binance.com', url: 'https://binance.com', role: 'fallback', auth: 'none' }, { name: 'CoinMarketCap', host: 'pro-api.coinmarketcap.com', url: 'https://coinmarketcap.com/api', role: 'fallback', auth: 'paid' }],
+    providers: [COINGECKO, { name: 'Binance', host: 'api.binance.com', url: 'https://binance.com', role: 'fallback', auth: 'none' }, { name: 'CoinMarketCap', host: 'pro-api.coinmarketcap.com', url: 'https://coinmarketcap.com/api', role: 'fallback', auth: 'paid', attribution: { text: 'Data by CoinMarketCap', href: 'https://coinmarketcap.com/api' } }],
     cadence: '30s client poll · sequential fallback ladder', staticData: ['lib/data/assetCatalog.ts (metadata)'],
     notes: 'Prices live; coin metadata (name, chain, contract) is static reference data, not fabricated.',
   },
@@ -84,6 +109,29 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     route: '/live-data/coin-list', covers: ['coin-search'], status: 'live',
     providers: [COINGECKO, { name: 'Binance.US', host: 'api.binance.us', role: 'fallback', auth: 'none' }],
     cadence: 'on demand',
+  },
+  {
+    // Added 2026-08-30: this route shipped in #120 with no registry entry, so
+    // the CI drift gate went red and — more to the point — it was fetching
+    // CoinGecko outside the source-terms check, and rendering project
+    // descriptions with none of the attribution CoinGecko's API Terms clause 4
+    // requires. Both follow from being registered.
+    id: 'coin-profile', surface: 'Coin project profile (website, description)', module: 'crypto',
+    route: '/live-data/coin-profile', status: 'live',
+    providers: [
+      { name: 'CoinMarketCap', host: 'pro-api.coinmarketcap.com', url: 'https://coinmarketcap.com/api', role: 'primary', auth: 'paid', attribution: { text: 'Data by CoinMarketCap', href: 'https://coinmarketcap.com/api' } },
+      COINGECKO,
+    ],
+    cadence: 'on demand · 24h cache',
+    notes: 'Two-rung ladder: CoinMarketCap when keyed (bulk, 1 credit/100 coins, identity resolved by lib/utils/coinIdentity.ts which declines rather than guesses), else CoinGecko per coin. The keyless rung is switchable off with FN_ALLOW_KEYLESS_COIN_PROFILES=false. Descriptions are sanitized to plain text, never rendered as HTML.',
+  },
+  {
+    // Added 2026-08-30, same reason as coin-profile: shipped in #118 unregistered.
+    id: 'global', surface: 'Global crypto aggregates (BTC dominance, total cap)', module: 'crypto',
+    route: '/live-data/global', status: 'live',
+    providers: [COINGECKO],
+    cadence: '10m revalidate',
+    notes: 'Feeds the Cycle Context tab\'s dominance card. Nullable field by field, so a partial upstream answer serves what it carries.',
   },
   {
     id: 'coin-discovery', surface: 'Coin discovery candidates', module: 'crypto',
@@ -113,12 +161,6 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     id: 'reserves', surface: 'Stablecoin reserves / collateralization', module: 'crypto',
     route: '/live-data/reserves', status: 'live', providers: [DEFILLAMA('stablecoins.llama.fi')],
     notes: 'Supply is live; composition breakdown is approximate / derived from chain distribution, not issuer attestation.',
-  },
-  {
-    id: 'risk-scores', surface: 'Risk scores', module: 'crypto',
-    route: '/live-data/risk-scores', status: 'derived',
-    providers: [DEFILLAMA('stablecoins.llama.fi'), COINGECKO, { name: 'Curated disclosures + news', role: 'derived', auth: 'none' }],
-    cadence: 'on demand', notes: 'Live-computed composites via src/lib/risk. Pillars without data show N/A and drop coverage/confidence.',
   },
   {
     id: 'alerts', surface: 'Alerts (depegs, large moves)', module: 'crypto',
@@ -449,6 +491,24 @@ export interface SourceDescription {
   names: string[]
   /** True when this is our own computation rather than a provider's figure. */
   isDerived: boolean
+}
+
+/**
+ * The attributions this surface is OBLIGED to display, deduplicated by text.
+ *
+ * Returned separately from `describeSource` because they answer different
+ * questions: that one says where the number came from, this one lists what a
+ * licence requires on screen regardless of how we phrase our own provenance.
+ */
+export function requiredAttributions(entry: DataSourceEntry): NonNullable<SourceProvider['attribution']>[] {
+  const seen = new Set<string>()
+  const out: NonNullable<SourceProvider['attribution']>[] = []
+  for (const p of entry.providers) {
+    if (!p.attribution || seen.has(p.attribution.text)) continue
+    seen.add(p.attribution.text)
+    out.push(p.attribution)
+  }
+  return out
 }
 
 export function describeSource(entry: DataSourceEntry): SourceDescription {

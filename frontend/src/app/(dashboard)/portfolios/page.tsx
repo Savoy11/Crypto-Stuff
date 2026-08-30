@@ -24,7 +24,7 @@ import {
   type Portfolio, type PortfolioHolding,
 } from '@/lib/data/portfolioUtils'
 import type { PortfolioPricesResponse } from '@/app/live-data/portfolio-prices/route'
-import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, formatInstrumentQuote, type Instrument } from '@/lib/data/instruments'
+import { INSTRUMENTS, INSTRUMENT_BY_KEY, CLASS_LABELS, formatInstrumentQuote, type InstrumentClass } from '@/lib/data/instruments'
 import { fetchInstrumentPrices } from '@/lib/api/instrumentPrices'
 import type { PortfolioHistoryResponse } from '@/app/live-data/portfolio-history/route'
 import { PortfolioLookThrough } from '@/components/portfolio/PortfolioLookThrough'
@@ -37,6 +37,23 @@ function fmt$(n: number, decimals = 2) {
   if (n >= 1e3) return `$${(n / 1e3).toFixed(decimals)}K`
   return `$${n.toFixed(decimals)}`
 }
+/**
+ * What the entry-price box is denominated in. '$' is only right for USD-quoted
+ * assets; corn quotes in cents/bushel, ^TNX is a percent yield, bond futures
+ * are points of par, FX pairs are the quote currency. The stored ratio math is
+ * unit-agnostic (entry and current just have to share a unit) — this label is
+ * what tells the user WHICH unit to type.
+ */
+function entryUnitLabel(key: string): string {
+  const q = INSTRUMENT_BY_KEY[key]?.quoteKind
+  if (q === 'cents') return '¢'
+  if (q === 'percent') return '%'
+  if (q === 'points') return 'pts'
+  if (q === 'index') return 'idx'
+  if (q === 'fx') return INSTRUMENT_BY_KEY[key]?.quoteCurrency ?? 'fx'
+  return '$'
+}
+
 function fmtPct(n: number, showSign = true) {
   const sign = showSign && n > 0 ? '+' : ''
   return `${sign}${n.toFixed(2)}%`
@@ -45,13 +62,15 @@ function pnlColor(n: number | null) {
   if (n == null) return 'text-text-muted'
   return n >= 0 ? 'text-emerald-400' : 'text-red-400'
 }
-function riskColor(s: number) {
+function riskColor(s: number | null) {
+  if (s === null) return 'text-text-muted'
   if (s <= 3) return 'text-emerald-400'
   if (s <= 5) return 'text-amber-400'
   if (s <= 7) return 'text-orange-400'
   return 'text-red-400'
 }
-function riskBg(s: number) {
+function riskBg(s: number | null) {
+  if (s === null) return 'bg-bg-elevated'
   if (s <= 3) return 'bg-emerald-400'
   if (s <= 5) return 'bg-amber-400'
   if (s <= 7) return 'bg-orange-400'
@@ -95,7 +114,7 @@ function PortfolioCard({ portfolio, onSelect, onDelete }: {
           <div className="text-xs text-text-muted">Capital</div>
         </div>
         <div>
-          <div className={clsx('text-lg font-bold', riskColor(metrics.weightedRisk))}>{metrics.weightedRisk}</div>
+          <div className={clsx('text-lg font-bold', riskColor(metrics.weightedRisk))}>{metrics.weightedRisk ?? '—'}</div>
           <div className="text-xs text-text-muted">Risk / 10</div>
         </div>
         <div>
@@ -160,7 +179,7 @@ function HoldingRow({ holding, total, onUpdate, onRemove, disabled }: {
       {/* Entry price */}
       <div className="col-span-4">
         <div className="flex items-center gap-1">
-          <span className="text-xs text-text-muted">$</span>
+          <span className="text-xs text-text-muted">{entryUnitLabel(holding.cgId)}</span>
           <input type="number" min="0" step="any" placeholder="Entry price"
             value={holding.entryPrice ?? ''}
             onChange={e => onUpdate('entryPrice', e.target.value === '' ? null : parseFloat(e.target.value))}
@@ -179,6 +198,75 @@ function HoldingRow({ holding, total, onUpdate, onRemove, disabled }: {
   )
 }
 
+// ─── Add-search plumbing ──────────────────────────────────────────────────────
+
+/** One row in the add-holding picker, whichever universe it came from. */
+interface AddCandidate {
+  key: string          // storage key: CoinGecko id, or 'sec:' + symbol
+  symbol: string
+  name: string
+  class: InstrumentClass
+  color?: string
+  /** True when this came from a network lookup rather than the local catalogs. */
+  remote: boolean
+}
+
+async function searchRemoteCandidates(q: string): Promise<AddCandidate[]> {
+  const [coins, stocks, funds] = await Promise.allSettled([
+    fetch(`/live-data/coin-search?q=${encodeURIComponent(q)}`).then(r => r.json()) as Promise<{
+      coins?: { cgId: string; symbol: string; name: string }[]
+    }>,
+    // ?q= searches the whole universe by name OR ticker (added for the Market
+    // News search, #115) — this replaced an exact-symbol lookup here, which
+    // could only find a stock you already knew the ticker of. Keyless it
+    // answers from the curated catalog; the local matches already cover that,
+    // so the dedupe below simply drops the echoes.
+    fetch(`/live-data/stock-universe?q=${encodeURIComponent(q)}`).then(r => r.json()) as Promise<{
+      ok?: boolean; entries?: { symbol: string; name: string }[]
+    }>,
+    // Every US-listed ETF + registered mutual fund share class (NASDAQ Trader
+    // + SEC directories, keyless). The type comes from the directory, so an
+    // added fund is labeled ETF / Mutual fund, not lumped in as a stock.
+    fetch(`/live-data/fund-universe?q=${encodeURIComponent(q)}`).then(r => r.json()) as Promise<{
+      ok?: boolean; entries?: { symbol: string; name: string; type: 'etf' | 'mutual' }[]
+    }>,
+  ])
+
+  const out: AddCandidate[] = []
+  const seen = new Set<string>()
+  const push = (c: AddCandidate) => {
+    if (!seen.has(c.key)) { seen.add(c.key); out.push(c) }
+  }
+  if (coins.status === 'fulfilled') {
+    for (const c of (coins.value.coins ?? []).slice(0, 8)) {
+      push({ key: c.cgId, symbol: c.symbol, name: c.name, class: 'crypto', remote: true })
+    }
+  }
+  // Funds before stocks: an ETF can appear in BOTH directories under the same
+  // 'sec:' key (FMP's screener carries ETF rows too), and first-in wins the
+  // dedupe — it should be labeled ETF, not Stock.
+  if (funds.status === 'fulfilled' && funds.value.ok) {
+    for (const e of funds.value.entries ?? []) {
+      push({ key: `sec:${e.symbol}`, symbol: e.symbol, name: e.name, class: e.type === 'etf' ? 'etf' : 'mutual', remote: true })
+    }
+  }
+  if (stocks.status === 'fulfilled' && stocks.value.ok) {
+    for (const e of stocks.value.entries ?? []) {
+      push({ key: `sec:${e.symbol}`, symbol: e.symbol, name: e.name, class: 'equity', remote: true })
+    }
+  }
+  return out
+}
+
+function useDebounced(value: string, ms: number): string {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return v
+}
+
 // ─── Portfolio builder / editor ───────────────────────────────────────────────
 
 function PortfolioEditor({ existing, onSave, onCancel }: {
@@ -194,22 +282,63 @@ function PortfolioEditor({ existing, onSave, onCancel }: {
   const [coinSearch, setCoinSearch] = useState('')
   const [errors, setErrors] = useState<string[]>([])
 
-  const filteredCoins: Instrument[] = useMemo(() => {
-    const q = coinSearch.toLowerCase()
+  // ── Search: the whole suite's universe, not just the curated catalogs ──────
+  //
+  // Local instruments answer instantly — all seven classes (coins, stocks,
+  // ETFs, mutual funds, commodities, currencies, rates). On top of that, two
+  // remote lookups widen the universe to what the app actually tracks:
+  //   · /live-data/coin-search — any coin CoinGecko carries (the Coin
+  //     Discovery universe), priced by the same portfolio-prices route.
+  //   · /live-data/stock-universe?symbol= — any quotable ticker (the Stock
+  //     Registry universe). Keyless it answers only the curated catalog, so
+  //     the remote rung simply adds nothing without an FMP key — the same
+  //     asset that couldn't be found couldn't have been priced either.
+  // Both are additive and deduplicated against local results; a remote failure
+  // degrades to local-only rather than erroring the picker.
+  const localMatches: AddCandidate[] = useMemo(() => {
+    const q = coinSearch.trim().toLowerCase()
+    if (!q) return []
     return INSTRUMENTS.filter(c =>
       !holdings.some(h => h.cgId === c.cgId) &&
       (c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q))
-    ).slice(0, 20)
+    ).slice(0, 20).map(c => ({
+      key: c.cgId, symbol: c.symbol, name: c.name, class: c.class, color: c.color, remote: false,
+    }))
   }, [coinSearch, holdings])
+
+  const debouncedSearch = useDebounced(coinSearch.trim(), 350)
+  const { data: remoteData } = useQuery<AddCandidate[]>({
+    queryKey: ['portfolio-add-search', debouncedSearch],
+    queryFn: () => searchRemoteCandidates(debouncedSearch),
+    // Only reach out when the query is real and local coverage is thin —
+    // 2 chars of "bt" already shows BTC locally; no need to hit the network.
+    enabled: debouncedSearch.length >= 2,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+
+  const filteredCoins: AddCandidate[] = useMemo(() => {
+    const seen = new Set(localMatches.map(c => c.key))
+    for (const h of holdings) seen.add(h.cgId)
+    // Local symbols too: CoinGecko search returns bitcoin even though the
+    // catalog carries it — the catalog row (with its vetted metadata) wins.
+    for (const c of localMatches) seen.add(c.symbol.toUpperCase())
+    const remote = (remoteData ?? []).filter(c => {
+      if (seen.has(c.key) || seen.has(c.symbol.toUpperCase())) return false
+      seen.add(c.key)
+      return true
+    })
+    return [...localMatches, ...remote].slice(0, 24)
+  }, [localMatches, remoteData, holdings])
 
   const allocTotal = holdings.reduce((s, h) => s + (h.targetAlloc || 0), 0)
 
-  function addHolding(coin: Instrument) {
+  function addHolding(coin: AddCandidate) {
     const even = parseFloat((100 / (holdings.length + 1)).toFixed(1))
     // Redistribute evenly
     const updated: PortfolioHolding[] = holdings.map(h => ({ ...h, targetAlloc: even }))
     updated.push({
-      cgId: coin.cgId, symbol: coin.symbol, name: coin.name,
+      cgId: coin.key, symbol: coin.symbol, name: coin.name,
       targetAlloc: even, entryPrice: null, addedAt: new Date().toISOString(),
     })
     setHoldings(updated)
@@ -309,27 +438,36 @@ function PortfolioEditor({ existing, onSave, onCancel }: {
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
           <input className="w-full pl-8 pr-3 py-2 bg-bg-elevated border border-border rounded-lg text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent-blue"
-            placeholder="Search to add a coin, stock, or fund…"
+            placeholder="Search to add a coin, stock, ETF, fund, commodity, currency, or rate…"
             value={coinSearch} onChange={e => setCoinSearch(e.target.value)} />
         </div>
         {coinSearch.length > 0 && (
           <div className="border border-border rounded-lg overflow-hidden divide-y divide-border/50 max-h-48 overflow-y-auto">
             {filteredCoins.length === 0
-              ? <div className="py-3 text-center text-xs text-text-muted">No matching coins</div>
+              ? <div className="py-3 text-center text-xs text-text-muted">No matches across coins, stocks, funds, or macro instruments</div>
               : filteredCoins.map(coin => (
-                <button key={coin.cgId} onClick={() => addHolding(coin)}
+                <button key={coin.key} onClick={() => addHolding(coin)}
                   className="w-full flex items-center gap-3 px-3 py-2 hover:bg-bg-elevated transition-colors text-left">
                   <div className="size-6 rounded-full shrink-0 flex items-center justify-center text-[9px] font-bold text-white"
-                    style={{ backgroundColor: coin.color }}>
+                    style={{ backgroundColor: coin.color ?? '#64748b' }}>
                     {coin.symbol.slice(0, 2)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-xs font-semibold text-text-primary">{coin.symbol}</span>
                     <span className="text-xs text-text-muted ml-1.5">{coin.name}</span>
                   </div>
+                  {/* Class, not crypto-category: the old chip indexed
+                      CATEGORY_META with a crypto key, rendering blank for
+                      stocks/funds and "Unknown" for macro. */}
                   <span className="text-[10px] text-text-muted px-1.5 py-0.5 rounded bg-bg-card border border-border">
-                    {CATEGORY_META[coin.category]?.label}
+                    {CLASS_LABELS[coin.class]}
                   </span>
+                  {coin.remote && (
+                    <span className="text-[10px] text-accent-blue/80 px-1.5 py-0.5 rounded bg-accent-blue/10"
+                      title="Found by live lookup rather than the curated catalogs — no vetted risk tier, so it is excluded from the weighted risk figure, not defaulted.">
+                      lookup
+                    </span>
+                  )}
                   <Plus size={12} className="text-accent-blue shrink-0" />
                 </button>
               ))
@@ -623,9 +761,17 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
           </div>
         )}
         <div className="bg-bg-card border border-border rounded-xl p-4 text-center">
-          <div className={clsx('text-xl font-bold', riskColor(metrics.weightedRisk))}>{metrics.weightedRisk}</div>
+          <div className={clsx('text-xl font-bold', riskColor(metrics.weightedRisk))}>{metrics.weightedRisk ?? '—'}</div>
           <div className="text-xs text-text-muted mt-0.5">Weighted Risk</div>
-          <div className={clsx('text-[10px] mt-0.5', RISK_LABEL_COLOR[metrics.riskLabel])}>{metrics.riskLabel}</div>
+          {metrics.riskLabel !== null && (
+            <div className={clsx('text-[10px] mt-0.5', RISK_LABEL_COLOR[metrics.riskLabel])}>{metrics.riskLabel}</div>
+          )}
+          {/* The number describes only the assessed slice — say so whenever
+              that slice is not the whole portfolio, or a 3.2 over a third of
+              the capital reads as a 3.2 over all of it. */}
+          {metrics.weightedRisk !== null && metrics.riskCoveredPct < 99.5 && (
+            <div className="text-[10px] text-amber-400 mt-0.5">covers {metrics.riskCoveredPct.toFixed(0)}% of allocation</div>
+          )}
         </div>
         <div className="bg-bg-card border border-border rounded-xl p-4 text-center">
           <div className="text-xl font-bold text-emerald-400">{annualIncome.covered > 0 ? fmt$(annualIncome.income, 0) : '—'}</div>
@@ -726,7 +872,9 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
                     style={{ backgroundColor: h.color }}>{h.symbol.slice(0, 2)}</div>
                   <div>
                     <div className="font-semibold text-text-primary">{h.symbol}</div>
-                    <div className="text-[10px] text-text-muted">{CATEGORY_META[h.category]?.label}</div>
+                    <div className="text-[10px] text-text-muted">
+                      {h.class === 'crypto' ? CATEGORY_META[h.category]?.label ?? 'Crypto' : CLASS_LABELS[h.class]}
+                    </div>
                   </div>
                 </div>
                 <div className="col-span-2 text-right font-mono text-text-secondary">{h.targetAlloc.toFixed(1)}%</div>
@@ -757,7 +905,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-3">
-                {holdings.sort((a, b) => b.riskTier - a.riskTier).map(h => (
+                {[...holdings].sort((a, b) => (b.riskTier ?? -1) - (a.riskTier ?? -1)).map(h => (
                   <div key={h.cgId}>
                     <div className="flex items-center justify-between text-xs mb-1">
                       <span className="flex items-center gap-1.5">
@@ -765,19 +913,26 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
                         <span className="font-semibold text-text-primary">{h.symbol}</span>
                         <span className="text-text-muted text-[10px]">{h.targetAlloc.toFixed(0)}% weight</span>
                       </span>
-                      <span className={clsx('font-mono', riskColor(h.riskTier))}>{h.riskTier}/10</span>
+                      <span className={clsx('font-mono', riskColor(h.riskTier))} title={h.riskTier === null ? 'No vetted risk tier for this asset — it is excluded from the weighted figure, not defaulted' : undefined}>
+                        {h.riskTier === null ? 'not rated' : `${h.riskTier}/10`}
+                      </span>
                     </div>
                     <div className="h-1.5 bg-bg-elevated rounded-full overflow-hidden">
-                      <div className={clsx('h-full rounded-full', riskBg(h.riskTier))} style={{ width: `${(h.riskTier / 10) * 100}%` }} />
+                      <div className={clsx('h-full rounded-full', riskBg(h.riskTier))} style={{ width: `${((h.riskTier ?? 0) / 10) * 100}%` }} />
                     </div>
                   </div>
                 ))}
               </div>
               <div className="space-y-3">
                 <div className="bg-bg-elevated rounded-xl p-4 border border-border text-center">
-                  <div className={clsx('text-3xl font-bold font-mono', riskColor(metrics.weightedRisk))}>{metrics.weightedRisk}</div>
+                  <div className={clsx('text-3xl font-bold font-mono', riskColor(metrics.weightedRisk))}>{metrics.weightedRisk ?? '—'}</div>
                   <div className="text-xs text-text-muted mt-1">Weighted Portfolio Risk</div>
-                  <div className={clsx('text-sm font-semibold mt-1', RISK_LABEL_COLOR[metrics.riskLabel])}>{metrics.riskLabel}</div>
+                  {metrics.riskLabel !== null && (
+                    <div className={clsx('text-sm font-semibold mt-1', RISK_LABEL_COLOR[metrics.riskLabel])}>{metrics.riskLabel}</div>
+                  )}
+                  {metrics.weightedRisk !== null && metrics.riskCoveredPct < 99.5 && (
+                    <div className="text-[10px] text-amber-400 mt-1">Assessed holdings cover {metrics.riskCoveredPct.toFixed(0)}% of allocation; the rest carries no vetted tier</div>
+                  )}
                 </div>
                 <div className="bg-bg-elevated rounded-xl p-3 border border-border space-y-1.5">
                   <div className="flex justify-between text-xs">

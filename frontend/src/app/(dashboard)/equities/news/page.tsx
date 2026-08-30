@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
 import { Newspaper, ExternalLink, Clock, Tag, Zap, Loader2, RefreshCw, Search, X } from 'lucide-react'
@@ -12,6 +12,7 @@ import { applyBias, shouldAugmentFetch } from '@/lib/watchlist/bias'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { EQUITY_CATALOG } from '@/lib/data/equityCatalog'
+import { FUND_CATALOG } from '@/lib/data/fundCatalog'
 import type { MarketArticle, MarketNewsCategory, MarketNewsResponse } from '@/app/live-data/market-news/route'
 import { timeAgoCompact } from '@/lib/utils/format'
 
@@ -123,8 +124,175 @@ function ArticleCard({ article }: { article: MarketArticle }) {
   )
 }
 
+// ─── Symbol search ────────────────────────────────────────────────────────────
+//
+// This replaced a <select> over the 79-stock equity catalog. A dropdown can
+// only offer what it enumerates, and the suite's equity scope is wider than
+// that: the fund catalog's ETFs and mutual funds, and any ticker at all — the
+// route matches an off-catalog symbol by $CASHTAG / exact-word mention, so an
+// arbitrary ticker is a legitimate query, not a typo to reject.
+
+interface SymbolOption {
+  symbol: string
+  name: string
+  kind: 'Stock' | 'ETF' | 'Mutual fund'
+  /** True when this row came from a live universe directory, not the catalogs. */
+  remote?: boolean
+}
+
+/**
+ * The live universes behind the typeahead. The catalogs answer instantly but
+ * they are curated shortlists (79 stocks, 126 funds) — the actual scope is
+ * every US-listed security: stock-universe?q= (FMP screener when keyed,
+ * catalog when not) and fund-universe?q= (NASDAQ ETF directory + SEC mutual
+ * fund dataset, keyless). Both filter day-cached directories server-side.
+ */
+async function searchUniverses(q: string): Promise<SymbolOption[]> {
+  const [stocks, funds] = await Promise.allSettled([
+    fetch(`/live-data/stock-universe?q=${encodeURIComponent(q)}`).then((r) => r.json()) as Promise<{
+      entries?: { symbol: string; name: string }[]
+    }>,
+    fetch(`/live-data/fund-universe?q=${encodeURIComponent(q)}`).then((r) => r.json()) as Promise<{
+      entries?: { symbol: string; name: string; type: 'etf' | 'mutual' }[]
+    }>,
+  ])
+  const out: SymbolOption[] = []
+  if (stocks.status === 'fulfilled') {
+    for (const e of stocks.value.entries ?? []) out.push({ symbol: e.symbol, name: e.name, kind: 'Stock', remote: true })
+  }
+  if (funds.status === 'fulfilled') {
+    for (const e of funds.value.entries ?? []) {
+      out.push({ symbol: e.symbol, name: e.name, kind: e.type === 'etf' ? 'ETF' : 'Mutual fund', remote: true })
+    }
+  }
+  return out
+}
+
+function useDebounced(value: string, ms: number): string {
+  const [v, setV] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setV(value), ms)
+    return () => clearTimeout(t)
+  }, [value, ms])
+  return v
+}
+
+const SYMBOL_UNIVERSE: SymbolOption[] = [
+  ...EQUITY_CATALOG.map((e) => ({ symbol: e.symbol, name: e.name, kind: 'Stock' as const })),
+  ...FUND_CATALOG.map((f) => ({ symbol: f.symbol, name: f.name, kind: f.type === 'etf' ? 'ETF' as const : 'Mutual fund' as const })),
+]
+
+function SymbolSearch({ value, selectedName, onChange }: { value: string; selectedName?: string; onChange: (symbol: string, name?: string) => void }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const localMatches = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return []
+    return SYMBOL_UNIVERSE.filter(
+      (o) => o.symbol.toLowerCase().includes(q) || o.name.toLowerCase().includes(q)
+    ).slice(0, 12)
+  }, [query])
+
+  const debounced = useDebounced(query.trim(), 350)
+  const { data: remoteMatches } = useQuery<SymbolOption[]>({
+    queryKey: ['symbol-universe-search', debounced],
+    queryFn: () => searchUniverses(debounced),
+    enabled: debounced.length >= 2,
+    staleTime: 5 * 60_000,
+    retry: false,
+  })
+
+  const matches = useMemo(() => {
+    const seen = new Set(localMatches.map((o) => o.symbol))
+    const remote = (remoteMatches ?? []).filter((o) => {
+      if (seen.has(o.symbol)) return false
+      seen.add(o.symbol)
+      return true
+    })
+    return [...localMatches, ...remote].slice(0, 16)
+  }, [localMatches, remoteMatches])
+
+  // Ticker-shaped input that no catalog carries is still searchable — the news
+  // route matches it on explicit mention. Offered as its own labeled row so
+  // picking it is a choice, never a silent fallback.
+  const freeTicker = useMemo(() => {
+    const q = query.trim().toUpperCase()
+    return /^[A-Z0-9.\-]{1,6}$/.test(q) && !SYMBOL_UNIVERSE.some((o) => o.symbol === q) ? q : null
+  }, [query])
+
+  const pick = (symbol: string, name?: string) => {
+    onChange(symbol, name)
+    setQuery('')
+    setOpen(false)
+  }
+
+  if (value !== 'all') {
+    const displayName = SYMBOL_UNIVERSE.find((o) => o.symbol === value)?.name ?? selectedName
+    return (
+      <span className="flex items-center gap-1.5 rounded-lg border border-accent-blue/30 bg-accent-blue/10 px-2.5 py-1.5 text-xs text-accent-blue">
+        <span className="font-semibold">{value}</span>
+        {displayName && <span className="max-w-40 truncate text-accent-blue/70">{displayName}</span>}
+        <button onClick={() => onChange('all')} aria-label={`Clear symbol filter ${value}`}
+          className="text-accent-blue/70 transition-colors hover:text-accent-blue">
+          <X size={12} />
+        </button>
+      </span>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
+      <input
+        value={query}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true) }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        placeholder="Search any US-listed stock, ETF, or fund…"
+        aria-label="Filter news by symbol"
+        className="w-60 rounded-lg border border-border bg-bg-secondary py-1.5 pl-8 pr-3 text-xs text-text-primary placeholder:text-text-muted focus:border-accent-blue/60 focus:outline-none"
+      />
+      {open && query.trim().length > 0 && (
+        <div className="absolute left-0 top-full z-20 mt-1 max-h-64 w-80 overflow-y-auto rounded-lg border border-border bg-bg-card shadow-lg divide-y divide-border/50">
+          {matches.map((o) => (
+            <button key={o.symbol} onMouseDown={() => pick(o.symbol, o.name)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-elevated">
+              <span className="text-xs font-semibold text-text-primary">{o.symbol}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-text-muted">{o.name}</span>
+              <span className="rounded border border-border bg-bg-secondary px-1.5 py-0.5 text-[10px] text-text-muted">{o.kind}</span>
+              {o.remote && (
+                <span className="rounded bg-accent-blue/10 px-1.5 py-0.5 text-[10px] text-accent-blue/80"
+                  title="From the live listing directories (every US-listed security), not the curated catalogs.">
+                  listed
+                </span>
+              )}
+            </button>
+          ))}
+          {freeTicker && (
+            <button onMouseDown={() => pick(freeTicker)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-bg-elevated">
+              <span className="text-xs font-semibold text-text-primary">{freeTicker}</span>
+              <span className="min-w-0 flex-1 truncate text-xs text-text-muted">
+                any ticker — matches stories that print ${freeTicker} or the bare symbol
+              </span>
+            </button>
+          )}
+          {matches.length === 0 && !freeTicker && (
+            <div className="px-3 py-2.5 text-center text-xs text-text-muted">No matching US-listed stock, ETF, or mutual fund</div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EquityNewsContent() {
   const [symbolFilter, setSymbolFilter] = useState('all')
+  // The picked option's display name, passed to the route so an off-catalog
+  // fund or stock can be matched by its official listing name, not just its
+  // ticker — a mutual fund's ticker (VFIAX) rarely appears in a headline.
+  const [symbolName, setSymbolName] = useState<string | undefined>(undefined)
   const [categoryFilter, setCategoryFilter] = useState<MarketNewsCategory | 'all'>('all')
   const [sentimentFilter, setSentimentFilter] = useState<'all' | 'positive' | 'neutral' | 'negative'>('all')
   const [keywordInput, setKeywordInput] = useState('')
@@ -138,10 +306,13 @@ function EquityNewsContent() {
   const biasSymbolsKey = biasSymbols.join(',')
 
   const { data, isLoading, isFetching, refetch } = useQuery<MarketNewsResponse>({
-    queryKey: ['equity-news', symbolFilter, biasSymbolsKey],
+    queryKey: ['equity-news', symbolFilter, symbolName, biasSymbolsKey],
     queryFn: () => {
       const params = new URLSearchParams({ limit: '50' })
-      if (symbolFilter !== 'all') params.set('symbol', symbolFilter)
+      if (symbolFilter !== 'all') {
+        params.set('symbol', symbolFilter)
+        if (symbolName) params.set('name', symbolName)
+      }
       // At Strong/Only the route matches articles against the watchlist tickers,
       // which widens coverage rather than just reordering. Skipped when the user
       // has picked a specific symbol — that's a more explicit intent.
@@ -199,7 +370,7 @@ function EquityNewsContent() {
             description="Aggregates stock-market headlines from MarketWatch and CNBC RSS feeds. Each article is classified by category, scored for sentiment from headline keywords, and tagged with catalog tickers it mentions."
             details={[
               { label: 'Ticker detection', text: 'Company-name matching plus $CASHTAG / uppercase ticker matching against the equity catalog. Ticker chips link to the stock detail page.' },
-              { label: 'Symbol filter', text: 'Selecting a symbol keeps the articles that actually name the company. Finance Now has no per-ticker news feed — the only free one was withdrawn on terms grounds — so a symbol with no coverage today returns nothing rather than general market stories relabelled as its own.' },
+              { label: 'Symbol search', text: 'Search any stock, ETF, or mutual fund — catalog names match on company/fund name and ticker; a ticker outside the catalogs matches on explicit mention ($SYM or the bare symbol) only, since there is no name to look for. Finance Now has no per-ticker news feed — the only free one was withdrawn on terms grounds — so a symbol with no coverage today returns nothing rather than general market stories relabelled as its own.' },
             ]}
           />
         </div>
@@ -224,16 +395,7 @@ function EquityNewsContent() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Symbol:</span>
-            <select
-              value={symbolFilter}
-              onChange={(e) => setSymbolFilter(e.target.value)}
-              className="bg-bg-secondary border border-border rounded px-2 py-1.5 text-xs text-text-secondary focus:outline-none focus:border-accent-blue/60"
-            >
-              <option value="all">All Stocks</option>
-              {EQUITY_CATALOG.map((e) => (
-                <option key={e.symbol} value={e.symbol}>{e.name} ({e.symbol})</option>
-              ))}
-            </select>
+            <SymbolSearch value={symbolFilter} selectedName={symbolName} onChange={(sym, name) => { setSymbolFilter(sym); setSymbolName(name) }} />
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-text-muted">Sentiment:</span>

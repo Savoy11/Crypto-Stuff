@@ -12,6 +12,8 @@ import { LiveUnavailable } from '@/components/ui/LiveUnavailable'
 import { EQUITY_CATALOG, SECTOR_INFO, getEquity } from '@/lib/data/equityCatalog'
 import { FUND_CATALOG, getFund } from '@/lib/data/fundCatalog'
 import { ASSET_CATALOG } from '@/lib/data/assetCatalog'
+import { INSTRUMENTS, securitySymbol, type InstrumentClass } from '@/lib/data/instruments'
+import { compareAssetClasses, CLASS_PROFILES } from '@/lib/data/assetClassProfiles'
 import { CHART_COLORS, STALE_TIME_LONG } from '@/lib/constants'
 import { formatCompact, formatRatio } from '@/lib/utils/format'
 import {
@@ -29,18 +31,27 @@ import type { SecurityChartResponse } from '@/app/live-data/security-chart/route
 import type { CompanyFactsResponse } from '@/app/live-data/company-facts/route'
 import { FundOverlapSection } from '@/components/markets/FundOverlapSection'
 
-// Cross-module comparison of 2–6 stocks, ETFs, funds AND crypto: a normalized
+// Cross-module comparison of 2–6 assets of ANY class — stocks, ETFs, mutual
+// funds, crypto, commodities, currencies, rate indices: a normalized
 // growth-of-100 chart, computed window performance (return / volatility /
 // drawdown / Sharpe from the live series), a return-correlation matrix, and a
 // labeled reference-fundamentals table. Selection + range are URL-deep-linkable.
 
-type Kind = 'stock' | 'fund' | 'crypto'
-interface Option { symbol: string; name: string; kind: Kind; id?: string }
+type Kind = 'stock' | 'fund' | 'crypto' | 'macro'
+interface Option { symbol: string; name: string; kind: Kind; cls: InstrumentClass; id?: string }
 
 const OPTIONS: Option[] = [
-  ...EQUITY_CATALOG.map((e) => ({ symbol: e.symbol, name: e.name, kind: 'stock' as const })),
-  ...FUND_CATALOG.map((f) => ({ symbol: f.symbol, name: f.name, kind: 'fund' as const })),
-  ...ASSET_CATALOG.map((a) => ({ symbol: a.symbol, name: a.name, kind: 'crypto' as const, id: a.id })),
+  ...EQUITY_CATALOG.map((e) => ({ symbol: e.symbol, name: e.name, kind: 'stock' as const, cls: 'equity' as const })),
+  ...FUND_CATALOG.map((f) => ({ symbol: f.symbol, name: f.name, kind: 'fund' as const, cls: (f.type === 'etf' ? 'etf' : 'mutual') as InstrumentClass })),
+  ...ASSET_CATALOG.map((a) => ({ symbol: a.symbol, name: a.name, kind: 'crypto' as const, cls: 'crypto' as const, id: a.id })),
+  // Macro instruments (commodities, FX pairs, yield indices) price through the
+  // same security-chart route stocks and funds use — zero new plumbing, per
+  // the P2-R3 integration. Coverage is provider-dependent since the Yahoo
+  // removal; a symbol with no history lands in the existing `missing` banner
+  // rather than silently vanishing.
+  ...INSTRUMENTS.filter((i) => ['commodity', 'currency', 'rate'].includes(i.class)).map((i) => ({
+    symbol: securitySymbol(i.key), name: i.name, kind: 'macro' as const, cls: i.class,
+  })),
 ]
 const OPTION_BY_SYMBOL = new Map<string, Option>()
 for (const o of OPTIONS) if (!OPTION_BY_SYMBOL.has(o.symbol)) OPTION_BY_SYMBOL.set(o.symbol, o)
@@ -155,8 +166,10 @@ function statRows(symbol: string): Array<[string, string]> {
       ['Expense ratio', `${f.expenseRatioPct}%`],
     ]
   }
-  if (OPTION_BY_SYMBOL.get(symbol)?.kind === 'crypto') {
-    return [['Type', 'Crypto'], ['Sector', '—'], ['Market cap', '—'], ['P/E (TTM)', '—'], ['Dividend yield', '—'], ['Beta (5Y)', '—'], ['Expense ratio', '—']]
+  const opt = OPTION_BY_SYMBOL.get(symbol)
+  if (opt?.kind === 'crypto' || opt?.kind === 'macro') {
+    const label = opt.kind === 'crypto' ? 'Crypto' : CLASS_PROFILES[opt.cls].label
+    return [['Type', label], ['Sector', '—'], ['Market cap', '—'], ['P/E (TTM)', '—'], ['Dividend yield', '—'], ['Beta (5Y)', '—'], ['Expense ratio', '—']]
   }
   return []
 }
@@ -315,6 +328,13 @@ function CompareInner() {
 
   const corr = useMemo(() => correlationMatrix(series.filter((s) => s.points.length > 1)), [series])
 
+  // Structural cross-class comparison — null for a single-class selection,
+  // where there is nothing structural to say.
+  const classComparison = useMemo(
+    () => compareAssetClasses(symbols.map((s) => OPTION_BY_SYMBOL.get(s)?.cls).filter((c): c is InstrumentClass => !!c)),
+    [symbols],
+  )
+
   const loading = chartQueries.some((q) => q.isLoading)
   const anyStats = perf.some((p) => p.stats !== null)
 
@@ -324,8 +344,8 @@ function CompareInner() {
         <GitCompareArrows className="h-6 w-6 text-accent-blue" aria-hidden />
         <PageHeader
           title="Compare"
-          subtitle="Side-by-side stocks, funds and crypto — normalized performance, risk stats, correlation"
-          description="Pick 2–6 stocks, ETFs, mutual funds, or coins. The chart normalizes every series to 100 at the common start date; the stats below are computed from the live price series over the selected window."
+          subtitle="Side-by-side across every asset class — normalized performance, risk stats, correlation"
+          description="Pick 2–6 assets of any type — stocks, ETFs, mutual funds, coins, commodities, currencies, or rate indices. The chart normalizes every series to 100 at the common start date; the stats below are computed from the live price series over the selected window."
           details={[
             { label: 'Performance stats', text: 'Return, volatility, drawdown and Sharpe are derived from the fetched history over the current range.' },
             { label: 'Fundamentals', text: 'The reference table shows approximate catalog values, labeled per the suite convention.' },
@@ -361,7 +381,7 @@ function CompareInner() {
                   <button key={`${o.kind}-${o.symbol}`} onClick={() => { setSymbols([...symbols, o.symbol]); setSearch('') }}
                     className="w-full flex items-center justify-between px-3 py-2 text-left text-sm text-text-secondary hover:bg-bg-elevated hover:text-text-primary transition-colors">
                     <span className="truncate"><span className="font-mono font-medium">{o.symbol}</span> — {o.name}</span>
-                    <span className="text-[10px] text-text-muted ml-2 capitalize">{o.kind}</span>
+                    <span className="text-[10px] text-text-muted ml-2">{CLASS_PROFILES[o.cls].label}</span>
                   </button>
                 ))}
               </div>
@@ -538,6 +558,75 @@ function CompareInner() {
       )}
 
       {/* Holdings overlap — funds only; a stock has no portfolio to compare. */}
+      {/* Cross-class structural comparison. The numbers above treat every
+          series as just a price line; this panel says what KINDS of thing are
+          actually being compared — a stock and a coin can print the same 1Y
+          return while one is a claim on cash flows and the other is not a
+          claim on anything. Facts only, class-level only, never advice. */}
+      {classComparison && (
+        <div className="rounded-card border border-border bg-bg-card p-4 space-y-4">
+          <h2 className="text-sm font-medium text-text-secondary">
+            Comparing different asset types
+            <span className="text-text-muted font-normal"> — {classComparison.classes.map((c) => CLASS_PROFILES[c].label).join(' vs ')}</span>
+          </h2>
+
+          <div className="flex flex-wrap gap-2">
+            {classComparison.classes.map((c) => (
+              <span key={c} className="rounded-lg border border-border bg-bg-elevated px-2.5 py-1.5 text-xs">
+                <span className="font-semibold text-text-primary">{CLASS_PROFILES[c].label}</span>
+                <span className="text-text-muted"> — {CLASS_PROFILES[c].whatItIs}</span>
+              </span>
+            ))}
+          </div>
+
+          {classComparison.similarities.length > 0 && (
+            <div>
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-emerald-400/80">Shared</h3>
+              <ul className="space-y-0.5 text-xs text-text-secondary">
+                {classComparison.similarities.map((r) => (
+                  <li key={r.dimension}>
+                    <span className="text-text-muted">{r.label}:</span> {Object.values(r.values)[0]}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-amber-400/80">Where they differ</h3>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="py-2 pr-3 text-left font-medium uppercase tracking-wider text-text-muted">Dimension</th>
+                  {classComparison.classes.map((c) => (
+                    <th key={c} className="py-2 px-3 text-left font-semibold text-text-primary">{CLASS_PROFILES[c].label}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/60">
+                {classComparison.differences.map((r) => (
+                  <tr key={r.dimension}>
+                    <td className="py-2 pr-3 align-top text-text-muted">{r.label}</td>
+                    {classComparison.classes.map((c) => (
+                      <td key={c} className="py-2 px-3 align-top text-text-secondary">{r.values[c]}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {classComparison.caveats.length > 0 && (
+            <div className="rounded-lg border border-border bg-bg-elevated px-3 py-2.5">
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wider text-text-muted">Reading the numbers above with this mix</h3>
+              <ul className="list-disc space-y-1 pl-4 text-xs leading-relaxed text-text-muted">
+                {classComparison.caveats.map((c, i) => <li key={i}>{c}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       <FundOverlapSection symbols={symbols.filter((s) => OPTION_BY_SYMBOL.get(s)?.kind === 'fund')} />
 
       {/* Filed fundamentals — stocks only, keyless SEC EDGAR XBRL. Kept in its

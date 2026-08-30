@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   computeHoldings, computeMetrics, computeAnnualIncome,
-  computeBacktestResults, summarizeBacktest, validateHoldings,
+  computeBacktestResults, summarizeBacktest, validateHoldings, getDiversificationWarnings,
   type Portfolio, type PortfolioHolding,
 } from '../portfolioUtils'
 import { getEquity } from '../equityCatalog'
@@ -80,11 +80,15 @@ describe('computeHoldings', () => {
     expect(eth.targetValue).toBe(4_000)
   })
 
-  it('an instrument the registry does not know falls back to unknown category / mid risk', () => {
+  it('an instrument the registry does not know gets NO risk tier, not a middle one', () => {
+    // This test used to pin `riskTier: 5` for unknown assets. That default was
+    // a fabrication: a defaulted 5 read exactly like an assessed 5 and shaped
+    // the weighted figure. Unknown is now null and excluded (with coverage
+    // disclosed) — the same unknown-is-not-zero rule as everywhere else.
     const p = portfolio([holding({ cgId: 'no-such-coin' })])
     const [h] = computeHoldings(p, {})
     expect(h.category).toBe('unknown')
-    expect(h.riskTier).toBe(5)
+    expect(h.riskTier).toBeNull()
   })
 
   it('known instruments carry their catalog category and risk tier', () => {
@@ -205,7 +209,9 @@ describe('computeMetrics', () => {
     const p = portfolio([])
     const m = computeMetrics(p, computeHoldings(p, {}))
     expect(m.largestPosition).toBeNull()
-    expect(m.weightedRisk).toBe(0)
+    // An empty portfolio has no risk FIGURE — null, not a number pretending
+    // "0 risk", which on a 1-10 scale would read as maximally safe.
+    expect(m.weightedRisk).toBeNull()
     expect(m.totalCurrentValue).toBeNull()
     expect(m.categoryBreakdown).toEqual([])
 
@@ -313,5 +319,87 @@ describe('validateHoldings', () => {
       holding({ targetAlloc: 50 }), holding({ targetAlloc: 50 }),
     ]).join(' ')).toMatch(/Duplicate/)
     expect(validateHoldings([holding({ targetAlloc: 100 })])).toEqual([])
+  })
+})
+
+// ─── All-asset-class portfolios (2026-08-29) ─────────────────────────────────
+
+describe('class-aware breakdown and honest weighted risk', () => {
+  it('classifies holdings by key shape even without a catalog entry', () => {
+    const p = portfolio([
+      holding({ cgId: 'some-new-coin', symbol: 'NEW', name: 'New Coin', targetAlloc: 50 }),
+      holding({ cgId: 'sec:XYZ', symbol: 'XYZ', name: 'Xyz Corp', targetAlloc: 50 }),
+    ])
+    const [coin, stock] = computeHoldings(p, {})
+    expect(coin.class).toBe('crypto')
+    expect(stock.class).toBe('equity')
+  })
+
+  it('never fabricates a risk tier for a non-catalog holding', () => {
+    // The bug this forbids: `?? 5` gave an unknown asset the same middle tier
+    // as an assessed one, and the weighted figure silently absorbed it.
+    const p = portfolio([holding({ cgId: 'some-new-coin', symbol: 'NEW', name: 'New' })])
+    const [h] = computeHoldings(p, {})
+    expect(h.riskTier).toBeNull()
+  })
+
+  it('weights risk over the assessed allocation only, and discloses coverage', () => {
+    const p = portfolio([
+      holding({ cgId: 'bitcoin', targetAlloc: 50 }),                    // catalog: has a tier
+      holding({ cgId: 'unknown-coin', symbol: 'UNK', targetAlloc: 50 }), // no tier
+    ])
+    const hs = computeHoldings(p, {})
+    const m = computeMetrics(p, hs)
+    const btcTier = hs[0].riskTier!
+    // The average of what was assessed — NOT dragged toward a fabricated 5.
+    expect(m.weightedRisk).toBe(btcTier)
+    expect(m.riskCoveredPct).toBe(50)
+  })
+
+  it('reports null risk — not a number — when nothing carries a tier', () => {
+    const p = portfolio([holding({ cgId: 'unknown-coin', symbol: 'UNK' })])
+    const m = computeMetrics(p, computeHoldings(p, {}))
+    expect(m.weightedRisk).toBeNull()
+    expect(m.riskLabel).toBeNull()
+    expect(m.riskCoveredPct).toBe(0)
+  })
+
+  it('keeps full coverage reporting for an all-catalog portfolio', () => {
+    const p = portfolio([
+      holding({ cgId: 'bitcoin', targetAlloc: 60 }),
+      holding({ cgId: 'ethereum', symbol: 'ETH', name: 'Ethereum', targetAlloc: 40 }),
+    ])
+    const m = computeMetrics(p, computeHoldings(p, {}))
+    expect(m.riskCoveredPct).toBe(100)
+    expect(m.weightedRisk).not.toBeNull()
+  })
+
+  it('breaks a mixed portfolio down by class, with crypto split by category', () => {
+    const p = portfolio([
+      holding({ cgId: 'bitcoin', targetAlloc: 25 }),
+      holding({ cgId: 'tether', symbol: 'USDT', name: 'Tether', targetAlloc: 25 }),
+      holding({ cgId: 'sec:AAPL', symbol: 'AAPL', name: 'Apple', targetAlloc: 25 }),
+      holding({ cgId: 'sec:GC=F', symbol: 'GC=F', name: 'Gold Futures', targetAlloc: 25 }),
+    ])
+    const m = computeMetrics(p, computeHoldings(p, {}))
+    const labels = m.categoryBreakdown.map(s => s.label)
+    // Stocks and gold are class slices with real labels — the old crypto-only
+    // map rendered them blank and "Unknown".
+    expect(labels).toContain('Stock')
+    expect(labels).toContain('Commodity')
+    expect(labels).not.toContain('Unknown')
+    // Crypto still splits by its category (BTC and USDT are different slices).
+    const cryptoSlices = m.categoryBreakdown.filter(s => !['Stock', 'Commodity'].includes(s.label))
+    expect(cryptoSlices.length).toBeGreaterThanOrEqual(2)
+    // Slices partition the whole allocation.
+    expect(m.categoryBreakdown.reduce((a, s) => a + s.pct, 0)).toBeCloseTo(100)
+  })
+
+  it('derives no risk warning from an unknowable risk figure', () => {
+    const p = portfolio([holding({ cgId: 'unknown-coin', symbol: 'UNK' })])
+    const hs = computeHoldings(p, {})
+    const m = computeMetrics(p, hs)
+    const warns = getDiversificationWarnings(hs, m)
+    expect(warns.some((w: { message: string }) => w.message.includes('risk score'))).toBe(false)
   })
 })

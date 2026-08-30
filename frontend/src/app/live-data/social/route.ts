@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { robotsPermits } from '@/lib/server/sourceTerms'
 import { ASSET_LIST } from '@/lib/data/assetList'
 import { getSocialProviders, recordProviderFetch, type AnyActiveProvider } from '@/lib/api/live/providers'
 import { blendByProvider } from '@/lib/server/socialBlend'
@@ -142,7 +143,10 @@ export async function GET(req: NextRequest) {
 async function fetchFromProvider(provider: AnyActiveProvider, asset: string, limit: number, extraSubs: string[] = []): Promise<SocialSignal[]> {
   const key = provider.config.apiKey
   switch (provider.id) {
-    case 'reddit':    return fetchReddit(asset, limit, extraSubs)
+    // Reddit's robots.txt disallows our agent (observed 2026-08-29). Gated
+    // rather than deleted: registering OAuth credentials is the supported way
+    // back in, and the entry in sourceTerms.ts names the variable that does it.
+    case 'reddit':    return robotsPermits('https://www.reddit.com/') ? fetchReddit(asset, limit, extraSubs) : []
     case 'lunarcrush': return key ? fetchLunarCrush(key, asset, limit) : []
     case 'santiment':  return key ? fetchSantiment(key, asset, limit) : []
     default:          return []
