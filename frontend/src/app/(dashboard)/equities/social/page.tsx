@@ -237,11 +237,22 @@ function EquitySocialContent() {
         </section>
       )}
 
+      {/* A source we chose not to read is named, with the reason. Without
+          this the feed is simply thinner and the reader reads that as a quiet
+          market rather than a withheld source. */}
+      {data?.withheld?.map((w) => (
+        <div key={w.id} className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-400/90">
+          <strong className="text-amber-300">{w.name} not included.</strong> {w.reason}
+        </div>
+      ))}
+
       {/* Empty */}
       {!isLoading && signals.length === 0 && (
         <div className="flex flex-col items-center justify-center py-16 text-text-muted">
           <MessageSquare size={36} className="mb-3 opacity-30" />
-          <p className="text-sm">No social signals available — Reddit/StockTwits may be unreachable.</p>
+          <p className="text-sm">
+            No social signals available{data?.withheld?.length ? ' from the sources currently enabled' : ' — StockTwits may be unreachable'}.
+          </p>
         </div>
       )}
     </div>

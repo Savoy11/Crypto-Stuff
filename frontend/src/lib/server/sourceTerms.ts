@@ -112,6 +112,27 @@ export interface SourceTermsEntry {
    */
   reviewedAt: string
   confidence: TermsConfidence
+  /**
+   * A FIRST-HAND observation that this host's robots.txt disallows our agent.
+   *
+   * Deliberately separate from `verdict` and `review`. Those describe the TERMS
+   * document, which is often unreadable from here and is a matter of
+   * interpretation; robots.txt is a machine-readable instruction we either
+   * honour or do not. An entry can therefore be `seeded` on its terms and still
+   * carry a dated, verified robots reading — which is exactly Reddit's
+   * situation after the 2026-08-29 probe.
+   *
+   * When present, `assertRobotsPermits` refuses the fetch unless the named
+   * credential is configured — the credential being the thing that moves the
+   * request out of the disallowed anonymous path.
+   */
+  robotsDisallowed?: {
+    /** ISO date the robots.txt was actually read. */
+    observedAt: string
+    /** Env var whose presence lifts the block, if the operator has one. */
+    liftedBy?: string
+    note: string
+  }
 }
 
 /**
@@ -351,6 +372,16 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     reviewedAt: '2026-08-06',
     review: 'seeded',
     confidence: 'low',
+    // Observed first-hand by `npm run terms:report` on the owner's machine,
+    // 2026-08-29: reddit.com/robots.txt disallows / for this app's agent. That
+    // is a direct instruction, and a stronger signal than the 403s the entry's
+    // conditions already anticipated — a 403 is a refusal we might have been
+    // working around; a robots disallow is one we were not honouring at all.
+    robotsDisallowed: {
+      observedAt: '2026-08-29',
+      liftedBy: 'REDDIT_CLIENT_ID',
+      note: 'robots.txt disallows / for our user-agent. Reddit\'s Data API Terms route legitimate programmatic access through registered OAuth credentials, so configuring REDDIT_CLIENT_ID moves the request off the anonymous path robots forbids. Until then Finance Now does not fetch reddit.com.',
+    },
   },
   {
     domain: 'youtube.com',
@@ -992,6 +1023,38 @@ export function assertSourceAllowed(url: string, now: Date = new Date()): Source
  * Collapsing the two would either let a prohibited host through or make the
  * acknowledgement flow a lie. Keep them separate.
  */
+/** Thrown when robots.txt disallows us and no credential lifts it. */
+export class RobotsDisallowedError extends Error {
+  constructor(public readonly host: string, public readonly note: string) {
+    super(`robots.txt disallows ${host}: ${note}`)
+    this.name = 'RobotsDisallowedError'
+  }
+}
+
+/**
+ * Refuse a fetch to a host whose robots.txt disallows our agent, unless the
+ * entry names a credential and that credential is configured.
+ *
+ * Separate from the terms check on purpose: this one is not interpretation.
+ * Either the file says we may not, or it does not.
+ */
+export function assertRobotsPermits(url: string, env: NodeJS.ProcessEnv = process.env): void {
+  let host: string
+  try { host = new URL(url).hostname } catch { return }
+  const entry = SOURCE_TERMS.find(
+    (e) => host === e.domain || host.endsWith(`.${e.domain}`),
+  )
+  const rd = entry?.robotsDisallowed
+  if (!rd) return
+  if (rd.liftedBy && (env[rd.liftedBy] ?? '').trim()) return
+  throw new RobotsDisallowedError(host, rd.note)
+}
+
+/** True when this host may be fetched — the non-throwing form, for callers that degrade. */
+export function robotsPermits(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  try { assertRobotsPermits(url, env); return true } catch { return false }
+}
+
 export function assertSourceNotProhibited(url: string, now: Date = new Date()): SourceTermsDecision {
   const decision = checkSourceTerms(url, now)
   if (decision.status === 'prohibited') throw new SourceTermsError(decision)
