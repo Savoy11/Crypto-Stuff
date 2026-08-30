@@ -32,7 +32,7 @@
 
 import { Agent, fetch as undiciFetch } from 'undici'
 import { isPrivateAddress, resolvePublicAddresses } from '@/lib/server/urlSafety'
-import { assertSourceNotProhibited } from '@/lib/server/sourceTerms'
+import { assertRobotsPermits, assertSourceNotProhibited } from '@/lib/server/sourceTerms'
 
 type LookupCallback = (
   err: NodeJS.ErrnoException | null,
@@ -115,7 +115,12 @@ export async function pinnedFetch(url: string, init: PinnedFetchInit = {}): Prom
   // the `notProhibited` form, not the strict one — see sourceTerms.ts for why
   // an unreviewed host is gated at save time rather than here.
   const { skipTermsCheck, ...fetchInit } = init
-  if (!skipTermsCheck) assertSourceNotProhibited(url)
+  if (!skipTermsCheck) {
+    assertSourceNotProhibited(url)
+    // robots.txt is an instruction, not an interpretation — enforced here so a
+    // future call site cannot reintroduce a disallowed host by accident.
+    assertRobotsPermits(url)
+  }
 
   const resolution = await resolvePublicAddresses(url)
   if ('error' in resolution) throw new Error(resolution.error)
