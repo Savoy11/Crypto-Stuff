@@ -5,7 +5,11 @@ on:
     branches: [main, develop]
     types: [opened, synchronize, reopened, ready_for_review]
   push:
-    branches: [develop]
+    # main is included so a merged commit is verified in its own right. The PR
+    # gate checks the merge preview, not what actually lands, and nothing else
+    # re-runs on main — so without this a bad interaction between two PRs that
+    # were each green alone reaches main unnoticed.
+    branches: [main, develop]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
