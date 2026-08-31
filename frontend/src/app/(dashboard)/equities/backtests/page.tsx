@@ -274,7 +274,7 @@ function EquityBacktestsContent() {
               xKey="t"
               xFormatter={(v) => format(new Date(Number(v)), period === '1Y' ? 'MMM' : 'yyyy')}
               yFormatter={(v) => `$${Number(v).toFixed(0)}`}
-              tooltipFormatter={(v, name) => [formatCurrency(Number(v)), name]}
+              tooltipFormatter={(v, name) => [formatCurrency(Number(v)), String(name)]}
               height={300}
               showLegend
               gradientId={`backtest-${symbol}`}

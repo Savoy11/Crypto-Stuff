@@ -11,6 +11,7 @@ import {
   Legend,
   ReferenceLine,
 } from 'recharts'
+import type { ChartTooltipFormatter } from './tooltipTypes'
 import { CHART_THEME } from '@/lib/utils/chart'
 import { type ReactNode } from 'react'
 
@@ -27,7 +28,7 @@ interface AreaChartProps {
   xKey: string
   xFormatter?: (value: unknown) => string
   yFormatter?: (value: unknown) => string
-  tooltipFormatter?: (value: unknown, name: string) => [string, string]
+  tooltipFormatter?: ChartTooltipFormatter
   referenceLines?: { y: number; label?: string; color?: string }[]
   height?: number
   showGrid?: boolean

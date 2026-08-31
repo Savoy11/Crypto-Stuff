@@ -39,7 +39,7 @@ interface TooltipPayload {
   }
 }
 
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: TooltipPayload[] }) {
+function CustomTooltip({ active, payload }: { active?: boolean; payload?: readonly TooltipPayload[] }) {
   if (!active || !payload?.length || !payload[0].payload) return null
   const d = payload[0].payload
   const bps = d.deviationBps ?? d.pegDeviation * 10000
@@ -161,7 +161,7 @@ export function PegDeviationChart({
             width={62}
           />
 
-          <Tooltip content={(props) => <CustomTooltip {...(props as { active?: boolean; payload?: TooltipPayload[] })} />} />
+          <Tooltip content={(props) => <CustomTooltip {...(props as unknown as { active?: boolean; payload?: readonly TooltipPayload[] })} />} />
 
           <ReferenceLine
             y={0}

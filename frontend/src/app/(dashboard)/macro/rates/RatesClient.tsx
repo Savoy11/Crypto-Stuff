@@ -136,7 +136,7 @@ export function RatesClient() {
               ]}
               xKey="label"
               yFormatter={(v) => `${Number(v).toFixed(1)}%`}
-              tooltipFormatter={(v, name) => [`${Number(v).toFixed(2)}%`, name]}
+              tooltipFormatter={(v, name) => [`${Number(v).toFixed(2)}%`, String(name)]}
               height={280}
               showLegend
               connectNulls

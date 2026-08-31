@@ -624,7 +624,7 @@ function BacktestPanel({ portfolio }: { portfolio: Portfolio }) {
                   <XAxis type="number" tickFormatter={v => `${v}%`} tick={{ fill: '#64748b', fontSize: 11 }} />
                   <YAxis type="category" dataKey="symbol" tick={{ fill: '#94a3b8', fontSize: 11 }} width={44} />
                   <Tooltip
-                    formatter={(v: number) => [`${v.toFixed(2)}%`, 'Return']}
+                    formatter={(v: unknown) => [`${Number(v).toFixed(2)}%`, 'Return']}
                     contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
                     labelStyle={{ color: '#94a3b8' }}
                   />
@@ -810,7 +810,7 @@ function PortfolioDetail({ portfolio, onEdit, onBack }: {
                     {metrics.categoryBreakdown.map((s, i) => <Cell key={i} fill={s.color} />)}
                   </Pie>
                   <Tooltip
-                    formatter={(v: number, n: string) => [`${v.toFixed(1)}%`, n]}
+                    formatter={(v: unknown, n: unknown) => [`${Number(v).toFixed(1)}%`, String(n)]}
                     contentStyle={{ background: '#1e293b', border: '1px solid #334155', borderRadius: 8, fontSize: 12 }}
                   />
                 </PieChart>
