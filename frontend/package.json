@@ -41,7 +41,7 @@
     "autoprefixer": "^10.5.4",
     "bcryptjs": "^3.0.3",
     "clsx": "^2.1.0",
-    "date-fns": "^3.6.0",
+    "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
     "lightweight-charts": "^5.2.1",
     "lucide-react": "^1.35.0",
