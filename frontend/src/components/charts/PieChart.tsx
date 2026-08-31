@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts'
+import type { ChartTooltipFormatter } from './tooltipTypes'
 import { CHART_THEME } from '@/lib/utils/chart'
 import { type ReactNode } from 'react'
 
@@ -25,7 +26,7 @@ interface PieChartProps {
   showLegend?: boolean
   showTooltip?: boolean
   centerContent?: ReactNode
-  tooltipFormatter?: (value: number, name: string) => [string, string]
+  tooltipFormatter?: ChartTooltipFormatter
   labelFormatter?: (entry: PieSlice) => string
 }
 
@@ -70,7 +71,7 @@ export function PieChart({
                 fontSize: '12px',
                 color: CHART_THEME.tooltip.text,
               }}
-              formatter={tooltipFormatter ?? ((value: number, name: string) => [`${value.toFixed(1)}%`, name])}
+              formatter={tooltipFormatter ?? ((value, name) => [`${Number(value).toFixed(1)}%`, String(name)])}
             />
           )}
 

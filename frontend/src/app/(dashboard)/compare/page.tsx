@@ -411,7 +411,7 @@ function CompareInner() {
             xKey="t"
             xFormatter={(v) => new Date(Number(v)).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })}
             yFormatter={(v) => String(v)}
-            tooltipFormatter={(v, name) => [`${v}`, name]}
+            tooltipFormatter={(v, name) => [`${v}`, String(name)]}
             height={320}
             showLegend
             connectNulls

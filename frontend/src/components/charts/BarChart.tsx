@@ -11,6 +11,7 @@ import {
   Legend,
   Cell,
 } from 'recharts'
+import type { ChartTooltipFormatter } from './tooltipTypes'
 import { CHART_THEME } from '@/lib/utils/chart'
 
 interface BarSeries {
@@ -26,7 +27,7 @@ interface BarChartProps {
   xKey: string
   xFormatter?: (value: unknown) => string
   yFormatter?: (value: unknown) => string
-  tooltipFormatter?: (value: unknown, name: string) => [string, string]
+  tooltipFormatter?: ChartTooltipFormatter
   height?: number
   showGrid?: boolean
   showLegend?: boolean

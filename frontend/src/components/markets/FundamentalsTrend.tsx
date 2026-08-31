@@ -72,7 +72,7 @@ export function FundamentalsTrend({ symbol }: { symbol: string }) {
           ]}
           xKey="fy"
           yFormatter={(v) => formatCompact(Number(v))}
-          tooltipFormatter={(v, name) => [formatCompact(Number(v)), name]}
+          tooltipFormatter={(v, name) => [formatCompact(Number(v)), String(name)]}
           height={230}
           showLegend
         />

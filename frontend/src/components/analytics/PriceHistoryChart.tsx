@@ -12,9 +12,8 @@ import {
   ResponsiveContainer,
   ReferenceLine,
   Brush,
-  type TooltipProps,
 } from 'recharts'
-import type { ValueType, NameType } from 'recharts/types/component/DefaultTooltipContent'
+import type { ChartTooltipContentProps } from '@/components/charts/tooltipTypes'
 import { format, parseISO } from 'date-fns'
 import { useQuery } from '@tanstack/react-query'
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react'
@@ -29,6 +28,15 @@ const RANGE_DAYS: Record<PriceRange, number> = {
   '3M': 90,
   '1Y': 365,
   'MAX': 1825,
+}
+
+/** The fields this chart's tooltip reads off a candle. */
+interface TooltipCandle {
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number
 }
 
 interface PriceHistoryChartProps {
@@ -113,7 +121,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
 
   const isUp = priceChange >= 0
 
-  const renderTooltip = useCallback(({ active, payload, label }: TooltipProps<ValueType, NameType>) => {
+  const renderTooltip = useCallback(({ active, payload, label }: ChartTooltipContentProps<TooltipCandle>) => {
     if (!active || !payload?.length) return null
     const d = payload[0]?.payload
     if (!d) return null
@@ -127,7 +135,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
     return (
       <div className="bg-bg-card border border-border rounded-lg p-3 text-xs font-mono shadow-xl min-w-[170px]">
         <div className="text-text-muted mb-2">
-          {label ? (() => { try { return format(parseISO(label as string), 'MMM dd, yyyy') } catch { return label } })() : ''}
+          {label ? (() => { const raw = String(label); try { return format(parseISO(raw), 'MMM dd, yyyy') } catch { return raw } })() : ''}
         </div>
         <div className="space-y-1">
           <div className="flex justify-between gap-4">
@@ -251,7 +259,7 @@ export function PriceHistoryChart({ assetId, symbol, pegTarget }: PriceHistoryCh
               width={isL1 ? 72 : 62}
             />
 
-            <Tooltip content={renderTooltip} />
+            <Tooltip content={(props) => renderTooltip(props as unknown as ChartTooltipContentProps<TooltipCandle>)} />
 
             {/* $1.00 peg line — only for pegged assets */}
             {!isL1 && pegTarget != null && (

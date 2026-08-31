@@ -69,7 +69,7 @@ export function ReserveComposition({
         outerRadius={85}
         showLegend={false}
         centerContent={centerContent}
-        tooltipFormatter={(value, name) => [`${Number(value).toFixed(1)}%`, name]}
+        tooltipFormatter={(value, name) => [`${Number(value).toFixed(1)}%`, String(name)]}
       />
 
       {/* Legend */}
