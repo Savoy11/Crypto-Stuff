@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useQuery } from '@tanstack/react-query'
-import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineChart, Globe2, Sparkles, Youtube, AlertCircle, ArrowUpDown } from 'lucide-react'
+import { Video, ExternalLink, Clock, Loader2, RefreshCw, Search, X, Coins, LineChart, Globe2, Sparkles, MonitorPlay, AlertCircle, ArrowUpDown } from 'lucide-react'
 import { clsx } from 'clsx'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
@@ -382,7 +382,7 @@ export default function VideosPage() {
             >
               {searchQuery.isFetching
                 ? <Loader2 size={12} className="animate-spin" aria-hidden />
-                : <Youtube size={12} aria-hidden />}
+                : <MonitorPlay size={12} aria-hidden />}
               Search YouTube
             </button>
             {/* Scope — finance-scoped by default; 'All' drops the category and
@@ -425,7 +425,7 @@ export default function VideosPage() {
           {isSearchMode && (
             <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-red-500/25 bg-red-500/5">
               <div className="flex items-center gap-2 min-w-0">
-                <Youtube size={13} className="text-red-400 flex-shrink-0" aria-hidden />
+                <MonitorPlay size={13} className="text-red-400 flex-shrink-0" aria-hidden />
                 <span className="text-xs text-text-secondary truncate">
                   {searchQuery.isFetching
                     ? <>Searching YouTube for <span className="text-text-primary font-medium">“{ytQuery}”</span>…</>
