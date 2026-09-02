@@ -244,6 +244,33 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'A valid FMP API key must be configured — no keyless path',
       'Stay within the plan\'s request cap and redistribution scope',
     ],
+    // ⚠ 2026-09-02: UNRESOLVED, and this entry is the reason nobody noticed.
+    // The `finding` above asserts the permission is TIER-DEPENDENT — free tier
+    // personal/development, redistribution on a higher plan. A 2026-09-01 fund
+    // fee assessment asserts the opposite: personal-use on EVERY tier. Neither
+    // is a reading. This entry is `seeded`, so its tier claim was written from
+    // documented posture and never checked against the document.
+    //
+    // That matters more here than anywhere else in this registry. FMP is the
+    // first rung of the quote ladder, the ONLY source for the Stock Registry
+    // universe and for /live-data/market-calendar, and the OHLCV fallback —
+    // 7 live-data routes, 20 files. If "personal use on every tier" is right,
+    // that is a live problem on shipping surfaces, not a future decision.
+    //
+    // It is also why FMP is absent from the "seven remaining sources" on the
+    // personal-vs-commercial question (CLAUDE.md; terms-review-2026-08-29.md
+    // does not mention FMP at all): its seeded finding read as already settled
+    // by plan tier. An assumption wearing the confidence of a resolved entry is
+    // exactly what the `seeded` flag exists to expose. The open question is
+    // EIGHT sources wide, and this is the load-bearing one.
+    //
+    // Not resolvable from CI: every financialmodelingprep.com host is blocked
+    // by the network egress proxy here, and "couldn't read it" is not
+    // permission. Read site.financialmodelingprep.com/terms-of-service on a
+    // machine that can reach it and answer three questions: does any clause
+    // restrict use to personal/non-commercial; does that restriction vary by
+    // plan; and does a separate licence accompany a paid key that overrides
+    // the posted ToS (the trap the Tiingo entry already carries).
     reviewedAt: '2026-08-06',
     review: 'seeded',
     confidence: 'medium',

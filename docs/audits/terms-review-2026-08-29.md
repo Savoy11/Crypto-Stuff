@@ -203,3 +203,71 @@ read against the right document** (Twelve Data, Finnhub, Binance.US, OilPrice).
 - Remaining hosts: no clause matched, or matched clauses consistent with the
   recorded verdict. All still `seeded` — no clause matching, and no absence of
   it, is a reading.
+
+---
+
+## FMP — missed by this review, and the most load-bearing of them all (added 2026-09-02)
+
+This document triaged seven sources on the personal-vs-commercial question.
+**Financial Modeling Prep was not one of them, and should have been.** It is not
+mentioned anywhere above.
+
+### Why it was missed
+
+Its registry entry is `seeded` but its `finding` reads as though the question is
+already answered:
+
+> *"the free tier permits personal/development use at a documented request cap.
+> Redistribution beyond the licensed application requires a higher plan."*
+
+That is a **tier-dependent** answer to exactly the personal-vs-commercial
+question — so the entry looked resolved and never joined the queue. It was never
+read. This is the failure mode the `seeded` flag was introduced to expose: an
+assumption wearing the confidence of a settled record.
+
+### The conflict
+
+A fund-fee assessment dated 2026-09-01 states the opposite — *"FMP is
+personal-use on every tier, so it's out regardless."* Neither claim is a reading
+of the document. They cannot both be right, and the difference is not academic.
+
+### Why this one matters more than the other seven
+
+FMP is not a marginal or optional source. It reaches **7 `/live-data` routes
+across 20 files**. If the restrictive reading is correct, here is what is
+affected — established by reading each route's fallback, not assumed:
+
+| Surface | If FMP had to be dropped |
+|---|---|
+| `/live-data/market-calendar` | **Dies.** FMP's earnings + economic calendars are the only source; there is no fallback. `/equities/calendar` goes dark |
+| `/live-data/stock-universe` | **Collapses** from all active US common stocks to the 79-name curated catalog |
+| `/live-data/stock-outliers` | Degrades with the universe — the AI Outlier Scan shrinks to those 79 names |
+| SEC XBRL P/E enrichment | Moot — `enrichPeRatios()` runs only on the FMP path, so the ~6,100-symbol backfill has nothing to enrich |
+| Fund sector weights | Lose their only source |
+| `/live-data/security-quotes` | Degrades gracefully — 4 keyed rungs remain, then catalog `ref` |
+| `/live-data/security-ohlcv`, `/api/v1/securities/history` | Survive — Tiingo is already the first rung |
+| `/live-data/fund-holdings`, `fund-holdings-history` | Survive — SEC N-PORT / EDGAR direct are rung 1 and authoritative |
+
+So the honest summary is: **two surfaces die or collapse, the rest degrade.**
+That is a rollout-scope question, not a cleanup task.
+
+### Why it is still unresolved
+
+Every `financialmodelingprep.com` host is blocked by the network egress proxy in
+the build environment — the same gateway condition that produced 54 seeded
+entries in the first place. Per this repository's own rule, **"couldn't read it"
+is not permission**, so no verdict was changed in either direction.
+
+### To close it — three questions, one document
+
+Read `site.financialmodelingprep.com/terms-of-service` from a machine that can
+reach it and answer:
+
+1. Does any clause restrict use to **personal or non-commercial** purposes?
+2. Does that restriction **vary by plan**, as the registry entry assumes?
+3. Does a **separate licence accompany a paid key** that overrides the posted
+   ToS? (This is the trap already recorded on the Tiingo entry, and the reason
+   its ToS alone does not settle it either.)
+
+Only then flip `review` to `'verified'` — and if the answer is restrictive, the
+two surfaces above need a decision before rollout, not after.
