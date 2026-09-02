@@ -2,7 +2,7 @@
   "name": "finance-now-frontend",
   "version": "1.0.0",
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=24.0.0"
   },
   "private": true,
   "scripts": {

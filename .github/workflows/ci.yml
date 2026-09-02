@@ -205,12 +205,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v7
         with:
-          # Node 22: 20 is EOL and its actions are deprecated on GitHub runners.
-          # Keep in step with frontend/Dockerfile and package.json `engines`.
-          node-version: '22'
+          # Node 24 "Krypton" is the current LTS line. Keep in step with
+          # frontend/Dockerfile and package.json `engines` — CI must run the
+          # runtime the image ships, or neither is really tested.
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 

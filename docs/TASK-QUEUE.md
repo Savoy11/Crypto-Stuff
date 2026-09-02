@@ -2150,7 +2150,7 @@ bump caused it.
 | #47 | TypeScript 5.9.3 → **7.0.2** (`mcp-server/`) | Same major, separate package. Pair it with #54 so the two TS versions do not drift. |
 | #52 | recharts 2.15.4 → **3.10.1** (frontend) | Breaking API changes, and **~11 files** import it. Charts render without throwing when props go stale, so this needs looking at the pages, not just a green `tsc`. |
 | #50 | date-fns 3.6.0 → **4.4.0** (frontend) | **~11 files.** v4's timezone handling changed; date bugs are silent and land in user-visible figures. |
-| #45 | node 22-alpine → **26-alpine** (frontend Docker) | Two LTS jumps. Affects the built image and both CD workflows, not local dev — verify against staging before production. |
+| #45 | node 22-alpine → **26-alpine** (frontend Docker) | **Superseded — do not merge.** Node 26 is a Current release, not LTS (24 "Krypton" is), so this would move the production image off long-term support. It also changed only the Dockerfile, leaving CI on 22 and `engines` at `>=22.19.0` — breaking the invariant stated in the Dockerfile's own header, with nothing then testing the runtime the image ships. Replaced by a Node **24** bump across all three places. |
 | #59 | redis 5.3.1 → **8.1.0** (backend) | Client major on a runtime dependency. Dependabot moved the target from 8.0.1 to 8.1.0 during its rebase; the branch name still says `redis-8.0.1`. |
 
 ### What CI said once these were rebased
