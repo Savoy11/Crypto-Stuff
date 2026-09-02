@@ -1,10 +1,15 @@
-# Node 22 (was 20). Node 20 reached end-of-life, GitHub's runners emit
-# deprecation warnings for actions targeting it, and undici 8 — which the
-# SSRF connection pinning in lib/server/pinnedFetch.ts would otherwise use —
-# requires >= 22.19. Keep this in step with .github/workflows/ci.yml's
+# Node 24 "Krypton", the current LTS line (was 22 "Jod", the previous one).
+# The SSRF connection pinning in lib/server/pinnedFetch.ts imports the npm
+# `undici` package (7.x today); undici 8 declares engines.node >= 22.19, which
+# 24 clears with room, so that upgrade stays available.
+#
+# Track an LTS line, not the newest tag: dependabot proposed 26-alpine (#45),
+# but 26 is a Current release with no long-term support, and that PR moved
+# only this file, leaving CI on 22 — so nothing would have tested the runtime
+# the image actually ships. Keep this in step with .github/workflows/ci.yml's
 # setup-node and with package.json's `engines` field.
 # Stage 1: Dependencies
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
@@ -21,7 +26,7 @@ COPY package.json package-lock.json* ./
 RUN npm ci && npm cache clean --force
 
 # Stage 2: Builder
-FROM node:22-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -33,7 +38,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # Stage 3: Runner
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production

@@ -25,7 +25,7 @@
 // `worker_threads.markAsUncloneable` unconditionally, so the build died
 // collecting page data with `TypeError: markAsUncloneable is not a function`,
 // which a Node 22 dev machine does not reproduce. That constraint is gone now
-// that CI and all three Dockerfile stages run Node 22, so 8 is available; 7 is
+// that CI and all three Dockerfile stages run Node 24, so 8 is available; 7 is
 // kept because nothing in 8 is needed here and neither line carries an
 // advisory. If you do move, `engines.node` in package.json is already the
 // floor undici 8 wants.
