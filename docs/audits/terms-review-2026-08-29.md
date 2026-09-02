@@ -113,6 +113,87 @@ than the confidence.
 
 ---
 
+## Which of the seven have SEPARATE API terms (checked 2026-08-30)
+
+CoinGecko's lesson was that a provider's **site ToU** and its **API terms** can
+reach opposite conclusions, and the probe reads whichever it finds first. So
+before any of the remaining seven is judged on the personal/non-commercial
+question, the operative document has to be identified. This is that check.
+
+**Method and its limit:** every one of these hosts is blocked from the build
+environment, so none of these documents was read here. What follows establishes
+*which document to read* and flags where the probe demonstrably read the wrong
+one. Nothing below is a verdict, and no entry should be flipped to `verified` on
+this section alone.
+
+| Source | Operative document | Status |
+|---|---|---|
+| **YouTube** | `developers.google.com/youtube/terms/api-services-terms-of-service` | ⚠ **Probe read the wrong document — same error as CoinGecko** |
+| **Tiingo** | Site ToS **plus** a separate licence that overrides it | ⚠ **Layered; needs a targeted read** |
+| **Bitget** | Exchange ToS; API docs may carry their own | ◻ Unresolved |
+| **Twelve Data** | `twelvedata.com/terms` — appears to BE the API agreement | ✓ Probe read the right document |
+| **Finnhub** | `finnhub.io/terms-of-service` — API clauses are inside it | ✓ Probe read the right document |
+| **Binance.US** | `binance.us/terms-of-use` — explicitly covers the APIs | ✓ Probe read the right document |
+| **OilPrice** | Site terms — no API product exists | ✓ Right document by default |
+
+### YouTube — read the wrong document, and the registry already knew
+
+The registry's `termsUrl` is the **API Services Terms of Service**. The probe's
+own output reports `Terms found at: https://youtube.com/terms` — the consumer
+site terms — and the clause it flagged, *"You may view or listen to Content for
+your personal, non-commercial use"*, is from that document. It describes
+watching videos on youtube.com. It does not describe Data API v3 use, which the
+API Services ToS governs separately.
+
+This is the CoinGecko pattern exactly, and it is visible in the probe output
+without needing to fetch anything. **Read the registered URL.**
+
+### Tiingo — the site ToS is not the last word
+
+Tiingo's terms state that where Software carries its own licence agreement,
+*"the license agreement shall take precedence"* over the Terms in any conflict —
+and separately that **display or data redistribution requires a separate licence
+from Tiingo**. So the document the probe read can be overridden by a licence
+attached to the plan, and the app's use (displaying quotes) may be exactly the
+case that separate licence covers. **Needs the plan's licence, not just the ToS.**
+
+### The four already read correctly
+
+- **Twelve Data** — the probe's own excerpt defines *"Customer"* and *"Internal
+  Use"*, which is API-agreement drafting, not website boilerplate.
+- **Finnhub** — the flagged clause sits under a heading reading *"Redistribution
+  Rights and Personal Use"* and speaks of *"data obtained from Finnhub"*. That is
+  API language inside the single ToS.
+- **Binance.US** — its ToU states users agree to it by accessing *the Website or
+  BAM APIs*, so it governs API access on its face. (The separate agreements that
+  exist are for authenticated and institutional endpoints, which RP-5 forbids
+  this app from using regardless.)
+- **OilPrice** — an RSS publisher with no API product; there is no other document
+  to find. Its personal/non-commercial clause sits in *Disclaimers* and addresses
+  website content, so whether it reaches RSS syndication is a reading question,
+  not a wrong-document question.
+
+### What this changes
+
+The personal/non-commercial question is **seven sources wide on paper and
+five or six in substance.**
+
+- **Six** if only YouTube drops out. That is the one this section establishes:
+  the probe read the consumer site terms, and the registered API terms govern.
+- **Five** if Tiingo drops out too — but that is not established. Tiingo's
+  answer *may* rest on a separate licence rather than the ToS the probe read,
+  and nobody has read that licence. "Needs a targeted read" is not the same as
+  "resolved in our favour", and this section must not be cited as though it
+  were.
+- **Bitget stays in the count either way.** Its operative document is still
+  unresolved, so it is neither settled nor excluded.
+
+Stated the other way: of the seven, **three are unresolved** (YouTube by the
+wrong document, Tiingo by the layered licence, Bitget outright) and **four were
+read against the right document** (Twelve Data, Finnhub, Binance.US, OilPrice).
+
+---
+
 ## Confirmed as recorded
 
 - **Yahoo** — probe `blocked`; entry already `prohibited` and hard-blocked in

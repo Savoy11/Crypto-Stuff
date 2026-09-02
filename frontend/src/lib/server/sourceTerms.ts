@@ -280,6 +280,12 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
     finding:
       'Commercial market-data API with a free tier for personal use. Keyed access; end-of-day and IEX data carry exchange-derived redistribution limits set by the plan.',
     conditions: ['Valid API key required', 'Free tier is personal use — no redistribution'],
+    // ⚠ 2026-08-30: Tiingo's ToS says a licence accompanying the Software
+    // "shall take precedence" over the Terms in any conflict, and that display
+    // or data redistribution requires a SEPARATE licence. So this entry rests
+    // on a document the plan's own licence can override — and displaying quotes,
+    // which is what this app does, may be exactly what that separate licence
+    // covers. The ToS alone does not settle it.
     reviewedAt: '2026-08-06',
     review: 'seeded',
     confidence: 'medium',
@@ -394,6 +400,12 @@ export const SOURCE_TERMS: SourceTermsEntry[] = [
       'Link or embed via the YouTube player — never download or re-host video',
       'Data API searches only on an explicit user action (quota)',
     ],
+    // ⚠ 2026-08-30: the terms probe read youtube.com/terms — the CONSUMER site
+    // terms — and flagged "personal, non-commercial use" from it. That clause is
+    // about watching videos on youtube.com; it does not describe Data API v3
+    // use, which `termsUrl` above governs separately. Same wrong-document error
+    // the CoinGecko entry carried until its API Terms were read. Read the
+    // registered URL before judging this entry.
     reviewedAt: '2026-08-06',
     review: 'seeded',
     confidence: 'medium',
