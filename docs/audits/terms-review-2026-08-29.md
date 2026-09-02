@@ -175,10 +175,22 @@ case that separate licence covers. **Needs the plan's licence, not just the ToS.
 
 ### What this changes
 
-The personal/non-commercial question is **seven sources wide on paper but at
-most five in substance** — YouTube almost certainly drops out on reading the
-right document, and Tiingo's answer depends on a licence nobody has looked at
-rather than on the ToS the probe read.
+The personal/non-commercial question is **seven sources wide on paper and
+five or six in substance.**
+
+- **Six** if only YouTube drops out. That is the one this section establishes:
+  the probe read the consumer site terms, and the registered API terms govern.
+- **Five** if Tiingo drops out too — but that is not established. Tiingo's
+  answer *may* rest on a separate licence rather than the ToS the probe read,
+  and nobody has read that licence. "Needs a targeted read" is not the same as
+  "resolved in our favour", and this section must not be cited as though it
+  were.
+- **Bitget stays in the count either way.** Its operative document is still
+  unresolved, so it is neither settled nor excluded.
+
+Stated the other way: of the seven, **three are unresolved** (YouTube by the
+wrong document, Tiingo by the layered licence, Bitget outright) and **four were
+read against the right document** (Twelve Data, Finnhub, Binance.US, OilPrice).
 
 ---
 
