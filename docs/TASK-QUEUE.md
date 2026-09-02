@@ -1452,7 +1452,7 @@ tool reads exactly what the UI reads — one source of truth, no agent-only data
 > that document's §10 table.)
 
 **How this differs from what already exists.** The 2026-06-14 production-readiness
-scorecard (`docs/audit/production-readiness-scorecard.md`) is stack-level — auth, infra,
+scorecard (`docs/audits/production-readiness-scorecard.md`) is stack-level — auth, infra,
 pipelines. The code-auditor charter hunts defects. This phase is neither: it decides,
 feature by feature, what the initial rollout ships, what gets fixed first, and what gets
 hidden or cut. Defects found along the way are filed the normal way (W1's defect
@@ -1593,6 +1593,13 @@ running FIX-FIRST list and approved-tools list at the top of the doc, so W3's en
 conditions are checkable at a glance.
 ```
 </details>
+
+> **Note (2026-08-24):** the "recoverable from git history" phrase in this prompt (and
+> the /backtests precedent it cites) predates the **2026-08-05 re-root of `main`**.
+> Anything CUT before that date is recoverable via the `archive/pre-reset-main` branch,
+> not from `main`'s own log — see CLAUDE.md "How Changes Land" (History and archives)
+> and `docs/audits/git-repo-audit-2026-08-23.md`. The prompt text above stays verbatim
+> per steward policy.
 
 ### W3 intake — owner review deck, 2026-08-20 ("Changes to apply to Wave 2 changes")
 

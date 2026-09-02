@@ -15,6 +15,9 @@ Both pages were driven at the code level, with data sources traced end to end._
 >
 > The analysis below is unchanged and still stands on its own merits — only the
 > dispositions differ. The deleted page is recoverable from git history.
+> *(2026-08-24: that recovery now goes through the `archive/pre-reset-main` branch —
+> the deletion predates the 2026-08-05 re-root of `main`, so it is not in `main`'s
+> own history. See CLAUDE.md "How Changes Land".)*
 
 | Page | Route | Verdict | One-line rationale |
 |------|-------|---------|--------------------|

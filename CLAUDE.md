@@ -9,7 +9,10 @@ This file is auto-loaded by Claude Code at session start. It gives instant conte
 
 An institutional-grade financial analytics suite built with Next.js 15 (App Router). It began as a crypto dashboard (risk, reserves, news sentiment, transfer fees, staking) and has grown into an entitlement-gated module suite (see `docs/ROADMAP.md`): a **core** section (headlines, watchlist, portfolios, compare, research, brief) plus seven optional modules — **Crypto** (the original Finance Now), **Equities** (`/equities`), **Macro Markets** (`/macro`), **ETFs & Funds** (`/funds`), and the premium **Portfolio Builder** (`/portfolio-builder`, its own entitlement). Modules are declared in `src/lib/modules/registry.ts`; the sidebar renders from that registry, modules can be toggled in Integrations → Suite Modules, and **every optional module's pages are wrapped in `<ModuleGate>`** so a disabled module is locked by direct URL too, not just hidden from the nav. The frontend runs **live-only** against public data providers via its `/live-data/*` route handlers. User data (portfolios, watchlists, builder plans, wallets) persists to Postgres through `/api/user/*`; module entitlements are **localStorage-only** (`useEntitlementStore` — the `entitlements` table exists in the schema but no route serves it yet, which is the Phase 6 rollout-posture question); an optional legacy Python backend still serves assets/market-data/alerts/risk-scores, but **not** auth — sign-in is Auth.js against the app's own `users` table. Surfaces with no free real-time source show an explicit "not available" notice — there is no mock/demo data path.
 
-**Working directory:** `C:\Users\marcu\OneDrive\Desktop\Crypto-Stuff\frontend`
+**Working directory:** the repo root is the `Finance-Now` monorepo (`frontend/`, `backend/`,
+`mcp-server/`, `infrastructure/`, `docs/`); **the Next.js app and all its npm commands live in
+`frontend/`**. (Older docs reference a local `Crypto-Stuff\frontend` checkout path — same app,
+pre-monorepo naming.)
 
 **Agent charters:** four maintenance agents are deployed, split along two boundaries
 (full table: `docs/IMPROVEMENT-AGENT-SETUP.md`). By scope: `code-checker`
@@ -228,6 +231,23 @@ for one: it explains what the author *meant*, not what the patch *does*.
 
 Direct-to-`main` is for when the owner asks for it in the moment, and it stays
 the exception.
+
+**History and archives.** `main` was re-rooted on 2026-08-05: its root commit is a
+full-tree snapshot of PR #71, and nothing before it — PRs #1–#70, ~354 commits back to
+the 2026-05-24 scaffold — is reachable from `main`. That history is preserved on the
+`archive/pre-reset*` branches (anchor: `archive/pre-reset-main`, 264 commits, plus 13
+`archive/pre-reset/*` tips holding commits the anchor lacks; created 2026-08-24 — see
+`docs/audits/git-repo-audit-2026-08-23.md`, PR #110). Any "recoverable from git history"
+claim about a deletion made **before 2026-08-05** resolves there, not in `main`'s log —
+`git log`, `--follow`, and blame all stop at the re-root unless those branches are
+fetched. `archive/wave-two-pre-reset` is the same pattern for the wave-2 rollback of
+2026-08-15. Keep every `archive/*` branch through any stale-branch cleanup.
+
+**Standing rule:** any history-shaping operation — force-pushing or re-rooting a branch,
+deleting branches, archiving a workstream — lands **together with a dated note in
+`docs/`** saying what was done and where the prior state lives. A reset nobody writes
+down silently breaks every recoverability claim written before it; the 2026-08-05
+re-root went unrecorded for 19 days and did exactly that.
 
 ---
 
@@ -660,7 +680,7 @@ Risk/status color convention used across the app:
 | Pump Report | `/pump-report` | 🟢 Live | Public fraud-intelligence scan + chat over wallet addresses (`/live-data/pump-report/*`, own agent loop). **Promoted to its own page 2026-08-22**: it was a tab on `/wallets` and went dark when that page was held out of the rollout, purely because it had no route. The page reads saved wallets from the DB-backed store but carries **its own address entry**, so it does not depend on `/wallets` being reachable |
 | Wallets | ~~`/wallets`~~ | ⚪ **Hidden from rollout** | **Hidden 2026-08-22** (owner), same posture as Transfer Fees — kept, not deleted; `/wallets` redirects to `/headlines`. On-chain balances for watched addresses + connected browser wallets (`/live-data/wallet/*`). `/api/user/wallets` is deliberately left up: user-data CRUD carries no staleness harm and saved addresses survive the hide. **DB-backed** since 2026-08-18 (NT3) via `/api/user/wallets` (+`/[id]` PATCH/DELETE) — optimistic store, client-UUID ids, one-time `fn:wallets` localStorage import that merges additively. **Exchange API linking removed 2026-08-18** on security grounds — see the secret-stores note above |
 | Research / Agent Config | `/research`, `/agent-config` | — | Crypto + equity research agents; AI Agents tab configures all agents (see "AI Agents" section) |
-| Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from git history if ever wanted. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
+| Risk Case Studies | `/backtests` | ⚪ Removed | Deleted (2026-07) — static educational replay of 3 depeg events with no clear user value; `/backtests` redirects to `/headlines`. Recoverable from the `archive/pre-reset-main` branch if ever wanted — the deletion predates the 2026-08-05 re-root of `main` (see "How Changes Land"), so it is not in `main`'s own history. (Equities Strategy Backtests at `/equities/backtests` are unrelated and remain.) |
 | Videos | `/videos` | 🟢 Live | Video search + AI analysis (`/live-data/videos`, `video-search`, `video-analyze`) |
 | Data Sources | `/data-sources` | — | Per-provider status and utilization, read from the provider registry |
 | Daily Brief | `/brief` | 🟢 Live | AI morning brief grounded in holdings (needs ANTHROPIC_API_KEY) |
