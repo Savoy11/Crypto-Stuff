@@ -169,7 +169,7 @@ frontend/src/
 │   │   ├── transferFees.ts         # 30 exchanges × 22 coins × 18 networks (+ provenance)
 │   │   ├── stakingProviders.ts     # 55 staking providers with risk profiles (+ provenance)
 │   │   ├── equityCatalog.ts        # 79 large-cap stocks, 11 sectors, reference data
-│   │   ├── fundCatalog.ts          # 118 ETFs/mutual funds + computeFeeDrag()
+│   │   ├── fundCatalog.ts          # 126 ETFs/mutual funds + computeFeeDrag()
 │   │   ├── commodityCatalog.ts     # 19 front-month contracts, 5 categories
 │   │   ├── currencyCatalog.ts      # 17 FX pairs + DXY
 │   │   ├── ratesCatalog.ts         # 4 CBOE yield indices + 4 CBOT futures
