@@ -470,8 +470,24 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 >   looking reviewed.
 >
 > One item stays open: the **personal-vs-commercial question**, which decides
-> seven more sources (Finnhub, Twelve Data, Tiingo, Binance.US, YouTube,
-> OilPrice, Bitget) and is the owner's to answer.
+> **eight** more sources (Finnhub, Twelve Data, Tiingo, Binance.US, YouTube,
+> OilPrice, Bitget — and **FMP**, added 2026-09-02) and is the owner's to answer.
+>
+> **FMP is the load-bearing one, and it was missed until now.** Its entry is
+> `seeded`, and its finding asserts the permission is *tier-dependent* (free =
+> personal/development, redistribution on a higher plan). A 2026-09-01 fund-fee
+> assessment asserts the opposite — personal use on **every** tier. Neither is a
+> reading, and `terms-review-2026-08-29.md` does not mention FMP at all: the
+> seeded finding read as already settled by plan tier, so it never joined the
+> queue. An assumption wearing the confidence of a resolved entry is precisely
+> what `seeded` exists to expose.
+>
+> It matters because FMP is not a marginal source. It is the first rung of the
+> quote ladder, the **only** source for the Stock Registry universe and for
+> `/live-data/market-calendar`, and the OHLCV fallback — 7 live-data routes
+> across 20 files. If "personal use on every tier" is right, that is a live
+> problem on shipping surfaces rather than a future decision. See the dated note
+> on the entry in `sourceTerms.ts` for the three questions to answer.
 
 **To close it:** `npm run terms:report -- --seeded` (or `--news`) from a machine
 > that can reach these sites writes a review worksheet — current verdict, what the
