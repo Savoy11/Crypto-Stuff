@@ -32,6 +32,7 @@
     "fee-worksheet": "tsx scripts/gen-transfer-fee-worksheet.ts",
     "fee-probe": "tsx scripts/probe-exchange-fee-apis.mjs",
     "gas-probe": "tsx scripts/probe-gas-rpcs.mjs",
+    "rates-probe": "tsx scripts/probe-rates-scale.mjs",
     "fee-reconcile": "tsx scripts/reconcile-transfer-fees.ts",
     "fee-apply": "tsx scripts/apply-fee-updates.ts"
   },
