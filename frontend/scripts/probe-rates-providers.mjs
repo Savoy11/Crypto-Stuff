@@ -27,8 +27,14 @@
 // par curve, keyless, already charted on /macro/rates. A provider quote of
 // ~4.79 means no scaling; ~47.9 means yield ×10.
 //
-// Usage:  npm run dev            (in another terminal — needed for ground truth)
-//         npm run rates-providers
+// Usage:  npm run rates-providers        (no dev server required)
+//
+// Ground truth is fetched from home.treasury.gov DIRECTLY, not through the
+// app's route. The curve is keyless, so requiring `npm run dev` was a coupling
+// this probe never needed — and on 2026-09-03 it cost a whole run: the route
+// answered 404 on a live dev server and the probe stopped before asking a
+// single provider anything. The app route is still tried first, since it
+// caches and is the code that actually ships; treasury.gov is the fallback.
 //
 // Exit 0 = at least one provider answered and a verdict was reached.
 // Exit 1 = nobody carries these symbols, or ground truth was unreachable.
@@ -147,28 +153,83 @@ async function tryFetch(url) {
   }
 }
 
+// ─── Ground truth, straight from the source ───────────────────────────────────
+// Same XML feed and the same regex parse as lib/server/treasuryCurve.ts. It is
+// duplicated rather than imported because that module carries the `server-only`
+// build-time pill, which is not in node_modules and so cannot be resolved by
+// tsx (see the vitest alias note in CLAUDE.md). Kept to the one field set the
+// probe actually needs, so the duplication stays small and obvious.
+const CURVE_XML =
+  'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve'
+
+const CURVE_FIELDS = [
+  { tag: 'BC_3MONTH', label: '3M', years: 3 / 12 },
+  { tag: 'BC_6MONTH', label: '6M', years: 6 / 12 },
+  { tag: 'BC_1YEAR', label: '1Y', years: 1 },
+  { tag: 'BC_2YEAR', label: '2Y', years: 2 },
+  { tag: 'BC_5YEAR', label: '5Y', years: 5 },
+  { tag: 'BC_7YEAR', label: '7Y', years: 7 },
+  { tag: 'BC_10YEAR', label: '10Y', years: 10 },
+  { tag: 'BC_20YEAR', label: '20Y', years: 20 },
+  { tag: 'BC_30YEAR', label: '30Y', years: 30 },
+]
+
+async function fetchCurveDirect() {
+  const year = new Date().getUTCFullYear()
+  const res = await fetch(`${CURVE_XML}&field_tdr_date_value=${year}`, {
+    headers: { Accept: 'application/xml' },
+  })
+  if (!res.ok) throw new Error(`treasury.gov ${res.status}`)
+  const xml = await res.text()
+
+  // Entries are oldest-first; the last parseable one is the newest reading.
+  const snapshots = xml
+    .split('<entry>')
+    .slice(1)
+    .map((entry) => {
+      const date = entry.match(/<d:NEW_DATE[^>]*>(\d{4}-\d{2}-\d{2})/)?.[1]
+      if (!date) return null
+      const points = []
+      for (const f of CURVE_FIELDS) {
+        const m = entry.match(new RegExp(`<d:${f.tag}[^>]*>([\\d.]+)</d:${f.tag}>`))
+        if (m) points.push({ label: f.label, years: f.years, yieldPct: Number(m[1]) })
+      }
+      // A partial row would place a comparison against the wrong maturity.
+      return points.length >= 8 ? { date, points } : null
+    })
+    .filter(Boolean)
+
+  if (!snapshots.length) throw new Error('treasury.gov returned no parseable curve rows')
+  return snapshots[snapshots.length - 1]
+}
+
 async function main() {
   out('\n══ Which provider carries the CBOE yield indices? ══\n')
 
   // ── Ground truth ───────────────────────────────────────────────────────────
-  let truth
+  let truth, viaApp
   try {
     const res = await fetch(BASE + '/live-data/treasury-yield-curve', { headers: { Accept: 'application/json' } })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const body = await res.json()
     if (body?.ok === false) throw new Error(body.error ?? 'route reported not-ok')
     truth = body.latest
+    viaApp = true
   } catch (err) {
-    out(`\n✗ Could not fetch the Treasury curve: ${err?.message ?? err}\n`)
-    out(`  Base URL: ${BASE} — is 'npm run dev' running?\n`)
-    out('  This half needs no API key, so a failure here is the server or the\n')
-    out('  network, not a missing provider key. Without ground truth a returned\n')
-    out('  quote could not be judged either way, so this stops rather than\n')
-    out('  printing numbers nobody can interpret.\n\n')
-    process.exitCode = 1
-    return
+    out(`\n  (app route unavailable — ${err?.message ?? err}; going to treasury.gov directly)\n`)
+    try {
+      truth = await fetchCurveDirect()
+    } catch (err2) {
+      out(`\n✗ Could not fetch the Treasury curve from either source: ${err2?.message ?? err2}\n`)
+      out('  This half needs no API key, so a failure here is the network, not a\n')
+      out('  missing provider key. Without ground truth a returned quote could not\n')
+      out('  be judged either way, so this stops rather than printing numbers\n')
+      out('  nobody can interpret.\n\n')
+      process.exitCode = 1
+      return
+    }
   }
-  out(`\nTreasury par curve (home.treasury.gov), ${truth.date} — authoritative:\n`)
+  out(`\nTreasury par curve (home.treasury.gov${viaApp ? ', via the app route' : ', direct'}), ${truth.date} — authoritative:\n`)
   for (const p of truth.points) out(`   ${p.label.padEnd(4)} ${p.yieldPct.toFixed(2)}%\n`)
 
   // ── Every provider, every index ────────────────────────────────────────────
