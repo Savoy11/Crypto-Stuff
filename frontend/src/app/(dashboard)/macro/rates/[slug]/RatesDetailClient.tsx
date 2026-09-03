@@ -9,7 +9,9 @@ import { TermStructureCard } from '@/components/markets/TermStructureCard'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { RATES_CATEGORY_INFO, formatRatesQuote, getRatesEntry } from '@/lib/data/ratesCatalog'
 import { getFund } from '@/lib/data/fundCatalog'
-import { STALE_TIME_SHORT } from '@/lib/constants'
+import { yieldFromCurve, curveYieldSourceLabel } from '@/lib/data/ratesFromCurve'
+import type { YieldCurveResponse } from '@/app/live-data/treasury-yield-curve/route'
+import { STALE_TIME_SHORT, STALE_TIME_LONG } from '@/lib/constants'
 
 // Rates instrument detail — live quote, history chart, and instrument facts.
 // Yield indices chart the yield itself; futures chart the price in points.
@@ -23,6 +25,17 @@ export function RatesDetailClient({ slug }: { slug: string }) {
   const info = RATES_CATEGORY_INFO[entry.category]
   const isYield = entry.quoteBasis === 'pct'
 
+  // A yield index reads off the official Treasury par curve; only futures need a
+  // provider quote. See lib/data/ratesFromCurve.ts for why (D3, 2026-09-03).
+  // The queryKey matches the overview page's, so this is usually a cache hit.
+  const { data: curve } = useQuery<YieldCurveResponse>({
+    queryKey: ['treasury-yield-curve'],
+    queryFn: () => fetch('/live-data/treasury-yield-curve').then((r) => r.json()),
+    staleTime: STALE_TIME_LONG,
+    enabled: isYield,
+  })
+  const curveYield = yieldFromCurve(entry, curve?.ok ? curve.latest : null)
+
   const { data: quote, isLoading } = useQuery<Quote | null>({
     queryKey: ['rates-quote', entry.symbol],
     queryFn: async () => {
@@ -32,6 +45,7 @@ export function RatesDetailClient({ slug }: { slug: string }) {
     },
     staleTime: STALE_TIME_SHORT,
     refetchInterval: 1000 * 60 * 2,
+    enabled: !isYield,
   })
 
   const up = (quote?.changePercent ?? 0) >= 0
@@ -62,11 +76,23 @@ export function RatesDetailClient({ slug }: { slug: string }) {
             </span>
           </div>
           <p className="mt-1 text-xs text-text-muted">
-            {isYield ? 'CBOE yield index · quoted as the yield itself' : 'CBOT futures · front-month continuous, points of par'}
+            {isYield
+              ? 'US Treasury par yield · official daily publication'
+              : 'CBOT futures · front-month continuous, points of par'}
           </p>
         </div>
         <div className="text-right">
-          {quote?.price != null ? (
+          {curveYield ? (
+            <>
+              <p className="text-2xl font-mono tabular-nums font-semibold text-text-primary">
+                {formatRatesQuote(entry, curveYield.yieldPct)}
+              </p>
+              {/* No day-change line: the curve publishes daily, so there is no
+                  intraday move to report and inventing one would misdescribe
+                  the reading. */}
+              <p className="text-xs text-text-muted">{curveYieldSourceLabel(curveYield)}</p>
+            </>
+          ) : quote?.price != null ? (
             <>
               <p className="text-2xl font-mono tabular-nums font-semibold text-text-primary">
                 {formatRatesQuote(entry, quote.price)}
@@ -78,7 +104,9 @@ export function RatesDetailClient({ slug }: { slug: string }) {
               )}
             </>
           ) : (
-            <p className="text-sm text-text-muted">{isLoading ? 'Fetching live quote…' : 'Live quote unavailable'}</p>
+            <p className="text-sm text-text-muted">
+              {isYield ? 'Treasury curve unavailable' : isLoading ? 'Fetching live quote…' : 'Live quote unavailable'}
+            </p>
           )}
         </div>
       </div>
@@ -86,7 +114,7 @@ export function RatesDetailClient({ slug }: { slug: string }) {
       {/* Provenance for the live quote above. Detail pages carried no
           SourceLine while every registry page did, so the page with the most
           specific numbers was the one with no attribution. */}
-      <SourceLine id="macro-quotes" />
+      <SourceLine id={isYield ? 'treasury-yield-curve' : 'macro-quotes'} />
 
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
         <div className="xl:col-span-2">

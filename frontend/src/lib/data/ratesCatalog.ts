@@ -1,8 +1,9 @@
 // Bonds & Rates catalog for the Macro Markets module.
-// Treasury yield indices and bond futures, all verified to price live through
-// /live-data/security-quotes on 2026-07-21. The official
-// yield curve comes from /live-data/treasury-yield-curve (treasury.gov,
-// keyless).
+// Treasury yields and bond futures. The FUTURES price live through
+// /live-data/security-quotes (verified 2026-07-21). The four YIELD entries no
+// longer do: as of 2026-09-03 they read from the official treasury.gov par
+// curve via /live-data/treasury-yield-curve — keyless, official, plain percent.
+// See lib/data/ratesFromCurve.ts for the probe results that forced that.
 //
 // Deliberate scope: yields, treasury futures, and bond ETFs. Individual
 // corporate/muni bond quotes (CUSIP-level) are licensed data with no free
@@ -23,8 +24,13 @@ export interface RatesEntry {
   name: string
   category: RatesCategoryId
   /**
-   * 'pct' — CBOE yield indices, quoted as the yield itself in percent.
-   * 'points' — futures prices in points of par (decimalised 32nds).
+   * 'pct' — a Treasury yield, in plain percent. These four entries are NOT
+   *   quoted by a provider: they are read from the official treasury.gov par
+   *   curve (lib/data/ratesFromCurve.ts), because no free provider carries the
+   *   CBOE indices and none could settle what scale they arrive in. That means
+   *   a DAILY figure, not an intraday quote — surfaces must say so.
+   * 'points' — futures prices in points of par (decimalised 32nds). Genuinely
+   *   live, through /live-data/security-quotes.
    */
   quoteBasis: 'pct' | 'points'
   description: string

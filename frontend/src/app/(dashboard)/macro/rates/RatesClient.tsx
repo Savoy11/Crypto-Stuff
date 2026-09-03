@@ -23,7 +23,13 @@ import type { YieldCurveResponse } from '@/app/live-data/treasury-yield-curve/ro
 interface Quote { price: number | null; changePercent: number | null }
 interface QuotesResponse { ok: boolean; quotes?: Record<string, Quote> }
 
-const ALL_SYMBOLS = RATES_CATALOG.map((r) => r.symbol)
+import { yieldFromCurve, curveYieldSourceLabel } from '@/lib/data/ratesFromCurve'
+
+// Only the FUTURES still need a provider quote. The four yield indices read off
+// the official Treasury par curve instead — see lib/data/ratesFromCurve.ts for
+// why (D3, 2026-09-03): no free provider quotes them, and none could settle
+// what scale they arrive in.
+const QUOTED_SYMBOLS = RATES_CATALOG.filter((r) => r.quoteBasis !== 'pct').map((r) => r.symbol)
 
 const SHAPE_INFO: Record<NonNullable<YieldCurveResponse['shape']>, { label: string; color: string; blurb: string }> = {
   normal:   { label: 'Normal',   color: 'text-emerald-400', blurb: 'long yields above short — the usual upward slope' },
@@ -41,7 +47,7 @@ export function RatesClient() {
   const { data: quotes, isLoading } = useQuery<Record<string, Quote>>({
     queryKey: ['rates-quotes'],
     queryFn: async () => {
-      const res = await fetch(`/live-data/security-quotes?symbols=${encodeURIComponent(ALL_SYMBOLS.join(','))}`)
+      const res = await fetch(`/live-data/security-quotes?symbols=${encodeURIComponent(QUOTED_SYMBOLS.join(','))}`)
       const json: QuotesResponse = await res.json()
       if (!json.ok || !json.quotes) throw new Error('quotes unavailable')
       return json.quotes
@@ -67,7 +73,12 @@ export function RatesClient() {
     return Array.from(rows.values()).sort((a, b) => (a.years as number) - (b.years as number))
   }, [curve])
 
-  const tnx = quotes?.['^TNX']
+  // The 10-year headline now comes from the curve, not a quote.
+  const latestCurve = curve?.ok ? curve.latest : undefined
+  const tnxYield = yieldFromCurve(
+    RATES_CATALOG.find((r) => r.symbol === '^TNX')!,
+    latestCurve ?? null
+  )
   const shape = curve?.ok ? curve.shape : undefined
 
   return (
@@ -89,12 +100,10 @@ export function RatesClient() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         <MetricCard
           title="10-Year Yield"
-          value={tnx?.price != null ? `${tnx.price.toFixed(2)}%` : '—'}
-          subtitle={tnx?.changePercent != null
-            ? `${tnx.changePercent >= 0 ? '+' : ''}${tnx.changePercent.toFixed(2)}% today`
-            : tnx?.price != null
-              ? 'live intraday'
-              : 'no live quote — needs a configured provider key'}
+          value={tnxYield ? `${tnxYield.yieldPct.toFixed(2)}%` : '—'}
+          subtitle={tnxYield
+            ? curveYieldSourceLabel(tnxYield)
+            : 'Treasury curve unavailable'}
           accentColor="#3b82f6"
         />
         <MetricCard
@@ -170,6 +179,7 @@ export function RatesClient() {
             </thead>
             <tbody className="divide-y divide-border/40">
               {RATES_CATALOG.map((r) => {
+                const cy = yieldFromCurve(r, latestCurve ?? null)
                 const q = quotes?.[r.symbol]
                 const up = (q?.changePercent ?? 0) >= 0
                 const info = RATES_CATEGORY_INFO[r.category]
@@ -188,11 +198,20 @@ export function RatesClient() {
                       </span>
                     </td>
                     <td className="py-2.5 px-4 text-right font-mono tabular-nums text-text-primary">
-                      {q?.price != null ? formatRatesQuote(r, q.price) : isLoading ? '…' : '—'}
+                      {cy
+                        ? formatRatesQuote(r, cy.yieldPct)
+                        : q?.price != null
+                          ? formatRatesQuote(r, q.price)
+                          : isLoading ? '…' : '—'}
                     </td>
+                    {/* A daily curve reading has no intraday change. Showing a
+                        dash with the reason beats borrowing the futures' day
+                        move, which measures a different instrument. */}
                     <td className={clsx('py-2.5 px-4 text-right font-mono tabular-nums text-xs',
-                      q?.changePercent == null ? 'text-text-muted' : up ? 'text-emerald-400' : 'text-red-400')}>
-                      {q?.changePercent != null ? `${up ? '+' : ''}${q.changePercent.toFixed(2)}%` : '—'}
+                      cy || q?.changePercent == null ? 'text-text-muted' : up ? 'text-emerald-400' : 'text-red-400')}>
+                      {cy
+                        ? <span title={curveYieldSourceLabel(cy)}>daily</span>
+                        : q?.changePercent != null ? `${up ? '+' : ''}${q.changePercent.toFixed(2)}%` : '—'}
                     </td>
                   </tr>
                 )
@@ -200,7 +219,9 @@ export function RatesClient() {
             </tbody>
           </table>
           <p className="px-4 py-2.5 border-t border-border/60 text-[11px] text-text-muted leading-relaxed">
-            Futures prices move inversely to yields: a rising ZN=F means the 10-year yield is falling.
+            Yields are the official Treasury par curve, published once a day — not intraday quotes; no free
+            provider carries the CBOE yield indices. Futures are live and move inversely to yields: a rising
+            ZN=F means the 10-year yield is falling.
           </p>
         </div>
 
