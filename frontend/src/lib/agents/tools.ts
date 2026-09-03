@@ -355,7 +355,7 @@ const TOOL_REGISTRY: RegisteredTool[] = [
     market: 'macro',
     tool: {
       name: 'get_macro_quote',
-      description: 'Get live prices for macro symbols: commodity futures (GC=F, CL=F), FX pairs (EURUSD=X, JPY=X), the dollar index (DX-Y.NYB), treasury yield indices (^TNX quotes the yield ×10), and bond futures (ZN=F). Mind each market\'s quote convention from search_macro_instruments (grains quote in cents).',
+      description: 'Get live prices for macro symbols: commodity futures (GC=F, CL=F), FX pairs (EURUSD=X, JPY=X), the dollar index (DX-Y.NYB), and bond futures (ZN=F). Mind each market\'s quote convention from search_macro_instruments (grains quote in cents). Treasury yield indices (^IRX/^FVX/^TNX/^TYX) are NOT quoted here — no free provider carries them; use get_yield_curve, which returns the official yields in plain percent.',
       input_schema: {
         type: 'object',
         properties: {
@@ -782,7 +782,7 @@ export async function runTool(
           .map((r) => ({
             symbol: r.symbol, name: r.name, area: 'rates' as const,
             category: RATES_CATEGORY_INFO[r.category].label,
-            quotesIn: r.quoteBasis === 'pct' ? 'yield in percent (^TNX shows yield ×10)' : 'points of par',
+            quotesIn: r.quoteBasis === 'pct' ? 'yield in plain percent, from the official daily Treasury par curve (use get_yield_curve)' : 'points of par',
             etfProxies: r.etfProxies,
           }))
         if (commodities.length + currencies.length + rates.length === 0) {
