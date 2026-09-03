@@ -145,7 +145,15 @@ function nearestCurvePoint(points, years) {
 async function tryFetch(url) {
   const res = await fetch(url, { headers: { Accept: 'application/json' } })
   const text = await res.text()
-  if (!res.ok) throw new Error(`HTTP ${res.status}: ${text.slice(0, 120)}`)
+  if (!res.ok) {
+    const err = new Error(`HTTP ${res.status}: ${text.slice(0, 160)}`)
+    // 401/402/403 mean "your plan or key does not reach this", which is the
+    // opposite of "this provider does not have the instrument". Conflating the
+    // two would report a paywall as absent coverage and retire a symbol the
+    // provider actually carries.
+    err.entitlement = res.status === 401 || res.status === 402 || res.status === 403
+    throw err
+  }
   try {
     return JSON.parse(text)
   } catch {
@@ -234,6 +242,8 @@ async function main() {
 
   // ── Every provider, every index ────────────────────────────────────────────
   const verdicts = []
+  const blocked = []
+  const skipped = []
   let anyKeyed = false
 
   for (const prov of PROVIDERS) {
@@ -242,13 +252,14 @@ async function main() {
     if (!key) {
       out('   no key configured — skipped. Not evidence either way: an unkeyed\n')
       out('   provider is untested, not ruled out.\n')
+      skipped.push(prov.name)
       continue
     }
     anyKeyed = true
 
     for (const idx of YIELD_INDICES) {
       const ref = nearestCurvePoint(truth.points, idx.maturityYears ?? 10)
-      let got, usedSymbol, lastErr
+      let got, usedSymbol, lastErr, paywalled = false
       for (const sym of prov.variants(idx.symbol)) {
         try {
           const value = prov.extract(await tryFetch(prov.url(sym, key)))
@@ -259,12 +270,18 @@ async function main() {
           }
         } catch (err) {
           lastErr = err?.message ?? String(err)
+          if (err?.entitlement) paywalled = true
         }
       }
 
       if (got === undefined) {
-        const why = lastErr ? `error: ${lastErr}` : 'no quote (symbol not carried)'
+        const why = paywalled
+          ? `PAYWALLED (plan does not reach it — the provider has it): ${lastErr}`
+          : lastErr
+            ? `error: ${lastErr}`
+            : 'no quote (symbol not carried)'
         out(`   ${idx.symbol.padEnd(6)} — ${why}\n`)
+        blocked.push({ provider: prov.name, symbol: idx.symbol, paywalled })
         continue
       }
 
@@ -289,15 +306,39 @@ async function main() {
 
   const decided = verdicts.filter((v) => !v.inconclusive)
   if (decided.length === 0) {
-    out('No provider carries the CBOE yield indices with a usable quote.\n\n')
-    out('That is a finding, not a dead end. If nothing reachable quotes ^IRX/\n')
-    out('^FVX/^TNX/^TYX, then `quoteBasis: \'pct\'` on those four catalog entries\n')
-    out('is unreachable code, the UI\'s formatRateQuote can never mis-render them,\n')
-    out('and the ×10 language in agents/prompts.ts and agents/tools.ts instructs a\n')
-    out('division on data that never arrives. The honest resolution is then to\n')
-    out('drop that language and let the official Treasury curve be the sole rates\n')
-    out('source — which prompts.ts:576 and tools.ts:387 already tell agents to\n')
-    out('prefer. Do NOT "fix" the UI by dividing by ten on a hypothesis.\n\n')
+    const paywalls = [...new Set(blocked.filter((b) => b.paywalled).map((b) => b.provider))]
+
+    out('No live quote was obtained, so the ×10 question is NOT settled.\n\n')
+
+    if (paywalls.length) {
+      out(`PAYWALLED, not absent: ${paywalls.join(', ')} answered with an entitlement\n`)
+      out('error (401/402/403). That means the provider HAS these symbols and the\n')
+      out('configured plan does not reach them — the opposite of "does not carry\n')
+      out('it". Do not retire the symbols on this evidence. Either upgrade that\n')
+      out('plan or key a provider whose free tier includes indices.\n\n')
+    }
+    if (skipped.length) {
+      out(`UNTESTED (no key): ${skipped.join(', ')}. These were never asked, so they\n`)
+      out('are not evidence of anything. Add a key on Integrations and re-run.\n\n')
+    }
+
+    const trulyAbsent = blocked.filter((b) => !b.paywalled)
+    if (trulyAbsent.length && !paywalls.length && !skipped.length) {
+      out('Every provider was asked with a working key and none returned a quote.\n')
+      out('THAT would be a finding: `quoteBasis: \'pct\'` on those four catalog\n')
+      out('entries is then unreachable, the UI\'s formatRateQuote can never\n')
+      out('mis-render them, and the ×10 language in agents/prompts.ts and\n')
+      out('agents/tools.ts instructs a division on data that never arrives — so\n')
+      out('drop that language and let the official Treasury curve be the sole\n')
+      out('rates source, which prompts.ts:576 and tools.ts:387 already tell\n')
+      out('agents to prefer.\n\n')
+    } else {
+      out('That conclusion is NOT available yet: it requires every provider to have\n')
+      out('been asked with a working key and to have answered with a real absence.\n')
+      out('A paywall and an unkeyed skip are both silence, not absence.\n\n')
+    }
+
+    out('Either way: do NOT "fix" the UI by dividing by ten on a hypothesis.\n\n')
     process.exitCode = 1
     return
   }
