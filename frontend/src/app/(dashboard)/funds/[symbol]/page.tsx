@@ -15,9 +15,10 @@ import { ProvenanceNotice } from '@/components/ui/ProvenanceNotice'
 import { PriceChartCard, FiftyTwoWeekBar } from '@/components/markets/PriceChartCard'
 import { MarketNewsList } from '@/components/markets/MarketNewsList'
 import {
-  computeFeeDrag, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
+  computeFeeDrag, fundSalesCharge, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO,
   fundRiskLevel, fundStrategy, fundTradingRestriction, getFund, getFundDataProvenance,
 } from '@/lib/data/fundCatalog'
+import type { SalesCharge } from '@/lib/data/fundCatalog'
 import { TaxEquivalentYieldCard } from '@/components/markets/TaxEquivalentYieldCard'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
@@ -39,7 +40,17 @@ const HORIZONS = [10, 20, 30] as const
 const MUNI_FUNDS = new Set(['MUB', 'VTEB', 'TFI'])
 const isMuniFund = (symbol: string) => MUNI_FUNDS.has(symbol.toUpperCase())
 
-function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; symbol: string }) {
+function FeeDragCard({ expenseRatioPct, symbol, salesCharge, website }: {
+  expenseRatioPct: number
+  symbol: string
+  salesCharge: SalesCharge | null
+  website: string
+}) {
+  // A load with a VERIFIED rate goes into the maths. One without a rate is
+  // disclosed in words and left out of the projection — guessing it would be
+  // worse than omitting it, and omitting it silently would be worse than both.
+  const loadPct = salesCharge?.kind === 'front' ? salesCharge.maxPct : undefined
+  const unverifiedLoad = salesCharge != null && salesCharge.maxPct == null
   const [principal, setPrincipal] = useState(10_000)
   const [annualReturn, setAnnualReturn] = useState(7)
 
@@ -53,6 +64,34 @@ function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; sym
         What {symbol}&rsquo;s {expenseRatioPct}% expense ratio costs versus a 0.03% index fund,
         assuming {annualReturn}% gross annual return.
       </p>
+
+      {salesCharge && (
+        <div className={clsx('mb-4 rounded border px-3 py-2 text-[11px] leading-relaxed',
+          unverifiedLoad ? 'border-amber-400/40 bg-amber-400/5 text-amber-200' : 'border-orange-400/40 bg-orange-400/5 text-orange-200')}>
+          {loadPct != null ? (
+            <>
+              <strong>Includes a {loadPct}% {salesCharge.kind}-end sales load.</strong>{' '}
+              On the figures below, {formatCurrency(principal * (loadPct / 100), 0)} is deducted at
+              purchase and never invested — the projection starts from what is left.
+              {salesCharge.source && salesCharge.verifiedAt && (
+                <> Rate from {salesCharge.source}, read {salesCharge.verifiedAt}.</>
+              )}
+            </>
+          ) : (
+            <>
+              <strong>This fund carries a {salesCharge.kind}-end sales load, and the figures
+              below do NOT include it.</strong>{' '}
+              The rate has not been verified against the prospectus, and a guessed number would be
+              worse than none — so the projection shows the expense ratio only and understates the
+              real cost. Check the{' '}
+              <a href={website} target="_blank" rel="noopener noreferrer" className="underline hover:text-text-primary">
+                fund&rsquo;s prospectus
+              </a>{' '}
+              for the current sales charge.
+            </>
+          )}
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 mb-4">
         <label className="block">
@@ -85,7 +124,7 @@ function FeeDragCard({ expenseRatioPct, symbol }: { expenseRatioPct: number; sym
 
       <div className="space-y-2">
         {HORIZONS.map((years) => {
-          const series = computeFeeDrag(principal, expenseRatioPct, years, annualReturn)
+          const series = computeFeeDrag(principal, expenseRatioPct, years, annualReturn, 0.03, loadPct ?? 0)
           const final = series[series.length - 1]
           if (!final) return null
           const dragPct = final.withBenchmarkFee > 0 ? (final.feesPaid / final.withBenchmarkFee) * 100 : 0
@@ -327,7 +366,7 @@ function FundDetailInner() {
                 projection is only as current as they are. Check the issuer&rsquo;s fact sheet before
                 acting on a fee figure.
               </ProvenanceNotice>
-              <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} />
+              <FeeDragCard expenseRatioPct={entry.expenseRatioPct} symbol={symbol} salesCharge={fundSalesCharge(entry)} website={entry.website} />
               {/* Items 11/13: municipal funds arrived with this pass, and their
                   headline yield is not comparable to a taxable fund's. Shown
                   only for the funds it actually applies to. */}

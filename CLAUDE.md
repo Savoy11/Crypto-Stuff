@@ -89,7 +89,7 @@ frontend/src/
 │   │   ├── funds/                  # FUNDS MODULE — ETF/mutual fund registry + [symbol] detail
 │   │   ├── portfolio-builder/      # PREMIUM module — own entitlement
 │   │   └── global-adoption/        # De-routed (T5) — redirects to /headlines; page retained
-│   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 57 routes
+│   └── live-data/                  # Server-side API proxy routes (no API keys exposed) — 58 routes
 │       ├── markets/route.ts        # CoinGecko price data
 │       ├── news/route.ts           # Multi-provider crypto news (RSS + JSON feeds)
 │       ├── social/route.ts         # Social sentiment data
@@ -121,8 +121,13 @@ frontend/src/
 │       ├── fx-rates-extended/route.ts # +127 more currencies (community currency-api, keyless) — converter's labeled extended tier
 │       ├── treasury-yield-curve/route.ts # Official 13-maturity daily par curve (treasury.gov XML, keyless) + spreads/shape
 │       ├── macro-news/route.ts     # 8 keyless RSS feeds + content-first pillar classifier
-│       ├── risk-scores/route.ts    # Live composites via lib/risk
 │       ├── staking-discovery/route.ts, coin-discovery/route.ts
+│       ├── coin-profile/route.ts    # CoinMarketCap → keyless CoinGecko ladder; backs the
+│       │                            #   "About this project" panel on /coin-discovery
+│       ├── futures-curve/route.ts   # Resolves contract months, then answers ok:false with the
+│       │                            #   reason — nothing reachable quotes a dated contract
+│       ├── global/route.ts          # CoinGecko /global aggregates (keyless) — BTC/ETH dominance
+│       │                            #   for the Cycle Context tab
 │       ├── portfolio-prices/route.ts, portfolio-history/route.ts
 │       ├── wallet/                 # On-chain balances + exchange connections
 │       ├── pump-report/            # Pump-report scan + chat (own agent loop)
@@ -370,7 +375,8 @@ To add a provider: append to `STAKING_PROVIDERS` following the pattern. Celsius 
 
 ### `src/lib/data/fundCatalog.ts` (Funds module)
 - **`FUND_CATALOG`** — 126 funds (`type: 'etf' | 'mutual'`) with issuer, category (`FUND_CATEGORY_INFO`), expense ratio, AUM, yield, inception, tracked index, and indicative top holdings.
-- **`computeFeeDrag(principal, erPct, years, returnPct)`** — expense-ratio cost projection used by the Fee Drag Analyzer on fund detail pages.
+- **`computeFeeDrag(principal, erPct, years, returnPct, benchmarkErPct, frontLoadPct)`** — cost projection used by the Fee Drag Analyzer on fund detail pages. `frontLoadPct` is a SALES CHARGE deducted at purchase, not an annual fee: it comes off the top so only the remainder compounds, and it is **not** charged to the benchmark (a no-load index fund), or the comparison would cancel out the very difference it exists to show. Defaults to 0, so every no-load fund is unaffected.
+- **`SalesCharge` / `fundSalesCharge(f)`** — a fund's load, or null. **`kind` is required and `maxPct` is optional on purpose**: a load's EXISTENCE (from the issuer's documented share-class structure) and its RATE (from the prospectus) are separately knowable, and conflating them is how a wrong fee gets published. Undefined `maxPct` means *"a charge applies and we have not verified how much"* — never *"no charge"*. A stated rate REQUIRES `source` + `verifiedAt`, enforced catalog-wide by a test. The UI puts a verified rate into the maths and discloses an unverified one in words while excluding it from the projection: guessing is worse than omitting, and omitting silently is worse than both. Populate rates with `npm run fund-fees` (below), never from memory.
 - To add a fund: append to `FUND_CATALOG` following the pattern.
 
 ### `src/lib/data/portfolioBuilder.ts` (Portfolio Builder module)
@@ -426,7 +432,8 @@ site nobody has reviewed. Full design: `docs/architecture/source-terms.md`.
 > | Surface | Now |
 > |---|---|
 > | Quotes, charts, OHLCV/TA/backtests (stocks, funds, macro) | **Key-gated.** FMP/Finnhub/Twelve Data/Tiingo/Alpha Vantage for quotes, Tiingo→FMP for history. No key ⇒ catalog `ref` prices for stocks/funds, an honest dash for macro |
-> | **Macro instrument quotes** (`GC=F`, `EURUSD=X`, `^TNX`) | **Hit hardest.** Tiingo does not carry them, so coverage depends on the keyed provider configured and is expected to be partial |
+> | **Macro instrument quotes** (`GC=F`, `EURUSD=X`) | **Hit hardest.** Tiingo does not carry them, so coverage depends on the keyed provider configured and is expected to be partial |
+> | **Treasury yield indices** (`^IRX`/`^FVX`/`^TNX`/`^TYX`) | **No longer affected (2026-09-03, D3).** No free provider quotes them at all — FMP paywalls them, Finnhub returns nothing, Twelve Data 404s, Alpha Vantage answers empty — so they were moved off the quote ladder onto the official treasury.gov par curve: keyless, plain percent, daily |
 > | **Futures term structure** (`/live-data/futures-curve`) | **No source at all.** Nothing reachable quotes a dated contract month. The route resolves the months and returns `ok:false` with the reason; `TermStructureCard` prints it. Front-month prices are unaffected |
 > | Trailing returns | One request per symbol. `?universe=` is **refused**, not truncated; `?symbols=` capped at 60. Fund return **screening and sorting are off** — a screen that could only see the visible page would filter as though it had seen every fund. Per-page Returns columns still live |
 > | Per-ticker news | **Gone.** Symbol mode reads the general wires and keeps articles that name the company. It no longer force-tags the requested symbol onto unrelated stories |
@@ -622,6 +629,28 @@ npm run smoke   # quick subset (CI)
 npm run audit   # full audit; also audit:strict and audit:json
 ```
 
+**Fee reconciliation (owner machine — needs sec.gov):**
+
+```bash
+npm run fund-fees -- --inspect   # discover the dataset's tables/columns/tags; changes nothing
+npm run fund-fees                # write fund-fee-reconcile.json + fund-fee-worksheet.csv
+```
+
+`scripts/build-fund-fees.mjs` checks `FUND_CATALOG`'s expense ratios and finds its sales-load
+rates against the SEC's quarterly **Risk/Return Summary** data sets — the prospectus fee table as
+structured XBRL. It fills the gap `build-fund-facts.mjs` names: N-PORT carries no expense tag.
+
+It **reports, never writes** — same split as `apply-fee-updates.ts`, because an automated fee
+overwrite is how a correct number lands on the wrong fund, and share classes make that easy
+(AGTHX/AGTFX/CGFAX). Matching is on ticker, never a name or a number, and it never moves
+`FUND_DATA_LAST_VERIFIED`. **Run `--inspect` first**: the tag and column names are candidates until
+someone confirms them against a real archive.
+
+⚠ The decimal-vs-percent unit is **calibrated once against the catalog**, not guessed per value —
+expense-ratio ranges overlap between the two encodings (`0.03` is either 3% or 0.03%, and 0.03% is
+VOO), so a per-value rule produces a silent 100× error on the cheapest funds. An undecidable unit
+aborts the run.
+
 Both run `scripts/test-live-data.mjs` (the old `scripts/smoke.mjs` was folded into it —
 `smoke` is now just `--quick`). Run `npm run audit` before trusting any route, and read its
 **REAL vs FALLBACK** classification rather than the HTTP status: a 200 carrying fallback data
@@ -738,7 +767,7 @@ One module (`macro` entitlement), three areas. Owner spec + status: `docs/ROADMA
 | Macro News | `/macro/news` | 🟢 Live | `/live-data/macro-news` — 8 keyless RSS feeds (Investing.com commodities/bonds/forex, OilPrice, FXStreet, MarketWatch, CNBC ×2). **Content-first pillar classifier** (strong-currency terms → commodities → bonds → weak-currency; general-feed articles matching no pillar are dropped). 14-day staleness cutoff; future `pubDate`s clamped (Investing.com omits TZ); balanced merge guarantees each pillar ≤¼ of slots so slow bonds feeds aren't crowded out; detected instruments link to macro detail pages |
 | Commodities | `/macro/commodities`, `/[slug]` | 🟢 Live | `commodityCatalog.ts` — 19 verified front-month contracts, 5 categories. `quoteBasis: 'usd'\|'cents'` renders each market's convention (472.75¢/bu, never "$472"). Detail: chart + facts + ETF proxies → /funds. **`etfProxies` are genuine single-commodity exposure**, not the broad-basket DBC these used to point to. Deep, multi-issuer lineups for the liquid metals/energy markets (gold: GLD/IAU/GLDM/SGOL/AAAU/BAR/OUNZ; silver: SLV/SIVR/PSLV; WTI: USO/OILK/USL; nat gas: UNG/UNL) — each variant genuinely differs (expense ratio, K-1 vs 1099 tax form, front-month vs laddered roll, physical-redemption feature), all added to `fundCatalog.ts` and verified both quotable AND actively trading (5-day history, not just a cached price) before inclusion. Copper/grain/platinum/palladium get one verified proxy each (CPER/CORN/WEAT/SOYB/CANE/PPLT/PALL) — genuinely thinner markets, not an under-researched gap; broad-basket funds (DBB, COPX-style miner ETFs) are deliberately excluded even as a single option since that's the exact overstated-specificity problem this fix corrected. Heating oil, coffee, cocoa, cotton, live cattle, and lean hogs are **deliberately empty** — their single-commodity ETFs/ETNs (UHN, JO, NIB, BAL, COW) were confirmed delisted (last trade 2019–2023) 2026-07-21; don't backfill with a basket fund to avoid a blank list |
 | Currencies | `/macro/currencies`, `/[slug]` | 🟢 Live | `currencyCatalog.ts` — 17 pairs + DXY (18 entries), per-pair `precision`. **`etfProxies`** (new `FundCategoryId: 'currency'` in `fundCatalog.ts`): the 6 USD majors get their CurrencyShares trust (FXE/FXB/FXY/FXF/FXC/FXA — holds currency deposits, direct exposure); Dollar Index gets UUP/UDN/USDU (long/short/alt-index). Deliberately empty for every EM pair and every cross — EM single-currency funds (FXM/BZF/CYB/ICN/SZR) confirmed delisted, crosses have never had a dedicated fund (only vs-USD trusts exist), NZD/KRW never had one. **Converter is two-tier**: 30 ECB currencies (`/live-data/fx-rates`, frankfurter.dev — verified to be ECB's *complete* published set, not a subset) plus 127 more via `/live-data/fx-rates-extended` (community `fawazahmed0/currency-api`, keyless, hand-verified allowlist excluding crypto tickers/precious-metal ounce codes/IMF SDR/defunct pre-euro currencies from that feed's ~340 raw codes). Grouped by `<optgroup>` in the UI; any conversion touching an extended-tier currency shows a distinct disclosure (community-sourced, not ECB) instead of the "official" ECB copy — the two tiers are never blended without attribution |
-| Bonds & Rates | `/macro/rates`, `/[slug]` | 🟢 Live | `ratesCatalog.ts` — 4 CBOE yield indices + 4 CBOT futures. Curve chart from `/live-data/treasury-yield-curve` = **official** treasury.gov 13-maturity daily par curve (keyless XML, regex-parsed, 4h revalidate) + 2s10s/3m10y spreads + shape. Overview-page bond ETF shelf → /funds. **CUSIP-level bond quotes are licensed data — intentionally absent, stated on-page.** The overview shelf gained international and municipal rows (items 11/13); municipal fund detail pages carry a **tax-equivalent-yield calculator** (`lib/utils/taxEquivalentYield.ts`, pure + 10 tests) — a muni's headline yield is not comparable to a taxable fund's, and TEY is the arithmetic that makes it so. Detail pages carry a per-instrument **"Duration-Matched Funds"** section (`etfProxies`, distinct from the commodity/currency "ETF Proxies" naming since nobody buys "the 10-year yield" directly — the match is by maturity band, not asset identity): 13-week yield → SGOV/BIL (0-3mo bills); 5-year yield + 5yr future → IEI (3-7Y, added to fill the SHY↔IEF duration gap); 10-year yield + 10yr future → IEF; 30-year yield + 30yr future → TLT; 2yr future → SHY. General credit/inflation/aggregate funds (LQD/HYG/TIP/BND/AGG) stay overview-only since they don't map to a specific curve point |
+| Bonds & Rates | `/macro/rates`, `/[slug]` | 🟢 Live | `ratesCatalog.ts` — 4 CBOE yield indices + 4 CBOT futures. **The four YIELD entries no longer use the quote ladder (2026-09-03, D3):** they read the official treasury.gov par curve via `lib/data/ratesFromCurve.ts` — keyless, plain percent, and published **daily**, so surfaces label them as a daily reading with no intraday change. The probe that forced this (`npm run rates-providers`) found no free provider quotes `^IRX`/`^FVX`/`^TNX`/`^TYX`: FMP paywalls them (HTTP 402), Finnhub returns nothing, Twelve Data 404s the symbol, Alpha Vantage returns an empty quote, Tiingo has no index space. Only the FUTURES still hit `security-quotes`. Curve chart from `/live-data/treasury-yield-curve` = **official** treasury.gov 13-maturity daily par curve (keyless XML, regex-parsed, 4h revalidate) + 2s10s/3m10y spreads + shape. Overview-page bond ETF shelf → /funds. **CUSIP-level bond quotes are licensed data — intentionally absent, stated on-page.** The overview shelf gained international and municipal rows (items 11/13); municipal fund detail pages carry a **tax-equivalent-yield calculator** (`lib/utils/taxEquivalentYield.ts`, pure + 10 tests) — a muni's headline yield is not comparable to a taxable fund's, and TEY is the arithmetic that makes it so. Detail pages carry a per-instrument **"Duration-Matched Funds"** section (`etfProxies`, distinct from the commodity/currency "ETF Proxies" naming since nobody buys "the 10-year yield" directly — the match is by maturity band, not asset identity): 13-week yield → SGOV/BIL (0-3mo bills); 5-year yield + 5yr future → IEI (3-7Y, added to fill the SHY↔IEF duration gap); 10-year yield + 10yr future → IEF; 30-year yield + 30yr future → TLT; 2yr future → SHY. General credit/inflation/aggregate funds (LQD/HYG/TIP/BND/AGG) stay overview-only since they don't map to a specific curve point |
 | Macro Scanner | `/macro/scanner` | 🟢 Derived | The section's one scanner (items 6/7), moved off the TA page. RSI 14 / vs-SMA50 / composite over the **29 liquid** macro instruments; the 6 delisted-ETF commodities and 10 EM/cross FX pairs stay excluded and the exclusion is stated on-page |
 | Macro TA | `/macro/technical-analysis` | 🟢 Derived | Shared candlestick/indicator engine over all 45 macro instruments — **no new data route**, macro symbols ride the same `security-ohlcv` path as equities. ⚠ That path is keyed and its macro coverage is narrower since the Yahoo removal — many macro symbols simply aren't carried by the remaining providers, and unpriced renders a dash. Chart tab (grouped picker, 5 ranges, 6 chart types, 16 indicators, patterns) + Scanner tab (RSI 14 / vs-SMA50 / composite signal). **Scanner covers 29 of 45**: the 6 delisted-ETF commodities and the 10 EM/cross FX pairs are excluded because their series gap enough that a ranked RSI beside a liquid contract reads as comparable when it isn't — the exclusion is stated on-page and all 45 still chart. Levels go through `formatInstrumentQuote()`, so grains stay ¢/bu and yields stay % |
 
@@ -748,7 +777,7 @@ One module (`macro` entitlement), three areas. Owner spec + status: `docs/ROADMA
 | Feature | Route | Status | Source / Notes |
 |---------|-------|--------|----------------|
 | Fund Registry | `/funds` | 🟡 Key-gated | `fundCatalog.ts` + live quotes; 126 ETFs/mutual funds (8 added 2026-08-19 for items 11/13: BNDX/IAGG/BWX/EMB/VWOB international, MUB/VTEB/TFI municipal). Catalog carries provenance (`getFundDataProvenance()`, stale after 120d) rendered on detail pages — its expense ratios are computed on by `computeFeeDrag`, the builder's fee math, and `reviewPlan`'s fee-creep check |
-| Fund Detail | `/funds/[symbol]` | 🟢 Live | Live chart/news + fund facts; Fee Drag Analyzer, top holdings |
+| Fund Detail | `/funds/[symbol]` | 🟢 Live | Live chart/news + fund facts; Fee Drag Analyzer, top holdings. **The analyzer accounts for sales loads since 2026-09-03**: a verified rate enters the projection, an unverified one is disclosed in an amber panel that says plainly the figures understate the cost and links the prospectus. AGTHX is the live example — a Class A front-end load roughly DOUBLES its ten-year cost versus the 0.59% expense ratio alone, and none of it was shown before |
 
 ---
 

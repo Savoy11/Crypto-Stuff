@@ -34,6 +34,7 @@
     "gas-probe": "tsx scripts/probe-gas-rpcs.mjs",
     "rates-probe": "tsx scripts/probe-rates-scale.mjs",
     "rates-providers": "tsx scripts/probe-rates-providers.mjs",
+    "fund-fees": "node scripts/build-fund-fees.mjs",
     "fee-reconcile": "tsx scripts/reconcile-transfer-fees.ts",
     "fee-apply": "tsx scripts/apply-fee-updates.ts"
   },

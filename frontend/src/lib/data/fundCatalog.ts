@@ -175,11 +175,53 @@ export function fundRiskLevel(f: Pick<FundEntry, 'strategy' | 'indexTracked' | '
 
 // Issuer-level frequent-trading policies for mutual funds (public prospectus
 // policies — approximate summaries; check the fund's prospectus for specifics).
+/**
+ * Issuers whose mutual funds carry a sales charge, by share class structure.
+ *
+ * Existence only — no rates. The rate belongs on the individual fund, read from
+ * its prospectus and dated (see SalesCharge). This table exists so a fund is
+ * never silently treated as no-load just because nobody has filled in its
+ * number yet: the honest default for a load-bearing family is "a load applies,
+ * amount unverified", not "no load".
+ *
+ * Keyed on the `issuer` string used in FUND_CATALOG. Note that the catalog says
+ * 'Capital Group' where the funds are branded 'American Funds' — both are
+ * listed, because keying on the brand alone is exactly the bug this replaced:
+ * MUTUAL_FUND_POLICY had an 'American Funds' entry naming the front-end load,
+ * AGTHX is filed under issuer 'Capital Group', so the lookup missed and the
+ * only mention of that load in the whole app never rendered.
+ */
+const ISSUER_SALES_CHARGE: Record<string, SalesCharge['kind']> = {
+  'Capital Group': 'front',
+  'American Funds': 'front',
+}
+
+/**
+ * The sales charge for a fund, or null when it carries none.
+ *
+ * Fund-specific entry wins; otherwise a load-bearing issuer yields a charge
+ * with NO rate — deliberately, so callers must handle the unverified case
+ * rather than reading a missing number as zero.
+ */
+export function fundSalesCharge(
+  f: Pick<FundEntry, 'salesCharge' | 'type' | 'issuer'>
+): SalesCharge | null {
+  if (f.salesCharge) return f.salesCharge
+  if (f.type !== 'mutual') return null
+  const kind = ISSUER_SALES_CHARGE[f.issuer]
+  return kind ? { kind } : null
+}
+
 const MUTUAL_FUND_POLICY: Record<string, string> = {
   'Vanguard': 'Vanguard frequent-trading policy: after selling shares you cannot buy back into the same fund for 30 days (online purchases blocked).',
   'Fidelity': 'Fidelity excessive-trading policy: round trips within 30 days are flagged; repeated round trips lead to trading blocks.',
   'T. Rowe Price': 'T. Rowe Price frequent-trading policy: a 30-day purchase block applies after redeeming from the fund.',
+  // Keyed BOTH ways on purpose: the catalog files these funds under issuer
+  // 'Capital Group' while the funds are branded 'American Funds', so an
+  // 'American Funds'-only key silently missed AGTHX — the one fund here that
+  // actually carries the load this sentence describes.
   'American Funds': 'American Funds Class A shares carry a front-end sales load; frequent-trading purchases may be declined after a redemption.',
+  'Capital Group': 'American Funds (Capital Group) Class A shares carry a front-end sales load; frequent-trading purchases may be declined after a redemption.',
   'Dodge & Cox': 'Dodge & Cox monitors frequent trading; purchases may be declined after short-term round trips.',
   'PIMCO': 'PIMCO restricts excessive trading; short-term round trips may result in purchase blocks.',
 }
@@ -235,6 +277,42 @@ export interface FundEntry {
   strategy?: FundStrategy
   /** Fund-specific trading restriction / minimum-holding note (leveraged daily resets, redemption fees…). */
   tradingRestriction?: string
+  /**
+   * Sales charge (load), when the fund carries one. Absent = no load, which is
+   * true of every ETF and of the no-load mutual fund families here.
+   */
+  salesCharge?: SalesCharge
+}
+
+/**
+ * A sales charge on a fund purchase or redemption.
+ *
+ * WHY `maxPct` IS OPTIONAL — this is the whole point of the type.
+ *
+ * A load's EXISTENCE and its RATE are separately knowable, and conflating them
+ * is how a wrong number gets published. The repo rule is that a fee figure is
+ * never written from memory: it comes from the prospectus, dated. So a fund
+ * whose prospectus nobody has opened yet records `kind` (which the issuer's own
+ * documented share-class structure establishes) and leaves `maxPct` undefined.
+ *
+ * Undefined does NOT mean "no charge" — it means "a charge applies and we have
+ * not verified how much". The UI must say exactly that, because a projection
+ * that silently omits a load understates the cost of the decision, and one that
+ * guesses a rate is worse.
+ */
+export interface SalesCharge {
+  /**
+   * 'front'    — deducted from the purchase (Class A). Reduces what is invested.
+   * 'deferred' — charged on redemption within a holding period (Class B/C).
+   * 'level'    — an ongoing 12b-1 distribution fee (Class C).
+   */
+  kind: 'front' | 'deferred' | 'level'
+  /** Maximum charge in percent. UNDEFINED = applies, rate NOT verified. */
+  maxPct?: number
+  /** Where `maxPct` was read. Required whenever `maxPct` is set. */
+  source?: string
+  /** ISO date the rate was read from that source. Required with `maxPct`. */
+  verifiedAt?: string
 }
 
 const MEGA_CAP_HOLDINGS: FundHolding[] = [
@@ -434,16 +512,35 @@ export interface FeeDragPoint {
   feesPaid: number
 }
 
+/**
+ * Projected cost of a fund's fees against a 0.03% benchmark.
+ *
+ * `frontLoadPct` is a SALES CHARGE deducted at purchase, before anything is
+ * invested. It is not an annual fee and must not be modelled as one: a 5.75%
+ * front load on £10,000 means £9,425 starts compounding, and the gap it opens
+ * grows with the horizon rather than closing. Omitting it understates the cost
+ * of the decision by the largest single number on the page — which is why it is
+ * a parameter here rather than something the caller subtracts afterwards.
+ *
+ * It applies only to the fund side. The benchmark is a no-load index fund, so
+ * charging it a load would hide the very difference this comparison exists to
+ * show.
+ *
+ * Pass it only when the rate is VERIFIED (see SalesCharge.maxPct). An
+ * unverified load must be disclosed in words, never guessed into the maths.
+ */
 export function computeFeeDrag(
   principal: number,
   expenseRatioPct: number,
   years: number,
   annualReturnPct = 7,
   benchmarkErPct = 0.03,
+  frontLoadPct = 0,
 ): FeeDragPoint[] {
   const points: FeeDragPoint[] = []
   const grossGrowth = 1 + annualReturnPct / 100
-  let withFee = principal
+  // The load comes off the top: only the remainder is ever invested.
+  let withFee = principal * (1 - Math.max(0, frontLoadPct) / 100)
   let withBenchmark = principal
   for (let year = 1; year <= years; year++) {
     withFee = withFee * grossGrowth * (1 - expenseRatioPct / 100)
