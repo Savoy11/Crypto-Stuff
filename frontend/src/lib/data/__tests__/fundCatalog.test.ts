@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  computeFeeDrag, getFundDataProvenance, fundDataAgeDays, fundDataIsStale,
+  computeFeeDrag, fundSalesCharge, fundTradingRestriction, getFundDataProvenance, fundDataAgeDays, fundDataIsStale,
   FUND_DATA_LAST_VERIFIED, FUND_DATA_STALE_AFTER_DAYS, FUND_CATALOG,
 } from '../fundCatalog'
 
@@ -127,5 +127,127 @@ describe('fund data provenance', () => {
     // The whole point of the pattern: no test may depend on the wall clock.
     expect(getFundDataProvenance(daysAfter(500)).stale).toBe(true)
     expect(getFundDataProvenance(VERIFIED).stale).toBe(false)
+  })
+})
+
+// ─── Sales charges (loads) ────────────────────────────────────────────────────
+// A load is the largest single cost on a fund detail page and, until 2026-09-03,
+// the Fee Drag Analyzer modelled only the expense ratio. AGTHX showed a cost of
+// 0.59%/yr while a real Class A purchase loses several percent on day one.
+describe('fundSalesCharge', () => {
+  it('reports no charge for ETFs', () => {
+    expect(fundSalesCharge({ type: 'etf', issuer: 'Vanguard' })).toBeNull()
+    expect(fundSalesCharge({ type: 'etf', issuer: 'Capital Group' })).toBeNull()
+  })
+
+  it('reports no charge for no-load mutual fund families', () => {
+    expect(fundSalesCharge({ type: 'mutual', issuer: 'Vanguard' })).toBeNull()
+    expect(fundSalesCharge({ type: 'mutual', issuer: 'Fidelity' })).toBeNull()
+  })
+
+  it('reports a front load for Capital Group — the issuer string the catalog actually uses', () => {
+    // The regression this guards: MUTUAL_FUND_POLICY keyed only on 'American
+    // Funds' while AGTHX is filed under issuer 'Capital Group', so the app's
+    // only mention of this load never rendered.
+    expect(fundSalesCharge({ type: 'mutual', issuer: 'Capital Group' })).toEqual({ kind: 'front' })
+  })
+
+  it('reports the charge WITHOUT a rate when none has been verified', () => {
+    // Undefined maxPct means "applies, amount unverified" — never "no charge".
+    const c = fundSalesCharge({ type: 'mutual', issuer: 'Capital Group' })!
+    expect(c.kind).toBe('front')
+    expect(c.maxPct).toBeUndefined()
+  })
+
+  it('lets a fund-specific charge override the issuer default', () => {
+    const c = fundSalesCharge({
+      type: 'mutual',
+      issuer: 'Capital Group',
+      salesCharge: { kind: 'front', maxPct: 3.5, source: 'prospectus', verifiedAt: '2026-09-03' },
+    })
+    expect(c).toMatchObject({ kind: 'front', maxPct: 3.5 })
+  })
+})
+
+describe('the AGTHX catalog entry', () => {
+  it('is recognised as carrying a front-end load', () => {
+    const agthx = FUND_CATALOG.find((f) => f.symbol === 'AGTHX')!
+    expect(fundSalesCharge(agthx)).toMatchObject({ kind: 'front' })
+  })
+
+  it('mentions the load in its trading restriction text', () => {
+    const agthx = FUND_CATALOG.find((f) => f.symbol === 'AGTHX')!
+    expect(fundTradingRestriction(agthx)).toMatch(/sales load/i)
+  })
+
+  it('carries NO invented rate — the prospectus has not been read', () => {
+    // Guards the never-from-memory rule. If someone adds a rate they must also
+    // add source + verifiedAt, which the next test enforces catalog-wide.
+    const agthx = FUND_CATALOG.find((f) => f.symbol === 'AGTHX')!
+    expect(agthx.salesCharge?.maxPct).toBeUndefined()
+  })
+})
+
+describe('computeFeeDrag with a front load', () => {
+  it('defaults to no load, so every existing call is unchanged', () => {
+    expect(computeFeeDrag(10_000, 0.5, 10, 7, 0.03)).toEqual(computeFeeDrag(10_000, 0.5, 10, 7, 0.03, 0))
+  })
+
+  it('takes the load off the top — only the remainder compounds', () => {
+    // 5.75% of 10,000 = 575 deducted at purchase. Year 1 with a 0% return and a
+    // 0% ER must therefore be 9,425, not 10,000.
+    const [y1] = computeFeeDrag(10_000, 0, 1, 0, 0, 5.75)
+    expect(y1.withFee).toBe(9_425)
+  })
+
+  it('does NOT charge the load to the benchmark', () => {
+    // The benchmark is a no-load index fund. Charging it too would cancel out
+    // the difference the comparison exists to show.
+    const [y1] = computeFeeDrag(10_000, 0, 1, 0, 0, 5.75)
+    expect(y1.withBenchmarkFee).toBe(10_000)
+    expect(y1.feesPaid).toBe(575)
+  })
+
+  it('opens a gap that GROWS with the horizon, unlike a one-off charge', () => {
+    const s = computeFeeDrag(10_000, 0, 30, 7, 0, 5.75)
+    const y1 = s[0].feesPaid
+    const y30 = s[29].feesPaid
+    expect(y30).toBeGreaterThan(y1 * 5)
+  })
+
+  it('roughly DOUBLES the ten-year cost vs the expense ratio alone', () => {
+    // The reason this was worth fixing, stated as the arithmetic actually
+    // shows it: on £10,000 at 0.59% ER over 10 years, the ER costs ~£1,071 and
+    // a 5.75% load takes the total to ~£2,137. An earlier draft of this test
+    // asserted "more than double" and failed at 1.995× — the load nearly
+    // doubles the cost, which is claim enough without rounding it upward.
+    const erOnly = computeFeeDrag(10_000, 0.59, 10, 7, 0.03, 0).at(-1)!.feesPaid
+    const withLoad = computeFeeDrag(10_000, 0.59, 10, 7, 0.03, 5.75).at(-1)!.feesPaid
+    expect(withLoad / erOnly).toBeGreaterThan(1.9)
+    expect(withLoad - erOnly).toBeGreaterThan(1_000)
+  })
+
+  it('ignores a negative load rather than crediting the investor', () => {
+    const [y1] = computeFeeDrag(10_000, 0, 1, 0, 0, -5)
+    expect(y1.withFee).toBe(10_000)
+  })
+})
+
+describe('catalog-wide sales-charge provenance', () => {
+  it('every stated rate carries a source and a verification date', () => {
+    // The never-from-memory rule, enforced. A rate with no provenance is
+    // indistinguishable from a guess.
+    for (const f of FUND_CATALOG) {
+      if (f.salesCharge?.maxPct != null) {
+        expect(f.salesCharge.source, `${f.symbol} states a load with no source`).toBeTruthy()
+        expect(f.salesCharge.verifiedAt, `${f.symbol} states a load with no verifiedAt`).toBeTruthy()
+      }
+    }
+  })
+
+  it('no ETF claims a sales charge', () => {
+    for (const f of FUND_CATALOG) {
+      if (f.type === 'etf') expect(f.salesCharge, `${f.symbol}`).toBeUndefined()
+    }
   })
 })
