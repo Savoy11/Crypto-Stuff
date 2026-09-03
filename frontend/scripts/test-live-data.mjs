@@ -201,11 +201,15 @@ const tests = [
     return `${j.assets.length} stablecoins`
   }},
 
-  { group: 'crypto/market', path: '/live-data/risk-scores', name: 'risk-scores', check: (j) => {
-    if (!j.ok) throw new Error(j.error ?? 'not ok')
-    const sc = j.stablecoins ?? []
-    if (sc.length === 0) throw new Error('no stablecoin scores')
-    return `${sc.length} stablecoin composites`
+  // /live-data/risk-scores was REMOVED on 2026-08-29 (RP-6): the owner's position
+  // is that publishing a per-coin risk figure may read as a recommendation, a
+  // regulated activity. A 404 is the correct answer, so assert the removal
+  // rather than reporting it as a failure — an audit that cries wolf on
+  // intended behaviour trains the reader to skim its FAILURES block.
+  // If this ever returns 200, the route came back and that IS a finding.
+  { group: 'crypto/market', path: '/live-data/risk-scores', name: 'risk-scores (withdrawn RP-6)', check: (j, s) => {
+    if (s === 404) return 'correctly gone — removed 2026-08-29 (RP-6)'
+    throw new Error(`expected 404 (route was removed); got ${s} — has the route been reinstated?`)
   }},
 
   { group: 'crypto/market', path: '/live-data/alerts', name: 'alerts', check: (j) => {
@@ -308,9 +312,18 @@ const tests = [
 
   { group: 'crypto/portfolio', path: '/live-data/portfolio-history?ids=bitcoin&date=2026-06-01', name: 'portfolio-history', check: (j) => {
     const n = Object.keys(j.prices ?? {}).length
-    if (j.source === 'error' || n === 0) throw new Error(`no historical prices (source=${j.source})`)
-    if (j.source === 'partial') return fallback(`partial history, ${n} priced`)
-    return `${n} coin priced on ${j.date} (source=${j.source})`
+    const priced = Object.values(j.prices ?? {}).filter((v) => v != null).length
+    if (j.source === 'error' || priced === 0) {
+      // Report WHY. A provider rate limit and a genuinely missing date are
+      // different problems, and the 2026-09-03 audit could not tell them apart
+      // — it printed "no historical prices (source=error)" during a CoinGecko
+      // 429, which reads as a data gap.
+      if (j.reason === 'upstream') throw new Error(`upstream refused — ${j.detail ?? 'no detail'} (transient: re-run)`)
+      if (j.reason === 'no-data') throw new Error(`provider has no price for that date — ${j.detail ?? ''}`)
+      throw new Error(`no historical prices (source=${j.source})`)
+    }
+    if (j.source === 'partial') return fallback(`partial history, ${priced}/${n} priced — ${j.detail ?? ''}`)
+    return `${priced} coin priced on ${j.date} (source=${j.source})`
   }},
 
   // Params are required; a missing-param request must be rejected, not answered
@@ -355,10 +368,14 @@ const tests = [
     return `balance=${j.balance} XRP`
   }},
 
-  { group: 'crypto/wallet', path: '/live-data/wallet/exchange-connections', name: 'wallet exchange-connections', check: (j) => {
-    if (!j.ok) throw new Error(j.error ?? 'not ok')
-    const n = (j.connections ?? []).length
-    return n === 0 ? empty('0 exchange connections configured') : `${n} connections`
+  // Exchange API-key linking was REMOVED on 2026-08-18 (RP-5) on security
+  // grounds: it stored an apiKey + apiSecret in plaintext at rest, the
+  // highest-value secret the app held. A 404 is the correct answer. A 200 here
+  // would mean key custody has been reintroduced — which is exactly the thing
+  // an audit should shout about, so that case fails loudly.
+  { group: 'crypto/wallet', path: '/live-data/wallet/exchange-connections', name: 'wallet exchange-connections (withdrawn RP-5)', check: (j, s) => {
+    if (s === 404) return 'correctly gone — exchange key custody removed 2026-08-18 (RP-5)'
+    throw new Error(`expected 404; got ${s} — has exchange key custody been reintroduced?`)
   }},
 
   // ── Pump report ─────────────────────────────────────────────────────────────
@@ -685,15 +702,24 @@ const tests = [
     return `${arr.length} articles`
   }},
 
-  { group: 'api/v1', path: '/api/v1/transfer/routes?from=binance&to=coinbase&coin=usdt&amount=1000', name: 'v1 transfer routes', check: (j) => {
-    const arr = j.routes ?? []
-    if (!Array.isArray(arr)) throw new Error('no routes array')
-    return `${arr.length} routes`
+  // Transfer Fees was held out of the initial rollout on 2026-08-22 (owner), so
+  // this endpoint answers 503 by design and the matching MCP tool is commented
+  // out. Both checks assert the hold: the parameter-validation case can't be
+  // tested while the endpoint is withheld, because the 503 is returned before
+  // any parameter is looked at — pretending otherwise would test nothing.
+  //
+  // WHEN TRANSFER FEES IS RESTORED: revert both of these to the real
+  // assertions — routes array non-empty, and missing params → 400.
+  { group: 'api/v1', path: '/api/v1/transfer/routes?from=binance&to=coinbase&coin=usdt&amount=1000', name: 'v1 transfer routes (withheld)', check: (j, s) => {
+    if (s === 503) return 'correctly withheld — Transfer Fees held from rollout 2026-08-22'
+    if (s === 200 && Array.isArray(j?.routes)) throw new Error(`route is LIVE again (${j.routes.length} routes) — restore the real assertion in this harness`)
+    throw new Error(`expected 503 (withheld); got ${s}`)
   }},
 
-  { group: 'api/v1', path: '/api/v1/transfer/routes', name: 'v1 transfer (missing params → 400)', check: (j, s) => {
-    if (s !== 400) throw new Error(`expected 400, got ${s}`)
-    return 'correctly rejected'
+  { group: 'api/v1', path: '/api/v1/transfer/routes', name: 'v1 transfer (withheld before param check)', check: (j, s) => {
+    if (s === 503) return 'correctly withheld — 503 precedes parameter validation'
+    if (s === 400) throw new Error('400 means the endpoint is live again — restore the real assertion in this harness')
+    throw new Error(`expected 503 (withheld); got ${s}`)
   }},
 
   { group: 'api/v1', path: '/api/v1/openapi.json', name: 'v1 openapi', check: (j) => {
