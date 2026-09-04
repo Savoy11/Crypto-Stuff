@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { SourceLine } from '@/components/ui/SourceLine'
 import { STALE_TIME_LONG } from '@/lib/constants'
 import type { EarningsEvent, EconomicEvent, MarketCalendarResponse } from '@/app/live-data/market-calendar/route'
+import { IpoCalendarSection } from './IpoCalendarSection'
 
 // W3-6 (2026-08-20): "the calendar should look more like a calendar and allow
 // users to flip through the months." The list view became a month GRID with
@@ -95,13 +96,17 @@ function CalendarContent() {
         <CalendarDays className="h-6 w-6 text-accent-blue" aria-hidden />
         <PageHeader
           title="Market Calendar"
-          subtitle="Earnings and high-impact US economic events, by month"
+          subtitle="Earnings, IPOs, and high-impact US economic events"
           description="A month grid of earnings dates for tracked and notable stocks, plus medium/high-impact US economic releases. Click a day for its full list; flip months with the arrows."
           details={[{ label: 'Data source', text: 'Financial Modeling Prep. Earnings works on a free key; the economic-events calendar is a paid FMP endpoint and stays empty on the free tier.' }]}
         />
       </div>
 
       <SourceLine id="market-calendar" />
+
+      {/* Outside the FMP gate on purpose — IPOs come from Alpha Vantage, so
+          someone with that key but no FMP key still sees them. */}
+      <IpoCalendarSection />
 
       {isLoading ? (
         <div className="h-96 animate-shimmer bg-shimmer-gradient bg-[length:200%_100%] rounded-card" />
