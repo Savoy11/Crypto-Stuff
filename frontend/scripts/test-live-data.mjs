@@ -73,6 +73,12 @@ async function getJson(path) {
 }
 
 // A test = { path, name, group, quick?, expectStatus?, check(json,status,headers) }
+//
+// expectStatus — the HTTP status (or array of them) this route is SUPPOSED to
+// answer with. Set it whenever the correct answer is not 2xx: a withdrawn route
+// that must 404, an endpoint held from the rollout that must 503. Without it the
+// runner treats any 4xx/5xx as a failure before check() is called, so an
+// assertion about a deliberate error status can never be reached.
 // check() returns: a string (REAL + detail) | { verdict, detail } | throws (FAIL).
 const tests = [
   // ── Crypto market data ──────────────────────────────────────────────────────
@@ -207,7 +213,7 @@ const tests = [
   // rather than reporting it as a failure — an audit that cries wolf on
   // intended behaviour trains the reader to skim its FAILURES block.
   // If this ever returns 200, the route came back and that IS a finding.
-  { group: 'crypto/market', path: '/live-data/risk-scores', name: 'risk-scores (withdrawn RP-6)', check: (j, s) => {
+  { group: 'crypto/market', path: '/live-data/risk-scores', name: 'risk-scores (withdrawn RP-6)', expectStatus: 404, check: (j, s) => {
     if (s === 404) return 'correctly gone — removed 2026-08-29 (RP-6)'
     throw new Error(`expected 404 (route was removed); got ${s} — has the route been reinstated?`)
   }},
@@ -373,7 +379,7 @@ const tests = [
   // highest-value secret the app held. A 404 is the correct answer. A 200 here
   // would mean key custody has been reintroduced — which is exactly the thing
   // an audit should shout about, so that case fails loudly.
-  { group: 'crypto/wallet', path: '/live-data/wallet/exchange-connections', name: 'wallet exchange-connections (withdrawn RP-5)', check: (j, s) => {
+  { group: 'crypto/wallet', path: '/live-data/wallet/exchange-connections', name: 'wallet exchange-connections (withdrawn RP-5)', expectStatus: 404, check: (j, s) => {
     if (s === 404) return 'correctly gone — exchange key custody removed 2026-08-18 (RP-5)'
     throw new Error(`expected 404; got ${s} — has exchange key custody been reintroduced?`)
   }},
@@ -710,13 +716,13 @@ const tests = [
   //
   // WHEN TRANSFER FEES IS RESTORED: revert both of these to the real
   // assertions — routes array non-empty, and missing params → 400.
-  { group: 'api/v1', path: '/api/v1/transfer/routes?from=binance&to=coinbase&coin=usdt&amount=1000', name: 'v1 transfer routes (withheld)', check: (j, s) => {
+  { group: 'api/v1', path: '/api/v1/transfer/routes?from=binance&to=coinbase&coin=usdt&amount=1000', name: 'v1 transfer routes (withheld)', expectStatus: 503, check: (j, s) => {
     if (s === 503) return 'correctly withheld — Transfer Fees held from rollout 2026-08-22'
     if (s === 200 && Array.isArray(j?.routes)) throw new Error(`route is LIVE again (${j.routes.length} routes) — restore the real assertion in this harness`)
     throw new Error(`expected 503 (withheld); got ${s}`)
   }},
 
-  { group: 'api/v1', path: '/api/v1/transfer/routes', name: 'v1 transfer (withheld before param check)', check: (j, s) => {
+  { group: 'api/v1', path: '/api/v1/transfer/routes', name: 'v1 transfer (withheld before param check)', expectStatus: 503, check: (j, s) => {
     if (s === 503) return 'correctly withheld — 503 precedes parameter validation'
     if (s === 400) throw new Error('400 means the endpoint is live again — restore the real assertion in this harness')
     throw new Error(`expected 503 (withheld); got ${s}`)
@@ -801,14 +807,37 @@ const run = async () => {
   for (const t of selected) {
     try {
       const { status, json, headers, ms } = await getJson(t.path)
-      const expectsError = /→ 4\d\d/.test(t.name)
-      if (json === null && status >= 400 && !expectsError) {
-        results.push({ ...t, verdict: FAIL, detail: `HTTP ${status}, non-JSON body`, ms })
-        continue
-      }
-      if (status >= 500) {
-        results.push({ ...t, verdict: FAIL, detail: `HTTP ${status}: ${json?.error ?? 'server error'}`, ms })
-        continue
+
+      // A test may DECLARE the status it expects. Without this the runner
+      // decided what counted as an error by pattern-matching the test's display
+      // NAME (/→ 4\d\d/), so a check asserting a deliberate 404 or 503 could
+      // never run: the gates below rejected it first and the assertion was
+      // unreachable. That is exactly how the four withdrawn-route checks kept
+      // reporting FAIL on 2026-09-03 after being rewritten to assert the
+      // removal. Intent belongs in a field, not in a string a human might edit.
+      const expected = t.expectStatus == null
+        ? null
+        : (Array.isArray(t.expectStatus) ? t.expectStatus : [t.expectStatus])
+      if (expected) {
+        if (!expected.includes(status)) {
+          results.push({
+            ...t, verdict: FAIL, ms,
+            detail: `expected HTTP ${expected.join(' or ')}, got ${status}${json?.error ? `: ${json.error}` : ''}`,
+          })
+          continue
+        }
+        // Expected status reached — hand it to check(), which decides the verdict.
+        // json is null for an HTML error body, so check() gets {} and reads `status`.
+      } else {
+        const expectsError = /→ 4\d\d/.test(t.name)
+        if (json === null && status >= 400 && !expectsError) {
+          results.push({ ...t, verdict: FAIL, detail: `HTTP ${status}, non-JSON body`, ms })
+          continue
+        }
+        if (status >= 500) {
+          results.push({ ...t, verdict: FAIL, detail: `HTTP ${status}: ${json?.error ?? 'server error'}`, ms })
+          continue
+        }
       }
       const r = t.check(json ?? {}, status, headers)
       if (typeof r === 'object' && r?.verdict) {

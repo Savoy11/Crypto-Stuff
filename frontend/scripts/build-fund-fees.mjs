@@ -53,13 +53,32 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const OUT_JSON = path.join(ROOT, 'fund-fee-reconcile.json')
 const OUT_CSV = path.join(ROOT, 'fund-fee-worksheet.csv')
 
-// SEC's index page for the Risk/Return Summary data sets.
-const INDEX_URL = 'https://www.sec.gov/data-research/sec-markets-data/mutual-fund-prospectus-risk-return-summary-data-sets'
+// SEC index pages for the Risk/Return Summary data sets.
+//
+// A LIST, not a constant, because the single URL this started with answered 404
+// on the first real run (2026-09-03). sec.gov has reorganised its data-research
+// section more than once, and hard-coding one path makes the whole script
+// useless the next time it moves. Each candidate is tried in order and the one
+// that answers is reported, so a future 404 says which paths were tried rather
+// than just failing.
+//
+// Override with RR_INDEX_URL=<url> when none of these work — that is faster
+// than editing the script, and the error below tells the reader to do it.
+const INDEX_URLS = process.env.RR_INDEX_URL ? [process.env.RR_INDEX_URL] : [
+  'https://www.sec.gov/dera/data/mutual-fund-prospectus-risk-return-summary-data-sets',
+  'https://www.sec.gov/data-research/mutual-fund-prospectus-risk-return-summary-data-sets',
+  'https://www.sec.gov/data-research/sec-markets-data/mutual-fund-prospectus-risk-return-summary-data-sets',
+  'https://www.sec.gov/about/dera-mutual-fund-prospectus-risk-return-summary-data-sets',
+  'https://www.sec.gov/dera/data/mutual-fund-prospectus-risk-return-summary-data-sets.html',
+]
 // EDGAR requires a descriptive UA identifying the requester — same string the
 // app's edgar.ts sends.
 const UA = { 'User-Agent': 'Finance Now research dashboard (marcusowens94@gmail.com)' }
 
 const log = (...a) => console.log(...a)
+
+/** Which index page actually answered — recorded so the report names its source. */
+let resolvedIndexUrl = null
 
 /**
  * XBRL element names for the numbers we want, most-specific first.
@@ -95,9 +114,37 @@ const TAG_CANDIDATES = {
 }
 
 async function newestDatasetUrl() {
-  const res = await fetch(INDEX_URL, { headers: UA })
-  if (!res.ok) throw new Error(`dataset index: HTTP ${res.status}`)
-  const html = await res.text()
+  let html = null
+  let usedIndex = null
+  const tried = []
+  for (const url of INDEX_URLS) {
+    try {
+      const res = await fetch(url, { headers: UA })
+      tried.push(`${url} → HTTP ${res.status}`)
+      if (!res.ok) continue
+      const body = await res.text()
+      // A 200 that carries no archive link is the wrong page, not the right one
+      // with no data — keep looking rather than reporting "no datasets found".
+      if (!/_rr\.zip/i.test(body)) continue
+      html = body
+      usedIndex = url
+      resolvedIndexUrl = url
+      break
+    } catch (err) {
+      tried.push(`${url} → ${err?.message ?? err}`)
+    }
+  }
+  if (!html) {
+    throw new Error(
+      'could not find the RR dataset index. Tried:\n' +
+      tried.map((t) => `    ${t}`).join('\n') +
+      '\n\n  sec.gov reorganises this section periodically. Find the current page' +
+      '\n  (search sec.gov for "Mutual Fund Prospectus Risk/Return Summary Data Sets"),' +
+      '\n  then re-run with:  RR_INDEX_URL=<url> npm run fund-fees' +
+      '\n  and add it to INDEX_URLS so the next person does not repeat this.'
+    )
+  }
+  log(`index: ${usedIndex}`)
   // Archives are named like 2026q2_rr.zip. Sorted descending so the newest wins
   // regardless of the page's own ordering.
   const links = [...html.matchAll(/href="([^"]*(\d{4})q(\d)_rr\.zip)"/gi)]
@@ -105,7 +152,7 @@ async function newestDatasetUrl() {
     .sort((a, b) => b.key.localeCompare(a.key))
   if (links.length === 0) {
     throw new Error(
-      `no RR dataset links found on ${INDEX_URL}\n` +
+      `no RR dataset links found on ${usedIndex}\n` +
       '  The page layout or archive naming may have changed. Open it and check ' +
       'the filename pattern before assuming the data is gone.'
     )
@@ -414,7 +461,7 @@ async function main() {
 
   fs.writeFileSync(OUT_JSON, JSON.stringify({
     generatedAt: new Date().toISOString(),
-    source: INDEX_URL,
+    source: resolvedIndexUrl,
     resolvedTags: resolvedTag,
     unit: { basis: unit.basis, medianErrorPct: Number(unit.err.toFixed(4)), alternativeErrorPct: Number(unit.other.toFixed(4)) },
     counts: {

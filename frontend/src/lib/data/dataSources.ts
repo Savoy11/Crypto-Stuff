@@ -322,6 +322,12 @@ export const DATA_SOURCES: DataSourceEntry[] = [
     notes: 'Sector z-scores over whatever universe stock-universe returns — inherits its narrowness on the catalog fallback.',
   },
   {
+    id: 'ipo-calendar', surface: 'IPO calendar', module: 'equities',
+    route: '/live-data/ipo-calendar', status: 'key-gated',
+    providers: [{ name: 'Alpha Vantage', host: 'www.alphavantage.co', url: 'https://www.alphavantage.co/documentation/', role: 'primary', auth: 'key' }],
+    notes: 'IPO_CALENDAR is on Alpha Vantage’s free tier — the only free source publishing forward listing DATES (SEC S-1 filings show intent, not timing). Reports configured:false without a key. Its 25 requests/day is a terms CONDITION, so the route caches 6h. Price ranges arrive as 0 when the issuer has not set one and are rendered as “not set”, never $0.',
+  },
+  {
     id: 'market-calendar', surface: 'Market calendar (earnings / econ)', module: 'equities',
     route: '/live-data/market-calendar', status: 'key-gated',
     providers: [{ name: 'FMP', host: 'financialmodelingprep.com', role: 'primary', auth: 'key' }],
