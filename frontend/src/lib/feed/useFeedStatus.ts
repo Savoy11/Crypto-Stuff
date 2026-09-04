@@ -19,6 +19,15 @@ interface Tally {
   ok: number
   failed: number
   pending: number
+  /**
+   * Newest dataUpdatedAt (ms epoch) across observed successful queries, or
+   * null before anything has loaded. This is the honest "Updated" value for
+   * the status bar: the moment data actually arrived, not a wall clock. The
+   * 2026-07-30 findings caught the bar ticking a setInterval clock beside a
+   * hardcoded market status — a timestamp that advances every second asserts
+   * freshness the feeds may not have.
+   */
+  latestDataAt: number | null
 }
 
 /**
@@ -27,8 +36,8 @@ interface Tally {
  * (10m) after unmount, and counting those would let a page the user left
  * minutes ago hold the indicator red.
  */
-function tally(client: QueryClient): Tally {
-  const t: Tally = { ok: 0, failed: 0, pending: 0 }
+export function tally(client: QueryClient): Tally {
+  const t: Tally = { ok: 0, failed: 0, pending: 0, latestDataAt: null }
 
   for (const query of client.getQueryCache().getAll()) {
     if (query.getObserversCount() === 0) continue
@@ -39,6 +48,9 @@ function tally(client: QueryClient): Tally {
         break
       case 'success':
         t.ok++
+        if (query.state.dataUpdatedAt > (t.latestDataAt ?? 0)) {
+          t.latestDataAt = query.state.dataUpdatedAt
+        }
         break
       default:
         t.pending++
@@ -48,7 +60,7 @@ function tally(client: QueryClient): Tally {
   return t
 }
 
-export function deriveFeedStatus({ ok, failed, pending }: Tally): FeedStatus {
+export function deriveFeedStatus({ ok, failed, pending }: Pick<Tally, 'ok' | 'failed' | 'pending'>): FeedStatus {
   if (failed > 0) return ok > 0 ? 'degraded' : 'offline'
   if (ok > 0) return 'live'
   if (pending > 0) return 'connecting'
@@ -75,6 +87,7 @@ export function useFeedStatus() {
         status: deriveFeedStatus(t),
         okCount: t.ok,
         failedCount: t.failed,
+        lastDataAt: t.latestDataAt,
       })
     }
 

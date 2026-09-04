@@ -228,6 +228,18 @@ rather than Wilder's.
 
 ## Deliberately NOT added yet (candidates for next session)
 
+> **⚠ MOSTLY OVERTAKEN — three of four shipped since this was written (annotated
+> 2026-09-04).** Live fundamentals: `/live-data/company-facts` serves SEC XBRL
+> ratios and trends. v1 + MCP equity coverage: `/api/v1/securities/quotes`,
+> `/api/v1/securities/history`, and the `get_security_quotes`/`get_security_history`
+> MCP tools exist. Watchlist/portfolio integration: both are cross-module and
+> DB-backed through the instrument layer. The one still genuinely open is the
+> **registry screener metrics** (YTD % / 52-week % columns), and it is now harder
+> than written: post-Yahoo, `security-returns` is keyed, capped at 60 symbols,
+> and refuses whole-universe requests on purpose — a returns column over the
+> visible page is fine, a screener over the universe is not (see CLAUDE.md's
+> Yahoo-removal table). Kept for the history of what the session chose not to do.
+
 - **Live fundamentals** (P/E, market cap, dividend yield from a feed) — the
   catalogs carry labelled reference values; a free FMP key upgrades market cap
   via the quote ladder today. A fundamentals route is the natural next step.

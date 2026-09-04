@@ -48,6 +48,17 @@ problem (T1-class), not a wiring bug — check DefiLlama/CoinGecko/news egress.
 
 ## Remaining Phase 2 sub-items (not yet done — finish with the live check)
 
+> **⚠ OVERTAKEN BY EVENTS — do not work these boxes (annotated 2026-09-04).**
+> Every component below was DELETED, not finished: the 2026-08-18 item-4 ranking
+> cut removed `RiskHeatmap` and the score columns, and RP-6 (2026-08-29) removed
+> per-coin risk publication entirely — `RiskScoreBadge`, `useRiskScoreIndex`,
+> `/live-data/risk-scores` and the `Asset.riskScore`/`riskBand` fields are gone,
+> guarded by `lib/risk/__tests__/riskScoringRemoved.test.ts`. The DATA-AVAILABILITY
+> flip in the last box is moot for the same reason. The checkboxes are left
+> unticked because the work was never done; this note exists so nobody reads
+> unticked boxes as a to-do list and rebuilds what RP-6 removed. The "Later R2
+> phases" section below is likewise dead where it assumes published scores.
+
 These were deferred because they can't be meaningfully verified without live data
 and/or need a full-component read:
 
