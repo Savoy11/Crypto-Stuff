@@ -5,7 +5,7 @@ change the registry and regenerate. This is the "where does the data come from" 
 `DATA-AVAILABILITY.md` (which tracks whether each surface is live). The same registry powers the
 in-app **/data-sources** page and the per-page provenance badges, so the app and the docs never diverge._
 
-_Last generated: **2026-08-30**_
+_Last generated: **2026-09-04**_
 
 ## Legend
 
@@ -78,6 +78,7 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 | Company profile | Live | [SEC EDGAR](https://www.sec.gov/edgar) `data.sec.gov`<br>Wikipedia `en.wikipedia.org` | — | `/live-data/company-profile` |
 | Stock Registry universe | Partial | FMP company-screener `financialmodelingprep.com` _(paid)_<br>Curated catalog<br>[SEC XBRL frames (P/E backfill)](https://www.sec.gov/edgar) `data.sec.gov` | — | `/live-data/stock-universe` |
 | Equity screener / outliers | Partial | Derived from stock-universe | — | `/live-data/stock-outliers` |
+| IPO calendar | Key-gated | [Alpha Vantage](https://www.alphavantage.co/documentation/) `www.alphavantage.co` _(key)_ | — | `/live-data/ipo-calendar` |
 | Market calendar (earnings / econ) | Key-gated | FMP `financialmodelingprep.com` _(key)_ | — | `/live-data/market-calendar` |
 | Trade Risk Scorer (options) | Derived | Finance Now risk engine (lib/risk/profiles/optionsTrade.ts)<br>User-entered option quotes (from their broker chain)<br>[FMP](https://site.financialmodelingprep.com/developer/docs) `financialmodelingprep.com` _(key)_ | on demand | `/api/v1/options/score` |
 
@@ -89,6 +90,7 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 - **Company fundamentals / ratios** — AAPL rev/net-margin sanity-checked against reported figures.
 - **Stock Registry universe** — FMP screener is PAID-only; without a key the registry falls back to ~79 curated names. P/E backfilled from SEC XBRL frames on the FMP path only. Reference/fallback data: `lib/data/equityCatalog.ts (~79 names)`.
 - **Equity screener / outliers** — Sector z-scores over whatever universe stock-universe returns — inherits its narrowness on the catalog fallback.
+- **IPO calendar** — IPO_CALENDAR is on Alpha Vantage’s free tier — the only free source publishing forward listing DATES (SEC S-1 filings show intent, not timing). Reports configured:false without a key. Its 25 requests/day is a terms CONDITION, so the route caches 6h. Price ranges arrive as 0 when the issuer has not set one and are rendered as “not set”, never $0.
 - **Market calendar (earnings / econ)** — Earnings needs a free FMP key; economic calendar needs a paid one. Reports configured:false without one.
 - **Trade Risk Scorer (options)** — Every option-level figure is entered by the user — Finance Now carries NO options chain, because no source it may use publishes one (Cboe’s terms prohibit auto-extraction; Yahoo’s options endpoint required auth and Yahoo is now blocked outright on terms grounds). See docs/assessments/P2-O1-options-data.md. Only the underlying price is fetched, through the shared quote ladder, which is keyed. The score itself is this app’s computation, not any provider’s figure.
 
@@ -143,4 +145,4 @@ Provider tags: `key` = needs an API key · `paid` = needs a paid plan · untagge
 
 ---
 
-_51 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._
+_52 surfaces catalogued. Regenerate with `npm run data-sources`; verify against the route code with `npm run data-sources -- --verify`._
