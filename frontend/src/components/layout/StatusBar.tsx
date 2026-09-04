@@ -1,6 +1,5 @@
 'use client'
 
-import { useState, useEffect } from 'react'
 import { useFeedStore } from '@/store/useFeedStore'
 import { useAlertStore } from '@/store/useAlertStore'
 import { clsx } from 'clsx'
@@ -10,14 +9,8 @@ import { APP_VERSION } from '@/lib/constants'
 export function StatusBar() {
   const feedStatus = useFeedStore((s) => s.status)
   const failedCount = useFeedStore((s) => s.failedCount)
+  const lastDataAt = useFeedStore((s) => s.lastDataAt)
   const { unreadCount, alerts } = useAlertStore()
-  const [time, setTime] = useState<string | null>(null)
-
-  useEffect(() => {
-    setTime(formatDate(new Date(), 'HH:mm:ss'))
-    const id = setInterval(() => setTime(formatDate(new Date(), 'HH:mm:ss')), 1000)
-    return () => clearInterval(id)
-  }, [])
 
   const criticalCount = alerts.filter((a) => a.severity === 'critical' && !a.isRead).length
   const highCount = alerts.filter((a) => a.severity === 'high' && !a.isRead).length
@@ -45,15 +38,25 @@ export function StatusBar() {
       role="status"
       aria-label="System status"
     >
-      {/* Left — secondary details drop out at smaller widths so items never overlap */}
+      {/* Left — secondary details drop out at smaller widths so items never overlap.
+          Two fabrications used to live here, both caught by the 2026-07-30
+          findings and removed 2026-09-04:
+          - "Market Status: OPEN" was a green string literal — no session state,
+            no exchange calendar. It is NOT replaced with a computed session,
+            because without a holiday calendar the computation shows OPEN on
+            Thanksgiving (the same lie on fewer days), and in a multi-asset
+            suite "the market" is not even one thing — crypto never closes.
+            No source, no claim.
+          - "Updated:" was a setInterval wall clock, asserting per-second
+            freshness the feeds may not have. It now renders lastDataAt — the
+            newest dataUpdatedAt across the queries this screen is actually
+            observing — so it only moves when data does. */}
       <div className="flex items-center gap-4 whitespace-nowrap">
-        <span className="hidden lg:inline">
-          Market Status:{' '}
-          <span className="text-accent-green">OPEN</span>
-        </span>
-        <span className="hidden lg:inline text-border">|</span>
         <span className="hidden md:inline">
-          Updated: <span className="text-text-secondary">{time ?? '—'}</span>
+          Updated:{' '}
+          <span className="text-text-secondary">
+            {lastDataAt != null ? formatDate(new Date(lastDataAt), 'HH:mm:ss') : '—'}
+          </span>
         </span>
         <span className="hidden md:inline text-border">|</span>
         <span className={statusColor}>Data: {statusText}</span>

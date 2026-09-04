@@ -31,6 +31,12 @@ interface FeedState {
   okCount: number
   /** Mounted queries currently in an error state. */
   failedCount: number
+  /**
+   * When data last actually arrived (newest dataUpdatedAt across mounted
+   * successful queries), ms epoch; null before anything has loaded. Drives the
+   * status bar's "Updated" value — a data timestamp, not a wall clock.
+   */
+  lastDataAt: number | null
 }
 
 interface FeedActions {
@@ -41,6 +47,7 @@ export const useFeedStore = create<FeedState & FeedActions>()((set) => ({
   status: 'connecting',
   okCount: 0,
   failedCount: 0,
+  lastDataAt: null,
 
   setFeedState: (next) =>
     set((prev) =>
@@ -49,7 +56,8 @@ export const useFeedStore = create<FeedState & FeedActions>()((set) => ({
       // several times a second on a busy page.
       prev.status === next.status &&
       prev.okCount === next.okCount &&
-      prev.failedCount === next.failedCount
+      prev.failedCount === next.failedCount &&
+      prev.lastDataAt === next.lastDataAt
         ? prev
         : next,
     ),
