@@ -145,6 +145,34 @@ function RangeField({ label, unit, range, onChange }: {
 
 // ─── Client ───────────────────────────────────────────────────────────────────
 
+/**
+ * Sortable column header. Module-level, not declared inside FundsClient: a
+ * component recreated on every render is a new component type each time, which
+ * resets any state below it and defeats reconciliation — the code-scanning
+ * finding on PR #147. The sort state it renders arrives as props instead of
+ * closure.
+ */
+function SortHeader({ label, colKey, sortKey, sortAsc, onToggle }: {
+  label: string
+  colKey: SortKey
+  sortKey: SortKey
+  sortAsc: boolean
+  onToggle: (key: SortKey) => void
+}) {
+  return (
+    <button
+      onClick={() => onToggle(colKey)}
+      className={clsx('flex items-center gap-1 text-xs font-medium uppercase tracking-wider transition-colors',
+        sortKey === colKey ? 'text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
+    >
+      {label}
+      {sortKey === colKey
+        ? (sortAsc ? <ArrowUp size={11} aria-hidden /> : <ArrowDown size={11} aria-hidden />)
+        : <ArrowUpDown size={11} className="opacity-40" aria-hidden />}
+    </button>
+  )
+}
+
 export function FundsClient() {
   const [type, setType] = useState<FundType | 'all'>('all')
   const [category, setCategory] = useState<FundCategoryId | 'all'>('all')
@@ -383,19 +411,6 @@ export function FundsClient() {
     [],
   )
   const returnsMissing = columnTab === 'returns' && pageReturnsData != null && pageReturnsData.source === 'none'
-
-  const SortHeader = ({ label, colKey }: { label: string; colKey: SortKey }) => (
-    <button
-      onClick={() => toggleSort(colKey)}
-      className={clsx('flex items-center gap-1 text-xs font-medium uppercase tracking-wider transition-colors',
-        sortKey === colKey ? 'text-accent-blue' : 'text-text-muted hover:text-text-secondary')}
-    >
-      {label}
-      {sortKey === colKey
-        ? (sortAsc ? <ArrowUp size={11} aria-hidden /> : <ArrowDown size={11} aria-hidden />)
-        : <ArrowUpDown size={11} className="opacity-40" aria-hidden />}
-    </button>
-  )
 
   const discovered = universeData?.discovered ?? 0
 
@@ -691,20 +706,20 @@ export function FundsClient() {
           {/* Table */}
           <div className="rounded-card border border-border bg-bg-card overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40">
-              <div className="col-span-4"><SortHeader label="Fund" colKey="symbol" /></div>
-              <div className="col-span-2"><SortHeader label="Category" colKey="category" /></div>
-              <div className="col-span-2 flex justify-end"><SortHeader label="Price / NAV" colKey="price" /></div>
+              <div className="col-span-4"><SortHeader label="Fund" colKey="symbol" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
+              <div className="col-span-2"><SortHeader label="Category" colKey="category" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
+              <div className="col-span-2 flex justify-end"><SortHeader label="Price / NAV" colKey="price" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
               {columnTab === 'overview' ? (
                 <>
                   <div className="col-span-1 flex justify-end"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">Chg %</span></div>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="AUM" colKey="aum" /></div>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="Yield" colKey="yield" /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="AUM" colKey="aum" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="Yield" colKey="yield" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
                 </>
               ) : columnTab === 'fees' ? (
                 <>
-                  <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
-                  <div className="col-span-2 flex justify-end"><SortHeader label={`Cost ${feeParams.years}yr`} colKey="feecost" /></div>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
+                  <div className="col-span-2 flex justify-end"><SortHeader label={`Cost ${feeParams.years}yr`} colKey="feecost" sortKey={sortKey} sortAsc={sortAsc} onToggle={toggleSort} /></div>
                   <div className="col-span-1 flex justify-end"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">End value</span></div>
                 </>
               ) : (
