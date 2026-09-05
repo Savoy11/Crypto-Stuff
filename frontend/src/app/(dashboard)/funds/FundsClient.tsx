@@ -10,8 +10,12 @@ import { SourceLine } from '@/components/ui/SourceLine'
 import { MetricCard } from '@/components/ui/MetricCard'
 import {
   FUND_CATALOG, FUND_CATEGORY_INFO, FUND_RISK_INFO, FUND_STRATEGY_INFO, fundTradingRestriction,
+  getFund,
   type FundCategoryId, type FundRiskLevel, type FundStrategy, type FundType,
 } from '@/lib/data/fundCatalog'
+import {
+  feeImpact, DEFAULT_FEE_IMPACT_PARAMS, FEE_IMPACT_BENCHMARK_ER_PCT, type FeeImpactParams,
+} from '@/lib/data/feeImpact'
 import { SECTOR_INFO } from '@/lib/data/equityCatalog'
 import { formatCompact, formatCurrency, formatPercent } from '@/lib/utils/format'
 import { STALE_TIME_SHORT } from '@/lib/constants'
@@ -20,8 +24,8 @@ import type { SecurityQuotesResponse } from '@/app/live-data/security-quotes/rou
 import type { SecurityReturnsResponse } from '@/app/live-data/security-returns/route'
 import type { DiscoveredFund, FundUniverseEntry, FundUniverseResponse } from '@/app/live-data/fund-universe/route'
 
-type SortKey = 'symbol' | 'category' | 'price' | 'expense' | 'aum' | 'yield' | 'm1' | 'm3' | 'ytd' | 'y1'
-type ColumnTab = 'overview' | 'returns'
+type SortKey = 'symbol' | 'category' | 'price' | 'expense' | 'aum' | 'yield' | 'feecost' | 'm1' | 'm3' | 'ytd' | 'y1'
+type ColumnTab = 'overview' | 'returns' | 'fees'
 type FundStyle = 'all' | 'index' | 'active'
 
 const PAGE_SIZE = 50
@@ -148,6 +152,9 @@ export function FundsClient() {
   const [sortKey, setSortKey] = useState<SortKey>('aum')
   const [sortAsc, setSortAsc] = useState(false)
   const [columnTab, setColumnTab] = useState<ColumnTab>('overview')
+  // Fee-impact assumptions (S6 item 3) — one set for the whole table, so every
+  // row is compared under identical conditions.
+  const [feeParams, setFeeParams] = useState<FeeImpactParams>(DEFAULT_FEE_IMPACT_PARAMS)
   const [page, setPage] = useState(0)
   // Screener filters (reference values; blank = no filter)
   const [issuer, setIssuer] = useState('all')
@@ -186,7 +193,7 @@ export function FundsClient() {
       if (p.strategy && (p.strategy === 'all' || p.strategy in FUND_STRATEGY_INFO)) setStrategy(p.strategy as FundStrategy | 'all')
       if (p.curated === '1') setCuratedOnly(true)
       if (p.q) setSearch(p.q)
-      if (p.sort && ['symbol', 'category', 'price', 'expense', 'aum', 'yield', 'm1', 'm3', 'ytd', 'y1'].includes(p.sort)) setSortKey(p.sort as SortKey)
+      if (p.sort && ['symbol', 'category', 'price', 'expense', 'aum', 'yield', 'feecost', 'm1', 'm3', 'ytd', 'y1'].includes(p.sort)) setSortKey(p.sort as SortKey)
       if (p.dir) setSortAsc(p.dir === 'asc')
       const rangePatch: Partial<Ranges> = {}
       for (const k of Object.keys(EMPTY_RANGES) as RangeKey[]) {
@@ -290,6 +297,10 @@ export function FundsClient() {
         (row.focusIndustry?.toLowerCase().includes(query) ?? false))
     )
     const dir = sortAsc ? 1 : -1
+    // Catalog rows resolve through getFund so a verified sales load reaches the
+    // maths; hydrated universe rows have no ER and correctly yield null.
+    const impactOf = (row: FundUniverseEntry) =>
+      feeImpact(getFund(row.symbol) ?? { expenseRatioPct: row.expenseRatioPct as number, type: row.type, issuer: row.issuer ?? '' }, feeParams)
     const value = (row: FundUniverseEntry): number | string => {
       switch (sortKey) {
         case 'symbol':   return row.symbol
@@ -297,6 +308,8 @@ export function FundsClient() {
         case 'price':    return row.referencePrice ?? -Infinity
         case 'expense':  return row.expenseRatioPct ?? (sortAsc ? Infinity : -Infinity)
         case 'yield':    return row.yieldPct ?? -Infinity
+        // Unknown fees must never sort as free — see feeImpact's null contract.
+        case 'feecost':  return impactOf(row)?.costUsd ?? (sortAsc ? Infinity : -Infinity)
         // Return keys fall through to AUM on purpose: sorting the universe by a
         // figure known only for the visible page would reorder nothing while
         // looking like it had. The headers are non-sortable to match.
@@ -310,7 +323,7 @@ export function FundsClient() {
       if (typeof va === 'string' && typeof vb === 'string') return va.localeCompare(vb) * dir
       return ((va as number) - (vb as number)) * dir
     })
-  }, [universe, type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc])
+  }, [universe, type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc, feeParams])
 
   // Reset to first page whenever the result set changes
   useEffect(() => { setPage(0) }, [type, category, industry, riskLevel, strategy, issuer, style, curatedOnly, ranges, search, sortKey, sortAsc])
@@ -628,7 +641,7 @@ export function FundsClient() {
           {/* Column set tabs + match count */}
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-0.5 bg-bg-elevated border border-border rounded p-0.5 w-fit">
-              {([['overview', 'Overview'], ['returns', 'Returns']] as Array<[ColumnTab, string]>).map(([value, label]) => (
+              {([['overview', 'Overview'], ['returns', 'Returns'], ['fees', 'Fee impact']] as Array<[ColumnTab, string]>).map(([value, label]) => (
                 <button
                   key={value}
                   onClick={() => setColumnTab(value)}
@@ -642,6 +655,39 @@ export function FundsClient() {
             <span className="text-[11px] text-text-muted">{filtered.length.toLocaleString()} match{filtered.length !== 1 ? 'es' : ''}</span>
           </div>
 
+          {/* Fee-impact assumptions — visible only with the fee columns, applied
+              identically to every row so the comparison is like-for-like. */}
+          {columnTab === 'fees' && (
+            <div className="flex flex-wrap items-center gap-3 rounded-card border border-border bg-bg-card px-3 py-2 text-[11px] text-text-muted">
+              <label className="flex items-center gap-1.5">
+                Investment $
+                <input
+                  type="number" min={100} step={1000} value={feeParams.principal}
+                  onChange={(e) => setFeeParams((p) => ({ ...p, principal: Math.max(100, Number(e.target.value) || 100) }))}
+                  className="w-24 rounded border border-border bg-bg-elevated px-1.5 py-0.5 font-mono text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+                />
+              </label>
+              <label className="flex items-center gap-1.5">
+                Horizon
+                <select
+                  value={feeParams.years}
+                  onChange={(e) => setFeeParams((p) => ({ ...p, years: Number(e.target.value) }))}
+                  className="rounded border border-border bg-bg-elevated px-1.5 py-0.5 font-mono text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+                >
+                  {[5, 10, 20, 30].map((y) => <option key={y} value={y}>{y} years</option>)}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5">
+                Return %
+                <input
+                  type="number" min={0} max={20} step={0.5} value={feeParams.annualReturnPct}
+                  onChange={(e) => setFeeParams((p) => ({ ...p, annualReturnPct: Math.min(20, Math.max(0, Number(e.target.value) || 0)) }))}
+                  className="w-16 rounded border border-border bg-bg-elevated px-1.5 py-0.5 font-mono text-xs text-text-primary focus:border-accent-blue/50 focus:outline-none"
+                />
+              </label>
+            </div>
+          )}
+
           {/* Table */}
           <div className="rounded-card border border-border bg-bg-card overflow-hidden">
             <div className="grid grid-cols-12 gap-2 px-4 py-2.5 border-b border-border bg-bg-elevated/40">
@@ -654,6 +700,12 @@ export function FundsClient() {
                   <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
                   <div className="col-span-1 flex justify-end"><SortHeader label="AUM" colKey="aum" /></div>
                   <div className="col-span-1 flex justify-end"><SortHeader label="Yield" colKey="yield" /></div>
+                </>
+              ) : columnTab === 'fees' ? (
+                <>
+                  <div className="col-span-1 flex justify-end"><SortHeader label="Expense" colKey="expense" /></div>
+                  <div className="col-span-2 flex justify-end"><SortHeader label={`Cost ${feeParams.years}yr`} colKey="feecost" /></div>
+                  <div className="col-span-1 flex justify-end"><span className="text-xs font-medium uppercase tracking-wider text-text-muted">End value</span></div>
                 </>
               ) : (
                 <>
@@ -767,7 +819,37 @@ export function FundsClient() {
                               {row.yieldPct != null ? `${row.yieldPct.toFixed(1)}%` : '—'}
                             </div>
                           </>
-                        ) : (
+                        ) : columnTab === 'fees' ? (() => {
+                          const impact = feeImpact(
+                            getFund(row.symbol) ?? { expenseRatioPct: row.expenseRatioPct as number, type: row.type, issuer: row.issuer ?? '' },
+                            feeParams,
+                          )
+                          const saving = impact != null && impact.costUsd < 0
+                          return (
+                            <>
+                              <div className={clsx('col-span-1 text-right font-mono tabular-nums text-xs',
+                                row.expenseRatioPct != null ? expenseColor(row.expenseRatioPct) : 'text-text-muted')}>
+                                {row.expenseRatioPct != null ? `${row.expenseRatioPct.toFixed(row.expenseRatioPct < 0.1 ? 3 : 2)}%` : '—'}
+                              </div>
+                              <div className={clsx('col-span-2 text-right font-mono tabular-nums text-xs',
+                                impact == null ? 'text-text-muted' : saving ? 'text-emerald-400' : impact.costUsd > feeParams.principal * 0.1 ? 'text-orange-400' : 'text-amber-400')}>
+                                {impact == null ? '—' : `${saving ? '+' : '−'}${formatCurrency(Math.abs(impact.costUsd), 0)}`}
+                                {/* An unverified sales load means the figure UNDERSTATES the
+                                    cost — flagged beside the number, never guessed into it.
+                                    Same rule as the detail-page analyzer. */}
+                                {impact?.unverifiedLoad && (
+                                  <span className="ml-1 text-[9px] text-amber-400/80 align-top" title="This fund carries a sales load whose rate is not verified — the true cost is higher than shown. See the fund page.">+load</span>
+                                )}
+                                {impact?.includesLoad && (
+                                  <span className="ml-1 text-[9px] text-text-muted align-top" title="Includes the fund's verified front-end sales load.">incl. load</span>
+                                )}
+                              </div>
+                              <div className="col-span-1 text-right font-mono tabular-nums text-xs text-text-secondary">
+                                {impact != null ? formatCurrency(impact.endValueUsd, 0) : '—'}
+                              </div>
+                            </>
+                          )
+                        })() : (
                           [displayReturns(row.symbol)?.m1, displayReturns(row.symbol)?.m3,
                            displayReturns(row.symbol)?.ytd, displayReturns(row.symbol)?.y1].map((r, i) => (
                             <div key={i} className={clsx('col-span-1 text-right font-mono tabular-nums text-xs',
@@ -816,6 +898,14 @@ export function FundsClient() {
               <p className="px-4 py-2 border-t border-border text-[11px] text-amber-400/80">
                 {pageReturnsData?.error
                   ?? 'Trailing returns unavailable — price-history source unreachable. Columns show — instead of stale values.'}
+              </p>
+            )}
+            {columnTab === 'fees' && (
+              <p className="px-4 py-2 border-t border-border text-[11px] text-text-muted">
+                Cost = compounded fees vs a {FEE_IMPACT_BENCHMARK_ER_PCT}% index-fund benchmark at your assumptions — the same
+                arithmetic as each fund page&rsquo;s Fee Drag Analyzer. + values are savings vs that benchmark. Funds marked
+                <span className="text-amber-400/80"> +load</span> carry a sales charge whose rate is not verified: their true
+                cost is higher than shown. Uncurated funds have no expense ratio on record and show — (unknown is not free).
               </p>
             )}
             {columnTab === 'returns' && !returnsMissing && (
